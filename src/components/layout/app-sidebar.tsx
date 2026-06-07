@@ -85,7 +85,7 @@ const adminItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { user, loading: authLoading } = useUser()
+  const { user } = useUser()
   const db = useFirestore()
 
   const profileRef = useMemo(() => {
@@ -93,7 +93,7 @@ export function AppSidebar() {
     return doc(db, 'users', user.uid)
   }, [db, user])
 
-  const { data: profile, loading: profileLoading } = useDoc(profileRef)
+  const { data: profile } = useDoc(profileRef)
   const isAdmin = profile && (profile as any).role === 'admin'
 
   return (
@@ -132,8 +132,8 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        {/* Only show admin section if user is an admin or we are loading */}
-        {(isAdmin || profileLoading) && (
+        {/* Only show admin section if user is strictly an admin */}
+        {isAdmin && (
           <SidebarGroup className="mt-auto">
             <SidebarGroupLabel className="px-6 text-xs uppercase tracking-widest text-muted-foreground/50">Management</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -147,11 +147,7 @@ export function AppSidebar() {
                       className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                     >
                       <Link href={item.url}>
-                        {profileLoading && item.title === 'Admin Panel' ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <item.icon className="h-5 w-5" />
-                        )}
+                        <item.icon className="h-5 w-5" />
                         <span className="font-medium">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
