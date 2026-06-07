@@ -22,6 +22,10 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
   const topicsQuery = useMemo(() => (!topicsRef ? null : query(topicsRef, orderBy('createdAt', 'desc'))), [topicsRef])
   const { data: topics, loading: topicsLoading } = useCollection(topicsQuery)
 
+  const pdfTopics = useMemo(() => {
+    return topics?.filter((t: any) => t.contentType === 'pdf') || []
+  }, [topics])
+
   if (subjectLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -49,34 +53,30 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
             <Link href="/notes" className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 hover:text-accent transition-colors">
               <ChevronRight className="h-3 w-3 rotate-180" /> Back to Library
             </Link>
-            <h1 className="text-5xl font-bold tracking-tighter capitalize">{(subject as any).name}</h1>
+            <h1 className="text-5xl font-bold tracking-tighter capitalize">{(subject as any).name} Notes</h1>
             <p className="text-muted-foreground text-lg leading-relaxed">
               {(subject as any).description || "Master the core concepts through high-quality illustrations and clinician-curated notes."}
             </p>
             <div className="flex items-center gap-6 pt-2">
               <div className="flex items-center gap-2">
                 <LayoutList className="h-4 w-4 text-accent" />
-                <span className="text-sm font-bold">{(subject as any).topicCount || 0} Topics</span>
+                <span className="text-sm font-bold">{pdfTopics.length} PDF Notes</span>
               </div>
             </div>
           </div>
           <div className="w-full md:w-64 space-y-3 glass-darker p-6 rounded-2xl border-white/5">
             <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              <span>Study Progress</span>
+              <span>Reading Progress</span>
               <span className="text-accent">0%</span>
             </div>
             <Progress value={0} className="h-2 bg-white/5" />
-            <p className="text-[10px] text-muted-foreground italic text-center">Start your first topic today!</p>
           </div>
         </div>
       </div>
 
       <div className="space-y-6">
         <div className="flex items-center justify-between px-2">
-          <h2 className="text-xl font-bold">Curriculum Topics</h2>
-          <Button variant="ghost" size="sm" className="text-muted-foreground gap-2">
-            <Share2 className="h-4 w-4" /> Share Subject
-          </Button>
+          <h2 className="text-xl font-bold">Study Notes</h2>
         </div>
 
         {topicsLoading ? (
@@ -85,7 +85,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         ) : (
           <div className="space-y-3">
-            {topics?.map((topic: any) => (
+            {pdfTopics.map((topic: any) => (
               <Link key={topic.id} href={`/notes/${subjectId}/${topic.id}`}>
                 <div className="glass group p-6 rounded-2xl border-white/5 hover:border-primary/50 transition-all flex items-center justify-between cursor-pointer mb-3">
                   <div className="flex items-center gap-6">
@@ -99,9 +99,6 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
                         <span className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold ${topic.importance === 'High' || topic.importance === 'Essential' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
                           {topic.importance}
                         </span>
-                        <span className="px-2 py-0.5 rounded bg-white/5 text-[10px] uppercase font-bold text-muted-foreground">
-                          {topic.contentType}
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -111,9 +108,9 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               </Link>
             ))}
-            {(!topics || topics.length === 0) && (
+            {pdfTopics.length === 0 && (
               <div className="text-center py-20 text-muted-foreground border-2 border-dashed border-white/5 rounded-3xl">
-                No topics uploaded for this subject yet.
+                No notes uploaded for this subject yet.
               </div>
             )}
           </div>
