@@ -19,7 +19,8 @@ import {
   ChevronRight,
   BookOpen,
   Layout,
-  UploadCloud
+  UploadCloud,
+  AlertTriangle
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -171,6 +172,29 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleClearQBank() {
+    if (!db || !activeSubject || !confirm(`CRITICAL: Are you sure you want to delete ALL ${subjectContent.questions.length} questions for ${activeSubject}? This cannot be undone.`)) return
+    
+    setLoadingContent(true)
+    try {
+      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+      const { error } = await supabase
+        .from('questions')
+        .delete()
+        .eq('subject_id', subjectId)
+      
+      if (error) throw error
+      
+      await updateDoc(doc(db, 'subjects', subjectId), { questionCount: 0 })
+      setSubjectContent(prev => ({ ...prev, questions: [] }))
+      toast({ title: "QBank Cleared", description: `All questions for ${activeSubject} have been permanently removed.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Clear Failed", description: e.message })
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
   // ADD HANDLERS
   async function handleAddTopic() {
     if (!db || !topicForm.subjectId || !topicForm.title || !topicForm.file) {
@@ -194,7 +218,6 @@ export default function AdminDashboard() {
       const subjectRef = doc(db, 'subjects', subjectId)
       const topicRef = doc(db, 'subjects', subjectId, 'topics', topicId)
 
-      // Ensure subject exists
       const sSnap = await getDocs(query(collection(db, 'subjects')))
       const subjectExists = sSnap.docs.some(d => d.id === subjectId)
 
@@ -299,11 +322,10 @@ export default function AdminDashboard() {
       const text = await qbankForm.file.text()
       const lines = text.split('\n').filter(line => line.trim().length > 0)
       
-      // Skip header: unit_number, unit_title, topic_title, question, option1, option2, option3, option4, correct_answer_index, explanation
       const questionsToInsert = []
       
       for (let i = 1; i < lines.length; i++) {
-        const columns = lines[i].split('\t') // Assuming tab separated based on user example
+        const columns = lines[i].split('\t') 
         if (columns.length < 9) continue
 
         questionsToInsert.push({
@@ -366,7 +388,6 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-8">
-        {/* Sidebar: Subject Selection */}
         <Card className="lg:col-span-1 glass border-none h-fit">
           <div className="p-4 border-b border-white/5 bg-white/5 rounded-t-xl">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -392,13 +413,9 @@ export default function AdminDashboard() {
                 <ChevronRight className={`h-4 w-4 transition-transform ${activeSubject === s.name ? 'rotate-90 text-primary' : 'opacity-10 group-hover:opacity-100'}`} />
               </button>
             ))}
-            {(!subjects || subjects.length === 0) && (
-              <div className="p-12 text-center text-xs text-muted-foreground italic">No subjects yet. Upload a note to start.</div>
-            )}
           </div>
         </Card>
 
-        {/* Main Content Area */}
         <div className="lg:col-span-3 space-y-6">
           {activeSubject ? (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
@@ -433,16 +450,12 @@ export default function AdminDashboard() {
                                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{t.unitName || 'General'}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <Badge variant="secondary" className="text-[9px] uppercase font-bold">{t.importance}</Badge>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteTopic(t)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteTopic(t)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </CardContent>
                         </Card>
                       ))}
-                      {subjectContent.topics.length === 0 && <div className="text-center py-24 glass rounded-3xl border-dashed border-2 border-white/5 text-muted-foreground">No notes found for this subject.</div>}
                     </TabsContent>
 
                     <TabsContent value="mindmaps" className="grid md:grid-cols-2 gap-4">
@@ -454,36 +467,42 @@ export default function AdminDashboard() {
                               <Button variant="destructive" size="sm" onClick={() => handleDeleteMindmap(mm)} className="rounded-xl"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                             </div>
                           </div>
-                          <CardContent className="p-4 flex items-center justify-between">
-                            <div className="min-w-0 pr-4">
-                              <p className="font-bold text-sm truncate">{mm.title}</p>
-                              <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">{mm.unitName || 'General'}</p>
-                            </div>
-                            <Network className="h-4 w-4 text-accent opacity-30" />
-                          </CardContent>
                         </Card>
                       ))}
-                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No visual mindmaps uploaded yet.</div>}
                     </TabsContent>
 
-                    <TabsContent value="qbank" className="space-y-3">
-                      {subjectContent.questions.map((q) => (
-                        <Card key={q.id} className="glass border-none hover:bg-white/5 transition-colors">
-                          <CardContent className="p-4 flex items-center justify-between">
-                            <div className="flex-1 min-w-0 pr-6">
-                              <p className="text-sm font-medium line-clamp-1">{q.question_text}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[9px] text-accent font-bold uppercase">{q.unit_title}</span>
-                                <span className="text-[9px] text-muted-foreground">•</span>
-                                <span className="text-[9px] text-muted-foreground italic truncate">{q.topic_title}</span>
+                    <TabsContent value="qbank" className="space-y-4">
+                      {subjectContent.questions.length > 0 && (
+                        <div className="flex justify-end">
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            onClick={handleClearQBank} 
+                            className="rounded-xl gap-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20"
+                          >
+                            <AlertTriangle className="h-4 w-4" /> Clear All {subjectContent.questions.length} Questions
+                          </Button>
+                        </div>
+                      )}
+                      <div className="space-y-3">
+                        {subjectContent.questions.map((q) => (
+                          <Card key={q.id} className="glass border-none hover:bg-white/5 transition-colors">
+                            <CardContent className="p-4 flex items-center justify-between">
+                              <div className="flex-1 min-w-0 pr-6">
+                                <p className="text-sm font-medium line-clamp-1">{q.question_text}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[9px] text-accent font-bold uppercase">{q.unit_title}</span>
+                                  <span className="text-[9px] text-muted-foreground">•</span>
+                                  <span className="text-[9px] text-muted-foreground italic truncate">{q.topic_title}</span>
+                                </div>
                               </div>
-                            </div>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl shrink-0">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ))}
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl shrink-0">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                       {subjectContent.questions.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">The question bank for this subject is empty.</div>}
                     </TabsContent>
                   </>
@@ -492,13 +511,8 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="h-[500px] flex flex-col items-center justify-center glass rounded-3xl text-center space-y-4">
-              <div className="p-6 rounded-3xl bg-white/5 animate-pulse">
-                <Layout className="h-16 w-16 text-muted-foreground opacity-10" />
-              </div>
-              <div className="space-y-1">
-                <p className="font-bold text-xl">Select a Subject</p>
-                <p className="text-sm text-muted-foreground max-w-xs mx-auto">Choose a subject from the side index to begin managing its content library and clinical assessments.</p>
-              </div>
+              <Layout className="h-16 w-16 text-muted-foreground opacity-10" />
+              <p className="font-bold text-xl">Select a Subject to Manage Content</p>
             </div>
           )}
         </div>
@@ -516,14 +530,8 @@ export default function AdminDashboard() {
                 <SelectContent className="glass">{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label className="text-xs uppercase font-bold text-muted-foreground">Unit Name</Label>
-              <Input placeholder="e.g. Unit 1: General Histology" className="glass" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} />
-            </div>
-            <div className="grid gap-2">
-              <Label className="text-xs uppercase font-bold text-muted-foreground">Topic Title</Label>
-              <Input placeholder="e.g. Microscopic Structure of Muscle" className="glass" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} />
-            </div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Unit Name</Label><Input placeholder="e.g. Unit 1: General Histology" className="glass" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} /></div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Topic Title</Label><Input placeholder="e.g. Microscopic Structure" className="glass" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
             <div className="grid gap-2">
               <Label className="text-xs uppercase font-bold text-muted-foreground">Yield Importance</Label>
               <Select onValueChange={(v: any) => setTopicForm({...topicForm, importance: v})}>
@@ -536,17 +544,9 @@ export default function AdminDashboard() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label className="text-xs uppercase font-bold text-muted-foreground">PDF Document</Label>
-              <Input type="file" accept=".pdf" className="glass h-auto py-2" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} />
-            </div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">PDF Document</Label><Input type="file" accept=".pdf" className="glass h-auto py-2" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} /></div>
           </div>
-          <DialogFooter>
-            <Button className="w-full rounded-xl" onClick={handleAddTopic} disabled={uploading}>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UploadCloud className="h-4 w-4 mr-2" />}
-              {uploading ? "Publishing..." : "Publish to Library"}
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button className="w-full rounded-xl" onClick={handleAddTopic} disabled={uploading}>{uploading ? "Publishing..." : "Publish to Library"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
