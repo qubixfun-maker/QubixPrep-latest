@@ -3,9 +3,9 @@
 
 import { useMemo, useState, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs } from "firebase/firestore"
+import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, setDoc } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
   ShieldAlert,
@@ -18,13 +18,13 @@ import {
   Trash2,
   ChevronRight,
   BookOpen,
-  Search,
-  Layout
+  Layout,
+  UploadCloud
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -61,7 +61,6 @@ export default function AdminDashboard() {
     unitName: "",
     title: "",
     importance: "Medium" as "Low" | "Medium" | "High" | "Essential",
-    contentType: "pdf" as "pdf" | "video" | "image" | "csv",
     file: null as File | null
   })
 
@@ -77,7 +76,7 @@ export default function AdminDashboard() {
     file: null as File | null
   })
 
-  // Fetch Data
+  // Fetch Subject List
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
 
@@ -92,15 +91,15 @@ export default function AdminDashboard() {
       try {
         const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
         
-        // Fetch Notes
+        // Fetch Notes from Firestore
         const topicsSnap = await getDocs(collection(db, 'subjects', subjectId, 'topics'))
-        const topics = topicsSnap.docs.map(d => d.data())
+        const topics = topicsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
         
-        // Fetch Mindmaps
+        // Fetch Mindmaps from Firestore
         const mindmapsSnap = await getDocs(collection(db, 'subjects', subjectId, 'mindmaps'))
-        const mindmaps = mindmapsSnap.docs.map(d => d.data())
+        const mindmaps = mindmapsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
         
-        // Fetch Questions from Supabase
+        // Fetch Questions from Supabase Database
         const { data: questions, error } = await supabase
           .from('questions')
           .select('*')
@@ -119,61 +118,63 @@ export default function AdminDashboard() {
   }, [activeSubject, db, toast])
 
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
-  if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Required</h1><Link href="/"><Button className="mt-4">Back to Dashboard</Button></Link></div>
+  if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Restricted</h1><Link href="/"><Button className="mt-4">Return Home</Button></Link></div>
 
+  // DELETE HANDLERS
   async function handleDeleteTopic(topic: any) {
-    if (!db || !confirm("Are you sure you want to delete this note?")) return
+    if (!db || !confirm(`Delete "${topic.title}" and its PDF file?`)) return
     try {
-      const subjectId = topic.subjectId
-      await deleteDoc(doc(db, 'subjects', subjectId, 'topics', topic.id))
-      await updateDoc(doc(db, 'subjects', subjectId), { topicCount: increment(-1) })
+      const sId = topic.subjectId
+      await deleteDoc(doc(db, 'subjects', sId, 'topics', topic.id))
+      await updateDoc(doc(db, 'subjects', sId), { topicCount: increment(-1) })
       
       if (topic.storagePath) {
         await supabase.storage.from('notes-pdf').remove([topic.storagePath])
       }
       
       setSubjectContent(prev => ({ ...prev, topics: prev.topics.filter(t => t.id !== topic.id) }))
-      toast({ title: "Topic Removed" })
+      toast({ title: "Note Deleted" })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+      toast({ variant: "destructive", title: "Deletion Error", description: e.message })
     }
   }
 
   async function handleDeleteMindmap(mm: any) {
-    if (!db || !confirm("Are you sure you want to delete this mindmap?")) return
+    if (!db || !confirm(`Delete mindmap "${mm.title}"?`)) return
     try {
-      const subjectId = mm.subjectId
-      await deleteDoc(doc(db, 'subjects', subjectId, 'mindmaps', mm.id))
-      await updateDoc(doc(db, 'subjects', subjectId), { mindmapCount: increment(-1) })
+      const sId = mm.subjectId
+      await deleteDoc(doc(db, 'subjects', sId, 'mindmaps', mm.id))
+      await updateDoc(doc(db, 'subjects', sId), { mindmapCount: increment(-1) })
       
       if (mm.storagePath) {
         await supabase.storage.from('mindmaps').remove([mm.storagePath])
       }
       
       setSubjectContent(prev => ({ ...prev, mindmaps: prev.mindmaps.filter(m => m.id !== mm.id) }))
-      toast({ title: "Mindmap Removed" })
+      toast({ title: "Mindmap Deleted" })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+      toast({ variant: "destructive", title: "Deletion Error", description: e.message })
     }
   }
 
   async function handleDeleteQuestion(qId: string, subjectId: string) {
-    if (!db || !confirm("Delete this question?")) return
+    if (!db || !confirm("Delete this clinical case?")) return
     try {
       const { error } = await supabase.from('questions').delete().eq('id', qId)
       if (error) throw error
       
       await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(-1) })
       setSubjectContent(prev => ({ ...prev, questions: prev.questions.filter(q => q.id !== qId) }))
-      toast({ title: "Question Removed" })
+      toast({ title: "Case Removed" })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+      toast({ variant: "destructive", title: "Deletion Error", description: e.message })
     }
   }
 
+  // ADD HANDLERS
   async function handleAddTopic() {
     if (!db || !topicForm.subjectId || !topicForm.title || !topicForm.file) {
-      toast({ variant: "destructive", title: "Missing Fields" })
+      toast({ variant: "destructive", title: "Missing Information", description: "All fields and PDF file are required." })
       return
     }
 
@@ -189,36 +190,40 @@ export default function AdminDashboard() {
       const { data: { publicUrl } } = supabase.storage.from('notes-pdf').getPublicUrl(storagePath)
 
       const topicId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
+      
+      const subjectRef = doc(db, 'subjects', subjectId)
       const topicRef = doc(db, 'subjects', subjectId, 'topics', topicId)
 
-      const topicData = {
+      // Ensure subject exists
+      const sSnap = await getDocs(query(collection(db, 'subjects')))
+      const subjectExists = sSnap.docs.some(d => d.id === subjectId)
+
+      if (!subjectExists) {
+        await setDoc(subjectRef, {
+          id: subjectId,
+          name: topicForm.subjectId,
+          description: `Learning materials for ${topicForm.subjectId}`,
+          iconName: "BookOpen",
+          topicCount: 0,
+          mindmapCount: 0,
+          questionCount: 0
+        })
+      }
+
+      await updateDoc(subjectRef, { topicCount: increment(1) })
+      await setDoc(topicRef, {
         id: topicId,
         subjectId: subjectId,
         unitName: topicForm.unitName,
         title: topicForm.title,
         contentUrl: publicUrl,
         storagePath: storagePath,
-        contentType: topicForm.contentType,
+        contentType: "pdf",
         importance: topicForm.importance,
         createdAt: new Date().toISOString()
-      }
-
-      await updateDoc(doc(db, 'subjects', subjectId), { 
-        topicCount: increment(1) 
-      }).catch(async () => {
-        await setDoc(doc(db, 'subjects', subjectId), { 
-          id: subjectId,
-          name: topicForm.subjectId, 
-          topicCount: increment(1),
-          mindmapCount: 0,
-          questionCount: 0,
-          iconName: "BookOpen"
-        }, { merge: true })
       })
-      
-      await updateDoc(topicRef, topicData, { merge: true })
 
-      toast({ title: "Topic Published" })
+      toast({ title: "Note Published" })
       setIsAddingTopic(false)
       setActiveSubject(topicForm.subjectId)
     } catch (e: any) {
@@ -228,8 +233,124 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleAddMindmap() {
+    if (!db || !mindmapForm.subjectId || !mindmapForm.title || !mindmapForm.file) {
+      toast({ variant: "destructive", title: "Missing Information" })
+      return
+    }
+
+    setUploading(true)
+    try {
+      const subjectId = mindmapForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const fileId = `${Date.now()}-${mindmapForm.file.name.replace(/\s+/g, '_')}`
+      const storagePath = `${subjectId}/${fileId}`
+      
+      const { error: uploadError } = await supabase.storage.from('mindmaps').upload(storagePath, mindmapForm.file)
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage.from('mindmaps').getPublicUrl(storagePath)
+
+      const mmId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
+      const subjectRef = doc(db, 'subjects', subjectId)
+      const mmRef = doc(db, 'subjects', subjectId, 'mindmaps', mmId)
+
+      const sSnap = await getDocs(query(collection(db, 'subjects')))
+      if (!sSnap.docs.some(d => d.id === subjectId)) {
+        await setDoc(subjectRef, {
+          id: subjectId,
+          name: mindmapForm.subjectId,
+          iconName: "Network",
+          topicCount: 0,
+          mindmapCount: 0,
+          questionCount: 0
+        })
+      }
+
+      await updateDoc(subjectRef, { mindmapCount: increment(1) })
+      await setDoc(mmRef, {
+        id: mmId,
+        subjectId: subjectId,
+        unitName: mindmapForm.unitName,
+        title: mindmapForm.title,
+        imageUrl: publicUrl,
+        storagePath: storagePath,
+        createdAt: new Date().toISOString()
+      })
+
+      toast({ title: "Mindmap Added" })
+      setIsAddingMindmap(false)
+      setActiveSubject(mindmapForm.subjectId)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleImportQBank() {
+    if (!db || !qbankForm.subjectId || !qbankForm.file) {
+      toast({ variant: "destructive", title: "Selection Required" })
+      return
+    }
+
+    setUploading(true)
+    try {
+      const subjectId = qbankForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const text = await qbankForm.file.text()
+      const lines = text.split('\n').filter(line => line.trim().length > 0)
+      
+      // Skip header: unit_number, unit_title, topic_title, question, option1, option2, option3, option4, correct_answer_index, explanation
+      const questionsToInsert = []
+      
+      for (let i = 1; i < lines.length; i++) {
+        const columns = lines[i].split('\t') // Assuming tab separated based on user example
+        if (columns.length < 9) continue
+
+        questionsToInsert.push({
+          subject_id: subjectId,
+          unit_number: parseInt(columns[0]) || 0,
+          unit_title: columns[1],
+          topic_title: columns[2],
+          question_text: columns[3],
+          option1: columns[4],
+          option2: columns[5],
+          option3: columns[6],
+          option4: columns[7],
+          correct_answer_index: parseInt(columns[8]) || 0,
+          explanation: columns[9] || ""
+        })
+      }
+
+      if (questionsToInsert.length === 0) throw new Error("No valid question rows found. Ensure file is tab-separated.")
+
+      const { error } = await supabase.from('questions').insert(questionsToInsert)
+      if (error) throw error
+
+      await updateDoc(doc(db, 'subjects', subjectId), { 
+        questionCount: increment(questionsToInsert.length) 
+      }).catch(async () => {
+        await setDoc(doc(db, 'subjects', subjectId), {
+          id: subjectId,
+          name: qbankForm.subjectId,
+          questionCount: questionsToInsert.length,
+          topicCount: 0,
+          mindmapCount: 0,
+          iconName: "Database"
+        })
+      })
+
+      toast({ title: "Import Successful", description: `${questionsToInsert.length} cases added to ${qbankForm.subjectId}.` })
+      setIsUploadingQBank(false)
+      setActiveSubject(qbankForm.subjectId)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Import Failed", description: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8">
+    <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -245,141 +366,229 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-8">
-        {/* Sidebar: Subject List */}
+        {/* Sidebar: Subject Selection */}
         <Card className="lg:col-span-1 glass border-none h-fit">
-          <CardHeader className="p-6 border-b border-white/5">
-            <CardTitle className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
-              <Layout className="h-4 w-4 text-accent" /> Subjects
-            </CardTitle>
-          </CardHeader>
-          <div className="divide-y divide-white/5 max-h-[600px] overflow-y-auto scrollbar-hide">
+          <div className="p-4 border-b border-white/5 bg-white/5 rounded-t-xl">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Layout className="h-3 w-3" /> Library Index
+            </p>
+          </div>
+          <div className="max-h-[600px] overflow-y-auto scrollbar-hide">
             {subjectsLoading ? (
-              <div className="p-8 flex justify-center"><Loader2 className="h-5 w-5 animate-spin opacity-20" /></div>
+              <div className="p-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin opacity-20" /></div>
             ) : subjects?.map((s: any) => (
               <button 
                 key={s.id}
                 onClick={() => setActiveSubject(s.name)}
-                className={`w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors ${activeSubject === s.name ? 'bg-primary/10 border-l-2 border-primary' : ''}`}
+                className={`w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors group ${activeSubject === s.name ? 'bg-primary/10 border-r-2 border-primary' : ''}`}
               >
                 <div>
-                  <p className="font-bold text-sm">{s.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{s.topicCount || 0} Notes • {s.questionCount || 0} MCQs</p>
+                  <p className="font-bold text-sm group-hover:text-primary transition-colors">{s.name}</p>
+                  <div className="flex gap-2 mt-1">
+                    <span className="text-[9px] text-muted-foreground uppercase">{s.topicCount || 0} Notes</span>
+                    <span className="text-[9px] text-muted-foreground uppercase">{s.questionCount || 0} MCQs</span>
+                  </div>
                 </div>
-                <ChevronRight className={`h-4 w-4 transition-transform ${activeSubject === s.name ? 'rotate-90 text-primary' : 'opacity-20'}`} />
+                <ChevronRight className={`h-4 w-4 transition-transform ${activeSubject === s.name ? 'rotate-90 text-primary' : 'opacity-10 group-hover:opacity-100'}`} />
               </button>
             ))}
             {(!subjects || subjects.length === 0) && (
-              <div className="p-8 text-center text-xs text-muted-foreground italic">No subjects created yet. Upload a note to start.</div>
+              <div className="p-12 text-center text-xs text-muted-foreground italic">No subjects yet. Upload a note to start.</div>
             )}
           </div>
         </Card>
 
-        {/* Main Content Management */}
+        {/* Main Content Area */}
         <div className="lg:col-span-3 space-y-6">
           {activeSubject ? (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
+                <h2 className="text-2xl font-bold flex items-center gap-3">
                   <BookOpen className="h-6 w-6 text-primary" /> {activeSubject}
                 </h2>
-                <Badge variant="outline" className="glass text-xs py-1 px-3">Subject ID: {activeSubject.toLowerCase().replace(/\s+/g, '-')}</Badge>
+                <Badge variant="outline" className="glass text-[10px] uppercase font-bold tracking-widest">
+                  {activeSubject.toLowerCase().replace(/\s+/g, '-')}
+                </Badge>
               </div>
 
               <Tabs defaultValue="notes" className="w-full">
                 <TabsList className="glass border-none h-12 p-1 rounded-xl mb-6">
-                  <TabsTrigger value="notes" className="rounded-lg gap-2"><FileText className="h-4 w-4" /> Notes</TabsTrigger>
-                  <TabsTrigger value="mindmaps" className="rounded-lg gap-2"><Network className="h-4 w-4" /> Mindmaps</TabsTrigger>
-                  <TabsTrigger value="qbank" className="rounded-lg gap-2"><Database className="h-4 w-4" /> QBank</TabsTrigger>
+                  <TabsTrigger value="notes" className="rounded-lg gap-2 data-[state=active]:bg-primary"><FileText className="h-4 w-4" /> Notes</TabsTrigger>
+                  <TabsTrigger value="mindmaps" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Network className="h-4 w-4" /> Mindmaps</TabsTrigger>
+                  <TabsTrigger value="qbank" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Database className="h-4 w-4" /> QBank</TabsTrigger>
                 </TabsList>
 
                 {loadingContent ? (
                   <div className="h-64 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                 ) : (
                   <>
-                    <TabsContent value="notes" className="space-y-4">
+                    <TabsContent value="notes" className="space-y-3">
                       {subjectContent.topics.map((t) => (
                         <Card key={t.id} className="glass border-none hover:bg-white/5 transition-colors">
                           <CardContent className="p-4 flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <div className="p-2 rounded-lg bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div>
+                              <div className="p-2.5 rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div>
                               <div>
-                                <p className="font-bold">{t.title}</p>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{t.unitName || 'General'}</p>
+                                <p className="font-bold text-sm">{t.title}</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{t.unitName || 'General'}</p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-[10px]">{t.importance}</Badge>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteTopic(t)} className="h-8 w-8 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                            <div className="flex items-center gap-3">
+                              <Badge variant="secondary" className="text-[9px] uppercase font-bold">{t.importance}</Badge>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteTopic(t)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </CardContent>
                         </Card>
                       ))}
-                      {subjectContent.topics.length === 0 && <div className="text-center py-20 glass rounded-2xl border-dashed border-2 border-white/5 text-muted-foreground">No notes for this subject.</div>}
+                      {subjectContent.topics.length === 0 && <div className="text-center py-24 glass rounded-3xl border-dashed border-2 border-white/5 text-muted-foreground">No notes found for this subject.</div>}
                     </TabsContent>
 
                     <TabsContent value="mindmaps" className="grid md:grid-cols-2 gap-4">
                       {subjectContent.mindmaps.map((mm) => (
                         <Card key={mm.id} className="glass border-none overflow-hidden group">
                           <div className="aspect-video relative">
-                            <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-50" />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                              <Button variant="destructive" size="sm" onClick={() => handleDeleteMindmap(mm)} className="rounded-lg"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                            <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity" />
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Button variant="destructive" size="sm" onClick={() => handleDeleteMindmap(mm)} className="rounded-xl"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                             </div>
                           </div>
-                          <CardContent className="p-4">
-                            <p className="font-bold text-sm truncate">{mm.title}</p>
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{mm.unitName || 'General'}</p>
+                          <CardContent className="p-4 flex items-center justify-between">
+                            <div className="min-w-0 pr-4">
+                              <p className="font-bold text-sm truncate">{mm.title}</p>
+                              <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">{mm.unitName || 'General'}</p>
+                            </div>
+                            <Network className="h-4 w-4 text-accent opacity-30" />
                           </CardContent>
                         </Card>
                       ))}
-                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-20 glass rounded-2xl text-muted-foreground">No mindmaps for this subject.</div>}
+                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No visual mindmaps uploaded yet.</div>}
                     </TabsContent>
 
                     <TabsContent value="qbank" className="space-y-3">
                       {subjectContent.questions.map((q) => (
                         <Card key={q.id} className="glass border-none hover:bg-white/5 transition-colors">
                           <CardContent className="p-4 flex items-center justify-between">
-                            <div className="flex-1 min-w-0 pr-4">
+                            <div className="flex-1 min-w-0 pr-6">
                               <p className="text-sm font-medium line-clamp-1">{q.question_text}</p>
-                              <p className="text-[10px] text-muted-foreground italic truncate">{q.topic_title}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[9px] text-accent font-bold uppercase">{q.unit_title}</span>
+                                <span className="text-[9px] text-muted-foreground">•</span>
+                                <span className="text-[9px] text-muted-foreground italic truncate">{q.topic_title}</span>
+                              </div>
                             </div>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl shrink-0">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </CardContent>
                         </Card>
                       ))}
-                      {subjectContent.questions.length === 0 && <div className="text-center py-20 glass rounded-2xl text-muted-foreground">No questions in Supabase for this subject.</div>}
+                      {subjectContent.questions.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">The question bank for this subject is empty.</div>}
                     </TabsContent>
                   </>
                 )}
               </Tabs>
             </div>
           ) : (
-            <div className="h-[400px] flex flex-col items-center justify-center glass rounded-3xl text-center space-y-4">
-              <Layout className="h-12 w-12 text-muted-foreground opacity-20" />
+            <div className="h-[500px] flex flex-col items-center justify-center glass rounded-3xl text-center space-y-4">
+              <div className="p-6 rounded-3xl bg-white/5 animate-pulse">
+                <Layout className="h-16 w-16 text-muted-foreground opacity-10" />
+              </div>
               <div className="space-y-1">
                 <p className="font-bold text-xl">Select a Subject</p>
-                <p className="text-sm text-muted-foreground max-w-xs">Select a subject from the sidebar to manage its notes, mindmaps, and questions.</p>
+                <p className="text-sm text-muted-foreground max-w-xs mx-auto">Choose a subject from the side index to begin managing its content library and clinical assessments.</p>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Upload Dialogs */}
+      {/* MODALS */}
       <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
-        <DialogContent className="glass">
-          <DialogHeader><DialogTitle>Publish Medical Note</DialogTitle></DialogHeader>
+        <DialogContent className="glass border-none sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Plus className="h-5 w-5 text-primary" /> Publish Medical Note</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setTopicForm({...topicForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-            <div className="grid gap-2"><Label>Unit Name</Label><Input value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} /></div>
-            <div className="grid gap-2"><Label>Title</Label><Input value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
-            <div className="grid gap-2"><Label>File (PDF)</Label><Input type="file" accept=".pdf" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} /></div>
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">Subject</Label>
+              <Select onValueChange={v => setTopicForm({...topicForm, subjectId: v})}>
+                <SelectTrigger className="glass"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                <SelectContent className="glass">{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">Unit Name</Label>
+              <Input placeholder="e.g. Unit 1: General Histology" className="glass" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} />
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">Topic Title</Label>
+              <Input placeholder="e.g. Microscopic Structure of Muscle" className="glass" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} />
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">Yield Importance</Label>
+              <Select onValueChange={(v: any) => setTopicForm({...topicForm, importance: v})}>
+                <SelectTrigger className="glass"><SelectValue placeholder="Select Yield Level" /></SelectTrigger>
+                <SelectContent className="glass">
+                  <SelectItem value="Low">Low Yield</SelectItem>
+                  <SelectItem value="Medium">Medium Yield</SelectItem>
+                  <SelectItem value="High">High Yield</SelectItem>
+                  <SelectItem value="Essential">Essential (Must Know)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">PDF Document</Label>
+              <Input type="file" accept=".pdf" className="glass h-auto py-2" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} />
+            </div>
           </div>
-          <DialogFooter><Button onClick={handleAddTopic} disabled={uploading}>{uploading ? "Uploading..." : "Publish"}</Button></DialogFooter>
+          <DialogFooter>
+            <Button className="w-full rounded-xl" onClick={handleAddTopic} disabled={uploading}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UploadCloud className="h-4 w-4 mr-2" />}
+              {uploading ? "Publishing..." : "Publish to Library"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      {/* Existing QBank and Mindmap Dialogs logic remains same but ensuring they refresh active state */}
+
+      <Dialog open={isAddingMindmap} onOpenChange={setIsAddingMindmap}>
+        <DialogContent className="glass border-none sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Network className="h-5 w-5 text-secondary" /> Add Visual Mindmap</DialogTitle></DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">Subject</Label>
+              <Select onValueChange={v => setMindmapForm({...mindmapForm, subjectId: v})}>
+                <SelectTrigger className="glass"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                <SelectContent className="glass">{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Unit Name</Label><Input className="glass" value={mindmapForm.unitName} onChange={e => setMindmapForm({...mindmapForm, unitName: e.target.value})} /></div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Mindmap Title</Label><Input className="glass" value={mindmapForm.title} onChange={e => setMindmapForm({...mindmapForm, title: e.target.value})} /></div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Image File</Label><Input type="file" accept="image/*" className="glass h-auto py-2" onChange={e => setMindmapForm({...mindmapForm, file: e.target.files?.[0] || null})} /></div>
+          </div>
+          <DialogFooter><Button className="w-full rounded-xl bg-secondary" onClick={handleAddMindmap} disabled={uploading}>{uploading ? "Uploading..." : "Add Mindmap"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUploadingQBank} onOpenChange={setIsUploadingQBank}>
+        <DialogContent className="glass border-none sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Database className="h-5 w-5 text-accent" /> Import QBank Data</DialogTitle></DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">Target Subject</Label>
+              <Select onValueChange={v => setQbankForm({...qbankForm, subjectId: v})}>
+                <SelectTrigger className="glass"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                <SelectContent className="glass">{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">CSV File (Tab-Separated)</Label>
+              <Input type="file" accept=".csv,.txt" className="glass h-auto py-2" onChange={e => setQbankForm({...qbankForm, file: e.target.files?.[0] || null})} />
+              <p className="text-[10px] text-muted-foreground italic">Columns: unit_num, unit_title, topic_title, question, opt1, opt2, opt3, opt4, correct_idx, explanation</p>
+            </div>
+          </div>
+          <DialogFooter><Button className="w-full rounded-xl bg-accent text-background" onClick={handleImportQBank} disabled={uploading}>{uploading ? "Processing..." : "Import Cases"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
