@@ -25,9 +25,7 @@ import Link from "next/link"
 import { SummarizerPageContent } from "@/app/ai-tools/summarizer/page"
 
 export default function NoteViewerPage({ params }: { params: Promise<{ id: string, topicId: string }> }) {
-  const resolvedParams = use(params)
-  const id = resolvedParams.id
-  const topicId = resolvedParams.topicId
+  const { id, topicId } = use(params)
   
   const db = useFirestore()
   const [isBookmarked, setIsBookmarked] = useState(false)

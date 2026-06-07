@@ -9,9 +9,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
 export default function MindmapViewerPage({ params }: { params: Promise<{ id: string, mindmapId: string }> }) {
-  const resolvedParams = use(params)
-  const id = resolvedParams.id
-  const mindmapId = resolvedParams.mindmapId
+  const { id, mindmapId } = use(params)
   
   const db = useFirestore()
   const [isFullWidth, setIsFullWidth] = useState(false)

@@ -9,8 +9,7 @@ import { ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 export default function MindmapSubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params)
-  const subjectId = resolvedParams.id
+  const { id: subjectId } = use(params)
   
   const db = useFirestore()
 

@@ -11,8 +11,7 @@ import { ChevronRight, Share2, LayoutList, Loader2, FileText } from "lucide-reac
 import Link from "next/link"
 
 export default function SubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = use(params)
-  const subjectId = resolvedParams.id
+  const { id: subjectId } = use(params)
   
   const db = useFirestore()
 

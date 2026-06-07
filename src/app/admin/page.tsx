@@ -172,10 +172,18 @@ export default function AdminDashboard() {
 
     setUploading(true)
     try {
+      // 1. Upload CSV to Supabase Storage (qbank bucket)
+      const subjectId = qbankForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const fileId = `${Date.now()}-${qbankForm.file.name.replace(/\s+/g, '_')}`
+      const storagePath = `${subjectId}/${fileId}`
+      
+      const { error: uploadError } = await supabase.storage.from('qbank').upload(storagePath, qbankForm.file)
+      if (uploadError) throw uploadError
+
+      // 2. Parse and Import into Firestore
       const text = await qbankForm.file.text()
       const rows = text.split('\n').slice(1) // Skip header
       const batch = writeBatch(db)
-      const subjectId = qbankForm.subjectId.toLowerCase().replace(/\s+/g, '-')
       
       let count = 0
       for (const row of rows) {
@@ -215,7 +223,7 @@ export default function AdminDashboard() {
       await batch.commit()
       await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(count) })
       
-      toast({ title: "QBank Processed", description: `Uploaded ${count} questions successfully.` })
+      toast({ title: "QBank Processed", description: `Uploaded original file and imported ${count} questions.` })
       setIsUploadingQBank(false)
       setQbankForm({ subjectId: "", file: null })
     } catch (e: any) {
