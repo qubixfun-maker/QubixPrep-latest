@@ -39,9 +39,27 @@
         "color": { "type": "string" },
         "unitCount": { "type": "number" },
         "topicCount": { "type": "number" },
-        "mindmapCount": { "type": "number" }
+        "mindmapCount": { "type": "number" },
+        "questionCount": { "type": "number" }
       },
       "required": ["name", "iconName"]
+    },
+    "MedicalQuestion": {
+      "title": "Medical Question",
+      "description": "A single MCQ for the Question Bank.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "topicName": { "type": "string" },
+        "questionText": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "correctAnswer": { "type": "string" },
+        "explanation": { "type": "string" },
+        "importance": { "type": "string", "enum": ["Low", "Medium", "High", "Essential"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subjectId", "questionText", "options", "correctAnswer"]
     },
     "MedicalTopic": {
       "title": "Medical Topic",
@@ -91,17 +109,13 @@
       "schema": "MedicalTopic",
       "description": "Topics and resources within a subject."
     },
-    "/all_topics/{topicId}": {
-      "schema": "MedicalTopic",
-      "description": "Global list of all topics."
+    "/subjects/{subjectId}/questions/{questionId}": {
+      "schema": "MedicalQuestion",
+      "description": "MCQs for the question bank within a subject."
     },
     "/subjects/{subjectId}/mindmaps/{mindmapId}": {
       "schema": "MedicalMindmap",
       "description": "Mindmaps within a subject."
-    },
-    "/all_mindmaps/{mindmapId}": {
-      "schema": "MedicalMindmap",
-      "description": "Global list of all mindmaps."
     }
   }
 }

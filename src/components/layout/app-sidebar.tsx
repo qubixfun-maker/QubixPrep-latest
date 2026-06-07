@@ -13,7 +13,8 @@ import {
   Video, 
   History,
   CloudUpload,
-  Network
+  Network,
+  Database
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -53,7 +54,7 @@ export function AppSidebar() {
       icon: LayoutDashboard,
     },
     {
-      title: "Library (Notes)",
+      title: "Notes",
       url: "/notes",
       icon: BookOpen,
     },
@@ -61,6 +62,11 @@ export function AppSidebar() {
       title: "Mindmaps",
       url: "/mindmaps",
       icon: Network,
+    },
+    {
+      title: "QBank",
+      url: "/qbank",
+      icon: Database,
     },
     {
       title: "Video Lectures",
@@ -73,28 +79,9 @@ export function AppSidebar() {
       icon: BrainCircuit,
     },
     {
-      title: "Study History",
+      title: "History",
       url: "/history",
       icon: History,
-    },
-  ]
-
-  const adminItems = [
-    {
-      title: "Content Manager",
-      url: "/admin",
-      icon: ShieldCheck,
-      badge: "Admin"
-    },
-    {
-      title: "Global Search",
-      url: "/search",
-      icon: Search,
-    },
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: Settings,
     },
   ]
 
@@ -120,7 +107,7 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === "/admin"}
-                    tooltip="Admin Content Control"
+                    tooltip="Admin"
                     className="mx-2 px-4 h-12 rounded-xl transition-all border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
                   >
                     <Link href="/admin">
