@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -106,6 +105,7 @@ export default function AdminDashboard() {
           .from('questions')
           .select('*')
           .eq('subject_id', subjectId)
+          .order('created_at', { ascending: false })
         
         if (error) throw error
 
@@ -219,13 +219,13 @@ export default function AdminDashboard() {
       
       if (error) throw error
       
-      // 2. Reset Firestore counter (Ensures UI is cleaned up even if Supabase was already empty)
+      // 2. Reset Firestore counter
       await updateDoc(doc(db, 'subjects', subjectId), { questionCount: 0 })
       
       // 3. Update local state
       setSubjectContent(prev => ({ ...prev, questions: [] }))
       
-      toast({ title: "QBank Cleared", description: `All questions for ${activeSubject} have been permanently removed and counters reset.` })
+      toast({ title: "QBank Cleared", description: `All questions for ${activeSubject} have been permanently removed.` })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Clear Failed", description: e.message })
     } finally {
@@ -358,44 +358,60 @@ export default function AdminDashboard() {
     try {
       const subjectId = qbankForm.subjectId.toLowerCase().replace(/\s+/g, '-')
       const text = await qbankForm.file.text()
-      const lines = text.split('\n').filter(line => line.trim().length > 0)
       
+      // Support both CRLF and LF
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0)
+      
+      if (lines.length < 2) throw new Error("File appears to be empty or missing data rows.")
+
       const questionsToInsert = []
       
+      // Skip header row
       for (let i = 1; i < lines.length; i++) {
-        const columns = lines[i].split('\t') 
-        if (columns.length < 9) continue
+        // Try tab split first, then comma as fallback
+        let columns = lines[i].split('\t')
+        if (columns.length < 9) {
+          columns = lines[i].split(',')
+        }
+        
+        // Clean columns (remove surrounding quotes if any)
+        const cleanCols = columns.map(c => c.trim().replace(/^"(.*)"$/, '$1'))
+
+        if (cleanCols.length < 9) continue
 
         questionsToInsert.push({
           subject_id: subjectId,
-          unit_number: parseInt(columns[0]) || 0,
-          unit_title: columns[1],
-          topic_title: columns[2],
-          question_text: columns[3],
-          option1: columns[4],
-          option2: columns[5],
-          option3: columns[6],
-          option4: columns[7],
-          correct_answer_index: parseInt(columns[8]) || 0,
-          explanation: columns[9] || ""
+          unit_number: parseInt(cleanCols[0]) || 0,
+          unit_title: cleanCols[1],
+          topic_title: cleanCols[2],
+          question_text: cleanCols[3],
+          option1: cleanCols[4],
+          option2: cleanCols[5],
+          option3: cleanCols[6],
+          option4: cleanCols[7],
+          correct_answer_index: parseInt(cleanCols[8]) || 0,
+          explanation: cleanCols[9] || "",
+          created_at: new Date().toISOString()
         })
       }
 
-      if (questionsToInsert.length === 0) throw new Error("No valid question rows found. Ensure file is tab-separated.")
+      if (questionsToInsert.length === 0) throw new Error("No valid question rows found. Ensure file is tab-separated and contains all required columns.")
 
       const { error } = await supabase.from('questions').insert(questionsToInsert)
       if (error) throw error
 
-      await updateDoc(doc(db, 'subjects', subjectId), { 
+      const subjectRef = doc(db, 'subjects', subjectId)
+      await updateDoc(subjectRef, { 
         questionCount: increment(questionsToInsert.length) 
       }).catch(async () => {
-        await setDoc(doc(db, 'subjects', subjectId), {
+        await setDoc(subjectRef, {
           id: subjectId,
           name: qbankForm.subjectId,
           questionCount: questionsToInsert.length,
           topicCount: 0,
           mindmapCount: 0,
-          iconName: "Database"
+          iconName: "Database",
+          description: `QBank for ${qbankForm.subjectId}`
         })
       })
 
@@ -504,6 +520,7 @@ export default function AdminDashboard() {
                           </CardContent>
                         </Card>
                       ))}
+                      {subjectContent.topics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No notes found for this subject.</div>}
                     </TabsContent>
 
                     <TabsContent value="mindmaps" className="grid md:grid-cols-2 gap-4">
@@ -515,8 +532,12 @@ export default function AdminDashboard() {
                               <Button variant="destructive" size="sm" onClick={() => handleDeleteMindmap(mm)} className="rounded-xl"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                             </div>
                           </div>
+                          <div className="p-3 bg-card">
+                            <p className="text-sm font-bold truncate">{mm.title}</p>
+                          </div>
                         </Card>
                       ))}
+                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No mindmaps found for this subject.</div>}
                     </TabsContent>
 
                     <TabsContent value="qbank" className="space-y-4">
