@@ -126,7 +126,7 @@ export default function AdminDashboard() {
       const fileId = `${Date.now()}-${topicForm.file.name.replace(/\s+/g, '_')}`
       const storagePath = `${subjectId}/${fileId}`
       
-      // Upload to Supabase Storage (using bucket notes-pdf)
+      // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase
         .storage
         .from('notes-pdf')
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
         topicCount: increment(1)
       })
 
-      toast({ title: "Topic Published", description: "The note has been uploaded to Supabase and linked successfully." })
+      toast({ title: "Topic Published", description: "The resource is now live in the library." })
       setTopicForm({ subjectId: "", unitName: "", title: "", importance: "Medium", contentType: "pdf", file: null })
       setIsAddingTopic(false)
     } catch (e: any) {
@@ -189,7 +189,6 @@ export default function AdminDashboard() {
     if (!db) return
     try {
       if (topic.storagePath) {
-        // Delete from Supabase Storage (using bucket notes-pdf)
         await supabase.storage.from('notes-pdf').remove([topic.storagePath])
       }
 
@@ -222,13 +221,13 @@ export default function AdminDashboard() {
         <div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-4">
           <Lock className="h-8 w-8" />
         </div>
-        <h1 className="text-2xl font-bold">Access Restricted</h1>
+        <h1 className="text-2xl font-bold">Admin Privileges Required</h1>
         <p className="text-muted-foreground max-w-md">
-          You do not have the required permissions to access the Admin Control Center.
+          Access to the Content Manager is restricted to faculty and administrative staff.
         </p>
         <Link href="/">
           <Button variant="outline" className="rounded-xl glass border-white/10 mt-4">
-            Return to Dashboard
+            Return to Study Dashboard
           </Button>
         </Link>
       </div>
@@ -240,9 +239,9 @@ export default function AdminDashboard() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ShieldAlert className="h-8 w-8 text-primary" /> Qubix Control Center
+            <ShieldAlert className="h-8 w-8 text-primary" /> Qubix Content Manager
           </h1>
-          <p className="text-muted-foreground">Manage subjects, content library (Supabase), and student roles.</p>
+          <p className="text-muted-foreground">Orchestrate your medical library and resources across Supabase Storage.</p>
         </div>
         <div className="flex gap-3">
           <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
@@ -256,7 +255,7 @@ export default function AdminDashboard() {
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                   <ArrowUpCircle className="h-6 w-6 text-accent" /> Publish Medical Topic
                 </DialogTitle>
-                <CardDescription>Upload a study resource to Supabase (notes-pdf) and link it to a subject.</CardDescription>
+                <CardDescription>Upload a study resource and link it to a subject.</CardDescription>
               </DialogHeader>
               
               <div className="grid md:grid-cols-2 gap-6 py-6">
@@ -318,7 +317,7 @@ export default function AdminDashboard() {
                     <div className="flex flex-col items-center gap-3">
                       <FileDown className={`h-10 w-10 transition-colors ${topicForm.file ? 'text-accent' : 'text-muted-foreground'}`} />
                       <p className="text-sm font-bold">{topicForm.file ? topicForm.file.name : "Click or drag to select file"}</p>
-                      <p className="text-xs text-muted-foreground">Supported: PDF, JPG, PNG, MP4, CSV</p>
+                      <p className="text-[10px] text-muted-foreground">Supported: PDF, JPG, PNG, MP4, CSV</p>
                     </div>
                   </div>
                 </div>
@@ -326,9 +325,9 @@ export default function AdminDashboard() {
               
               <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Security Policy Reminder</AlertTitle>
+                <AlertTitle>Security Policy Note</AlertTitle>
                 <AlertDescription className="text-xs">
-                  If you see "security policy" errors, please ensure your Supabase <strong>notes-pdf</strong> bucket allows public uploads.
+                  Ensure the <strong>notes-pdf</strong> bucket in Supabase allows public read/write access for this operation.
                 </AlertDescription>
               </Alert>
 
@@ -363,7 +362,7 @@ export default function AdminDashboard() {
             <DialogContent className="glass border-white/10">
               <DialogHeader>
                 <DialogTitle>Create Custom Subject</DialogTitle>
-                <CardDescription>Add a specialized category to the library.</CardDescription>
+                <CardDescription>Manually add a specialized category.</CardDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -372,7 +371,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Description</Label>
-                  <Input placeholder="Brief overview of the subject..." className="glass border-white/10" value={newSubject.description} onChange={e => setNewSubject({...newSubject, description: e.target.value})} />
+                  <Input placeholder="Overview of the subject curriculum..." className="glass border-white/10" value={newSubject.description} onChange={e => setNewSubject({...newSubject, description: e.target.value})} />
                 </div>
               </div>
               <DialogFooter>
@@ -388,7 +387,7 @@ export default function AdminDashboard() {
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="glass border-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Registered Students</CardTitle>
+            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Enrolled Students</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
@@ -401,7 +400,7 @@ export default function AdminDashboard() {
         </Card>
         <Card className="glass border-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Library Resources</CardTitle>
+            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Resource Pool</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
@@ -429,16 +428,16 @@ export default function AdminDashboard() {
 
       <Tabs defaultValue="topics" className="space-y-6">
         <TabsList className="glass p-1 h-12 rounded-xl">
-          <TabsTrigger value="topics" className="rounded-lg px-8">All Topics</TabsTrigger>
-          <TabsTrigger value="subjects" className="rounded-lg px-8">Subject List</TabsTrigger>
+          <TabsTrigger value="topics" className="rounded-lg px-8">Content Repository</TabsTrigger>
+          <TabsTrigger value="subjects" className="rounded-lg px-8">Managed Subjects</TabsTrigger>
         </TabsList>
 
         <TabsContent value="topics">
           <Card className="glass border-none overflow-hidden">
             <CardHeader className="p-6 border-b border-white/5 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-xl font-bold">Content Repository</CardTitle>
-                <CardDescription>View and manage all uploaded study materials on Supabase.</CardDescription>
+                <CardTitle className="text-xl font-bold">Global Content Table</CardTitle>
+                <CardDescription>Direct control over live resources stored in Supabase notes-pdf bucket.</CardDescription>
               </div>
               <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2">
                 <CloudUpload className="h-4 w-4" /> New Supabase Upload
@@ -448,7 +447,7 @@ export default function AdminDashboard() {
               <Table>
                 <TableHeader className="bg-white/5">
                   <TableRow className="border-white/5">
-                    <TableHead>Topic Title</TableHead>
+                    <TableHead>Resource Title</TableHead>
                     <TableHead>Subject</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Importance</TableHead>
@@ -492,7 +491,7 @@ export default function AdminDashboard() {
                   {!topicsLoading && topics?.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
-                        No topics uploaded yet. Start by uploading a note to Supabase.
+                        The repository is currently empty. Start by uploading resources.
                       </TableCell>
                     </TableRow>
                   )}
@@ -505,15 +504,15 @@ export default function AdminDashboard() {
         <TabsContent value="subjects">
           <Card className="glass border-none overflow-hidden">
             <CardHeader className="p-6 border-b border-white/5">
-              <CardTitle className="text-xl font-bold">Managed Subjects</CardTitle>
+              <CardTitle className="text-xl font-bold">Active Subjects List</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-white/5">
                   <TableRow className="border-white/5 hover:bg-transparent">
-                    <TableHead className="py-4">Subject Name</TableHead>
-                    <TableHead>Topics</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="py-4">Subject Title</TableHead>
+                    <TableHead>Total Topics</TableHead>
+                    <TableHead className="text-right">Management</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -538,7 +537,7 @@ export default function AdminDashboard() {
                   {!subjectsLoading && subjects?.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={3} className="text-center py-20 text-muted-foreground">
-                        No subjects created yet.
+                        No subjects have been initialized yet.
                       </TableCell>
                     </TableRow>
                   )}
