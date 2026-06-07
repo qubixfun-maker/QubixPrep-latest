@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -22,7 +23,9 @@ import {
   AlertTriangle,
   RefreshCw,
   FolderOpen,
-  ChevronDown
+  ChevronDown,
+  Video,
+  Link as LinkIcon
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -60,6 +63,7 @@ export default function AdminDashboard() {
   }>({ topics: [], mindmaps: [], questions: [] })
   
   const [isAddingTopic, setIsAddingTopic] = useState(false)
+  const [isAddingVideo, setIsAddingVideo] = useState(false)
   const [isAddingMindmap, setIsAddingMindmap] = useState(false)
   const [isUploadingQBank, setIsUploadingQBank] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -71,6 +75,14 @@ export default function AdminDashboard() {
     title: "",
     importance: "Medium" as "Low" | "Medium" | "High" | "Essential",
     file: null as File | null
+  })
+
+  const [videoForm, setVideoForm] = useState({
+    subjectId: "",
+    unitName: "",
+    title: "",
+    url: "",
+    importance: "Medium" as "Low" | "Medium" | "High" | "Essential"
   })
 
   const [mindmapForm, setMindmapForm] = useState({
@@ -176,7 +188,7 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteTopic(topic: any) {
-    if (!db || !confirm(`Delete "${topic.title}" and its PDF file?`)) return
+    if (!db || !confirm(`Delete "${topic.title}"?`)) return
     try {
       const sId = topic.subjectId
       await deleteDoc(doc(db, 'subjects', sId, 'topics', topic.id))
@@ -187,7 +199,7 @@ export default function AdminDashboard() {
       }
       
       setSubjectContent(prev => ({ ...prev, topics: prev.topics.filter(t => t.id !== topic.id) }))
-      toast({ title: "Note Deleted" })
+      toast({ title: "Topic Deleted" })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Deletion Error", description: e.message })
     }
@@ -225,85 +237,6 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleDeleteQBankTopic(topicTitle: string, unitTitle: string) {
-    if (!db || !activeSubject || !confirm(`Delete all questions in "${topicTitle}"?`)) return
-    setLoadingContent(true)
-    try {
-      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-      const questionsInTopic = subjectContent.questions.filter(q => q.unit_title === unitTitle && q.topic_title === topicTitle)
-      const count = questionsInTopic.length
-      
-      const { error } = await supabase
-        .from('questions')
-        .delete()
-        .eq('subject_id', subjectId)
-        .eq('unit_title', unitTitle)
-        .eq('topic_title', topicTitle)
-      
-      if (error) throw error
-
-      await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(-count) })
-      setSubjectContent(prev => ({ 
-        ...prev, 
-        questions: prev.questions.filter(q => !(q.unit_title === unitTitle && q.topic_title === topicTitle)) 
-      }))
-      toast({ title: "Topic Removed", description: `Deleted ${count} cases.` })
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message })
-    } finally {
-      setLoadingContent(false)
-    }
-  }
-
-  async function handleDeleteQBankUnit(unitTitle: string) {
-    if (!db || !activeSubject || !confirm(`Delete entire Unit "${unitTitle}"? This will remove all nested topics.`)) return
-    setLoadingContent(true)
-    try {
-      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-      const questionsInUnit = subjectContent.questions.filter(q => q.unit_title === unitTitle)
-      const count = questionsInUnit.length
-
-      const { error } = await supabase
-        .from('questions')
-        .delete()
-        .eq('subject_id', subjectId)
-        .eq('unit_title', unitTitle)
-      
-      if (error) throw error
-
-      await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(-count) })
-      setSubjectContent(prev => ({ 
-        ...prev, 
-        questions: prev.questions.filter(q => q.unit_title !== unitTitle) 
-      }))
-      toast({ title: "Unit Removed", description: `Deleted ${count} cases.` })
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message })
-    } finally {
-      setLoadingContent(false)
-    }
-  }
-
-  async function handleClearQBank() {
-    if (!db || !activeSubject) return
-    const confirmMsg = `Are you sure you want to reset the QBank for ${activeSubject}?`
-    if (!confirm(confirmMsg)) return
-    
-    setLoadingContent(true)
-    try {
-      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-      const { error } = await supabase.from('questions').delete().eq('subject_id', subjectId)
-      if (error) throw error
-      await updateDoc(doc(db, 'subjects', subjectId), { questionCount: 0 })
-      setSubjectContent(prev => ({ ...prev, questions: [] }))
-      toast({ title: "QBank Cleared" })
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Clear Failed", description: e.message })
-    } finally {
-      setLoadingContent(false)
-    }
-  }
-
   async function handleAddTopic() {
     if (!db || !topicForm.subjectId || !topicForm.title || !topicForm.file) {
       toast({ variant: "destructive", title: "Missing Information" })
@@ -329,9 +262,7 @@ export default function AdminDashboard() {
         id: subjectId,
         name: topicForm.subjectId,
         iconName: "BookOpen",
-        topicCount: increment(1),
-        mindmapCount: increment(0),
-        questionCount: increment(0)
+        topicCount: increment(1)
       }, { merge: true })
 
       await setDoc(topicRef, {
@@ -351,6 +282,48 @@ export default function AdminDashboard() {
       setActiveSubject(topicForm.subjectId)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleAddVideo() {
+    if (!db || !videoForm.subjectId || !videoForm.title || !videoForm.url) {
+      toast({ variant: "destructive", title: "Missing Information" })
+      return
+    }
+
+    setUploading(true)
+    try {
+      const subjectId = videoForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const topicId = `vid-${Date.now()}`
+      
+      const subjectRef = doc(db, 'subjects', subjectId)
+      const topicRef = doc(db, 'subjects', subjectId, 'topics', topicId)
+
+      await setDoc(subjectRef, {
+        id: subjectId,
+        name: videoForm.subjectId,
+        iconName: "Video",
+        topicCount: increment(1)
+      }, { merge: true })
+
+      await setDoc(topicRef, {
+        id: topicId,
+        subjectId: subjectId,
+        unitName: videoForm.unitName,
+        title: videoForm.title,
+        contentUrl: videoForm.url,
+        contentType: "video",
+        importance: videoForm.importance,
+        createdAt: new Date().toISOString()
+      })
+
+      toast({ title: "Video Added" })
+      setIsAddingVideo(false)
+      setActiveSubject(videoForm.subjectId)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
       setUploading(false)
     }
@@ -471,11 +444,12 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <ShieldAlert className="h-8 w-8 text-primary" /> Command Center
           </h1>
-          <p className="text-muted-foreground">Manage subjects, notes, and clinical assessments.</p>
+          <p className="text-muted-foreground">Manage subjects, curriculum videos, and notes.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl gap-2"><Plus className="h-4 w-4" /> New Note</Button>
-          <Button onClick={() => setIsAddingMindmap(true)} variant="secondary" className="rounded-xl gap-2"><Network className="h-4 w-4" /> New Mindmap</Button>
+          <Button onClick={() => setIsAddingVideo(true)} variant="secondary" className="rounded-xl gap-2"><Video className="h-4 w-4" /> Add Video</Button>
+          <Button onClick={() => setIsAddingMindmap(true)} variant="outline" className="rounded-xl gap-2 glass"><Network className="h-4 w-4" /> New Mindmap</Button>
           <Button onClick={() => setIsUploadingQBank(true)} variant="outline" className="rounded-xl gap-2 glass"><Database className="h-4 w-4" /> Import QBank</Button>
         </div>
       </div>
@@ -499,7 +473,7 @@ export default function AdminDashboard() {
                 <div>
                   <p className="font-bold text-sm group-hover:text-primary transition-colors">{s.name}</p>
                   <div className="flex gap-2 mt-1">
-                    <span className="text-[9px] text-muted-foreground uppercase">{s.topicCount || 0} Notes</span>
+                    <span className="text-[9px] text-muted-foreground uppercase">{s.topicCount || 0} Content</span>
                     <span className="text-[9px] text-muted-foreground uppercase">{s.questionCount || 0} MCQs</span>
                   </div>
                 </div>
@@ -524,9 +498,9 @@ export default function AdminDashboard() {
                 <Badge variant="outline" className="glass text-[10px] uppercase font-bold tracking-widest">{activeSubject.toLowerCase().replace(/\s+/g, '-')}</Badge>
               </div>
 
-              <Tabs defaultValue="notes" className="w-full">
+              <Tabs defaultValue="content" className="w-full">
                 <TabsList className="glass border-none h-12 p-1 rounded-xl mb-6">
-                  <TabsTrigger value="notes" className="rounded-lg gap-2 data-[state=active]:bg-primary"><FileText className="h-4 w-4" /> Notes</TabsTrigger>
+                  <TabsTrigger value="content" className="rounded-lg gap-2 data-[state=active]:bg-primary"><FileText className="h-4 w-4" /> Curriculum</TabsTrigger>
                   <TabsTrigger value="mindmaps" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Network className="h-4 w-4" /> Mindmaps</TabsTrigger>
                   <TabsTrigger value="qbank" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Database className="h-4 w-4" /> QBank</TabsTrigger>
                 </TabsList>
@@ -535,15 +509,20 @@ export default function AdminDashboard() {
                   <div className="h-64 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                 ) : (
                   <>
-                    <TabsContent value="notes" className="space-y-3">
+                    <TabsContent value="content" className="space-y-3">
                       {subjectContent.topics.map((t) => (
                         <Card key={t.id} className="glass border-none hover:bg-white/5 transition-colors">
                           <CardContent className="p-4 flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <div className="p-2.5 rounded-xl bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div>
+                              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                                {t.contentType === 'video' ? <Video className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+                              </div>
                               <div>
                                 <p className="font-bold text-sm">{t.title}</p>
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{t.unitName || 'General'}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{t.unitName || 'General'}</p>
+                                  <Badge variant="outline" className="text-[8px] h-4 uppercase">{t.contentType}</Badge>
+                                </div>
                               </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => handleDeleteTopic(t)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all">
@@ -552,7 +531,7 @@ export default function AdminDashboard() {
                           </CardContent>
                         </Card>
                       ))}
-                      {subjectContent.topics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No notes found.</div>}
+                      {subjectContent.topics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No curriculum content found.</div>}
                     </TabsContent>
 
                     <TabsContent value="mindmaps" className="grid md:grid-cols-2 gap-4">
@@ -567,89 +546,37 @@ export default function AdminDashboard() {
                           <div className="p-3 bg-card"><p className="text-sm font-bold truncate">{mm.title}</p></div>
                         </Card>
                       ))}
-                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No mindmaps found.</div>}
                     </TabsContent>
 
                     <TabsContent value="qbank" className="space-y-4">
-                      <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
-                        <div className="flex items-center gap-3">
-                           <FolderOpen className="h-5 w-5 text-primary" />
-                           <span className="text-sm font-bold">{subjectContent.questions.length} Questions organized by curriculum</span>
-                        </div>
-                        <Button variant="destructive" size="sm" onClick={handleClearQBank} className="rounded-xl gap-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20">
-                          <AlertTriangle className="h-4 w-4" /> Clear Subject QBank
-                        </Button>
-                      </div>
-                      
                       <Accordion type="multiple" className="space-y-4">
                         {groupedQBank.map((unit, uIdx) => (
                           <AccordionItem key={uIdx} value={`unit-${uIdx}`} className="border-none glass rounded-2xl px-2">
-                            <div className="flex items-center pr-4">
-                              <AccordionTrigger className="hover:no-underline py-4 px-4 flex-1">
-                                <div className="flex flex-col items-start text-left">
-                                  <span className="text-[10px] text-accent font-bold uppercase tracking-widest">Unit {uIdx + 1}</span>
-                                  <span className="text-sm font-bold">{unit.title}</span>
-                                </div>
-                              </AccordionTrigger>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteQBankUnit(unit.title);
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                            <AccordionTrigger className="hover:no-underline py-4 px-4 flex-1">
+                              <div className="flex flex-col items-start text-left">
+                                <span className="text-[10px] text-accent font-bold uppercase tracking-widest">Unit {uIdx + 1}</span>
+                                <span className="text-sm font-bold">{unit.title}</span>
+                              </div>
+                            </AccordionTrigger>
                             <AccordionContent className="pb-4 px-2 space-y-4">
-                              <Accordion type="multiple" className="space-y-2">
-                                {Object.entries(unit.topics).map(([topicTitle, questions], tIdx) => (
-                                  <AccordionItem key={tIdx} value={`topic-${uIdx}-${tIdx}`} className="border-none bg-black/20 rounded-xl overflow-hidden">
-                                    <div className="flex items-center pr-4">
-                                      <AccordionTrigger className="hover:no-underline py-3 px-4 group flex-1">
-                                        <div className="flex items-center gap-3">
-                                          <div className="p-1.5 rounded-lg bg-white/5 text-muted-foreground group-hover:text-primary transition-colors">
-                                            <FolderOpen className="h-3.5 w-3.5" />
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold">{topicTitle}</span>
-                                            <Badge variant="secondary" className="text-[9px] h-4 font-mono">{questions.length}</Badge>
-                                          </div>
-                                        </div>
-                                      </AccordionTrigger>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDeleteQBankTopic(topicTitle, unit.title);
-                                        }}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                    <AccordionContent className="px-4 pb-4 pt-2 space-y-2">
-                                      {questions.map((q) => (
-                                        <div key={q.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 group hover:bg-white/10 transition-colors">
-                                          <p className="text-[11px] font-medium truncate flex-1 pr-4">{q.question_text}</p>
-                                          <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-7 w-7 text-muted-foreground hover:text-destructive rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                          </Button>
-                                        </div>
-                                      ))}
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                ))}
-                              </Accordion>
+                              {Object.entries(unit.topics).map(([topicTitle, questions], tIdx) => (
+                                <div key={tIdx} className="p-3 rounded-xl bg-white/5 border border-white/5">
+                                  <p className="text-xs font-bold mb-2">{topicTitle} ({questions.length} MCQs)</p>
+                                  <div className="space-y-2">
+                                    {questions.slice(0, 3).map(q => (
+                                      <div key={q.id} className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                        <p className="truncate flex-1 pr-4">{q.question_text}</p>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-6 w-6"><Trash2 className="h-3 w-3" /></Button>
+                                      </div>
+                                    ))}
+                                    {questions.length > 3 && <p className="text-[9px] italic text-muted-foreground">...and {questions.length - 3} more</p>}
+                                  </div>
+                                </div>
+                              ))}
                             </AccordionContent>
                           </AccordionItem>
                         ))}
                       </Accordion>
-                      
-                      {subjectContent.questions.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">The question bank is empty.</div>}
                     </TabsContent>
                   </>
                 )}
@@ -696,6 +623,25 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isAddingVideo} onOpenChange={setIsAddingVideo}>
+        <DialogContent className="glass border-none sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Video className="h-5 w-5 text-secondary" /> Add Video Lecture</DialogTitle></DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label className="text-xs uppercase font-bold text-muted-foreground">Subject</Label>
+              <Select onValueChange={v => setVideoForm({...videoForm, subjectId: v})}>
+                <SelectTrigger className="glass"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                <SelectContent className="glass">{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Unit Name</Label><Input placeholder="Unit Title" className="glass" value={videoForm.unitName} onChange={e => setVideoForm({...videoForm, unitName: e.target.value})} /></div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Video Title</Label><Input placeholder="Video Title" className="glass" value={videoForm.title} onChange={e => setVideoForm({...videoForm, title: e.target.value})} /></div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">YouTube URL</Label><div className="relative"><LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="https://youtube.com/watch?v=..." className="glass pl-10" value={videoForm.url} onChange={e => setVideoForm({...videoForm, url: e.target.value})} /></div></div>
+          </div>
+          <DialogFooter><Button className="w-full rounded-xl bg-secondary" onClick={handleAddVideo} disabled={uploading}>{uploading ? "Saving..." : "Add to Curriculum"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isAddingMindmap} onOpenChange={setIsAddingMindmap}>
         <DialogContent className="glass border-none sm:max-w-md">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><Network className="h-5 w-5 text-secondary" /> Add Visual Mindmap</DialogTitle></DialogHeader>
@@ -729,7 +675,6 @@ export default function AdminDashboard() {
             <div className="grid gap-2">
               <Label className="text-xs uppercase font-bold text-muted-foreground">CSV File (Tab-Separated)</Label>
               <Input type="file" accept=".csv,.txt" className="glass h-auto py-2" onChange={e => setQbankForm({...qbankForm, file: e.target.files?.[0] || null})} />
-              <p className="text-[10px] text-muted-foreground italic">Columns: unit_num, unit_title, topic_title, question, options, answer_idx, explanation</p>
             </div>
           </div>
           <DialogFooter><Button className="w-full rounded-xl bg-accent text-background" onClick={handleImportQBank} disabled={uploading}>{uploading ? "Processing..." : "Import Cases"}</Button></DialogFooter>
