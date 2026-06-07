@@ -15,7 +15,10 @@ import {
   PanelRightClose,
   Info,
   EyeOff,
-  ShieldAlert
+  ShieldAlert,
+  ShieldCheck,
+  Maximize2,
+  Minimize2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -26,12 +29,12 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   const { id, topicId } = use(params)
   const db = useFirestore()
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isFullView, setIsFullView] = useState(false)
   
   // Content Protection: Prevent right-click, copy, and print
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent Ctrl+S, Ctrl+P, Ctrl+U (View Source)
       if (
         (e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'u')) ||
         (e.metaKey && (e.key === 's' || e.key === 'p' || e.key === 'u'))
@@ -39,10 +42,8 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
         e.preventDefault();
       }
     };
-
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
-    
     return () => {
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
@@ -92,7 +93,6 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#000] text-white selection:bg-none select-none">
-      {/* Immersive App Header */}
       <header className="h-14 border-b border-white/5 glass-darker flex items-center justify-between px-4 z-40 shrink-0">
         <div className="flex items-center gap-3">
           <Link href={`/notes/${id}`}>
@@ -111,10 +111,17 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">
-            <ShieldAlert className="h-3 w-3 text-orange-400" />
-            Content Protected
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground h-8 gap-2 hover:text-white hidden sm:flex"
+            onClick={() => setIsFullView(!isFullView)}
+          >
+            {isFullView ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            <span className="text-[10px] font-bold uppercase tracking-tighter">
+              {isFullView ? 'Standard View' : 'Focus Mode'}
+            </span>
+          </Button>
 
           <Sheet>
             <SheetTrigger asChild>
@@ -147,7 +154,6 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
                    </div>
                    <p className="text-xs text-muted-foreground leading-relaxed">
                      This resource is optimized for <span className="text-white font-semibold">NEET-PG/USMLE</span> preparation. 
-                     Focus on the diagnostic algorithms and high-yield imagery within the document.
                    </p>
                  </div>
                  
@@ -158,27 +164,22 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
 
           <div className="h-6 w-[1px] bg-white/10 mx-1 hidden sm:block" />
 
-          <div className="flex items-center gap-1">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => setIsBookmarked(!isBookmarked)}
-              className={`h-9 w-9 rounded-xl ${isBookmarked ? 'text-accent' : 'text-muted-foreground'}`}
-            >
-              <Bookmark className={`h-4.5 w-4.5 ${isBookmarked ? 'fill-current' : ''}`} />
-            </Button>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setIsBookmarked(!isBookmarked)}
+            className={`h-9 w-9 rounded-xl ${isBookmarked ? 'text-accent' : 'text-muted-foreground'}`}
+          >
+            <Bookmark className={`h-4.5 w-4.5 ${isBookmarked ? 'fill-current' : ''}`} />
+          </Button>
         </div>
       </header>
 
-      {/* Main Study Canvas */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        <div className="absolute inset-0 bg-[#121214] flex flex-col items-center overflow-auto scrollbar-hide">
+        <div className="absolute inset-0 bg-[#000] flex flex-col items-center overflow-auto scrollbar-hide">
           {topicData.contentType === 'pdf' ? (
-            <div className="w-full h-full max-w-5xl mx-auto shadow-2xl relative bg-white">
-              {/* Security Shield: Transparent overlay to block 'Pop Out' and interaction with native toolbar buttons */}
+            <div className={`w-full h-full transition-all duration-500 mx-auto shadow-2xl relative bg-white ${isFullView ? 'max-w-none' : 'max-w-6xl'}`}>
               <div className="absolute top-0 right-0 w-48 h-16 z-20 pointer-events-auto cursor-default" />
-              
               <iframe 
                 src={getViewerUrl(topicData.contentUrl)} 
                 className="w-full h-full border-none"
@@ -187,10 +188,9 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
             </div>
           ) : topicData.contentType === 'video' ? (
             <div className="flex-1 w-full flex items-center justify-center p-4">
-              <div className="relative aspect-video w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl bg-[#000] border border-white/5">
+              <div className={`relative aspect-video w-full transition-all duration-500 rounded-2xl overflow-hidden shadow-2xl bg-[#000] border border-white/5 ${isFullView ? 'max-w-none h-full' : 'max-w-5xl'}`}>
                 <video controls className="w-full h-full" controlsList="nodownload" onContextMenu={(e) => e.preventDefault()}>
                   <source src={topicData.contentUrl} />
-                  Your browser does not support high-definition video playback.
                 </video>
               </div>
             </div>
@@ -199,7 +199,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
                <img 
                  src={topicData.contentUrl} 
                  alt={topicData.title} 
-                 className="max-w-full rounded-xl shadow-2xl border border-white/5 pointer-events-none"
+                 className={`transition-all duration-500 rounded-xl shadow-2xl border border-white/5 pointer-events-none ${isFullView ? 'max-w-none w-full' : 'max-w-5xl w-full'}`}
                  onContextMenu={(e) => e.preventDefault()}
                />
             </div>
@@ -208,14 +208,19 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
               <div className="p-10 rounded-full bg-primary/10 text-primary border border-primary/20">
                 <FileText className="h-16 w-16" />
               </div>
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold">Clinical Resource</h2>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  This document type is protected and only viewable within the Qubix Secure Reader.
-                </p>
-              </div>
+              <h2 className="text-2xl font-bold">Clinical Resource Protected</h2>
             </div>
           )}
+        </div>
+      </div>
+      
+      <div className="h-8 glass-darker border-t border-white/5 flex items-center justify-between px-6 z-40 shrink-0">
+        <div className="flex items-center gap-2 text-[8px] font-bold text-muted-foreground uppercase tracking-widest">
+           <ShieldCheck className="h-3 w-3 text-accent" />
+           Encrypted Learning Session
+        </div>
+        <div className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">
+           Qubix Secure Reader v2.0
         </div>
       </div>
     </div>
