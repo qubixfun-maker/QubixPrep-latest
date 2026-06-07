@@ -26,6 +26,36 @@
         "lastLogin": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "currentYear", "role"]
+    },
+    "MedicalSubject": {
+      "title": "Medical Subject",
+      "description": "A top-level medical subject like Anatomy or Pathology.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "iconName": { "type": "string" },
+        "color": { "type": "string" },
+        "unitCount": { "type": "number" },
+        "topicCount": { "type": "number" }
+      },
+      "required": ["name", "iconName"]
+    },
+    "MedicalTopic": {
+      "title": "Medical Topic",
+      "description": "A specific study topic within a subject.",
+      "type": "object",
+      "properties": {
+        "subjectId": { "type": "string" },
+        "title": { "type": "string" },
+        "contentUrl": { "type": "string", "description": "URL to the file in Firebase Storage." },
+        "contentType": { "type": "string", "enum": ["pdf", "video", "image", "csv"] },
+        "importance": { "type": "string", "enum": ["Low", "Medium", "High", "Essential"] },
+        "readTime": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published"] }
+      },
+      "required": ["subjectId", "title", "contentType"]
     }
   },
   "auth": {
@@ -35,6 +65,14 @@
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "User profile documents."
+    },
+    "/subjects/{subjectId}": {
+      "schema": "MedicalSubject",
+      "description": "Root subjects for the medical library."
+    },
+    "/subjects/{subjectId}/topics/{topicId}": {
+      "schema": "MedicalTopic",
+      "description": "Topics and resources within a subject."
     }
   }
 }
