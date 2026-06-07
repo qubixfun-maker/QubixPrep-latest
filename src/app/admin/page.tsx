@@ -20,7 +20,9 @@ import {
   Layout,
   UploadCloud,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  FolderOpen,
+  ChevronDown
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -30,6 +32,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 const MBBS_SUBJECTS = [
   "Anatomy", "Physiology", "Biochemistry", 
@@ -84,6 +92,28 @@ export default function AdminDashboard() {
   const subjectsQuery = useMemo(() => (!db) ? null : query(collection(db, 'subjects'), orderBy('name', 'asc')), [db])
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
+  // Group questions by Unit and Topic
+  const groupedQBank = useMemo(() => {
+    const units: Record<string, { title: string, topics: Record<string, any[]> }> = {}
+    
+    subjectContent.questions.forEach(q => {
+      const uTitle = q.unit_title || "General"
+      const tTitle = q.topic_title || "General"
+      
+      if (!units[uTitle]) {
+        units[uTitle] = { title: uTitle, topics: {} }
+      }
+      
+      if (!units[uTitle].topics[tTitle]) {
+        units[uTitle].topics[tTitle] = []
+      }
+      
+      units[uTitle].topics[tTitle].push(q)
+    })
+    
+    return Object.values(units)
+  }, [subjectContent.questions])
+
   // Load content for active subject
   useEffect(() => {
     async function fetchSubjectDetails() {
@@ -92,20 +122,18 @@ export default function AdminDashboard() {
       try {
         const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
         
-        // Fetch Notes from Firestore
         const topicsSnap = await getDocs(collection(db, 'subjects', subjectId, 'topics'))
         const topics = topicsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
         
-        // Fetch Mindmaps from Firestore
         const mindmapsSnap = await getDocs(collection(db, 'subjects', subjectId, 'mindmaps'))
         const mindmaps = mindmapsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
         
-        // Fetch Questions from Supabase Database
         const { data: questions, error } = await supabase
           .from('questions')
           .select('*')
           .eq('subject_id', subjectId)
-          .order('created_at', { ascending: false })
+          .order('unit_number', { ascending: true })
+          .order('created_at', { ascending: true })
         
         if (error) throw error
 
@@ -122,14 +150,12 @@ export default function AdminDashboard() {
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Restricted</h1><Link href="/"><Button className="mt-4">Return Home</Button></Link></div>
 
-  // SYNC HANDLER
   async function handleSyncCounters() {
     if (!db || !activeSubject) return
     setLoadingContent(true)
     try {
       const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
       
-      // Count in Supabase
       const { count, error } = await supabase
         .from('questions')
         .select('*', { count: 'exact', head: true })
@@ -137,7 +163,6 @@ export default function AdminDashboard() {
       
       if (error) throw error
 
-      // Update Firestore
       await updateDoc(doc(db, 'subjects', subjectId), { 
         questionCount: count || 0 
       })
@@ -150,7 +175,6 @@ export default function AdminDashboard() {
     }
   }
 
-  // DELETE HANDLERS
   async function handleDeleteTopic(topic: any) {
     if (!db || !confirm(`Delete "${topic.title}" and its PDF file?`)) return
     try {
@@ -203,29 +227,17 @@ export default function AdminDashboard() {
 
   async function handleClearQBank() {
     if (!db || !activeSubject) return
-    
-    const confirmMsg = `CRITICAL: Are you sure you want to reset the question bank for ${activeSubject}? This will remove all questions in Supabase and reset the count to 0 in Firestore.`
+    const confirmMsg = `Are you sure you want to reset the QBank for ${activeSubject}?`
     if (!confirm(confirmMsg)) return
     
     setLoadingContent(true)
     try {
       const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-      
-      // 1. Delete from Supabase
-      const { error } = await supabase
-        .from('questions')
-        .delete()
-        .eq('subject_id', subjectId)
-      
+      const { error } = await supabase.from('questions').delete().eq('subject_id', subjectId)
       if (error) throw error
-      
-      // 2. Reset Firestore counter
       await updateDoc(doc(db, 'subjects', subjectId), { questionCount: 0 })
-      
-      // 3. Update local state
       setSubjectContent(prev => ({ ...prev, questions: [] }))
-      
-      toast({ title: "QBank Cleared", description: `All questions for ${activeSubject} have been permanently removed.` })
+      toast({ title: "QBank Cleared" })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Clear Failed", description: e.message })
     } finally {
@@ -233,10 +245,9 @@ export default function AdminDashboard() {
     }
   }
 
-  // ADD HANDLERS
   async function handleAddTopic() {
     if (!db || !topicForm.subjectId || !topicForm.title || !topicForm.file) {
-      toast({ variant: "destructive", title: "Missing Information", description: "All fields and PDF file are required." })
+      toast({ variant: "destructive", title: "Missing Information" })
       return
     }
 
@@ -252,26 +263,18 @@ export default function AdminDashboard() {
       const { data: { publicUrl } } = supabase.storage.from('notes-pdf').getPublicUrl(storagePath)
 
       const topicId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
-      
       const subjectRef = doc(db, 'subjects', subjectId)
       const topicRef = doc(db, 'subjects', subjectId, 'topics', topicId)
 
-      const sSnap = await getDocs(query(collection(db, 'subjects')))
-      const subjectExists = sSnap.docs.some(d => d.id === subjectId)
+      await setDoc(subjectRef, {
+        id: subjectId,
+        name: topicForm.subjectId,
+        iconName: "BookOpen",
+        topicCount: increment(1),
+        mindmapCount: increment(0),
+        questionCount: increment(0)
+      }, { merge: true })
 
-      if (!subjectExists) {
-        await setDoc(subjectRef, {
-          id: subjectId,
-          name: topicForm.subjectId,
-          description: `Learning materials for ${topicForm.subjectId}`,
-          iconName: "BookOpen",
-          topicCount: 0,
-          mindmapCount: 0,
-          questionCount: 0
-        })
-      }
-
-      await updateDoc(subjectRef, { topicCount: increment(1) })
       await setDoc(topicRef, {
         id: topicId,
         subjectId: subjectId,
@@ -315,19 +318,13 @@ export default function AdminDashboard() {
       const subjectRef = doc(db, 'subjects', subjectId)
       const mmRef = doc(db, 'subjects', subjectId, 'mindmaps', mmId)
 
-      const sSnap = await getDocs(query(collection(db, 'subjects')))
-      if (!sSnap.docs.some(d => d.id === subjectId)) {
-        await setDoc(subjectRef, {
-          id: subjectId,
-          name: mindmapForm.subjectId,
-          iconName: "Network",
-          topicCount: 0,
-          mindmapCount: 0,
-          questionCount: 0
-        })
-      }
+      await setDoc(subjectRef, {
+        id: subjectId,
+        name: mindmapForm.subjectId,
+        iconName: "Network",
+        mindmapCount: increment(1)
+      }, { merge: true })
 
-      await updateDoc(subjectRef, { mindmapCount: increment(1) })
       await setDoc(mmRef, {
         id: mmId,
         subjectId: subjectId,
@@ -358,25 +355,16 @@ export default function AdminDashboard() {
     try {
       const subjectId = qbankForm.subjectId.toLowerCase().replace(/\s+/g, '-')
       const text = await qbankForm.file.text()
-      
-      // Support both CRLF and LF
       const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0)
       
-      if (lines.length < 2) throw new Error("File appears to be empty or missing data rows.")
+      if (lines.length < 2) throw new Error("File empty.")
 
       const questionsToInsert = []
-      
-      // Skip header row
       for (let i = 1; i < lines.length; i++) {
-        // Try tab split first, then comma as fallback
         let columns = lines[i].split('\t')
-        if (columns.length < 9) {
-          columns = lines[i].split(',')
-        }
+        if (columns.length < 9) columns = lines[i].split(',')
         
-        // Clean columns (remove surrounding quotes if any)
         const cleanCols = columns.map(c => c.trim().replace(/^"(.*)"$/, '$1'))
-
         if (cleanCols.length < 9) continue
 
         questionsToInsert.push({
@@ -395,27 +383,19 @@ export default function AdminDashboard() {
         })
       }
 
-      if (questionsToInsert.length === 0) throw new Error("No valid question rows found. Ensure file is tab-separated and contains all required columns.")
+      if (questionsToInsert.length === 0) throw new Error("No valid data rows found.")
 
       const { error } = await supabase.from('questions').insert(questionsToInsert)
       if (error) throw error
 
       const subjectRef = doc(db, 'subjects', subjectId)
-      await updateDoc(subjectRef, { 
-        questionCount: increment(questionsToInsert.length) 
-      }).catch(async () => {
-        await setDoc(subjectRef, {
-          id: subjectId,
-          name: qbankForm.subjectId,
-          questionCount: questionsToInsert.length,
-          topicCount: 0,
-          mindmapCount: 0,
-          iconName: "Database",
-          description: `QBank for ${qbankForm.subjectId}`
-        })
-      })
+      await setDoc(subjectRef, {
+        id: subjectId,
+        name: qbankForm.subjectId,
+        questionCount: increment(questionsToInsert.length)
+      }, { merge: true })
 
-      toast({ title: "Import Successful", description: `${questionsToInsert.length} cases added to ${qbankForm.subjectId}.` })
+      toast({ title: "Import Successful", description: `${questionsToInsert.length} cases added.` })
       setIsUploadingQBank(false)
       setActiveSubject(qbankForm.subjectId)
     } catch (e: any) {
@@ -442,8 +422,8 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid lg:grid-cols-4 gap-8">
-        <Card className="lg:col-span-1 glass border-none h-fit">
-          <div className="p-4 border-b border-white/5 bg-white/5 rounded-t-xl">
+        <Card className="lg:col-span-1 glass border-none h-fit overflow-hidden">
+          <div className="p-4 border-b border-white/5 bg-white/5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
               <Layout className="h-3 w-3" /> Library Index
             </p>
@@ -478,18 +458,11 @@ export default function AdminDashboard() {
                   <h2 className="text-2xl font-bold flex items-center gap-3">
                     <BookOpen className="h-6 w-6 text-primary" /> {activeSubject}
                   </h2>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={handleSyncCounters} 
-                    className="h-8 px-3 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter hover:bg-primary/10 hover:text-primary"
-                  >
+                  <Button variant="ghost" size="sm" onClick={handleSyncCounters} className="h-8 px-3 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter hover:bg-primary/10 hover:text-primary">
                     <RefreshCw className="h-3 w-3" /> Sync Counters
                   </Button>
                 </div>
-                <Badge variant="outline" className="glass text-[10px] uppercase font-bold tracking-widest">
-                  {activeSubject.toLowerCase().replace(/\s+/g, '-')}
-                </Badge>
+                <Badge variant="outline" className="glass text-[10px] uppercase font-bold tracking-widest">{activeSubject.toLowerCase().replace(/\s+/g, '-')}</Badge>
               </div>
 
               <Tabs defaultValue="notes" className="w-full">
@@ -520,7 +493,7 @@ export default function AdminDashboard() {
                           </CardContent>
                         </Card>
                       ))}
-                      {subjectContent.topics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No notes found for this subject.</div>}
+                      {subjectContent.topics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No notes found.</div>}
                     </TabsContent>
 
                     <TabsContent value="mindmaps" className="grid md:grid-cols-2 gap-4">
@@ -532,47 +505,59 @@ export default function AdminDashboard() {
                               <Button variant="destructive" size="sm" onClick={() => handleDeleteMindmap(mm)} className="rounded-xl"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
                             </div>
                           </div>
-                          <div className="p-3 bg-card">
-                            <p className="text-sm font-bold truncate">{mm.title}</p>
-                          </div>
+                          <div className="p-3 bg-card"><p className="text-sm font-bold truncate">{mm.title}</p></div>
                         </Card>
                       ))}
-                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No mindmaps found for this subject.</div>}
+                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No mindmaps found.</div>}
                     </TabsContent>
 
                     <TabsContent value="qbank" className="space-y-4">
-                      {subjectContent.questions.length > 0 && (
-                        <div className="flex justify-end">
-                          <Button 
-                            variant="destructive" 
-                            size="sm" 
-                            onClick={handleClearQBank} 
-                            className="rounded-xl gap-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20"
-                          >
-                            <AlertTriangle className="h-4 w-4" /> Clear All {subjectContent.questions.length} Questions
-                          </Button>
+                      <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <div className="flex items-center gap-3">
+                           <FolderOpen className="h-5 w-5 text-primary" />
+                           <span className="text-sm font-bold">{subjectContent.questions.length} Questions organized by curriculum</span>
                         </div>
-                      )}
-                      <div className="space-y-3">
-                        {subjectContent.questions.map((q) => (
-                          <Card key={q.id} className="glass border-none hover:bg-white/5 transition-colors">
-                            <CardContent className="p-4 flex items-center justify-between">
-                              <div className="flex-1 min-w-0 pr-6">
-                                <p className="text-sm font-medium line-clamp-1">{q.question_text}</p>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-[9px] text-accent font-bold uppercase">{q.unit_title}</span>
-                                  <span className="text-[9px] text-muted-foreground">•</span>
-                                  <span className="text-[9px] text-muted-foreground italic truncate">{q.topic_title}</span>
-                                </div>
-                              </div>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl shrink-0">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </CardContent>
-                          </Card>
-                        ))}
+                        <Button variant="destructive" size="sm" onClick={handleClearQBank} className="rounded-xl gap-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20">
+                          <AlertTriangle className="h-4 w-4" /> Clear Subject QBank
+                        </Button>
                       </div>
-                      {subjectContent.questions.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">The question bank for this subject is empty.</div>}
+                      
+                      <Accordion type="multiple" className="space-y-4">
+                        {groupedQBank.map((unit, uIdx) => (
+                          <AccordionItem key={uIdx} value={`unit-${uIdx}`} className="border-none glass rounded-2xl px-2">
+                            <AccordionTrigger className="hover:no-underline py-4 px-4">
+                              <div className="flex flex-col items-start text-left">
+                                <span className="text-[10px] text-accent font-bold uppercase tracking-widest">Unit {uIdx + 1}</span>
+                                <span className="text-sm font-bold">{unit.title}</span>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pb-4 px-2 space-y-4">
+                              {Object.entries(unit.topics).map(([topicTitle, questions], tIdx) => (
+                                <div key={tIdx} className="bg-black/20 rounded-xl p-4 border border-white/5">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
+                                      <ChevronRight className="h-3 w-3" /> {topicTitle}
+                                      <Badge variant="secondary" className="text-[9px] h-4">{questions.length} cases</Badge>
+                                    </h4>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {questions.map((q) => (
+                                      <div key={q.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 group hover:bg-white/10 transition-colors">
+                                        <p className="text-xs font-medium truncate flex-1 pr-4">{q.question_text}</p>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-7 w-7 text-muted-foreground hover:text-destructive rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </AccordionContent>
+                          </AccordionItem>
+                        ))}
+                      </Accordion>
+                      
+                      {subjectContent.questions.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">The question bank is empty.</div>}
                     </TabsContent>
                   </>
                 )}
@@ -599,8 +584,8 @@ export default function AdminDashboard() {
                 <SelectContent className="glass">{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Unit Name</Label><Input placeholder="e.g. Unit 1: General Histology" className="glass" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} /></div>
-            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Topic Title</Label><Input placeholder="e.g. Microscopic Structure" className="glass" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Unit Name</Label><Input placeholder="Unit Title" className="glass" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} /></div>
+            <div className="grid gap-2"><Label className="text-xs uppercase font-bold text-muted-foreground">Topic Title</Label><Input placeholder="Topic Title" className="glass" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
             <div className="grid gap-2">
               <Label className="text-xs uppercase font-bold text-muted-foreground">Yield Importance</Label>
               <Select onValueChange={(v: any) => setTopicForm({...topicForm, importance: v})}>
@@ -652,7 +637,7 @@ export default function AdminDashboard() {
             <div className="grid gap-2">
               <Label className="text-xs uppercase font-bold text-muted-foreground">CSV File (Tab-Separated)</Label>
               <Input type="file" accept=".csv,.txt" className="glass h-auto py-2" onChange={e => setQbankForm({...qbankForm, file: e.target.files?.[0] || null})} />
-              <p className="text-[10px] text-muted-foreground italic">Columns: unit_num, unit_title, topic_title, question, opt1, opt2, opt3, opt4, correct_idx, explanation</p>
+              <p className="text-[10px] text-muted-foreground italic">Columns: unit_num, unit_title, topic_title, question, options, answer_idx, explanation</p>
             </div>
           </div>
           <DialogFooter><Button className="w-full rounded-xl bg-accent text-background" onClick={handleImportQBank} disabled={uploading}>{uploading ? "Processing..." : "Import Cases"}</Button></DialogFooter>
