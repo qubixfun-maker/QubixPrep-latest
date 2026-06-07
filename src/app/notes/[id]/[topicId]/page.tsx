@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, use, useEffect } from "react"
@@ -25,7 +24,7 @@ import {
   Zap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -193,6 +192,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-full sm:max-w-xl glass-darker border-l border-white/10 p-0 overflow-y-auto">
+              <SheetTitle className="sr-only">AI Laboratory & Note Insights</SheetTitle>
               <div className="p-8 space-y-8 pb-20">
                  <div className="flex items-center justify-between">
                    <h2 className="text-xl font-bold flex items-center gap-3">
