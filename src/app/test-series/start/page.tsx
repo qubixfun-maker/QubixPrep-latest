@@ -2,7 +2,7 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, use } from "react"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ function QuizSessionContent() {
   const topics = searchParams.get('topics')?.split(',').filter(Boolean) || []
   const count = parseInt(searchParams.get('count') || '25')
   const mode = searchParams.get('mode') || 'practice'
+  const timeLimitMins = parseInt(searchParams.get('time') || '30')
 
   const [questions, setQuestions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,7 +41,7 @@ function QuizSessionContent() {
   const [score, setScore] = useState(0)
   const [finished, setFinished] = useState(false)
   const [answers, setAnswers] = useState<Record<number, number>>({})
-  const [timeLeft, setTimeLeft] = useState(count * 90)
+  const [timeLeft, setTimeLeft] = useState(timeLimitMins * 60)
 
   useEffect(() => {
     async function loadQuestions() {
@@ -52,7 +53,6 @@ function QuizSessionContent() {
           .select('*')
           .in('subject_id', subjects)
 
-        // Apply granular filters if provided
         if (units.length > 0) {
           query = query.in('unit_title', units)
         }
@@ -95,9 +95,10 @@ function QuizSessionContent() {
   if (questions.length === 0) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center space-y-6"><AlertTriangle className="h-12 w-12 text-yellow-500" /><h2 className="text-2xl font-bold">No Cases Found</h2><p className="text-muted-foreground">The filter criteria was too narrow. Try expanding your subject or unit selection.</p><Button onClick={() => router.push('/test-series')}>Adjust Filters</Button></div>
 
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60)
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
     const s = seconds % 60
-    return `${m}:${s < 10 ? '0' : ''}${s}`
+    return `${h > 0 ? h + ':' : ''}${m < 10 && h > 0 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`
   }
 
   const currentQ = questions[currentIndex]

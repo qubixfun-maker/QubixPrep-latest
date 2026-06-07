@@ -21,7 +21,8 @@ import {
   Loader2,
   ChevronDown,
   BookOpen,
-  Filter
+  Filter,
+  Clock
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import {
@@ -41,11 +42,11 @@ export default function TestSeriesPage() {
   const [curriculum, setCurriculum] = useState<any[]>([])
   const [curriculumLoading, setCurriculumLoading] = useState(false)
   
-  // Use composite keys for uniqueness: subjectId|unitTitle or subjectId|unitTitle|topicTitle
   const [selectedUnits, setSelectedUnits] = useState<string[]>([])
   const [selectedTopics, setSelectedTopics] = useState<string[]>([])
   
   const [questionCount, setQuestionCount] = useState(25)
+  const [timeLimit, setTimeLimit] = useState(30) // Minutes
   const [mode, setMode] = useState<"practice" | "exam">("practice")
 
   // Load Curriculum (Units/Topics) for selected subjects
@@ -117,7 +118,6 @@ export default function TestSeriesPage() {
   const handleStart = () => {
     if (selectedSubjects.length === 0) return
     
-    // Extract raw titles for filtering in the start page
     const unitTitles = selectedUnits.map(u => u.split('|')[1])
     const topicTitles = selectedTopics.map(t => t.split('|')[2])
 
@@ -126,6 +126,7 @@ export default function TestSeriesPage() {
       units: unitTitles.join(','),
       topics: topicTitles.join(','),
       count: questionCount.toString(),
+      time: timeLimit.toString(),
       mode: mode
     })
     router.push(`/test-series/start?${params.toString()}`)
@@ -170,7 +171,7 @@ export default function TestSeriesPage() {
                         id={`subject-${subject.id}`} 
                         checked={selectedSubjects.includes(subject.id)}
                         onCheckedChange={() => handleToggleSubject(subject.id)}
-                        onClick={(e) => e.stopPropagation()} // Prevent double-toggle
+                        onClick={(e) => e.stopPropagation()}
                       />
                       <div className="flex-1">
                         <Label htmlFor={`subject-${subject.id}`} className="font-bold cursor-pointer" onClick={(e) => e.stopPropagation()}>
@@ -254,11 +255,13 @@ export default function TestSeriesPage() {
                 <Stethoscope className="h-5 w-5 text-primary" /> Step 3: Configure Parameters
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-8">
+            <CardContent className="space-y-10">
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Number of Questions</Label>
-                  <span className="text-xl font-bold text-primary">{questionCount}</span>
+                  <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <BookOpen className="h-3.5 w-3.5" /> Question Volume
+                  </Label>
+                  <span className="text-xl font-bold text-primary">{questionCount} Cases</span>
                 </div>
                 <Slider 
                   value={[questionCount]} 
@@ -268,6 +271,24 @@ export default function TestSeriesPage() {
                   step={5}
                   className="py-4"
                 />
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5" /> Time Duration
+                  </Label>
+                  <span className="text-xl font-bold text-accent">{timeLimit} Minutes</span>
+                </div>
+                <Slider 
+                  value={[timeLimit]} 
+                  onValueChange={(v) => setTimeLimit(v[0])}
+                  max={180}
+                  min={5}
+                  step={5}
+                  className="py-4"
+                />
+                <p className="text-[10px] text-muted-foreground italic">Approx. {Math.round((timeLimit * 60) / questionCount)} seconds per question.</p>
               </div>
 
               <div className="space-y-4">
@@ -329,6 +350,10 @@ export default function TestSeriesPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Exam Volume</span>
                   <span className="font-bold">{questionCount} Cases</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Total Time</span>
+                  <span className="font-bold">{timeLimit} Mins</span>
                 </div>
                 <div className="flex justify-between text-sm capitalize">
                   <span className="text-muted-foreground">Simulation Mode</span>
