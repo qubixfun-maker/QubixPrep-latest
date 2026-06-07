@@ -1,5 +1,7 @@
+
 "use client"
 
+import { useMemo } from "react"
 import { 
   BookOpen, 
   LayoutDashboard, 
@@ -9,10 +11,13 @@ import {
   ShieldCheck, 
   FileText, 
   Video, 
-  History
+  History,
+  Loader2
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useUser, useDoc, useFirestore } from "@/firebase"
+import { doc } from "firebase/firestore"
 
 import {
   Sidebar,
@@ -35,7 +40,7 @@ const items = [
   },
   {
     title: "Subjects",
-    url: "/notes", // Redirect to library for subjects
+    url: "/notes",
     icon: BookOpen,
   },
   {
@@ -80,6 +85,16 @@ const adminItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { user, loading: authLoading } = useUser()
+  const db = useFirestore()
+
+  const profileRef = useMemo(() => {
+    if (!db || !user) return null
+    return doc(db, 'users', user.uid)
+  }, [db, user])
+
+  const { data: profile, loading: profileLoading } = useDoc(profileRef)
+  const isAdmin = profile && (profile as any).role === 'admin'
 
   return (
     <Sidebar collapsible="icon" className="border-r border-white/5 bg-card/50 backdrop-blur-xl">
@@ -116,28 +131,36 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup className="mt-auto">
-          <SidebarGroupLabel className="px-6 text-xs uppercase tracking-widest text-muted-foreground/50">Management</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {adminItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === item.url}
-                    tooltip={item.title}
-                    className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-5 w-5" />
-                      <span className="font-medium">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        
+        {/* Only show admin section if user is an admin or we are loading */}
+        {(isAdmin || profileLoading) && (
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupLabel className="px-6 text-xs uppercase tracking-widest text-muted-foreground/50">Management</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.url}
+                      tooltip={item.title}
+                      className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                    >
+                      <Link href={item.url}>
+                        {profileLoading && item.title === 'Admin Panel' ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <item.icon className="h-5 w-5" />
+                        )}
+                        <span className="font-medium">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarRail />
     </Sidebar>

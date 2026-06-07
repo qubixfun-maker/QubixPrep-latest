@@ -64,13 +64,13 @@ export default function SignUpPage() {
         mobileNumber: formData.mobile,
         collegeName: formData.college,
         currentYear: formData.year,
+        role: "student", // Default role
         createdAt: new Date().toISOString(),
         photoURL: userCredential.user.photoURL || ""
       }
 
       const userRef = doc(db, 'users', userCredential.user.uid)
       
-      // Attempt to save profile, but don't block the UI
       setDoc(userRef, profileData, { merge: true }).catch(async (err) => {
         const permissionError = new FirestorePermissionError({
           path: userRef.path,
@@ -105,19 +105,18 @@ export default function SignUpPage() {
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
-      // Check if user already has a profile
       const userRef = doc(db, 'users', user.uid)
       const docSnap = await getDoc(userRef)
 
       if (!docSnap.exists()) {
-        // Create a basic profile for Google users if it doesn't exist
         const profileData = {
           uid: user.uid,
           displayName: user.displayName || "Medical Student",
           email: user.email || "",
           mobileNumber: "",
           collegeName: "",
-          currentYear: "1st Year", // Default
+          currentYear: "1st Year",
+          role: "student", // Default role
           createdAt: new Date().toISOString(),
           photoURL: user.photoURL || ""
         }
@@ -128,7 +127,7 @@ export default function SignUpPage() {
     } catch (error: any) {
       let message = error.message
       if (error.code === 'auth/unauthorized-domain') {
-        message = "This domain is not yet authorized in Firebase Console. Please wait 1-2 minutes for propagation or check your settings."
+        message = "This domain is not yet authorized in Firebase Console. Please add it to your Authorized Domains list."
       }
       toast({
         variant: "destructive",

@@ -1,7 +1,11 @@
+
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react"
+import { useUser, useDoc, useFirestore } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { 
   BarChart3, 
   Upload, 
@@ -10,16 +14,57 @@ import {
   Plus, 
   Trash2, 
   Edit,
-  ShieldAlert
-} from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+  ShieldAlert,
+  Loader2,
+  Lock
+} from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import Link from "next/link"
 
 export default function AdminDashboard() {
+  const { user, loading: authLoading } = useUser()
+  const db = useFirestore()
+  
+  const profileRef = useMemo(() => {
+    if (!db || !user) return null
+    return doc(db, 'users', user.uid)
+  }, [db, user])
+
+  const { data: profile, loading: profileLoading } = useDoc(profileRef)
+
   const content = [
     { name: "Cardiac Pathology.pdf", type: "PDF", size: "4.2 MB", uploads: 1240, status: "Published" },
     { name: "Neuro Pharmacology.mp4", type: "Video", size: "128 MB", uploads: 850, status: "Published" },
     { name: "Gross Anatomy - Upper Limb.pdf", type: "PDF", size: "15.8 MB", uploads: 2100, status: "Draft" },
   ];
+
+  if (authLoading || profileLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="h-10 w-10 text-primary animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user || (profile && (profile as any).role !== 'admin')) {
+    return (
+      <div className="h-[80vh] flex flex-col items-center justify-center space-y-4 text-center p-6">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-4">
+          <Lock className="h-8 w-8" />
+        </div>
+        <h1 className="text-2xl font-bold">Access Restricted</h1>
+        <p className="text-muted-foreground max-w-md">
+          You do not have the required permissions to access the Admin Control Center. 
+          Please contact the system administrator if you believe this is an error.
+        </p>
+        <Link href="/">
+          <Button variant="outline" className="rounded-xl glass border-white/10 mt-4">
+            Return to Dashboard
+          </Button>
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-700">

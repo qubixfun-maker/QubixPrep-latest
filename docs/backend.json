@@ -16,11 +16,16 @@
           "enum": ["1st Year", "2nd Year", "3rd Year (Part 1)", "4th Year (Part 2)", "Internship"],
           "description": "The user's current academic year in MBBS."
         },
+        "role": {
+          "type": "string",
+          "enum": ["student", "admin"],
+          "description": "The user's role in the system for access control."
+        },
         "photoURL": { "type": "string", "description": "URL to the user's profile picture." },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLogin": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "email", "currentYear"]
+      "required": ["uid", "email", "currentYear", "role"]
     }
   },
   "auth": {
