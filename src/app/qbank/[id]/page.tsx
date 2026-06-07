@@ -1,9 +1,10 @@
 
 "use client"
 
-import { useMemo, use, useState } from "react"
-import { useDoc, useCollection, useFirestore } from "@/firebase"
-import { doc, collection, query, orderBy } from "firebase/firestore"
+import { useMemo, use, useState, useEffect } from "react"
+import { useDoc, useFirestore } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
@@ -18,23 +19,44 @@ import {
   Trophy
 } from "lucide-react"
 import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
 
 export default function QuizPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
   
   const db = useFirestore()
+  const { toast } = useToast()
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
   const [quizFinished, setQuizFinished] = useState(false)
+  const [questions, setQuestions] = useState<any[]>([])
+  const [qLoading, setQLoading] = useState(true)
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
 
-  const questionsQuery = useMemo(() => (!db) ? null : query(collection(db, 'subjects', subjectId, 'questions'), orderBy('createdAt', 'desc')), [db, subjectId])
-  const { data: questions, loading: qLoading } = useCollection(questionsQuery)
+  useEffect(() => {
+    async function fetchQuestions() {
+      if (!subjectId) return
+      setQLoading(true)
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('created_at', { ascending: false })
+      
+      if (error) {
+        toast({ variant: "destructive", title: "Fetch Error", description: error.message })
+      } else {
+        setQuestions(data || [])
+      }
+      setQLoading(false)
+    }
+    fetchQuestions()
+  }, [subjectId, toast])
 
   if (subjectLoading || qLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
 
@@ -43,20 +65,24 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
       <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center">
         <Info className="h-12 w-12 text-muted-foreground mb-4" />
         <h2 className="text-xl font-bold">No Questions Yet</h2>
-        <p className="text-muted-foreground mt-2">The admin hasn't uploaded questions for this subject.</p>
+        <p className="text-muted-foreground mt-2">The admin hasn't uploaded questions for this subject in Supabase yet.</p>
         <Link href="/qbank" className="mt-6"><Button>Back to QBank</Button></Link>
       </div>
     )
   }
 
-  const currentQ = questions[currentIndex] as any
+  const currentQ = questions[currentIndex]
   const total = questions.length
+  
+  // Map Supabase columns to UI options
+  const currentOptions = [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4]
+  const correctAnswer = currentOptions[currentQ.correct_answer_index]
 
   function handleAnswer(opt: string) {
     if (selectedOption) return
     setSelectedOption(opt)
     setShowExplanation(true)
-    if (opt === currentQ.correctAnswer) {
+    if (opt === correctAnswer) {
       setScore(s => s + 1)
     }
   }
@@ -121,14 +147,14 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
         <Card className="glass border-none">
           <CardHeader>
             <div className="flex items-center gap-2 text-[10px] font-bold text-primary uppercase tracking-widest mb-2">
-              <BrainCircuit className="h-3 w-3" /> Clinical Case
+              <BrainCircuit className="h-3 w-3" /> {currentQ.unit_title || 'Clinical Case'}
             </div>
-            <CardTitle className="text-xl leading-relaxed">{currentQ.questionText}</CardTitle>
+            <CardTitle className="text-xl leading-relaxed">{currentQ.question_text}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3">
-              {currentQ.options.map((opt: string, i: number) => {
-                const isCorrect = opt === currentQ.correctAnswer
+              {currentOptions.map((opt: string, i: number) => {
+                const isCorrect = opt === correctAnswer
                 const isSelected = opt === selectedOption
                 let styles = "bg-white/5 border-white/5"
                 if (selectedOption) {

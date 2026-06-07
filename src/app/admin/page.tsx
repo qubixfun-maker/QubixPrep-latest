@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, setDoc, deleteDoc, query, orderBy, increment, updateDoc, writeBatch } from "firebase/firestore"
+import { doc, collection, query, orderBy, increment, updateDoc } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,14 +11,11 @@ import {
   ShieldAlert,
   Loader2,
   Lock,
-  Trash2,
   FileText,
   Network,
   Database,
-  Upload,
-  Plus
+  CloudUpload,
 } from "lucide-react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -71,7 +68,7 @@ export default function AdminDashboard() {
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
 
   const topicsQuery = useMemo(() => (!db) ? null : query(collection(db, 'all_topics'), orderBy('createdAt', 'desc')), [db])
-  const { data: topics, loading: topicsLoading } = useCollection(topicsQuery)
+  const { data: topics } = useCollection(topicsQuery)
 
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Required</h1><Link href="/"><Button className="mt-4">Back to Dashboard</Button></Link></div>
@@ -108,8 +105,17 @@ export default function AdminDashboard() {
         createdAt: new Date().toISOString()
       }
 
-      await setDoc(topicRef, topicData)
-      await updateDoc(doc(db, 'subjects', subjectId), { topicCount: increment(1) })
+      await updateDoc(doc(db, 'subjects', subjectId), { 
+        topicCount: increment(1) 
+      }).catch(async () => {
+        // Create subject if it doesn't exist
+        await updateDoc(doc(db, 'subjects', subjectId), { 
+          name: topicForm.subjectId, 
+          topicCount: increment(1) 
+        }, { merge: true })
+      })
+      
+      await updateDoc(topicRef, topicData, { merge: true })
 
       toast({ title: "Topic Published" })
       setTopicForm({ subjectId: "", unitName: "", title: "", importance: "Medium", contentType: "pdf", file: null })
@@ -151,7 +157,7 @@ export default function AdminDashboard() {
         createdAt: new Date().toISOString()
       }
 
-      await setDoc(mmRef, mmData)
+      await updateDoc(mmRef, mmData, { merge: true })
       await updateDoc(doc(db, 'subjects', subjectId), { mindmapCount: increment(1) })
 
       toast({ title: "Mindmap Published" })
@@ -180,50 +186,44 @@ export default function AdminDashboard() {
       const { error: uploadError } = await supabase.storage.from('qbank').upload(storagePath, qbankForm.file)
       if (uploadError) throw uploadError
 
-      // 2. Parse and Import into Firestore
+      // 2. Parse and Import into Supabase Database
       const text = await qbankForm.file.text()
       const rows = text.split('\n').slice(1) // Skip header
-      const batch = writeBatch(db)
       
-      let count = 0
+      const questionsToInsert = []
+      
       for (const row of rows) {
         if (!row.trim()) continue
         
-        // Support Tab-Separated (TSV) or Comma-Separated (CSV)
-        const separator = row.includes('\t') ? '\t' : ','
-        const columns = row.split(separator).map(s => s.trim().replace(/^"|"$/g, ''))
+        // Split by Tab (primary) or Comma
+        const columns = row.split(/\t/).map(s => s.trim().replace(/^"|"$/g, ''))
         
-        if (columns.length < 9) continue // Skip invalid rows
+        if (columns.length < 9) continue 
         
-        const unitName = columns[1]
-        const topicName = columns[2]
-        const questionText = columns[3]
-        const options = [columns[4], columns[5], columns[6], columns[7]]
-        const correctIdx = parseInt(columns[8])
-        const correctAnswer = options[correctIdx] || options[0]
-        const explanation = columns[9] || ""
-        
-        const qId = `${Date.now()}-${count}`
-        const qRef = doc(db, 'subjects', subjectId, 'questions', qId)
-        
-        batch.set(qRef, {
-          id: qId,
-          subjectId,
-          unitName,
-          topicName,
-          questionText,
-          options,
-          correctAnswer,
-          explanation,
-          createdAt: new Date().toISOString()
+        questionsToInsert.push({
+          subject_id: subjectId,
+          unit_number: parseInt(columns[0]) || 0,
+          unit_title: columns[1],
+          topic_title: columns[2],
+          question_text: columns[3],
+          option1: columns[4],
+          option2: columns[5],
+          option3: columns[6],
+          option4: columns[7],
+          correct_answer_index: parseInt(columns[8]) || 0,
+          explanation: columns[9] || "",
         })
-        count++
       }
       
-      await batch.commit()
-      await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(count) })
+      if (questionsToInsert.length > 0) {
+        const { error: dbError } = await supabase.from('questions').insert(questionsToInsert)
+        if (dbError) throw dbError
+        
+        // Update subject count in Firestore
+        await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(questionsToInsert.length) })
+      }
       
-      toast({ title: "QBank Processed", description: `Uploaded original file and imported ${count} questions.` })
+      toast({ title: "QBank Processed", description: `Uploaded file and imported ${questionsToInsert.length} questions to Supabase.` })
       setIsUploadingQBank(false)
       setQbankForm({ subjectId: "", file: null })
     } catch (e: any) {
@@ -272,20 +272,20 @@ export default function AdminDashboard() {
           </Dialog>
 
           <Dialog open={isUploadingQBank} onOpenChange={setIsUploadingQBank}>
-            <DialogTrigger asChild><Button variant="outline" className="rounded-xl">Upload QBank (CSV/TSV)</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline" className="rounded-xl">Upload QBank (CSV)</Button></DialogTrigger>
             <DialogContent className="glass">
-              <DialogHeader><DialogTitle>Import Medical Questions</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Import Questions</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setQbankForm({...qbankForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
                 <div className="grid gap-2">
-                  <Label>CSV/TSV File</Label>
+                  <Label>CSV File</Label>
                   <Input type="file" accept=".csv,.tsv,.txt" onChange={e => setQbankForm({...qbankForm, file: e.target.files?.[0] || null})} />
                   <p className="text-[10px] text-muted-foreground leading-relaxed mt-2">
-                    Format: Unit#, Unit Title, Topic, Question, Opt1, Opt2, Opt3, Opt4, CorrectIndex (0-3), Explanation
+                    Format: unit_number, unit_title, topic_title, question, option1, option2, option3, option4, correct_answer_index, explanation
                   </p>
                 </div>
               </div>
-              <DialogFooter><Button onClick={handleUploadQBank} disabled={uploading}>{uploading ? "Processing Rows..." : "Import File"}</Button></DialogFooter>
+              <DialogFooter><Button onClick={handleUploadQBank} disabled={uploading}>{uploading ? "Processing..." : "Import CSV"}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -304,14 +304,14 @@ export default function AdminDashboard() {
             <div className="p-2 rounded-lg bg-accent/10 text-accent"><Database className="h-5 w-5" /></div>
             <CardTitle className="text-lg">MCQs</CardTitle>
           </CardHeader>
-          <CardContent><p className="text-2xl font-bold">Cloud</p></CardContent>
+          <CardContent><p className="text-2xl font-bold">Supabase</p></CardContent>
         </Card>
         <Card className="glass border-none">
           <CardHeader className="flex flex-row items-center gap-4">
             <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500"><Network className="h-5 w-5" /></div>
             <CardTitle className="text-lg">Mindmaps</CardTitle>
           </CardHeader>
-          <CardContent><p className="text-2xl font-bold">Live</p></CardContent>
+          <CardContent><p className="text-2xl font-bold">Supabase</p></CardContent>
         </Card>
       </div>
     </div>
