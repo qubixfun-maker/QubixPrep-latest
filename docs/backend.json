@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "UserProfile": {
@@ -51,6 +50,7 @@
       "properties": {
         "id": { "type": "string" },
         "subjectId": { "type": "string" },
+        "unitName": { "type": "string" },
         "topicName": { "type": "string" },
         "questionText": { "type": "string" },
         "options": { "type": "array", "items": { "type": "string" } },

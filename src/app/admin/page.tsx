@@ -63,6 +63,7 @@ export default function AdminDashboard() {
 
   const [qbankForm, setQbankForm] = useState({
     subjectId: "",
+    unitName: "",
     topicName: "",
     file: null as File | null
   })
@@ -189,6 +190,7 @@ export default function AdminDashboard() {
         batch.set(qRef, {
           id: qId,
           subjectId,
+          unitName: qbankForm.unitName,
           topicName: qbankForm.topicName,
           questionText,
           options: [optA, optB, optC, optD],
@@ -204,7 +206,7 @@ export default function AdminDashboard() {
       
       toast({ title: "QBank Processed", description: `Uploaded ${count} questions.` })
       setIsUploadingQBank(false)
-      setQbankForm({ subjectId: "", topicName: "", file: null })
+      setQbankForm({ subjectId: "", unitName: "", topicName: "", file: null })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Parsing Failed", description: e.message })
     } finally {
@@ -256,6 +258,7 @@ export default function AdminDashboard() {
               <DialogHeader><DialogTitle>Import Questions</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setQbankForm({...qbankForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                <div className="grid gap-2"><Label>Unit Name</Label><Input value={qbankForm.unitName} onChange={e => setQbankForm({...qbankForm, unitName: e.target.value})} /></div>
                 <div className="grid gap-2"><Label>Topic Name</Label><Input value={qbankForm.topicName} onChange={e => setQbankForm({...qbankForm, topicName: e.target.value})} /></div>
                 <div className="grid gap-2">
                   <Label>CSV File</Label>
