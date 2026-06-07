@@ -20,7 +20,8 @@ import {
   BookOpen,
   Layout,
   UploadCloud,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -121,6 +122,34 @@ export default function AdminDashboard() {
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Restricted</h1><Link href="/"><Button className="mt-4">Return Home</Button></Link></div>
 
+  // SYNC HANDLER
+  async function handleSyncCounters() {
+    if (!db || !activeSubject) return
+    setLoadingContent(true)
+    try {
+      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+      
+      // Count in Supabase
+      const { count, error } = await supabase
+        .from('questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('subject_id', subjectId)
+      
+      if (error) throw error
+
+      // Update Firestore
+      await updateDoc(doc(db, 'subjects', subjectId), { 
+        questionCount: count || 0 
+      })
+
+      toast({ title: "Counters Synced", description: `Updated MCQ count to ${count || 0} for ${activeSubject}.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Failed", description: e.message })
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
   // DELETE HANDLERS
   async function handleDeleteTopic(topic: any) {
     if (!db || !confirm(`Delete "${topic.title}" and its PDF file?`)) return
@@ -173,11 +202,16 @@ export default function AdminDashboard() {
   }
 
   async function handleClearQBank() {
-    if (!db || !activeSubject || !confirm(`CRITICAL: Are you sure you want to delete ALL ${subjectContent.questions.length} questions for ${activeSubject}? This cannot be undone.`)) return
+    if (!db || !activeSubject) return
+    
+    const confirmMsg = `CRITICAL: Are you sure you want to reset the question bank for ${activeSubject}? This will remove all questions in Supabase and reset the count to 0 in Firestore.`
+    if (!confirm(confirmMsg)) return
     
     setLoadingContent(true)
     try {
       const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+      
+      // 1. Delete from Supabase
       const { error } = await supabase
         .from('questions')
         .delete()
@@ -185,9 +219,13 @@ export default function AdminDashboard() {
       
       if (error) throw error
       
+      // 2. Reset Firestore counter (Ensures UI is cleaned up even if Supabase was already empty)
       await updateDoc(doc(db, 'subjects', subjectId), { questionCount: 0 })
+      
+      // 3. Update local state
       setSubjectContent(prev => ({ ...prev, questions: [] }))
-      toast({ title: "QBank Cleared", description: `All questions for ${activeSubject} have been permanently removed.` })
+      
+      toast({ title: "QBank Cleared", description: `All questions for ${activeSubject} have been permanently removed and counters reset.` })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Clear Failed", description: e.message })
     } finally {
@@ -420,9 +458,19 @@ export default function AdminDashboard() {
           {activeSubject ? (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold flex items-center gap-3">
-                  <BookOpen className="h-6 w-6 text-primary" /> {activeSubject}
-                </h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-2xl font-bold flex items-center gap-3">
+                    <BookOpen className="h-6 w-6 text-primary" /> {activeSubject}
+                  </h2>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleSyncCounters} 
+                    className="h-8 px-3 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter hover:bg-primary/10 hover:text-primary"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Sync Counters
+                  </Button>
+                </div>
                 <Badge variant="outline" className="glass text-[10px] uppercase font-bold tracking-widest">
                   {activeSubject.toLowerCase().replace(/\s+/g, '-')}
                 </Badge>
