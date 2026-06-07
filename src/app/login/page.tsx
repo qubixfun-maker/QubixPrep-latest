@@ -71,10 +71,14 @@ export default function LoginPage() {
       await signInWithPopup(auth, provider)
       router.push("/")
     } catch (error: any) {
+      let message = error.message
+      if (error.code === 'auth/unauthorized-domain') {
+        message = "This domain is not authorized for Google Sign-In. Please add it to your Firebase Console's Authorized Domains list."
+      }
       toast({
         variant: "destructive",
         title: "Google Sign-In Failed",
-        description: error.message
+        description: message
       })
     } finally {
       setIsLoading(false)
