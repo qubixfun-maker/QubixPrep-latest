@@ -12,13 +12,11 @@ import {
   FileText,
   Sparkles,
   ChevronRight,
-  ListRestart,
   PanelRightClose,
   Info,
   EyeOff
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import Link from "next/link"
 import { SummarizerPageContent } from "@/app/ai-tools/summarizer/page"
@@ -61,7 +59,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
 
   const topicData = topic as any
 
-  // High-compatibility Viewer URL for PDFs
+  // High-compatibility Viewer URL for PDFs using an embedded bridge
   const getViewerUrl = (url: string) => {
     if (topicData.contentType === 'pdf') {
        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
@@ -182,20 +180,6 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
               </div>
             </div>
           )}
-        </div>
-
-        {/* Floating Study Tools Dock */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 glass-darker p-1.5 rounded-full border-white/10 shadow-2xl z-30 animate-in slide-in-from-bottom-8 duration-700">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 text-muted-foreground hover:text-white hover:bg-white/5">
-                  <ListRestart className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Reset Progress</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
         </div>
       </div>
     </div>
