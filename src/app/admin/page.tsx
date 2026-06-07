@@ -24,7 +24,8 @@ import {
   Upload,
   Layers,
   HelpCircle,
-  Edit2
+  Edit2,
+  FileDown
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -412,6 +413,54 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleImportCSV(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !activeSubject) return
+
+    setUploading(true)
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string
+        const rows = text.split('\n').slice(1) // Skip header
+        const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+        
+        const newQuestions = rows.map(row => {
+          // Simple CSV parser logic
+          const parts = row.split(',').map(s => s.trim().replace(/^"(.*)"$/, '$1'))
+          if (parts.length < 8) return null
+          
+          return {
+            subject_id: subjectId,
+            unit_title: parts[0],
+            topic_title: parts[1],
+            question_text: parts[2],
+            option1: parts[3],
+            option2: parts[4],
+            option3: parts[5],
+            option4: parts[6],
+            correct_answer_index: parseInt(parts[7]) || 0,
+            explanation: parts[8] || ""
+          }
+        }).filter(Boolean)
+
+        if (newQuestions.length === 0) throw new Error("No valid question rows found in file.")
+
+        const { error } = await supabase.from('questions').insert(newQuestions)
+        if (error) throw error
+
+        toast({ title: "Import Successful", description: `Added ${newQuestions.length} clinical cases to ${activeSubject}.` })
+        setIsUploadingQBank(false)
+        fetchSubjectDetails()
+      } catch (e: any) {
+        toast({ variant: "destructive", title: "Import Failed", description: e.message })
+      } finally {
+        setUploading(false)
+      }
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -565,8 +614,46 @@ export default function AdminDashboard() {
                     </TabsContent>
 
                     <TabsContent value="qbank" className="space-y-4">
+                      <div className="flex items-center justify-between px-2">
+                        <h4 className="font-bold flex items-center gap-2 text-primary">
+                          <Database className="h-4 w-4" /> Curriculum-Based QBank
+                        </h4>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass"
+                            onClick={() => {
+                              setQbankForm({
+                                id: null,
+                                subjectId: activeSubject || "",
+                                unit_title: "",
+                                topic_title: "",
+                                question_text: "",
+                                option1: "",
+                                option2: "",
+                                option3: "",
+                                option4: "",
+                                correct_answer_index: "0",
+                                explanation: ""
+                              })
+                              setIsEditingQuestion(true)
+                            }}
+                          >
+                            <Plus className="h-3 w-3" /> Add Case
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass"
+                            onClick={() => setIsUploadingQBank(true)}
+                          >
+                            <Upload className="h-3 w-3" /> Bulk Import
+                          </Button>
+                        </div>
+                      </div>
+
                       <div className="p-6 glass rounded-2xl">
-                         <h4 className="font-bold mb-4 flex items-center gap-2 text-primary"><Database className="h-4 w-4" /> Assessment Data</h4>
                          {groupedQuestions.length > 0 ? (
                             <Accordion type="multiple" className="space-y-3">
                                {groupedQuestions.map((group, gIdx) => (
@@ -574,29 +661,59 @@ export default function AdminDashboard() {
                                    <AccordionTrigger className="hover:no-underline py-4">
                                       <div className="flex items-center gap-3">
                                          <Layers className="h-4 w-4 text-accent" />
-                                         <span className="font-bold text-sm tracking-tight">{group.unit}</span>
+                                         <div className="flex flex-col items-start">
+                                            <span className="font-bold text-sm tracking-tight">{group.unit}</span>
+                                            <span className="text-[10px] text-muted-foreground uppercase">{group.topics.length} Topics</span>
+                                         </div>
                                       </div>
                                    </AccordionTrigger>
-                                   <AccordionContent className="pb-4 space-y-4">
+                                   <AccordionContent className="pb-4 space-y-6">
                                       {group.topics.map((topicGroup, tIdx) => (
-                                        <div key={tIdx} className="space-y-2 pl-4 border-l border-white/10">
-                                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
-                                            <ChevronRight className="h-3 w-3" /> {topicGroup.topic} ({topicGroup.questions.length} cases)
-                                          </p>
+                                        <div key={tIdx} className="space-y-3 pl-4 border-l border-white/10">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                                              <ChevronRight className="h-3 w-3 text-accent" /> {topicGroup.topic} ({topicGroup.questions.length} cases)
+                                            </p>
+                                            <Button 
+                                              variant="ghost" 
+                                              size="sm" 
+                                              className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-primary/10 hover:text-primary gap-1"
+                                              onClick={() => {
+                                                setQbankForm({
+                                                  id: null,
+                                                  subjectId: activeSubject || "",
+                                                  unit_title: group.unit,
+                                                  topic_title: topicGroup.topic,
+                                                  question_text: "",
+                                                  option1: "",
+                                                  option2: "",
+                                                  option3: "",
+                                                  option4: "",
+                                                  correct_answer_index: "0",
+                                                  explanation: ""
+                                                })
+                                                setIsEditingQuestion(true)
+                                              }}
+                                            >
+                                              <Plus className="h-2.5 w-2.5" /> Add to Topic
+                                            </Button>
+                                          </div>
                                           <div className="grid gap-2">
                                             {topicGroup.questions.map((q: any, qIdx: number) => (
                                               <div key={qIdx} className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between group/item hover:bg-white/5 transition-colors">
                                                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                   <HelpCircle className="h-3 w-3 text-primary mt-1 shrink-0" />
-                                                   <span className="text-[11px] text-muted-foreground group-hover/item:text-white transition-colors line-clamp-1">
+                                                   <div className="w-5 h-5 rounded-lg bg-white/5 flex items-center justify-center shrink-0 mt-0.5">
+                                                     <span className="text-[9px] font-bold text-muted-foreground">{qIdx + 1}</span>
+                                                   </div>
+                                                   <span className="text-[11px] text-muted-foreground group-hover/item:text-white transition-colors line-clamp-2">
                                                      {q.question_text}
                                                    </span>
                                                  </div>
-                                                 <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                 <div className="flex items-center gap-1">
                                                    <Button 
                                                     variant="ghost" 
                                                     size="icon" 
-                                                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-accent"
+                                                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-accent transition-all"
                                                     onClick={() => {
                                                       setQbankForm({
                                                         id: q.id,
@@ -619,7 +736,7 @@ export default function AdminDashboard() {
                                                    <Button 
                                                     variant="ghost" 
                                                     size="icon" 
-                                                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive"
+                                                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive transition-all"
                                                     onClick={() => handleDeleteQuestion(q.id)}
                                                    >
                                                      <Trash2 className="h-3 w-3" />
@@ -638,7 +755,7 @@ export default function AdminDashboard() {
                            <div className="text-center py-24 glass rounded-3xl text-muted-foreground border-2 border-dashed border-white/5">
                              <Database className="h-12 w-12 mx-auto mb-4 opacity-10" />
                              <p className="text-sm">No curriculum-based QBank data found.</p>
-                             <p className="text-[10px] mt-1">Use the "Add Case" button above to upload clinical cases.</p>
+                             <p className="text-[10px] mt-1">Use the buttons above to upload clinical cases.</p>
                            </div>
                          )}
                       </div>
@@ -724,6 +841,46 @@ export default function AdminDashboard() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsEditingQuestion(false)}>Cancel</Button>
             <Button onClick={handleSaveQuestion} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Save Case</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Import Dialog */}
+      <Dialog open={isUploadingQBank} onOpenChange={setIsUploadingQBank}>
+        <DialogContent className="glass border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk QBank Import</DialogTitle>
+            <DialogDescription>Select a formatted CSV file to import cases for {activeSubject}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+             <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+                <p className="text-[10px] font-bold uppercase text-primary">Required CSV Headers</p>
+                <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                  unit_title, topic_title, question_text, option1, option2, option3, option4, correct_answer_index, explanation
+                </p>
+             </div>
+             <div className="space-y-2">
+                <Label>Clinical Data File (.csv)</Label>
+                <div className="relative group">
+                   <Input 
+                    type="file" 
+                    accept=".csv" 
+                    className="glass border-white/10 cursor-pointer h-14 pt-4 pr-10" 
+                    onChange={handleImportCSV}
+                    disabled={uploading}
+                   />
+                   <FileDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-20 group-hover:opacity-100 transition-opacity" />
+                </div>
+             </div>
+             {uploading && (
+               <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/5 animate-pulse">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Processing Clinical Pool...</span>
+               </div>
+             )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsUploadingQBank(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
