@@ -9,6 +9,7 @@
         "uid": { "type": "string", "description": "The unique Firebase Auth UID." },
         "displayName": { "type": "string", "description": "The user's full name." },
         "email": { "type": "string", "format": "email" },
+        "mobileNumber": { "type": "string", "description": "User's mobile contact number." },
         "photoURL": { "type": "string", "description": "URL to the user's profile picture." },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLogin": { "type": "string", "format": "date-time" }

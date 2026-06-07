@@ -2,7 +2,7 @@
 "use client"
 
 import { useState } from "react"
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth"
 import { useAuth } from "@/firebase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +35,31 @@ export default function LoginPage() {
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!auth) return
+    if (!email) {
+      toast({
+        variant: "destructive",
+        title: "Email Required",
+        description: "Please enter your email address to receive a password reset link."
+      })
+      return
+    }
+    try {
+      await sendPasswordResetEmail(auth, email)
+      toast({
+        title: "Reset Link Sent",
+        description: "Check your email for instructions to reset your password."
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      })
     }
   }
 
@@ -91,6 +116,15 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+              </div>
+              <div className="flex justify-end">
+                <button 
+                  type="button" 
+                  onClick={handleForgotPassword}
+                  className="text-xs text-primary font-bold hover:underline"
+                >
+                  Forgot Password?
+                </button>
               </div>
             </div>
             <Button className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 font-bold" disabled={isLoading}>

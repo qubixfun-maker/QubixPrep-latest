@@ -3,23 +3,28 @@
 
 import { useState } from "react"
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
-import { useAuth } from "@/firebase"
+import { doc, setDoc } from "firebase/firestore"
+import { useAuth, useFirestore } from "@/firebase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { BrainCircuit, Loader2, Mail, Lock, User, Github } from "lucide-react"
+import { BrainCircuit, Loader2, Mail, Lock, User, Phone } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function SignUpPage() {
   const { auth } = useAuth()
+  const db = useFirestore()
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    mobile: "",
     password: ""
   })
 
@@ -30,6 +35,24 @@ export default function SignUpPage() {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
       await updateProfile(userCredential.user, { displayName: formData.name })
+      
+      // Save extended profile data to Firestore
+      const userRef = doc(db, 'users', userCredential.user.uid)
+      setDoc(userRef, {
+        uid: userCredential.user.uid,
+        displayName: formData.name,
+        email: formData.email,
+        mobileNumber: formData.mobile,
+        createdAt: new Date().toISOString()
+      }, { merge: true }).catch(async (err) => {
+        const permissionError = new FirestorePermissionError({
+          path: userRef.path,
+          operation: 'create',
+          requestResourceData: { mobileNumber: formData.mobile }
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+
       router.push("/")
     } catch (error: any) {
       toast({
@@ -93,6 +116,19 @@ export default function SignUpPage() {
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  type="tel" 
+                  placeholder="Mobile Number" 
+                  className="pl-10 glass border-white/10"
+                  required
+                  value={formData.mobile}
+                  onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
                 />
               </div>
             </div>
