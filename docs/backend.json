@@ -11,11 +11,16 @@
         "email": { "type": "string", "format": "email" },
         "mobileNumber": { "type": "string", "description": "User's mobile contact number." },
         "collegeName": { "type": "string", "description": "The medical college or university name." },
+        "currentYear": { 
+          "type": "string", 
+          "enum": ["1st Year", "2nd Year", "3rd Year (Part 1)", "4th Year (Part 2)", "Internship"],
+          "description": "The user's current academic year in MBBS."
+        },
         "photoURL": { "type": "string", "description": "URL to the user's profile picture." },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLogin": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "email"]
+      "required": ["uid", "email", "currentYear"]
     }
   },
   "auth": {
