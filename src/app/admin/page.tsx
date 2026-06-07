@@ -21,12 +21,13 @@ import {
   Layout,
   RefreshCw,
   Video,
-  X
+  X,
+  Upload
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
@@ -84,7 +85,7 @@ export default function AdminDashboard() {
     file: null as File | null
   })
 
-  // Hooks moved to top level to comply with Rules of Hooks
+  // ALL hooks must be at the top level
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
 
@@ -602,6 +603,38 @@ export default function AdminDashboard() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsAddingMindmap(false)}>Cancel</Button>
             <Button onClick={handleAddMindmap} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Upload Map</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import QBank Modal */}
+      <Dialog open={isUploadingQBank} onOpenChange={setIsUploadingQBank}>
+        <DialogContent className="glass border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Upload className="h-5 w-5" /> Import Clinical QBank</DialogTitle>
+            <DialogDescription>Select a CSV file containing MCQs and map it to a subject.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Target Subject</Label>
+              <Select onValueChange={(v) => setQbankForm({ ...qbankForm, subjectId: v })}>
+                <SelectTrigger className="glass border-white/10">
+                  <SelectValue placeholder="Select Subject" />
+                </SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>CSV Dataset (QBank)</Label>
+              <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer" />
+              <p className="text-[10px] text-muted-foreground">Expected columns: unit_number, unit_title, topic_title, question_text, option1, option2, option3, option4, correct_answer_index, explanation</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsUploadingQBank(false)}>Cancel</Button>
+            <Button disabled className="gap-2"><Upload className="h-4 w-4" /> Import Data</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
