@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, use } from "react"
 import { useDoc, useCollection, useFirestore } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -10,9 +10,9 @@ import { Progress } from "@/components/ui/progress"
 import { CheckCircle2, Circle, Clock, ChevronRight, Share2, Bookmark, LayoutList, Loader2, FileText } from "lucide-react"
 import Link from "next/link"
 
-export default function SubjectDetailPage({ params }: { params: { id: string } }) {
+export default function SubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: subjectId } = use(params)
   const db = useFirestore()
-  const subjectId = params.id
 
   const subjectRef = useMemo(() => doc(db, 'subjects', subjectId), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)

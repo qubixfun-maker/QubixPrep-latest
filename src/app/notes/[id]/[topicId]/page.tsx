@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, use } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { 
@@ -19,18 +19,20 @@ import {
   FileDown,
   Loader2,
   X,
-  ExternalLink
+  ExternalLink,
+  FileText
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 
-export default function NoteViewerPage({ params }: { params: { id: string, topicId: string } }) {
+export default function NoteViewerPage({ params }: { params: Promise<{ id: string, topicId: string }> }) {
+  const { id, topicId } = use(params)
   const db = useFirestore()
   const [isBookmarked, setIsBookmarked] = useState(false)
   
-  const topicRef = useMemo(() => doc(db, 'subjects', params.id, 'topics', params.topicId), [db, params.id, params.topicId])
+  const topicRef = useMemo(() => doc(db, 'subjects', id, 'topics', topicId), [db, id, topicId])
   const { data: topic, loading } = useDoc(topicRef)
 
   if (loading) {
@@ -45,7 +47,7 @@ export default function NoteViewerPage({ params }: { params: { id: string, topic
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-background space-y-4">
         <h1 className="text-2xl font-bold">Topic Not Found</h1>
-        <Link href={`/notes/${params.id}`}>
+        <Link href={`/notes/${id}`}>
           <Button variant="outline">Return to Subject</Button>
         </Link>
       </div>
@@ -59,14 +61,14 @@ export default function NoteViewerPage({ params }: { params: { id: string, topic
       {/* Top Navigation / Toolbar */}
       <header className="h-16 border-b border-white/10 glass flex items-center justify-between px-6 z-20 shrink-0">
         <div className="flex items-center gap-6">
-          <Link href={`/notes/${params.id}`}>
+          <Link href={`/notes/${id}`}>
             <Button variant="ghost" size="icon" className="rounded-xl hover:bg-white/5">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div>
             <h1 className="font-bold text-sm truncate max-w-[200px] md:max-w-md">{topicData.title}</h1>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{params.id} • {topicData.unitName || 'General'}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{id} • {topicData.unitName || 'General'}</p>
           </div>
         </div>
 
