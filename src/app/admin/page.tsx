@@ -225,6 +225,65 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleDeleteQBankTopic(topicTitle: string, unitTitle: string) {
+    if (!db || !activeSubject || !confirm(`Delete all questions in "${topicTitle}"?`)) return
+    setLoadingContent(true)
+    try {
+      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+      const questionsInTopic = subjectContent.questions.filter(q => q.unit_title === unitTitle && q.topic_title === topicTitle)
+      const count = questionsInTopic.length
+      
+      const { error } = await supabase
+        .from('questions')
+        .delete()
+        .eq('subject_id', subjectId)
+        .eq('unit_title', unitTitle)
+        .eq('topic_title', topicTitle)
+      
+      if (error) throw error
+
+      await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(-count) })
+      setSubjectContent(prev => ({ 
+        ...prev, 
+        questions: prev.questions.filter(q => !(q.unit_title === unitTitle && q.topic_title === topicTitle)) 
+      }))
+      toast({ title: "Topic Removed", description: `Deleted ${count} cases.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
+  async function handleDeleteQBankUnit(unitTitle: string) {
+    if (!db || !activeSubject || !confirm(`Delete entire Unit "${unitTitle}"? This will remove all nested topics.`)) return
+    setLoadingContent(true)
+    try {
+      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+      const questionsInUnit = subjectContent.questions.filter(q => q.unit_title === unitTitle)
+      const count = questionsInUnit.length
+
+      const { error } = await supabase
+        .from('questions')
+        .delete()
+        .eq('subject_id', subjectId)
+        .eq('unit_title', unitTitle)
+      
+      if (error) throw error
+
+      await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(-count) })
+      setSubjectContent(prev => ({ 
+        ...prev, 
+        questions: prev.questions.filter(q => q.unit_title !== unitTitle) 
+      }))
+      toast({ title: "Unit Removed", description: `Deleted ${count} cases.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
   async function handleClearQBank() {
     if (!db || !activeSubject) return
     const confirmMsg = `Are you sure you want to reset the QBank for ${activeSubject}?`
@@ -525,27 +584,53 @@ export default function AdminDashboard() {
                       <Accordion type="multiple" className="space-y-4">
                         {groupedQBank.map((unit, uIdx) => (
                           <AccordionItem key={uIdx} value={`unit-${uIdx}`} className="border-none glass rounded-2xl px-2">
-                            <AccordionTrigger className="hover:no-underline py-4 px-4">
-                              <div className="flex flex-col items-start text-left">
-                                <span className="text-[10px] text-accent font-bold uppercase tracking-widest">Unit {uIdx + 1}</span>
-                                <span className="text-sm font-bold">{unit.title}</span>
-                              </div>
-                            </AccordionTrigger>
+                            <div className="flex items-center pr-4">
+                              <AccordionTrigger className="hover:no-underline py-4 px-4 flex-1">
+                                <div className="flex flex-col items-start text-left">
+                                  <span className="text-[10px] text-accent font-bold uppercase tracking-widest">Unit {uIdx + 1}</span>
+                                  <span className="text-sm font-bold">{unit.title}</span>
+                                </div>
+                              </AccordionTrigger>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteQBankUnit(unit.title);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                             <AccordionContent className="pb-4 px-2 space-y-4">
                               <Accordion type="multiple" className="space-y-2">
                                 {Object.entries(unit.topics).map(([topicTitle, questions], tIdx) => (
                                   <AccordionItem key={tIdx} value={`topic-${uIdx}-${tIdx}`} className="border-none bg-black/20 rounded-xl overflow-hidden">
-                                    <AccordionTrigger className="hover:no-underline py-3 px-4 group">
-                                      <div className="flex items-center gap-3">
-                                        <div className="p-1.5 rounded-lg bg-white/5 text-muted-foreground group-hover:text-primary transition-colors">
-                                          <FolderOpen className="h-3.5 w-3.5" />
+                                    <div className="flex items-center pr-4">
+                                      <AccordionTrigger className="hover:no-underline py-3 px-4 group flex-1">
+                                        <div className="flex items-center gap-3">
+                                          <div className="p-1.5 rounded-lg bg-white/5 text-muted-foreground group-hover:text-primary transition-colors">
+                                            <FolderOpen className="h-3.5 w-3.5" />
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold">{topicTitle}</span>
+                                            <Badge variant="secondary" className="text-[9px] h-4 font-mono">{questions.length}</Badge>
+                                          </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs font-bold">{topicTitle}</span>
-                                          <Badge variant="secondary" className="text-[9px] h-4 font-mono">{questions.length}</Badge>
-                                        </div>
-                                      </div>
-                                    </AccordionTrigger>
+                                      </AccordionTrigger>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteQBankTopic(topicTitle, unit.title);
+                                        }}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                     <AccordionContent className="px-4 pb-4 pt-2 space-y-2">
                                       {questions.map((q) => (
                                         <div key={q.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 group hover:bg-white/10 transition-colors">
