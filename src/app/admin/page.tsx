@@ -102,14 +102,12 @@ export default function AdminDashboard() {
       const storagePath = `notes/${topicForm.subjectId}/${fileId}`
       const storageRef = ref(storage, storagePath)
       
-      // 1. Upload file
       const snapshot = await uploadBytes(storageRef, topicForm.file)
       const downloadUrl = await getDownloadURL(snapshot.ref)
 
-      // 2. Create Topic Document
       const topicId = fileId.replace(/\.[^/.]+$/, "")
       const topicRef = doc(db, 'subjects', topicForm.subjectId, 'topics', topicId)
-      const globalTopicRef = doc(db, 'all_topics', topicId) // For easier global management
+      const globalTopicRef = doc(db, 'all_topics', topicId)
 
       const topicData = {
         id: topicId,
@@ -127,7 +125,6 @@ export default function AdminDashboard() {
       await setDoc(topicRef, topicData)
       await setDoc(globalTopicRef, topicData)
 
-      // 3. Update Subject counts
       const subjectRef = doc(db, 'subjects', topicForm.subjectId)
       await updateDoc(subjectRef, {
         topicCount: increment(1)
@@ -146,17 +143,14 @@ export default function AdminDashboard() {
   async function handleDeleteTopic(topic: any) {
     if (!db || !storage) return
     try {
-      // 1. Delete file from Storage
       if (topic.storagePath) {
         const storageRef = ref(storage, topic.storagePath)
         await deleteObject(storageRef).catch(() => console.log("File not found in storage"))
       }
 
-      // 2. Delete Firestore docs
       await deleteDoc(doc(db, 'subjects', topic.subjectId, 'topics', topic.id))
       await deleteDoc(doc(db, 'all_topics', topic.id))
 
-      // 3. Update count
       await updateDoc(doc(db, 'subjects', topic.subjectId), {
         topicCount: increment(-1)
       })
@@ -367,7 +361,6 @@ export default function AdminDashboard() {
         <TabsList className="glass p-1 h-12 rounded-xl">
           <TabsTrigger value="topics" className="rounded-lg px-8">All Topics</TabsTrigger>
           <TabsTrigger value="subjects" className="rounded-lg px-8">Subject List</TabsTrigger>
-          <TabsTrigger value="users" className="rounded-lg px-8">User Directory</TabsTrigger>
         </TabsList>
 
         <TabsContent value="topics">
@@ -438,7 +431,6 @@ export default function AdminDashboard() {
                   <TableRow className="border-white/5 hover:bg-transparent">
                     <TableHead className="py-4">Subject Name</TableHead>
                     <TableHead>Topics</TableHead>
-                    <TableHead>Units</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -452,7 +444,6 @@ export default function AdminDashboard() {
                         {item.name}
                       </TableCell>
                       <TableCell>{item.topicCount || 0}</TableCell>
-                      <TableCell>{item.unitCount || 0}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 text-destructive" onClick={() => deleteDoc(doc(db, 'subjects', item.id))}>
                           <Trash2 className="h-4 w-4" />
@@ -464,10 +455,6 @@ export default function AdminDashboard() {
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="users">
-          {/* User management list stays as is */}
         </TabsContent>
       </Tabs>
     </div>
