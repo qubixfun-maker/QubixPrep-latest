@@ -1,9 +1,14 @@
-import { StudyHeatMap } from "@/components/dashboard/heat-map";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useUser } from "@/firebase"
+import { StudyHeatMap } from "@/components/dashboard/heat-map"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { 
   Play, 
-  BookOpen, 
   ArrowRight, 
   Trophy, 
   Flame, 
@@ -11,11 +16,31 @@ import {
   Clock, 
   BrainCircuit,
   Bookmark,
-  History
-} from "lucide-react";
-import Link from "next/link";
+  History,
+  Loader2
+} from "lucide-react"
+import Link from "next/link"
 
 export default function Dashboard() {
+  const { user, loading } = useUser()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/signup")
+    }
+  }, [user, loading, router])
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="h-10 w-10 text-primary animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) return null
+
   const stats = [
     { label: "Study Streak", value: "14 Days", icon: Flame, color: "text-orange-500" },
     { label: "XP Points", value: "1,240", icon: Zap, color: "text-yellow-500" },
@@ -35,24 +60,23 @@ export default function Dashboard() {
       <div className="relative overflow-hidden rounded-3xl glass p-8 md:p-12">
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-accent text-xs font-bold tracking-widest uppercase">
-            <Zap className="h-3 w-3" /> Welcome Back, Future Doctor
+            <Zap className="h-3 w-3" /> Welcome Back, {user.displayName?.split(' ')[0] || 'Doctor'}
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+          <h1 className="text-3xl md:text-5xl font-bold tracking-tight">
             Ready to master <span className="text-gradient underline decoration-accent/30 underline-offset-8 italic">Neuroanatomy</span> today?
           </h1>
-          <p className="text-muted-foreground text-lg max-w-lg leading-relaxed">
+          <p className="text-muted-foreground text-sm md:text-lg max-w-lg leading-relaxed">
             Your daily goal is 75% complete. Finish your quiz on Cranial Nerves to keep your streak alive.
           </p>
           <div className="flex flex-wrap gap-4 pt-4">
-            <Button size="lg" className="rounded-xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/30 gap-2">
+            <Button size="lg" className="w-full md:w-auto rounded-xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/30 gap-2">
               <Play className="h-4 w-4 fill-current" /> Continue Studying
             </Button>
-            <Button variant="outline" size="lg" className="rounded-xl glass border-white/10 hover:bg-white/5 gap-2">
+            <Button variant="outline" size="lg" className="w-full md:w-auto rounded-xl glass border-white/10 hover:bg-white/5 gap-2">
               <BrainCircuit className="h-4 w-4" /> AI Recommendations
             </Button>
           </div>
         </div>
-        {/* Background glow for hero */}
         <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary/20 to-transparent pointer-events-none" />
       </div>
 
@@ -60,13 +84,13 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <Card key={stat.label} className="glass border-none shadow-none neumorph-inset hover:scale-[1.02] transition-transform cursor-default">
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className={`p-3 rounded-2xl bg-white/5 ${stat.color}`}>
-                <stat.icon className="h-6 w-6" />
+            <CardContent className="p-4 md:p-6 flex items-center gap-4">
+              <div className={`p-2 md:p-3 rounded-2xl bg-white/5 ${stat.color}`}>
+                <stat.icon className="h-5 w-5 md:h-6 md:w-6" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-widest">{stat.label}</p>
-                <p className="text-2xl font-bold">{stat.value}</p>
+                <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-widest">{stat.label}</p>
+                <p className="text-lg md:text-2xl font-bold">{stat.value}</p>
               </div>
             </CardContent>
           </Card>
@@ -74,7 +98,6 @@ export default function Dashboard() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Left Column: Heatmap & Recommendations */}
         <div className="lg:col-span-2 space-y-8">
           <Card className="glass border-none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -85,7 +108,7 @@ export default function Dashboard() {
                 Full Report <ArrowRight className="h-3 w-3" />
               </Link>
             </CardHeader>
-            <CardContent className="pt-4">
+            <CardContent className="pt-4 overflow-hidden">
               <StudyHeatMap />
             </CardContent>
           </Card>
@@ -126,20 +149,19 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2">
-                  <p className="font-semibold">Cardiology Flashcards</p>
-                  <p className="text-xs text-muted-foreground">Based on your recent study session on ECG interpretation.</p>
+                  <p className="font-semibold text-sm md:text-base">Cardiology Flashcards</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground">Based on your recent study session on ECG interpretation.</p>
                   <Button size="sm" variant="secondary" className="w-full rounded-lg mt-2">Start Quiz</Button>
                 </div>
                 <div className="p-4 rounded-xl bg-white/5 border border-white/5 space-y-2 opacity-50">
-                  <p className="font-semibold">Microbiology MCQ Set</p>
-                  <p className="text-xs text-muted-foreground">Bacterial Cell Wall Synthesis inhibitors.</p>
+                  <p className="font-semibold text-sm md:text-base">Microbiology MCQ Set</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground">Bacterial Cell Wall Synthesis inhibitors.</p>
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
 
-        {/* Right Column: Recent Activity & Shortcuts */}
         <div className="space-y-8">
           <Card className="glass border-none h-full">
             <CardHeader>
@@ -152,10 +174,10 @@ export default function Dashboard() {
                 <div key={note.title} className="group cursor-pointer">
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <p className="font-semibold group-hover:text-primary transition-colors">{note.title}</p>
-                      <p className="text-xs text-muted-foreground">{note.subject}</p>
+                      <p className="font-semibold text-sm md:text-base group-hover:text-primary transition-colors">{note.title}</p>
+                      <p className="text-[10px] md:text-xs text-muted-foreground">{note.subject}</p>
                     </div>
-                    <span className="text-xs font-mono text-accent">{note.progress}%</span>
+                    <span className="text-[10px] md:text-xs font-mono text-accent">{note.progress}%</span>
                   </div>
                   <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                     <div 
@@ -175,5 +197,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-import { History as HistoryIcon } from "lucide-react";
