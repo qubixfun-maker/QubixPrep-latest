@@ -4,14 +4,15 @@ import { googleAI } from '@genkit-ai/google-genai';
 /**
  * Genkit initialization for server-side AI processing.
  * 
- * Note: The API key is securely retrieved from environment variables.
- * This file is intended for use in Server Actions and API routes only.
+ * The API key is retrieved from GOOGLE_GENAI_API_KEY in .env.
+ * This file uses the 'googleAI' plugin which is the current standard for Genkit 1.x.
  */
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY;
 
 if (!apiKey) {
-  console.warn('Warning: GOOGLE_GENAI_API_KEY is not defined in environment variables.');
+  // We don't log the key for security, but we alert that it's missing.
+  console.error('CRITICAL: GOOGLE_GENAI_API_KEY is not defined in the environment.');
 }
 
 export const ai = genkit({
