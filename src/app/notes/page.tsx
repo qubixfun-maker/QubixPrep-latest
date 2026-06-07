@@ -2,8 +2,8 @@
 "use client"
 
 import { useMemo } from "react"
-import { useCollection } from "@/firebase"
-import { collection, query, orderBy } from "firebase/firestore"
+import { useCollection, useFirestore } from "@/firebase"
+import { collection } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { BookOpen, Stethoscope, Microscope, TestTube, Brain, HeartPulse, ChevronRight, Search, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -25,7 +25,13 @@ const ICON_MAP: Record<string, any> = {
 }
 
 export default function NotesPage() {
-  const subjectsQuery = useMemo(() => collection(require("@/firebase").getFirestore(), 'subjects'), [])
+  const db = useFirestore()
+  
+  const subjectsQuery = useMemo(() => {
+    if (!db) return null
+    return collection(db, 'subjects')
+  }, [db])
+  
   const { data: subjects, loading } = useCollection(subjectsQuery)
 
   return (
