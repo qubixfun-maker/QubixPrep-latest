@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, use, useEffect } from "react"
+import { useState, useMemo, use, useEffect, useRef } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { 
@@ -21,7 +21,9 @@ import {
   Network,
   CheckCircle2,
   Copy,
-  Zap
+  Zap,
+  Camera,
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
@@ -35,6 +37,7 @@ import { useToast } from "@/hooks/use-toast"
 import { aiNoteSummarizer } from "@/ai/flows/ai-note-summarizer"
 import { generateQuizAndFlashcards, type GenerateQuizAndFlashcardsOutput } from "@/ai/flows/ai-quiz-flashcard-generator-flow"
 import { generateMindMap, type MindMapGeneratorOutput } from "@/ai/flows/ai-mind-map-generator"
+import { analyzeMedicalImage } from "@/ai/flows/ai-vision-analyzer"
 
 export default function NoteViewerPage({ params }: { params: Promise<{ id: string, topicId: string }> }) {
   const { id, topicId } = use(params)
@@ -50,6 +53,11 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   const [summary, setSummary] = useState("")
   const [quizResults, setQuizResults] = useState<GenerateQuizAndFlashcardsOutput | null>(null)
   const [mindmapResult, setMindmapResult] = useState<MindMapGeneratorOutput | null>(null)
+  const [visionResult, setVisionResult] = useState<string | null>(null)
+
+  // Vision States
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -107,6 +115,33 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
     }
     return url;
+  }
+
+  // Vision Handler
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setPreviewImage(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  async function handleVisionAnalyze(task: 'summarize' | 'quiz' | 'map') {
+    if (!previewImage) return
+    setIsAiLoading(true)
+    setVisionResult(null)
+    try {
+      const result = await analyzeMedicalImage({ imageDataUri: previewImage, task })
+      setVisionResult(result)
+      toast({ title: "Vision Scan Complete", description: "Text extracted and analyzed from screenshot." })
+    } catch (e) {
+      toast({ variant: "destructive", title: "OCR Error", description: "Could not process image." })
+    } finally {
+      setIsAiLoading(false)
+    }
   }
 
   // AI Action Handlers
@@ -213,11 +248,31 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
                      <Badge variant="secondary" className="text-[9px] uppercase">{topicData.importance} Yield</Badge>
                    </div>
                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                     Paste key excerpts from your current note below to unlock clinical summaries, active recall quizzes, and visual mindmaps.
+                     Paste key excerpts below, or <strong>upload a screenshot</strong> for scanned/image-based PDFs.
                    </p>
+                   
+                   {!previewImage ? (
+                     <div 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-white/10 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/5 transition-colors"
+                     >
+                       <Camera className="h-5 w-5 text-muted-foreground" />
+                       <span className="text-[10px] font-bold uppercase text-muted-foreground">Upload Screenshot</span>
+                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                     </div>
+                   ) : (
+                     <div className="relative rounded-xl overflow-hidden group">
+                        <img src={previewImage} alt="Preview" className="w-full h-32 object-cover opacity-50" />
+                        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40">
+                          <Button size="sm" variant="secondary" className="h-7 text-[9px] font-bold uppercase rounded-lg" onClick={() => handleVisionAnalyze('summarize')}>Scan & Summarize</Button>
+                          <Button size="icon" variant="destructive" className="h-7 w-7 rounded-full" onClick={() => setPreviewImage(null)}><X className="h-3 w-3" /></Button>
+                        </div>
+                     </div>
+                   )}
+
                    <Textarea 
                      placeholder="Paste text from the note or textbook here..."
-                     className="min-h-[120px] glass border-white/5 text-xs resize-none"
+                     className="min-h-[100px] glass border-white/5 text-xs resize-none"
                      value={inputText}
                      onChange={(e) => setInputText(e.target.value)}
                    />
@@ -239,13 +294,15 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
                          {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                          Synthesize Summary
                        </Button>
-                       {summary && (
+                       {(summary || (visionResult && !inputText)) && (
                          <div className="glass rounded-2xl p-6 border-white/5 animate-in slide-in-from-top-2">
                            <div className="flex justify-between items-center mb-4">
                              <span className="text-[10px] font-bold text-accent uppercase tracking-widest">AI Result</span>
-                             <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(summary)} className="h-8 w-8"><Copy className="h-3.5 w-3.5" /></Button>
+                             <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(summary || visionResult || "")} className="h-8 w-8"><Copy className="h-3.5 w-3.5" /></Button>
                            </div>
-                           <p className="text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">{summary}</p>
+                           <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                              {summary || visionResult}
+                           </div>
                          </div>
                        )}
                     </TabsContent>
