@@ -14,7 +14,8 @@ import {
   History,
   CloudUpload,
   Network,
-  Database
+  Database,
+  Trophy
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -67,6 +68,11 @@ export function AppSidebar() {
       title: "QBank",
       url: "/qbank",
       icon: Database,
+    },
+    {
+      title: "Test Series",
+      url: "/test-series",
+      icon: Trophy,
     },
     {
       title: "Video Lectures",
