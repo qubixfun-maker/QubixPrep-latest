@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
-import { doc, collection, setDoc, deleteDoc, query, orderBy, increment, updateDoc } from "firebase/firestore"
+import { doc, collection, setDoc, deleteDoc, query, orderBy, increment, updateDoc, getDoc } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+
+const MBBS_SUBJECTS = [
+  "Anatomy", "Physiology", "Biochemistry", 
+  "Pathology", "Microbiology", "Pharmacology", "Forensic Medicine", "Community Medicine",
+  "Ophthalmology", "ENT", 
+  "General Medicine", "General Surgery", "Obstetrics & Gynecology", "Pediatrics",
+  "Orthopedics", "Dermatology", "Psychiatry", "Radiology", "Anesthesia"
+]
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
@@ -96,20 +104,37 @@ export default function AdminDashboard() {
 
     setUploading(true)
     try {
+      // Ensure subject exists or create it
+      const subjectId = topicForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const subjectRef = doc(db, 'subjects', subjectId)
+      const subjectSnap = await getDoc(subjectRef)
+      
+      if (!subjectSnap.exists()) {
+        await setDoc(subjectRef, {
+          id: subjectId,
+          name: topicForm.subjectId,
+          description: `Study materials for ${topicForm.subjectId}`,
+          iconName: "Brain",
+          unitCount: 0,
+          topicCount: 0,
+          createdAt: new Date().toISOString()
+        })
+      }
+
       const fileId = `${Date.now()}-${topicForm.file.name}`
-      const storagePath = `notes/${topicForm.subjectId}/${fileId}`
+      const storagePath = `notes/${subjectId}/${fileId}`
       const storageRef = ref(storage, storagePath)
       
       const snapshot = await uploadBytes(storageRef, topicForm.file)
       const downloadUrl = await getDownloadURL(snapshot.ref)
 
       const topicId = fileId.replace(/\.[^/.]+$/, "")
-      const topicRef = doc(db, 'subjects', topicForm.subjectId, 'topics', topicId)
+      const topicRef = doc(db, 'subjects', subjectId, 'topics', topicId)
       const globalTopicRef = doc(db, 'all_topics', topicId)
 
       const topicData = {
         id: topicId,
-        subjectId: topicForm.subjectId,
+        subjectId: subjectId,
         unitName: topicForm.unitName,
         title: topicForm.title,
         contentUrl: downloadUrl,
@@ -123,7 +148,6 @@ export default function AdminDashboard() {
       await setDoc(topicRef, topicData)
       await setDoc(globalTopicRef, topicData)
 
-      const subjectRef = doc(db, 'subjects', topicForm.subjectId)
       await updateDoc(subjectRef, {
         topicCount: increment(1)
       })
@@ -217,7 +241,7 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="Select Subject" />
                     </SelectTrigger>
                     <SelectContent className="glass border-white/10">
-                      {subjects?.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      {MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -285,13 +309,13 @@ export default function AdminDashboard() {
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="outline" className="rounded-xl glass border-white/10 gap-2">
-                <PlusCircle className="h-4 w-4" /> New Subject
+                <PlusCircle className="h-4 w-4" /> Custom Subject
               </Button>
             </DialogTrigger>
             <DialogContent className="glass border-white/10">
               <DialogHeader>
-                <DialogTitle>Create Medical Subject</DialogTitle>
-                <CardDescription>Add a new top-level category to the library.</CardDescription>
+                <DialogTitle>Create Custom Subject</DialogTitle>
+                <CardDescription>Add a specialized category to the library.</CardDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
