@@ -8,18 +8,14 @@ import {
   ArrowLeft, 
   Bookmark, 
   BrainCircuit, 
-  Maximize2,
-  FileDown,
   Loader2,
-  ExternalLink,
   FileText,
   Sparkles,
   ChevronRight,
   ListRestart,
   PanelRightClose,
-  Download,
-  EyeOff,
-  Info
+  Info,
+  EyeOff
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -31,7 +27,6 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   const { id, topicId } = use(params)
   const db = useFirestore()
   const [isBookmarked, setIsBookmarked] = useState(false)
-  const [loadError, setLoadError] = useState(false)
   
   const topicRef = useMemo(() => (!db) ? null : doc(db, 'subjects', id, 'topics', topicId), [db, id, topicId])
   const { data: topic, loading } = useDoc(topicRef)
@@ -66,17 +61,16 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
 
   const topicData = topic as any
 
-  // High-compatibility Viewer URL for PDFs to prevent Chrome Blocking
+  // High-compatibility Viewer URL for PDFs
   const getViewerUrl = (url: string) => {
     if (topicData.contentType === 'pdf') {
-       // Using a viewer bridge to ensure cross-domain PDFs load in Chrome
        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
     }
     return url;
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#000] text-white selection:bg-primary/30">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#000] text-white selection:bg-primary/30 select-none">
       {/* Immersive App Header */}
       <header className="h-14 border-b border-white/5 glass-darker flex items-center justify-between px-4 z-40 shrink-0">
         <div className="flex items-center gap-3">
@@ -147,11 +141,6 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
             >
               <Bookmark className={`h-4.5 w-4.5 ${isBookmarked ? 'fill-current' : ''}`} />
             </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground" asChild>
-              <a href={topicData.contentUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4.5 w-4.5" />
-              </a>
-            </Button>
           </div>
         </div>
       </header>
@@ -166,21 +155,6 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
                 className="w-full h-full border-none"
                 title={topicData.title}
               />
-              {/* Fallback Overlay if blocking persists */}
-              <div className="absolute top-4 right-4 z-50">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="secondary" size="sm" className="rounded-full h-8 px-4 font-bold text-[10px] bg-black/60 backdrop-blur-md hover:bg-black/80" asChild>
-                        <a href={topicData.contentUrl} target="_blank" rel="noopener noreferrer">
-                          <Maximize2 className="h-3 w-3 mr-2" /> Open Native
-                        </a>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Open in Chrome's native viewer</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
             </div>
           ) : topicData.contentType === 'video' ? (
             <div className="flex-1 w-full flex items-center justify-center p-4">
@@ -206,23 +180,12 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
                   This document type is best viewed in our standalone high-performance reader.
                 </p>
               </div>
-              <Button size="lg" className="rounded-xl px-12 bg-primary hover:bg-primary/90 h-14 font-bold text-lg" asChild>
-                <a href={topicData.contentUrl} target="_blank" rel="noopener noreferrer">
-                  Launch Reader <ExternalLink className="ml-2 h-5 w-5" />
-                </a>
-              </Button>
             </div>
           )}
         </div>
 
         {/* Floating Study Tools Dock */}
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5 glass-darker p-1.5 rounded-full border-white/10 shadow-2xl z-30 animate-in slide-in-from-bottom-8 duration-700">
-          <Button variant="ghost" size="sm" className="rounded-full h-10 px-6 gap-2 text-[10px] font-bold text-muted-foreground hover:text-white hover:bg-white/5" asChild>
-             <a href={topicData.contentUrl} download={topicData.title}>
-               <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline uppercase">Download Offline</span>
-             </a>
-          </Button>
-          <div className="w-[1px] h-4 bg-white/10 mx-1" />
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
