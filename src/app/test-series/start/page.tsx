@@ -17,8 +17,7 @@ import {
   BrainCircuit,
   Trophy,
   Timer,
-  AlertTriangle,
-  History
+  AlertTriangle
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -28,6 +27,8 @@ function QuizSessionContent() {
   const { toast } = useToast()
 
   const subjects = searchParams.get('subjects')?.split(',') || []
+  const units = searchParams.get('units')?.split(',').filter(Boolean) || []
+  const topics = searchParams.get('topics')?.split(',').filter(Boolean) || []
   const count = parseInt(searchParams.get('count') || '25')
   const mode = searchParams.get('mode') || 'practice'
 
@@ -38,27 +39,35 @@ function QuizSessionContent() {
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
   const [finished, setFinished] = useState(false)
-  const [answers, setAnswers] = useState<Record<number, number>>({}) // index -> selectedOption
-  const [timeLeft, setTimeLeft] = useState(count * 90) // 90 seconds per question
+  const [answers, setAnswers] = useState<Record<number, number>>({})
+  const [timeLeft, setTimeLeft] = useState(count * 90)
 
   useEffect(() => {
     async function loadQuestions() {
       if (subjects.length === 0) return
       setLoading(true)
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('questions')
           .select('*')
           .in('subject_id', subjects)
-          .limit(500) // Pool size
+
+        // Apply granular filters if provided
+        if (units.length > 0) {
+          query = query.in('unit_title', units)
+        }
+        if (topics.length > 0) {
+          query = query.in('topic_title', topics)
+        }
+        
+        const { data, error } = await query.limit(500)
         
         if (error) throw error
 
-        // Randomize pool and take requested count
         const shuffled = (data || []).sort(() => 0.5 - Math.random())
         setQuestions(shuffled.slice(0, count))
       } catch (e: any) {
-        toast({ variant: "destructive", title: "Load Error", description: e.message })
+        toast({ variant: "destructive", title: "Simulation Error", description: e.message })
       } finally {
         setLoading(false)
       }
@@ -81,9 +90,9 @@ function QuizSessionContent() {
     }
   }, [mode, finished, loading])
 
-  if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-bold uppercase tracking-widest animate-pulse">Building Simulation Pool...</p></div>
+  if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-bold uppercase tracking-widest animate-pulse">Filtering Clinical Pool...</p></div>
 
-  if (questions.length === 0) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center space-y-6"><AlertTriangle className="h-12 w-12 text-yellow-500" /><h2 className="text-2xl font-bold">No Questions Found</h2><p className="text-muted-foreground">Try selecting different subjects or check back later.</p><Button onClick={() => router.push('/test-series')}>Return to Builder</Button></div>
+  if (questions.length === 0) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center space-y-6"><AlertTriangle className="h-12 w-12 text-yellow-500" /><h2 className="text-2xl font-bold">No Cases Found</h2><p className="text-muted-foreground">The filter criteria was too narrow. Try expanding your subject or unit selection.</p><Button onClick={() => router.push('/test-series')}>Adjust Filters</Button></div>
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -112,7 +121,6 @@ function QuizSessionContent() {
       setShowExplanation(false)
     } else {
       if (mode === 'exam') {
-        // Calculate exam score at end
         let finalScore = 0
         questions.forEach((q, i) => {
           if (answers[i] === q.correct_answer_index) finalScore++
@@ -129,25 +137,25 @@ function QuizSessionContent() {
         <Card className="glass border-none overflow-hidden relative shadow-2xl">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-primary" />
           <CardContent className="p-12 text-center space-y-8">
-            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary shadow-inner">
+            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary">
               <Trophy className="h-12 w-12" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-4xl font-bold tracking-tight">Assessment Complete!</h2>
-              <p className="text-muted-foreground">Great effort! Review your clinical performance metrics below.</p>
+              <h2 className="text-4xl font-bold tracking-tight">Session Results</h2>
+              <p className="text-muted-foreground">Assessment complete. Review your mastery levels.</p>
             </div>
             <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
-              <div className="p-6 rounded-2xl bg-white/5 border border-white/5 shadow-xl">
+              <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
                 <p className="text-3xl font-bold">{score}/{questions.length}</p>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Total Score</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Total Cases</p>
               </div>
-              <div className="p-6 rounded-2xl bg-white/5 border border-white/5 shadow-xl">
+              <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
                 <p className="text-3xl font-bold">{Math.round((score / questions.length) * 100)}%</p>
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Accuracy</p>
               </div>
             </div>
             <div className="pt-6 flex flex-col gap-3">
-              <Button onClick={() => window.location.reload()} className="w-full h-14 rounded-xl text-lg font-bold shadow-lg shadow-primary/20">Restart Simulation</Button>
+              <Button onClick={() => window.location.reload()} className="w-full h-14 rounded-xl text-lg font-bold">Restart Test</Button>
               <Button variant="ghost" onClick={() => router.push('/test-series')} className="w-full h-12 rounded-xl text-muted-foreground hover:text-white">Back to Simulation Hub</Button>
             </div>
           </CardContent>
@@ -160,7 +168,7 @@ function QuizSessionContent() {
     <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8">
       <header className="flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => router.push('/test-series')} className="gap-2 text-muted-foreground hover:text-white">
-          <ArrowLeft className="h-4 w-4" /> Terminate
+          <ArrowLeft className="h-4 w-4" /> End Session
         </Button>
         <div className="flex items-center gap-6">
           {mode === 'exam' && (
@@ -179,10 +187,9 @@ function QuizSessionContent() {
         <Progress value={((currentIndex + 1) / questions.length) * 100} className="h-1.5 bg-white/5" />
         
         <Card className="glass border-none shadow-2xl relative overflow-hidden">
-          {mode === 'exam' && <div className="absolute top-0 left-0 h-full w-1 bg-primary" />}
           <CardHeader className="pb-8">
             <div className="flex items-center gap-2 text-[10px] font-bold text-accent uppercase tracking-widest mb-3">
-              <BrainCircuit className="h-4 w-4" /> Clinical Case • {currentQ.subject_id}
+              <BrainCircuit className="h-4 w-4" /> {currentQ.unit_title} • {currentQ.topic_title}
             </div>
             <CardTitle className="text-2xl leading-relaxed font-semibold tracking-tight">{currentQ.question_text}</CardTitle>
           </CardHeader>
@@ -206,7 +213,7 @@ function QuizSessionContent() {
                     key={i} 
                     disabled={mode === 'practice' && selectedOption !== null}
                     onClick={() => handleAnswer(i)} 
-                    className={`p-5 rounded-2xl border text-left transition-all flex items-center justify-between group shadow-sm ${styles}`}
+                    className={`p-5 rounded-2xl border text-left transition-all flex items-center justify-between group ${styles}`}
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold transition-colors ${isSelected ? 'bg-white/10' : 'bg-white/5 text-muted-foreground'}`}>
@@ -224,12 +231,12 @@ function QuizSessionContent() {
             {mode === 'practice' && showExplanation && (
               <div className="mt-8 p-6 rounded-2xl bg-accent/5 border border-accent/20 animate-in slide-in-from-top-4 duration-500">
                 <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-widest mb-3">
-                  <Sparkles className="h-3.5 w-3.5" /> High-Yield Clinical Insight
+                  <Sparkles className="h-3.5 w-3.5" /> Clinical Correlation
                 </div>
-                <p className="text-sm leading-relaxed text-muted-foreground italic leading-relaxed">{currentQ.explanation}</p>
-                <div className="mt-6 pt-6 border-t border-accent/10">
+                <p className="text-sm leading-relaxed text-muted-foreground italic">{currentQ.explanation}</p>
+                <div className="mt-6">
                    <Button onClick={nextQuestion} className="w-full h-12 rounded-xl group bg-accent text-background hover:bg-accent/90">
-                      Next Clinical Case <ChevronRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                      Next Case <ChevronRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                    </Button>
                 </div>
               </div>
@@ -242,7 +249,7 @@ function QuizSessionContent() {
                   disabled={mode === 'exam' ? answers[currentIndex] === undefined : selectedOption === null}
                   className="h-12 px-10 rounded-xl font-bold group"
                 >
-                  {currentIndex + 1 === questions.length ? 'Finalize Test' : 'Skip / Next'} 
+                  {currentIndex + 1 === questions.length ? 'Submit Exam' : 'Next Question'} 
                   <ChevronRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </div>

@@ -1,9 +1,10 @@
 
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -19,19 +20,81 @@ import {
   Stethoscope, 
   ArrowRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  BookOpen,
+  Filter
 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 export default function TestSeriesPage() {
   const db = useFirestore()
   const router = useRouter()
   const subjectsQuery = useMemo(() => (!db ? null : collection(db, 'subjects')), [db])
-  const { data: subjects, loading } = useCollection(subjectsQuery)
+  const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
+  const [curriculum, setCurriculum] = useState<any[]>([])
+  const [curriculumLoading, setCurriculumLoading] = useState(false)
+  
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([])
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
+  
   const [questionCount, setQuestionCount] = useState(25)
   const [mode, setMode] = useState<"practice" | "exam">("practice")
+
+  // Load Curriculum (Units/Topics) for selected subjects
+  useEffect(() => {
+    async function fetchCurriculum() {
+      if (selectedSubjects.length === 0) {
+        setCurriculum([])
+        return
+      }
+      setCurriculumLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('questions')
+          .select('subject_id, unit_title, topic_title')
+          .in('subject_id', selectedSubjects)
+        
+        if (error) throw error
+
+        // Group by subject -> unit -> topics
+        const map: Record<string, any> = {}
+        data.forEach(q => {
+          const sId = q.subject_id
+          const uTitle = q.unit_title || "General"
+          const tTitle = q.topic_title || "General"
+
+          if (!map[sId]) map[sId] = { id: sId, units: {} }
+          if (!map[sId].units[uTitle]) map[sId].units[uTitle] = new Set()
+          map[sId].units[uTitle].add(tTitle)
+        })
+
+        const formatted = Object.values(map).map(s => ({
+          ...s,
+          name: subjects?.find(sub => sub.id === s.id)?.name || s.id,
+          units: Object.entries(s.units).map(([title, topics]) => ({
+            title,
+            topics: Array.from(topics as Set<string>)
+          }))
+        }))
+
+        setCurriculum(formatted)
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setCurriculumLoading(false)
+      }
+    }
+    fetchCurriculum()
+  }, [selectedSubjects, subjects])
 
   const handleToggleSubject = (id: string) => {
     setSelectedSubjects(prev => 
@@ -39,10 +102,24 @@ export default function TestSeriesPage() {
     )
   }
 
+  const handleToggleUnit = (unitTitle: string) => {
+    setSelectedUnits(prev => 
+      prev.includes(unitTitle) ? prev.filter(u => u !== unitTitle) : [...prev, unitTitle]
+    )
+  }
+
+  const handleToggleTopic = (topicTitle: string) => {
+    setSelectedTopics(prev => 
+      prev.includes(topicTitle) ? prev.filter(t => t !== topicTitle) : [...prev, topicTitle]
+    )
+  }
+
   const handleStart = () => {
     if (selectedSubjects.length === 0) return
     const params = new URLSearchParams({
       subjects: selectedSubjects.join(','),
+      units: selectedUnits.join(','),
+      topics: selectedTopics.join(','),
       count: questionCount.toString(),
       mode: mode
     })
@@ -56,7 +133,7 @@ export default function TestSeriesPage() {
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
             <Trophy className="h-10 w-10 text-primary" /> Test Series
           </h1>
-          <p className="text-muted-foreground text-lg">Build clinical simulations based on your focus areas.</p>
+          <p className="text-muted-foreground text-lg">Build clinical simulations tailored to your curriculum focus.</p>
         </div>
       </div>
 
@@ -65,12 +142,12 @@ export default function TestSeriesPage() {
           <Card className="glass border-none">
             <CardHeader>
               <CardTitle className="text-xl flex items-center gap-2">
-                <Dna className="h-5 w-5 text-accent" /> Step 1: Select Subjects
+                <BookOpen className="h-5 w-5 text-accent" /> Step 1: Select Subjects
               </CardTitle>
-              <CardDescription>Choose one or more areas to include in your pool.</CardDescription>
+              <CardDescription>Choose core subjects to include in your assessment pool.</CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {subjectsLoading ? (
                 <div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -91,7 +168,7 @@ export default function TestSeriesPage() {
                       />
                       <div className="flex-1">
                         <Label htmlFor={subject.id} className="font-bold cursor-pointer">{subject.name}</Label>
-                        <p className="text-[10px] text-muted-foreground uppercase">{subject.questionCount || 0} Available</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{subject.questionCount || 0} Questions</p>
                       </div>
                     </div>
                   ))}
@@ -100,10 +177,62 @@ export default function TestSeriesPage() {
             </CardContent>
           </Card>
 
+          {selectedSubjects.length > 0 && (
+            <Card className="glass border-none animate-in slide-in-from-top-4 duration-500">
+              <CardHeader>
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <Filter className="h-5 w-5 text-primary" /> Step 2: Refine Curriculum (Optional)
+                </CardTitle>
+                <CardDescription>Leave unselected to include all topics within chosen subjects.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {curriculumLoading ? (
+                  <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin opacity-20" /></div>
+                ) : (
+                  <div className="space-y-4">
+                    {curriculum.map((s) => (
+                      <div key={s.id} className="space-y-3">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{s.name}</p>
+                        <Accordion type="multiple" className="space-y-2">
+                          {s.units.map((u: any, uIdx: number) => (
+                            <AccordionItem key={uIdx} value={`${s.id}-u-${uIdx}`} className="border-none bg-black/20 rounded-xl overflow-hidden px-2">
+                              <div className="flex items-center">
+                                <Checkbox 
+                                  className="ml-2"
+                                  checked={selectedUnits.includes(u.title)}
+                                  onCheckedChange={() => handleToggleUnit(u.title)}
+                                />
+                                <AccordionTrigger className="hover:no-underline py-3 px-4 flex-1 text-sm font-bold">{u.title}</AccordionTrigger>
+                              </div>
+                              <AccordionContent className="px-4 pb-4 pt-2 space-y-2">
+                                {u.topics.map((t: string, tIdx: number) => (
+                                  <div 
+                                    key={tIdx} 
+                                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                                      selectedTopics.includes(t) ? 'bg-primary/5 border-primary/20' : 'bg-white/5 border-white/5'
+                                    }`}
+                                    onClick={() => handleToggleTopic(t)}
+                                  >
+                                    <Checkbox checked={selectedTopics.includes(t)} onCheckedChange={() => handleToggleTopic(t)} />
+                                    <span className="text-xs font-medium">{t}</span>
+                                  </div>
+                                ))}
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="glass border-none">
             <CardHeader>
               <CardTitle className="text-xl flex items-center gap-2">
-                <Stethoscope className="h-5 w-5 text-primary" /> Step 2: Configure Parameters
+                <Stethoscope className="h-5 w-5 text-primary" /> Step 3: Configure Parameters
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-8">
@@ -134,7 +263,7 @@ export default function TestSeriesPage() {
                     <RadioGroupItem value="practice" id="practice" className="mt-1" />
                     <div>
                       <Label htmlFor="practice" className="font-bold cursor-pointer">Practice Mode</Label>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Untimed. See correct answers and explanations immediately after each case.</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Untimed. See immediate feedback after each case.</p>
                     </div>
                   </div>
                   <div 
@@ -146,7 +275,7 @@ export default function TestSeriesPage() {
                     <RadioGroupItem value="exam" id="exam" className="mt-1" />
                     <div>
                       <Label htmlFor="exam" className="font-bold cursor-pointer">Exam Mode</Label>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Timed session. No feedback during the test. Complete performance report at the end.</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Timed. Professional score report at the end.</p>
                     </div>
                   </div>
                 </RadioGroup>
@@ -166,16 +295,24 @@ export default function TestSeriesPage() {
                   <span className="text-muted-foreground">Selected Subjects</span>
                   <span className="font-bold">{selectedSubjects.length}</span>
                 </div>
+                {selectedUnits.length > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Specific Units</span>
+                    <span className="font-bold text-accent">{selectedUnits.length}</span>
+                  </div>
+                )}
+                {selectedTopics.length > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Filtered Topics</span>
+                    <span className="font-bold text-accent">{selectedTopics.length}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Volume</span>
+                  <span className="text-muted-foreground">Exam Volume</span>
                   <span className="font-bold">{questionCount} Cases</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Estimated Time</span>
-                  <span className="font-bold">{questionCount * 1.5} Minutes</span>
-                </div>
                 <div className="flex justify-between text-sm capitalize">
-                  <span className="text-muted-foreground">Mode</span>
+                  <span className="text-muted-foreground">Simulation Mode</span>
                   <span className={`font-bold ${mode === 'exam' ? 'text-primary' : 'text-accent'}`}>{mode}</span>
                 </div>
               </div>
@@ -183,7 +320,7 @@ export default function TestSeriesPage() {
               <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex items-start gap-3">
                 <ShieldCheck className="h-5 w-5 text-accent shrink-0" />
                 <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                  Qubix Simulations are based on standard clinical patterns found in USMLE, NEET-PG and Board certifications.
+                  Clinical patterns are based on board-standard MCQ logic for NEET-PG/USMLE.
                 </p>
               </div>
 
@@ -194,12 +331,6 @@ export default function TestSeriesPage() {
               >
                 Launch Simulation <ArrowRight className="h-5 w-5" />
               </Button>
-
-              {selectedSubjects.length === 0 && (
-                <p className="text-[10px] text-center text-red-400 font-bold uppercase tracking-tighter">
-                  <AlertCircle className="h-3 w-3 inline mr-1" /> Select at least one subject to start
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>
