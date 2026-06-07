@@ -13,7 +13,7 @@ import {
   Loader2,
   ExternalLink,
   FileText,
-  MessageSquareSparkles,
+  Sparkles,
   ChevronRight,
   ListRestart
 } from "lucide-react"
@@ -85,7 +85,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
               <SheetContent side="right" className="w-full sm:max-w-lg glass border-l border-white/5 p-0 overflow-y-auto">
                 <div className="p-6">
                    <h2 className="text-xl font-bold flex items-center gap-2 mb-6">
-                     <MessageSquareSparkles className="h-5 w-5 text-primary" /> Topic Insight
+                     <Sparkles className="h-5 w-5 text-primary" /> Topic Insight
                    </h2>
                    <div className="bg-white/5 rounded-2xl p-4 border border-white/5 mb-6">
                      <p className="text-xs font-bold text-accent uppercase tracking-widest mb-2">Topic Context</p>
