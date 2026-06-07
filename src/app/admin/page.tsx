@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo, useState } from "react"
@@ -19,8 +18,7 @@ import {
   BookOpen,
   CloudUpload,
   FileDown,
-  ArrowUpCircle,
-  AlertCircle
+  ArrowUpCircle
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -29,7 +27,6 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 
 const MBBS_SUBJECTS = [
@@ -323,14 +320,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
               
-              <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Security Policy Note</AlertTitle>
-                <AlertDescription className="text-xs">
-                  Ensure the <strong>notes-pdf</strong> bucket in Supabase allows public read/write access for this operation.
-                </AlertDescription>
-              </Alert>
-
               <DialogFooter className="pt-4 border-t border-white/5">
                 <Button 
                   onClick={handleAddTopic} 
