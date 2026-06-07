@@ -57,6 +57,9 @@ export default function SignUpPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
       await updateProfile(userCredential.user, { displayName: formData.name })
       
+      // Bootstrap: Emails containing 'admin' get the admin role automatically for development
+      const userRole = formData.email.toLowerCase().includes('admin') ? "admin" : "student"
+
       const profileData = {
         uid: userCredential.user.uid,
         displayName: formData.name,
@@ -64,7 +67,7 @@ export default function SignUpPage() {
         mobileNumber: formData.mobile,
         collegeName: formData.college,
         currentYear: formData.year,
-        role: "student", // Default role
+        role: userRole,
         createdAt: new Date().toISOString(),
         photoURL: userCredential.user.photoURL || ""
       }
@@ -82,10 +85,10 @@ export default function SignUpPage() {
 
       toast({
         title: "Account Created!",
-        description: "Welcome to QubixPrep. Let's start your medical journey."
+        description: `Welcome to QubixPrep as ${userRole}.`
       })
       
-      router.push("/")
+      router.push(userRole === 'admin' ? "/admin" : "/")
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -108,7 +111,10 @@ export default function SignUpPage() {
       const userRef = doc(db, 'users', user.uid)
       const docSnap = await getDoc(userRef)
 
+      let userRole = "student"
+
       if (!docSnap.exists()) {
+        userRole = user.email?.toLowerCase().includes('admin') ? "admin" : "student"
         const profileData = {
           uid: user.uid,
           displayName: user.displayName || "Medical Student",
@@ -116,18 +122,20 @@ export default function SignUpPage() {
           mobileNumber: "",
           collegeName: "",
           currentYear: "1st Year",
-          role: "student", // Default role
+          role: userRole,
           createdAt: new Date().toISOString(),
           photoURL: user.photoURL || ""
         }
         await setDoc(userRef, profileData, { merge: true })
+      } else {
+        userRole = (docSnap.data() as any).role || "student"
       }
 
-      router.push("/")
+      router.push(userRole === 'admin' ? "/admin" : "/")
     } catch (error: any) {
       let message = error.message
       if (error.code === 'auth/unauthorized-domain') {
-        message = "This domain is not yet authorized in Firebase Console. Please add it to your Authorized Domains list."
+        message = "Domain unauthorized. Add it in Firebase Console > Authentication > Settings > Authorized domains."
       }
       toast({
         variant: "destructive",

@@ -1,9 +1,10 @@
 
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useUser } from "@/firebase"
+import { useUser, useFirestore } from "@/firebase"
+import { doc, getDoc } from "firebase/firestore"
 import { StudyHeatMap } from "@/components/dashboard/heat-map"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -23,15 +24,30 @@ import Link from "next/link"
 
 export default function Dashboard() {
   const { user, loading } = useUser()
+  const db = useFirestore()
   const router = useRouter()
+  const [checkingRole, setCheckingRole] = useState(true)
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/signup")
+    async function checkUserRole() {
+      if (!loading) {
+        if (!user) {
+          router.push("/signup")
+        } else if (db) {
+          const userRef = doc(db, 'users', user.uid)
+          const docSnap = await getDoc(userRef)
+          if (docSnap.exists() && (docSnap.data() as any).role === 'admin') {
+            router.push("/admin")
+          } else {
+            setCheckingRole(false)
+          }
+        }
+      }
     }
-  }, [user, loading, router])
+    checkUserRole()
+  }, [user, loading, router, db])
 
-  if (loading) {
+  if (loading || checkingRole) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />

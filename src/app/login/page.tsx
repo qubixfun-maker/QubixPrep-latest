@@ -24,11 +24,21 @@ export default function LoginPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
-    if (!auth) return
+    if (!auth || !db) return
     setIsLoading(true)
     try {
-      await signInWithEmailAndPassword(auth, email, password)
-      router.push("/")
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+      
+      const userRef = doc(db, 'users', user.uid)
+      const docSnap = await getDoc(userRef)
+      const userData = docSnap.data()
+      
+      if (userData?.role === 'admin') {
+        router.push("/admin")
+      } else {
+        router.push("/")
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -73,11 +83,13 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider)
       const user = result.user
 
-      // Check if user already has a profile
       const userRef = doc(db, 'users', user.uid)
       const docSnap = await getDoc(userRef)
 
+      let userRole = "student"
+
       if (!docSnap.exists()) {
+        userRole = user.email?.toLowerCase().includes('admin') ? "admin" : "student"
         const profileData = {
           uid: user.uid,
           displayName: user.displayName || "Medical Student",
@@ -85,17 +97,20 @@ export default function LoginPage() {
           mobileNumber: "",
           collegeName: "",
           currentYear: "1st Year",
+          role: userRole,
           createdAt: new Date().toISOString(),
           photoURL: user.photoURL || ""
         }
         await setDoc(userRef, profileData, { merge: true })
+      } else {
+        userRole = (docSnap.data() as any).role || "student"
       }
 
-      router.push("/")
+      router.push(userRole === 'admin' ? "/admin" : "/")
     } catch (error: any) {
       let message = error.message
       if (error.code === 'auth/unauthorized-domain') {
-        message = "This domain is not authorized for Google Sign-In. Please add it to your Firebase Console's Authorized Domains list and wait a minute for it to take effect."
+        message = "Domain unauthorized. Add it in Firebase Console > Authentication > Settings > Authorized domains."
       }
       toast({
         variant: "destructive",
