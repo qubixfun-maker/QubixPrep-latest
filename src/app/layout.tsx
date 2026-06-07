@@ -1,10 +1,8 @@
 import type {Metadata} from 'next';
 import './globals.css';
-import { SidebarProvider } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/layout/app-sidebar';
-import { MobileNav } from '@/components/layout/mobile-nav';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { LayoutShell } from '@/components/layout/layout-shell';
 
 export const metadata: Metadata = {
   title: 'QubixPrep - AI Medical Learning Platform',
@@ -25,16 +23,10 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-primary/30 selection:text-white">
         <FirebaseClientProvider>
-          <SidebarProvider>
-            <div className="flex min-h-screen w-full">
-              <AppSidebar />
-              <main className="flex-1 pb-20 md:pb-0">
-                {children}
-              </main>
-            </div>
-            <MobileNav />
-            <Toaster />
-          </SidebarProvider>
+          <LayoutShell>
+            {children}
+          </LayoutShell>
+          <Toaster />
         </FirebaseClientProvider>
       </body>
     </html>

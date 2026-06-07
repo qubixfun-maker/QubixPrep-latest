@@ -35,7 +35,7 @@ const items = [
   },
   {
     title: "Subjects",
-    url: "/subjects",
+    url: "/notes", // Redirect to library for subjects
     icon: BookOpen,
   },
   {
