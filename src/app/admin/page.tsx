@@ -121,21 +121,24 @@ export default function AdminDashboard() {
         })
       }
 
-      const fileId = `${Date.now()}-${topicForm.file.name}`
+      const fileId = `${Date.now()}-${topicForm.file.name.replace(/\s+/g, '_')}`
       const storagePath = `${subjectId}/${fileId}`
       
-      // Upload to Supabase Storage
+      // Upload to Supabase Storage (using bucket notes-pdf)
       const { data: uploadData, error: uploadError } = await supabase
         .storage
-        .from('notes')
-        .upload(storagePath, topicForm.file)
+        .from('notes-pdf')
+        .upload(storagePath, topicForm.file, {
+          cacheControl: '3600',
+          upsert: false
+        })
 
       if (uploadError) throw uploadError
 
       // Get Public URL
       const { data: { publicUrl } } = supabase
         .storage
-        .from('notes')
+        .from('notes-pdf')
         .getPublicUrl(storagePath)
 
       const topicId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
@@ -178,8 +181,8 @@ export default function AdminDashboard() {
     if (!db) return
     try {
       if (topic.storagePath) {
-        // Delete from Supabase Storage
-        await supabase.storage.from('notes').remove([topic.storagePath])
+        // Delete from Supabase Storage (using bucket notes-pdf)
+        await supabase.storage.from('notes-pdf').remove([topic.storagePath])
       }
 
       await deleteDoc(doc(db, 'subjects', topic.subjectId, 'topics', topic.id))
@@ -245,7 +248,7 @@ export default function AdminDashboard() {
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                   <ArrowUpCircle className="h-6 w-6 text-accent" /> Publish Medical Topic
                 </DialogTitle>
-                <CardDescription>Upload a study resource to Supabase and link it to a subject.</CardDescription>
+                <CardDescription>Upload a study resource to Supabase (notes-pdf) and link it to a subject.</CardDescription>
               </DialogHeader>
               <div className="grid md:grid-cols-2 gap-6 py-6">
                 <div className="grid gap-2">
