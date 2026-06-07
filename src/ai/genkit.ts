@@ -2,18 +2,17 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 
 /**
- * Genkit initialization for server-side AI processing.
+ * Genkit initialization for server-side AI processing in QubixPrep.
  * 
- * The API key is explicitly passed from GOOGLE_GENAI_API_KEY in the environment.
- * This ensures the key is handled securely on the server and never exposed to the client.
+ * Explicitly passes the API key from environment variables and forces 
+ * the use of the Gemini 2.5 Flash model for efficient, free-tier processing.
  */
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
 
 export const ai = genkit({
   plugins: [
-    googleAI({
-      apiKey: process.env.GOOGLE_GENAI_API_KEY,
-    }),
+    googleAI({ apiKey: apiKey }),
   ],
-  // Using gemini-2.5-flash for clinical reasoning tasks
-  model: 'googleai/gemini-2.5-flash',
+  // Explicitly set the default model to a Flash variant
+  model: 'googleai/gemini-2.5-flash', 
 });
