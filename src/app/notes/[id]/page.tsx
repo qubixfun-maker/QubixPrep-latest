@@ -7,18 +7,20 @@ import { doc, collection, query, orderBy } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { CheckCircle2, Circle, Clock, ChevronRight, Share2, Bookmark, LayoutList, Loader2, FileText } from "lucide-react"
+import { ChevronRight, Share2, LayoutList, Loader2, FileText } from "lucide-react"
 import Link from "next/link"
 
 export default function SubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: subjectId } = use(params)
+  const resolvedParams = use(params)
+  const subjectId = resolvedParams.id
+  
   const db = useFirestore()
 
-  const subjectRef = useMemo(() => doc(db, 'subjects', subjectId), [db, subjectId])
+  const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
 
-  const topicsRef = useMemo(() => collection(db, 'subjects', subjectId, 'topics'), [db, subjectId])
-  const topicsQuery = useMemo(() => query(topicsRef, orderBy('createdAt', 'desc')), [topicsRef])
+  const topicsRef = useMemo(() => (!db ? null : collection(db, 'subjects', subjectId, 'topics')), [db, subjectId])
+  const topicsQuery = useMemo(() => (!topicsRef ? null : query(topicsRef, orderBy('createdAt', 'desc'))), [topicsRef])
   const { data: topics, loading: topicsLoading } = useCollection(topicsQuery)
 
   if (subjectLoading) {

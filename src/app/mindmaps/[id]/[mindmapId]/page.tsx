@@ -1,20 +1,21 @@
 
 "use client"
 
-import { useMemo, use, useEffect } from "react"
+import { useMemo, use, useEffect, useState } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ArrowLeft, Loader2, Sparkles, ShieldCheck, Maximize2, Minimize2 } from "lucide-react"
+import { ArrowLeft, Loader2, ShieldCheck, Maximize2, Minimize2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useState } from "react"
 
 export default function MindmapViewerPage({ params }: { params: Promise<{ id: string, mindmapId: string }> }) {
-  const { id, mindmapId } = use(params)
+  const resolvedParams = use(params)
+  const id = resolvedParams.id
+  const mindmapId = resolvedParams.mindmapId
+  
   const db = useFirestore()
   const [isFullWidth, setIsFullWidth] = useState(false)
 
-  // Content Protection: Prevent right-click and common shortcuts
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -75,7 +76,6 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
               className="w-full h-auto rounded-lg shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5" 
               onContextMenu={e => e.preventDefault()}
             />
-            {/* Immersive security watermark */}
             <div className="absolute inset-0 pointer-events-none opacity-[0.02] flex items-center justify-center rotate-45 select-none overflow-hidden">
                <div className="text-6xl font-black whitespace-nowrap">QUBIX PREP • SECURED CONTENT • QUBIX PREP • SECURED CONTENT • </div>
             </div>

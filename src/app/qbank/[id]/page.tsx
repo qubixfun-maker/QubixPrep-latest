@@ -20,7 +20,9 @@ import {
 import Link from "next/link"
 
 export default function QuizPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: subjectId } = use(params)
+  const resolvedParams = use(params)
+  const subjectId = resolvedParams.id
+  
   const db = useFirestore()
 
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -29,7 +31,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
   const [score, setScore] = useState(0)
   const [quizFinished, setQuizFinished] = useState(false)
 
-  const subjectRef = useMemo(() => doc(db, 'subjects', subjectId), [db, subjectId])
+  const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
 
   const questionsQuery = useMemo(() => (!db) ? null : query(collection(db, 'subjects', subjectId, 'questions'), orderBy('createdAt', 'desc')), [db, subjectId])
@@ -81,7 +83,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
             </div>
             <div className="space-y-2">
               <h2 className="text-3xl font-bold">Quiz Complete!</h2>
-              <p className="text-muted-foreground">You masteredboard-style clinical cases for {(subject as any).name}.</p>
+              <p className="text-muted-foreground">You mastered board-style clinical cases for {subject ? (subject as any).name : 'Subject'}.</p>
             </div>
             <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
               <div className="p-4 rounded-2xl bg-white/5 border border-white/5">

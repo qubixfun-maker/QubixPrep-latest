@@ -15,7 +15,6 @@ import {
   PanelRightClose,
   Info,
   EyeOff,
-  ShieldAlert,
   ShieldCheck,
   Maximize2,
   Minimize2
@@ -26,12 +25,14 @@ import Link from "next/link"
 import { SummarizerPageContent } from "@/app/ai-tools/summarizer/page"
 
 export default function NoteViewerPage({ params }: { params: Promise<{ id: string, topicId: string }> }) {
-  const { id, topicId } = use(params)
+  const resolvedParams = use(params)
+  const id = resolvedParams.id
+  const topicId = resolvedParams.topicId
+  
   const db = useFirestore()
   const [isBookmarked, setIsBookmarked] = useState(false)
   const [isFullView, setIsFullView] = useState(false)
   
-  // Content Protection: Prevent right-click, copy, and print
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -83,7 +84,6 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
 
   const topicData = topic as any
 
-  // High-compatibility Viewer URL for PDFs using an embedded bridge
   const getViewerUrl = (url: string) => {
     if (topicData.contentType === 'pdf') {
        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
