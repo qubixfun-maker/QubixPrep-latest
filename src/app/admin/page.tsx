@@ -3,23 +3,16 @@
 
 import { useMemo, useState } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, setDoc, deleteDoc, query, orderBy, increment, updateDoc, getDoc } from "firebase/firestore"
+import { doc, collection, setDoc, deleteDoc, query, orderBy, increment, updateDoc } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
-  Users, 
-  FileText, 
-  Trash2, 
   ShieldAlert,
   Loader2,
   Lock,
-  PlusCircle,
-  CheckCircle2,
-  BookOpen,
-  CloudUpload,
-  FileDown,
-  ArrowUpCircle,
+  Trash2,
+  FileText,
   Network
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -44,11 +37,6 @@ export default function AdminDashboard() {
   const db = useFirestore()
   const { toast } = useToast()
   
-  // State for Subject management
-  const [newSubject, setNewSubject] = useState({ name: "", description: "", iconName: "Brain" })
-  const [isAddingSubject, setIsAddingSubject] = useState(false)
-
-  // State for Topic management
   const [isAddingTopic, setIsAddingTopic] = useState(false)
   const [isAddingMindmap, setIsAddingMindmap] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -69,43 +57,15 @@ export default function AdminDashboard() {
     file: null as File | null
   })
 
-  // Fetch real data
+  // Fetch data
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
-
-  const subjectsQuery = useMemo(() => (!db) ? null : collection(db, 'subjects'), [db])
-  const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
   const topicsQuery = useMemo(() => (!db) ? null : query(collection(db, 'all_topics'), orderBy('createdAt', 'desc')), [db])
   const { data: topics, loading: topicsLoading } = useCollection(topicsQuery)
 
   const mindmapsQuery = useMemo(() => (!db) ? null : query(collection(db, 'all_mindmaps'), orderBy('createdAt', 'desc')), [db])
   const { data: mindmaps, loading: mindmapsLoading } = useCollection(mindmapsQuery)
-
-  async function handleAddSubject() {
-    if (!db || !newSubject.name) return
-    setIsAddingSubject(true)
-    const subjectId = newSubject.name.toLowerCase().replace(/\s+/g, '-')
-    const subjectRef = doc(db, 'subjects', subjectId)
-    
-    try {
-      await setDoc(subjectRef, {
-        ...newSubject,
-        id: subjectId,
-        unitCount: 0,
-        topicCount: 0,
-        mindmapCount: 0,
-        createdAt: new Date().toISOString()
-      }, { merge: true })
-      
-      toast({ title: "Subject Added", description: `${newSubject.name} has been added to the library.` })
-      setNewSubject({ name: "", description: "", iconName: "Brain" })
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to add subject." })
-    } finally {
-      setIsAddingSubject(false)
-    }
-  }
 
   async function handleAddTopic() {
     if (!db || !topicForm.subjectId || !topicForm.title || !topicForm.file) {
@@ -137,7 +97,6 @@ export default function AdminDashboard() {
         storagePath: storagePath,
         contentType: topicForm.contentType,
         importance: topicForm.importance,
-        status: 'published',
         createdAt: new Date().toISOString()
       }
 
@@ -149,7 +108,7 @@ export default function AdminDashboard() {
       setTopicForm({ subjectId: "", unitName: "", title: "", importance: "Medium", contentType: "pdf", file: null })
       setIsAddingTopic(false)
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+      toast({ variant: "destructive", title: "Upload Failed", description: e.message || "Check Supabase RLS policies." })
     } finally {
       setUploading(false)
     }
@@ -194,7 +153,7 @@ export default function AdminDashboard() {
       setMindmapForm({ subjectId: "", unitName: "", title: "", file: null })
       setIsAddingMindmap(false)
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+      toast({ variant: "destructive", title: "Upload Failed", description: e.message || "Ensure 'mindmaps' bucket exists and RLS is configured." })
     } finally {
       setUploading(false)
     }
@@ -226,40 +185,40 @@ export default function AdminDashboard() {
   if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Required</h1><Link href="/"><Button className="mt-4">Back to Dashboard</Button></Link></div>
 
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <ShieldAlert className="h-8 w-8 text-primary" /> Content Orchestrator
           </h1>
-          <p className="text-muted-foreground">Manage your MBBS study materials across Notes and Mindmaps.</p>
+          <p className="text-muted-foreground">Manage MBBS Notes and Visual Mindmaps.</p>
         </div>
         <div className="flex gap-3">
           <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
-            <DialogTrigger asChild><Button className="rounded-xl h-12 px-6">Upload Note</Button></DialogTrigger>
-            <DialogContent className="glass max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogTrigger asChild><Button className="rounded-xl h-12">Upload Note</Button></DialogTrigger>
+            <DialogContent className="glass">
               <DialogHeader><DialogTitle>Publish Medical Note</DialogTitle></DialogHeader>
-              <div className="grid md:grid-cols-2 gap-6 py-6">
+              <div className="grid gap-4 py-4">
                 <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setTopicForm({...topicForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
                 <div className="grid gap-2"><Label>Unit</Label><Input value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} /></div>
-                <div className="grid gap-2 md:col-span-2"><Label>Title</Label><Input value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
-                <div className="grid gap-2 md:col-span-2"><Label>File</Label><Input type="file" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} /></div>
+                <div className="grid gap-2"><Label>Title</Label><Input value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
+                <div className="grid gap-2"><Label>File (PDF)</Label><Input type="file" accept=".pdf" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} /></div>
               </div>
-              <DialogFooter><Button onClick={handleAddTopic} disabled={uploading} className="w-full h-12">{uploading ? "Uploading..." : "Publish Note"}</Button></DialogFooter>
+              <DialogFooter><Button onClick={handleAddTopic} disabled={uploading} className="w-full">{uploading ? "Uploading..." : "Publish Note"}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
 
           <Dialog open={isAddingMindmap} onOpenChange={setIsAddingMindmap}>
-            <DialogTrigger asChild><Button variant="secondary" className="rounded-xl h-12 px-6">Upload Mindmap</Button></DialogTrigger>
-            <DialogContent className="glass max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogTrigger asChild><Button variant="secondary" className="rounded-xl h-12">Upload Mindmap</Button></DialogTrigger>
+            <DialogContent className="glass">
               <DialogHeader><DialogTitle>Publish Mindmap Image</DialogTitle></DialogHeader>
-              <div className="grid md:grid-cols-2 gap-6 py-6">
+              <div className="grid gap-4 py-4">
                 <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setMindmapForm({...mindmapForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
                 <div className="grid gap-2"><Label>Unit</Label><Input value={mindmapForm.unitName} onChange={e => setMindmapForm({...mindmapForm, unitName: e.target.value})} /></div>
-                <div className="grid gap-2 md:col-span-2"><Label>Title</Label><Input value={mindmapForm.title} onChange={e => setMindmapForm({...mindmapForm, title: e.target.value})} /></div>
-                <div className="grid gap-2 md:col-span-2"><Label>Image (JPG/PNG)</Label><Input type="file" accept="image/*" onChange={e => setMindmapForm({...mindmapForm, file: e.target.files?.[0] || null})} /></div>
+                <div className="grid gap-2"><Label>Title</Label><Input value={mindmapForm.title} onChange={e => setMindmapForm({...mindmapForm, title: e.target.value})} /></div>
+                <div className="grid gap-2"><Label>Image (JPG/PNG)</Label><Input type="file" accept="image/*" onChange={e => setMindmapForm({...mindmapForm, file: e.target.files?.[0] || null})} /></div>
               </div>
-              <DialogFooter><Button onClick={handleAddMindmap} disabled={uploading} className="w-full h-12">{uploading ? "Uploading..." : "Publish Mindmap"}</Button></DialogFooter>
+              <DialogFooter><Button onClick={handleAddMindmap} disabled={uploading} className="w-full">{uploading ? "Uploading..." : "Publish Mindmap"}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
