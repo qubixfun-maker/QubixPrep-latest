@@ -17,7 +17,9 @@ import {
   BrainCircuit,
   Trophy,
   PlayCircle,
-  FileText
+  FileText,
+  Zap,
+  MessageSquare
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -27,6 +29,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { explainClinicalCase } from "@/ai/flows/ai-clinical-tutor"
 
 export default function QuizSubjectCurriculumPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
@@ -44,6 +47,10 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
   const [quizFinished, setQuizFinished] = useState(false)
+
+  // AI State
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null)
+  const [isAiLoading, setIsAiLoading] = useState(false)
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
@@ -90,6 +97,26 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
     setShowExplanation(false)
     setScore(0)
     setQuizFinished(false)
+    setAiExplanation(null)
+  }
+
+  async function handleAskAi() {
+    if (!selectedTopicQuestions) return
+    const currentQ = selectedTopicQuestions[currentIndex]
+    setIsAiLoading(true)
+    try {
+      const result = await explainClinicalCase({
+        question: currentQ.question_text,
+        options: [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4],
+        correctAnswer: [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4][currentQ.correct_answer_index],
+        userAnswer: selectedOption || undefined
+      })
+      setAiExplanation(result)
+    } catch (e) {
+      toast({ variant: "destructive", title: "AI Error", description: "Could not reach the clinical tutor." })
+    } finally {
+      setIsAiLoading(false)
+    }
   }
 
   if (selectedTopicQuestions) {
@@ -142,6 +169,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
         setCurrentIndex(c => c + 1)
         setSelectedOption(null)
         setShowExplanation(false)
+        setAiExplanation(null)
       } else {
         setQuizFinished(true)
       }
@@ -187,9 +215,35 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                 })}
               </div>
               {showExplanation && (
-                <div className="mt-8 p-6 rounded-2xl bg-accent/5 border border-accent/20 animate-in slide-in-from-top-4 duration-500">
-                  <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-widest mb-3"><Sparkles className="h-3.5 w-3.5" /> High-Yield Explanation</div>
-                  <p className="text-sm leading-relaxed text-muted-foreground italic">{currentQ.explanation}</p>
+                <div className="mt-8 space-y-4">
+                  <div className="p-6 rounded-2xl bg-accent/5 border border-accent/20 animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-widest"><Sparkles className="h-3.5 w-3.5" /> High-Yield Explanation</div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-7 text-[10px] font-bold uppercase rounded-lg glass gap-1.5"
+                        onClick={handleAskAi}
+                        disabled={isAiLoading}
+                      >
+                        {isAiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <BrainCircuit className="h-3 w-3" />}
+                        {isAiLoading ? "Consulting AI..." : "Ask AI Tutor"}
+                      </Button>
+                    </div>
+                    <p className="text-sm leading-relaxed text-muted-foreground italic">{currentQ.explanation}</p>
+                  </div>
+
+                  {aiExplanation && (
+                    <div className="p-6 rounded-2xl bg-primary/5 border border-primary/20 animate-in fade-in zoom-in-95 duration-500">
+                       <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                          <MessageSquare className="h-3.5 w-3.5" /> AI Clinical Reasoning
+                       </div>
+                       <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                          {aiExplanation}
+                       </div>
+                    </div>
+                  )}
+
                   <div className="mt-6">
                     <Button onClick={nextQuestion} className="w-full h-12 rounded-xl group">
                       Next Case <ChevronRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />

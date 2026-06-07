@@ -1,8 +1,7 @@
-
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation"
-import { useState, useEffect, Suspense, use } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -17,9 +16,12 @@ import {
   BrainCircuit,
   Trophy,
   Timer,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare,
+  Activity
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { explainClinicalCase, analyzeTestPerformance } from "@/ai/flows/ai-clinical-tutor"
 
 function QuizSessionContent() {
   const searchParams = useSearchParams()
@@ -43,6 +45,12 @@ function QuizSessionContent() {
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [timeLeft, setTimeLeft] = useState(timeLimitMins * 60)
 
+  // AI State
+  const [aiExplanation, setAiExplanation] = useState<string | null>(null)
+  const [isAiLoading, setIsAiLoading] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+
   useEffect(() => {
     async function loadQuestions() {
       if (subjects.length === 0) return
@@ -60,7 +68,6 @@ function QuizSessionContent() {
           query = query.in('topic_title', topics)
         }
         
-        // Fetch up to the count requested, with a buffer for shuffling
         const { data, error } = await query.limit(Math.max(count + 200, 2000))
         
         if (error) throw error
@@ -81,7 +88,7 @@ function QuizSessionContent() {
       const timer = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 0) {
-            setFinished(true)
+            handleSubmitExam()
             return 0
           }
           return prev - 1
@@ -90,6 +97,51 @@ function QuizSessionContent() {
       return () => clearInterval(timer)
     }
   }, [mode, finished, loading])
+
+  function handleSubmitExam() {
+    let finalScore = 0
+    questions.forEach((q, i) => {
+      if (answers[i] === q.correct_answer_index) finalScore++
+    })
+    setScore(finalScore)
+    setFinished(true)
+  }
+
+  async function handleAskAi() {
+    const currentQ = questions[currentIndex]
+    const options = [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4]
+    setIsAiLoading(true)
+    try {
+      const result = await explainClinicalCase({
+        question: currentQ.question_text,
+        options,
+        correctAnswer: options[currentQ.correct_answer_index],
+        userAnswer: selectedOption !== null ? options[selectedOption] : undefined
+      })
+      setAiExplanation(result)
+    } catch (e) {
+      toast({ variant: "destructive", title: "AI Error", description: "Tutor unavailable." })
+    } finally {
+      setIsAiLoading(false)
+    }
+  }
+
+  async function handleAnalyzePerformance() {
+    setIsAnalyzing(true)
+    try {
+      const resultData = questions.map((q, i) => ({
+        topic: q.topic_title || "General",
+        isCorrect: mode === 'exam' ? answers[i] === q.correct_answer_index : true, // Simplified for now
+        question: q.question_text
+      }))
+      const result = await analyzeTestPerformance({ results: resultData })
+      setAiAnalysis(result)
+    } catch (e) {
+      toast({ variant: "destructive", title: "Analysis Error" })
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
 
   if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-bold uppercase tracking-widest animate-pulse">Filtering Clinical Pool...</p></div>
 
@@ -121,21 +173,16 @@ function QuizSessionContent() {
       setCurrentIndex(c => c + 1)
       setSelectedOption(null)
       setShowExplanation(false)
+      setAiExplanation(null)
     } else {
-      if (mode === 'exam') {
-        let finalScore = 0
-        questions.forEach((q, i) => {
-          if (answers[i] === q.correct_answer_index) finalScore++
-        })
-        setScore(finalScore)
-      }
-      setFinished(true)
+      if (mode === 'exam') handleSubmitExam()
+      else setFinished(true)
     }
   }
 
   if (finished) {
     return (
-      <div className="max-w-2xl mx-auto p-4 md:p-12 space-y-8 animate-in zoom-in-95 duration-500">
+      <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in zoom-in-95 duration-500">
         <Card className="glass border-none overflow-hidden relative shadow-2xl">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-primary" />
           <CardContent className="p-12 text-center space-y-8">
@@ -156,6 +203,29 @@ function QuizSessionContent() {
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Accuracy</p>
               </div>
             </div>
+
+            <div className="space-y-4">
+              <Button 
+                onClick={handleAnalyzePerformance} 
+                disabled={isAnalyzing}
+                className="w-full h-14 rounded-xl bg-accent text-background font-bold gap-2"
+              >
+                {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Activity className="h-5 w-5" />}
+                Get AI Mastery Insights
+              </Button>
+
+              {aiAnalysis && (
+                <div className="p-8 rounded-3xl bg-white/5 border border-white/10 text-left animate-in slide-in-from-bottom-4">
+                   <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-widest mb-6">
+                      <BrainCircuit className="h-4 w-4" /> AI Performance Audit
+                   </div>
+                   <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                      {aiAnalysis}
+                   </div>
+                </div>
+              )}
+            </div>
+
             <div className="pt-6 flex flex-col gap-3">
               <Button onClick={() => window.location.reload()} className="w-full h-14 rounded-xl text-lg font-bold">Restart Test</Button>
               <Button variant="ghost" onClick={() => router.push('/test-series')} className="w-full h-12 rounded-xl text-muted-foreground hover:text-white">Back to Simulation Hub</Button>
@@ -231,11 +301,37 @@ function QuizSessionContent() {
             </div>
 
             {mode === 'practice' && showExplanation && (
-              <div className="mt-8 p-6 rounded-2xl bg-accent/5 border border-accent/20 animate-in slide-in-from-top-4 duration-500">
-                <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-widest mb-3">
-                  <Sparkles className="h-3.5 w-3.5" /> Clinical Correlation
+              <div className="mt-8 space-y-4">
+                <div className="p-6 rounded-2xl bg-accent/5 border border-accent/20 animate-in slide-in-from-top-4 duration-500">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-widest">
+                      <Sparkles className="h-3.5 w-3.5" /> Clinical Correlation
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-[10px] font-bold uppercase glass gap-1.5"
+                      onClick={handleAskAi}
+                      disabled={isAiLoading}
+                    >
+                      {isAiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
+                      {isAiLoading ? "Asking Tutor..." : "Ask AI Tutor"}
+                    </Button>
+                  </div>
+                  <p className="text-sm leading-relaxed text-muted-foreground italic">{currentQ.explanation}</p>
                 </div>
-                <p className="text-sm leading-relaxed text-muted-foreground italic">{currentQ.explanation}</p>
+
+                {aiExplanation && (
+                  <div className="p-6 rounded-2xl bg-primary/5 border border-primary/20 animate-in fade-in zoom-in-95 duration-500">
+                     <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase tracking-widest mb-3">
+                        <BrainCircuit className="h-3.5 w-3.5" /> AI Clinical Reasoning
+                     </div>
+                     <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                        {aiExplanation}
+                     </div>
+                  </div>
+                )}
+
                 <div className="mt-6">
                    <Button onClick={nextQuestion} className="w-full h-12 rounded-xl group bg-accent text-background hover:bg-accent/90">
                       Next Case <ChevronRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
