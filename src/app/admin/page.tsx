@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo, useState } from "react"
@@ -18,7 +17,8 @@ import {
   CheckCircle2,
   BookOpen,
   CloudUpload,
-  FileDown
+  FileDown,
+  ArrowUpCircle
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -104,7 +104,6 @@ export default function AdminDashboard() {
 
     setUploading(true)
     try {
-      // Ensure subject exists or create it
       const subjectId = topicForm.subjectId.toLowerCase().replace(/\s+/g, '-')
       const subjectRef = doc(db, 'subjects', subjectId)
       const subjectSnap = await getDoc(subjectRef)
@@ -224,20 +223,22 @@ export default function AdminDashboard() {
         <div className="flex gap-3">
           <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
             <DialogTrigger asChild>
-              <Button className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2 shadow-lg shadow-accent/20">
-                <CloudUpload className="h-4 w-4" /> Upload Note
+              <Button className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2 shadow-lg shadow-accent/20 h-12 px-6">
+                <CloudUpload className="h-5 w-5" /> Upload New Note
               </Button>
             </DialogTrigger>
-            <DialogContent className="glass border-white/10 max-w-2xl">
+            <DialogContent className="glass border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Publish Medical Topic</DialogTitle>
+                <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                  <ArrowUpCircle className="h-6 w-6 text-accent" /> Publish Medical Topic
+                </DialogTitle>
                 <CardDescription>Upload a study resource and link it to a subject.</CardDescription>
               </DialogHeader>
-              <div className="grid md:grid-cols-2 gap-4 py-4">
+              <div className="grid md:grid-cols-2 gap-6 py-6">
                 <div className="grid gap-2">
                   <Label>Target Subject</Label>
                   <Select onValueChange={(v) => setTopicForm({...topicForm, subjectId: v})}>
-                    <SelectTrigger className="glass border-white/10">
+                    <SelectTrigger className="glass border-white/10 h-11">
                       <SelectValue placeholder="Select Subject" />
                     </SelectTrigger>
                     <SelectContent className="glass border-white/10">
@@ -247,16 +248,16 @@ export default function AdminDashboard() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Unit Name</Label>
-                  <Input placeholder="e.g. Unit 3: Histology" className="glass border-white/10" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} />
+                  <Input placeholder="e.g. Unit 3: Histology" className="glass border-white/10 h-11" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} />
                 </div>
                 <div className="grid gap-2 md:col-span-2">
                   <Label>Topic Title</Label>
-                  <Input placeholder="e.g. Connective Tissue Types" className="glass border-white/10" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} />
+                  <Input placeholder="e.g. Connective Tissue Types" className="glass border-white/10 h-11" value={topicForm.title} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} />
                 </div>
                 <div className="grid gap-2">
                   <Label>Content Type</Label>
                   <Select onValueChange={(v: any) => setTopicForm({...topicForm, contentType: v})} defaultValue="pdf">
-                    <SelectTrigger className="glass border-white/10">
+                    <SelectTrigger className="glass border-white/10 h-11">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="glass border-white/10">
@@ -270,7 +271,7 @@ export default function AdminDashboard() {
                 <div className="grid gap-2">
                   <Label>Importance Level</Label>
                   <Select onValueChange={(v: any) => setTopicForm({...topicForm, importance: v})} defaultValue="Medium">
-                    <SelectTrigger className="glass border-white/10">
+                    <SelectTrigger className="glass border-white/10 h-11">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="glass border-white/10">
@@ -283,24 +284,37 @@ export default function AdminDashboard() {
                 </div>
                 <div className="grid gap-2 md:col-span-2">
                   <Label>Resource File</Label>
-                  <div className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:bg-white/5 transition-colors cursor-pointer relative">
+                  <div className="border-2 border-dashed border-white/10 rounded-xl p-10 text-center hover:bg-white/5 transition-colors cursor-pointer relative group">
                     <input 
                       type="file" 
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                       onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})}
                     />
-                    <div className="flex flex-col items-center gap-2">
-                      <FileDown className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm font-medium">{topicForm.file ? topicForm.file.name : "Click or drag to select file"}</p>
-                      <p className="text-[10px] text-muted-foreground">Supported: PDF, JPG, PNG, MP4, CSV</p>
+                    <div className="flex flex-col items-center gap-3">
+                      <FileDown className={`h-10 w-10 transition-colors ${topicForm.file ? 'text-accent' : 'text-muted-foreground'}`} />
+                      <p className="text-sm font-bold">{topicForm.file ? topicForm.file.name : "Click or drag to select file"}</p>
+                      <p className="text-xs text-muted-foreground">Supported: PDF, JPG, PNG, MP4, CSV</p>
                     </div>
                   </div>
                 </div>
               </div>
-              <DialogFooter>
-                <Button onClick={handleAddTopic} disabled={uploading} className="w-full rounded-xl bg-primary">
-                  {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CloudUpload className="h-4 w-4 mr-2" />}
-                  {uploading ? "Uploading to Cloud..." : "Confirm & Publish"}
+              <DialogFooter className="pt-4 border-t border-white/5">
+                <Button 
+                  onClick={handleAddTopic} 
+                  disabled={uploading} 
+                  className="w-full rounded-xl bg-primary hover:bg-primary/90 h-14 text-lg font-bold shadow-xl shadow-primary/20"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      Uploading to Cloud...
+                    </>
+                  ) : (
+                    <>
+                      <CloudUpload className="h-5 w-5 mr-2" />
+                      Start Upload & Publish
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -308,7 +322,7 @@ export default function AdminDashboard() {
 
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline" className="rounded-xl glass border-white/10 gap-2">
+              <Button variant="outline" className="rounded-xl glass border-white/10 gap-2 h-12">
                 <PlusCircle className="h-4 w-4" /> Custom Subject
               </Button>
             </DialogTrigger>
@@ -387,9 +401,14 @@ export default function AdminDashboard() {
 
         <TabsContent value="topics">
           <Card className="glass border-none overflow-hidden">
-            <CardHeader className="p-6 border-b border-white/5">
-              <CardTitle className="text-xl font-bold">Content Repository</CardTitle>
-              <CardDescription>View and manage all uploaded study materials.</CardDescription>
+            <CardHeader className="p-6 border-b border-white/5 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xl font-bold">Content Repository</CardTitle>
+                <CardDescription>View and manage all uploaded study materials.</CardDescription>
+              </div>
+              <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2">
+                <CloudUpload className="h-4 w-4" /> New Upload
+              </Button>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
