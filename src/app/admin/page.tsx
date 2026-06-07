@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -24,11 +23,13 @@ import {
   X,
   Upload,
   Layers,
-  HelpCircle
+  HelpCircle,
+  Edit2
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -56,6 +57,7 @@ export default function AdminDashboard() {
   const [isAddingVideo, setIsAddingVideo] = useState(false)
   const [isAddingMindmap, setIsAddingMindmap] = useState(false)
   const [isUploadingQBank, setIsUploadingQBank] = useState(false)
+  const [isEditingQuestion, setIsEditingQuestion] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
   
@@ -83,8 +85,17 @@ export default function AdminDashboard() {
   })
 
   const [qbankForm, setQbankForm] = useState({
+    id: null as number | null,
     subjectId: "",
-    file: null as File | null
+    unit_title: "",
+    topic_title: "",
+    question_text: "",
+    option1: "",
+    option2: "",
+    option3: "",
+    option4: "",
+    correct_answer_index: "0",
+    explanation: ""
   })
 
   // ALL hooks must be at the top level
@@ -113,36 +124,37 @@ export default function AdminDashboard() {
   }, [subjectContent.questions])
 
   // Load content for active subject
-  useEffect(() => {
-    async function fetchSubjectDetails() {
-      if (!db || !activeSubject) return
-      setLoadingContent(true)
-      try {
-        const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-        
-        const topicsSnap = await getDocs(collection(db, 'subjects', subjectId, 'topics'))
-        const topics = topicsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
-        
-        const mindmapsSnap = await getDocs(collection(db, 'subjects', subjectId, 'mindmaps'))
-        const mindmaps = mindmapsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
-        
-        const { data: questions, error } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('subject_id', subjectId)
-          .order('unit_number', { ascending: true })
-        
-        if (error) throw error
+  const fetchSubjectDetails = async () => {
+    if (!db || !activeSubject) return
+    setLoadingContent(true)
+    try {
+      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+      
+      const topicsSnap = await getDocs(collection(db, 'subjects', subjectId, 'topics'))
+      const topics = topicsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
+      
+      const mindmapsSnap = await getDocs(collection(db, 'subjects', subjectId, 'mindmaps'))
+      const mindmaps = mindmapsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
+      
+      const { data: questions, error } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('unit_number', { ascending: true })
+      
+      if (error) throw error
 
-        setSubjectContent({ topics, mindmaps, questions: questions || [] })
-      } catch (e: any) {
-        toast({ variant: "destructive", title: "Sync Error", description: e.message })
-      } finally {
-        setLoadingContent(false)
-      }
+      setSubjectContent({ topics, mindmaps, questions: questions || [] })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Error", description: e.message })
+    } finally {
+      setLoadingContent(false)
     }
+  }
+
+  useEffect(() => {
     fetchSubjectDetails()
-  }, [activeSubject, db, toast])
+  }, [activeSubject, db])
 
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Restricted</h1><Link href="/"><Button className="mt-4">Return Home</Button></Link></div>
@@ -205,6 +217,18 @@ export default function AdminDashboard() {
       toast({ title: "Mindmap Removed" })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Deletion Error", description: e.message })
+    }
+  }
+
+  async function handleDeleteQuestion(qId: number) {
+    if (!confirm("Are you sure you want to delete this clinical case?")) return
+    try {
+      const { error } = await supabase.from('questions').delete().eq('id', qId)
+      if (error) throw error
+      toast({ title: "Question Deleted" })
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
     }
   }
 
@@ -348,6 +372,46 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleSaveQuestion() {
+    if (!qbankForm.subjectId || !qbankForm.question_text || !qbankForm.option1 || !qbankForm.option2) {
+      toast({ variant: "destructive", title: "Incomplete Form" })
+      return
+    }
+
+    setUploading(true)
+    try {
+      const subjectId = qbankForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const payload = {
+        subject_id: subjectId,
+        unit_title: qbankForm.unit_title,
+        topic_title: qbankForm.topic_title,
+        question_text: qbankForm.question_text,
+        option1: qbankForm.option1,
+        option2: qbankForm.option2,
+        option3: qbankForm.option3,
+        option4: qbankForm.option4,
+        correct_answer_index: parseInt(qbankForm.correct_answer_index),
+        explanation: qbankForm.explanation
+      }
+
+      if (qbankForm.id) {
+        const { error } = await supabase.from('questions').update(payload).eq('id', qbankForm.id)
+        if (error) throw error
+        toast({ title: "Question Updated" })
+      } else {
+        const { error } = await supabase.from('questions').insert([payload])
+        if (error) throw error
+        toast({ title: "Question Added" })
+      }
+      setIsEditingQuestion(false)
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -361,7 +425,28 @@ export default function AdminDashboard() {
           <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl gap-2"><Plus className="h-4 w-4" /> New Note</Button>
           <Button onClick={() => setIsAddingVideo(true)} variant="secondary" className="rounded-xl gap-2"><Video className="h-4 w-4" /> Add Video</Button>
           <Button onClick={() => setIsAddingMindmap(true)} variant="outline" className="rounded-xl gap-2 glass"><Network className="h-4 w-4" /> New Mindmap</Button>
-          <Button onClick={() => setIsUploadingQBank(true)} variant="outline" className="rounded-xl gap-2 glass"><Database className="h-4 w-4" /> Import QBank</Button>
+          <Button 
+            onClick={() => {
+              setQbankForm({
+                id: null,
+                subjectId: activeSubject || "",
+                unit_title: "",
+                topic_title: "",
+                question_text: "",
+                option1: "",
+                option2: "",
+                option3: "",
+                option4: "",
+                correct_answer_index: "0",
+                explanation: ""
+              })
+              setIsEditingQuestion(true)
+            }} 
+            variant="outline" 
+            className="rounded-xl gap-2 glass"
+          >
+            <Database className="h-4 w-4" /> Add Case
+          </Button>
         </div>
       </div>
 
@@ -499,17 +584,49 @@ export default function AdminDashboard() {
                                             <ChevronRight className="h-3 w-3" /> {topicGroup.topic} ({topicGroup.questions.length} cases)
                                           </p>
                                           <div className="grid gap-2">
-                                            {topicGroup.questions.slice(0, 10).map((q: any, qIdx: number) => (
-                                              <div key={qIdx} className="text-[10px] p-2.5 rounded bg-black/40 border border-white/5 flex items-start gap-3 group/item">
-                                                 <HelpCircle className="h-3 w-3 text-primary mt-0.5 shrink-0" />
-                                                 <span className="line-clamp-1 text-muted-foreground group-hover/item:text-white transition-colors">
-                                                   {q.question_text}
-                                                 </span>
+                                            {topicGroup.questions.map((q: any, qIdx: number) => (
+                                              <div key={qIdx} className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between group/item hover:bg-white/5 transition-colors">
+                                                 <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                   <HelpCircle className="h-3 w-3 text-primary mt-1 shrink-0" />
+                                                   <span className="text-[11px] text-muted-foreground group-hover/item:text-white transition-colors line-clamp-1">
+                                                     {q.question_text}
+                                                   </span>
+                                                 </div>
+                                                 <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                   <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-accent"
+                                                    onClick={() => {
+                                                      setQbankForm({
+                                                        id: q.id,
+                                                        subjectId: q.subject_id,
+                                                        unit_title: q.unit_title || "",
+                                                        topic_title: q.topic_title || "",
+                                                        question_text: q.question_text,
+                                                        option1: q.option1,
+                                                        option2: q.option2,
+                                                        option3: q.option3,
+                                                        option4: q.option4,
+                                                        correct_answer_index: q.correct_answer_index.toString(),
+                                                        explanation: q.explanation || ""
+                                                      })
+                                                      setIsEditingQuestion(true)
+                                                    }}
+                                                   >
+                                                     <Edit2 className="h-3 w-3" />
+                                                   </Button>
+                                                   <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive"
+                                                    onClick={() => handleDeleteQuestion(q.id)}
+                                                   >
+                                                     <Trash2 className="h-3 w-3" />
+                                                   </Button>
+                                                 </div>
                                               </div>
                                             ))}
-                                            {topicGroup.questions.length > 10 && (
-                                              <p className="text-[9px] text-muted-foreground italic pl-6">+ {topicGroup.questions.length - 10} more questions in this topic...</p>
-                                            )}
                                           </div>
                                         </div>
                                       ))}
@@ -521,7 +638,7 @@ export default function AdminDashboard() {
                            <div className="text-center py-24 glass rounded-3xl text-muted-foreground border-2 border-dashed border-white/5">
                              <Database className="h-12 w-12 mx-auto mb-4 opacity-10" />
                              <p className="text-sm">No curriculum-based QBank data found.</p>
-                             <p className="text-[10px] mt-1">Use the "Import QBank" tool above to upload clinical cases.</p>
+                             <p className="text-[10px] mt-1">Use the "Add Case" button above to upload clinical cases.</p>
                            </div>
                          )}
                       </div>
@@ -538,6 +655,78 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* Add/Edit Question Dialog */}
+      <Dialog open={isEditingQuestion} onOpenChange={setIsEditingQuestion}>
+        <DialogContent className="glass border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{qbankForm.id ? 'Edit Clinical Case' : 'Add New Clinical Case'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid md:grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Select onValueChange={(v) => setQbankForm({ ...qbankForm, subjectId: v })} value={qbankForm.subjectId}>
+                <SelectTrigger className="glass border-white/10">
+                  <SelectValue placeholder="Select Subject" />
+                </SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Unit Title</Label>
+              <Input placeholder="e.g., Neonatology" className="glass border-white/10" value={qbankForm.unit_title} onChange={(e) => setQbankForm({ ...qbankForm, unit_title: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Topic Title</Label>
+              <Input placeholder="e.g., Routine Newborn Care" className="glass border-white/10" value={qbankForm.topic_title} onChange={(e) => setQbankForm({ ...qbankForm, topic_title: e.target.value })} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Question Vignette</Label>
+              <Textarea placeholder="Describe the clinical presentation..." className="glass border-white/10 min-h-[100px]" value={qbankForm.question_text} onChange={(e) => setQbankForm({ ...qbankForm, question_text: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Option A</Label>
+              <Input className="glass border-white/10" value={qbankForm.option1} onChange={(e) => setQbankForm({ ...qbankForm, option1: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Option B</Label>
+              <Input className="glass border-white/10" value={qbankForm.option2} onChange={(e) => setQbankForm({ ...qbankForm, option2: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Option C</Label>
+              <Input className="glass border-white/10" value={qbankForm.option3} onChange={(e) => setQbankForm({ ...qbankForm, option3: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Option D</Label>
+              <Input className="glass border-white/10" value={qbankForm.option4} onChange={(e) => setQbankForm({ ...qbankForm, option4: e.target.value })} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Correct Answer Index (0-3)</Label>
+              <Select onValueChange={(v) => setQbankForm({ ...qbankForm, correct_answer_index: v })} value={qbankForm.correct_answer_index}>
+                <SelectTrigger className="glass border-white/10">
+                  <SelectValue placeholder="Select Index" />
+                </SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  <SelectItem value="0">Option A</SelectItem>
+                  <SelectItem value="1">Option B</SelectItem>
+                  <SelectItem value="2">Option C</SelectItem>
+                  <SelectItem value="3">Option D</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>High-Yield Explanation</Label>
+              <Textarea placeholder="Explain the clinical logic..." className="glass border-white/10 min-h-[100px]" value={qbankForm.explanation} onChange={(e) => setQbankForm({ ...qbankForm, explanation: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEditingQuestion(false)}>Cancel</Button>
+            <Button onClick={handleSaveQuestion} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Save Case</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Topic Modal */}
       <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
@@ -645,38 +834,6 @@ export default function AdminDashboard() {
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsAddingMindmap(false)}>Cancel</Button>
             <Button onClick={handleAddMindmap} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Upload Map</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Import QBank Modal */}
-      <Dialog open={isUploadingQBank} onOpenChange={setIsUploadingQBank}>
-        <DialogContent className="glass border-white/10 max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Upload className="h-5 w-5" /> Import Clinical QBank</DialogTitle>
-            <DialogDescription>Select a CSV file containing MCQs and map it to a subject.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Target Subject</Label>
-              <Select onValueChange={(v) => setQbankForm({ ...qbankForm, subjectId: v })}>
-                <SelectTrigger className="glass border-white/10">
-                  <SelectValue placeholder="Select Subject" />
-                </SelectTrigger>
-                <SelectContent className="glass border-white/10">
-                  {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>CSV Dataset (QBank)</Label>
-              <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer" />
-              <p className="text-[10px] text-muted-foreground">Expected columns: unit_number, unit_title, topic_title, question_text, option1, option2, option3, option4, correct_answer_index, explanation</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsUploadingQBank(false)}>Cancel</Button>
-            <Button disabled className="gap-2"><Upload className="h-4 w-4" /> Import Data</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
