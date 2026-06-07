@@ -119,8 +119,8 @@ function QuizSessionContent() {
         userAnswer: selectedOption !== null ? options[selectedOption] : undefined
       })
       setAiExplanation(result)
-    } catch (e) {
-      toast({ variant: "destructive", title: "AI Error", description: "Tutor unavailable." })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI Error", description: e.message || "Tutor unavailable." })
     } finally {
       setIsAiLoading(false)
     }
@@ -131,13 +131,13 @@ function QuizSessionContent() {
     try {
       const resultData = questions.map((q, i) => ({
         topic: q.topic_title || "General",
-        isCorrect: mode === 'exam' ? answers[i] === q.correct_answer_index : true, // Simplified for now
+        isCorrect: mode === 'exam' ? answers[i] === q.correct_answer_index : true,
         question: q.question_text
       }))
       const result = await analyzeTestPerformance({ results: resultData })
       setAiAnalysis(result)
-    } catch (e) {
-      toast({ variant: "destructive", title: "Analysis Error" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Analysis Error", description: e.message })
     } finally {
       setIsAnalyzing(false)
     }
@@ -198,7 +198,7 @@ function QuizSessionContent() {
                 <p className="text-3xl font-bold">{score}/{questions.length}</p>
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Total Cases</p>
               </div>
-              <div className="p-6 rounded-2xl bg-white/5 border border-white/5">
+              <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
                 <p className="text-3xl font-bold">{Math.round((score / questions.length) * 100)}%</p>
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mt-1">Accuracy</p>
               </div>

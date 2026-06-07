@@ -112,8 +112,8 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
         userAnswer: selectedOption || undefined
       })
       setAiExplanation(result)
-    } catch (e) {
-      toast({ variant: "destructive", title: "AI Error", description: "Could not reach the clinical tutor." })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI Error", description: e.message || "Could not reach the clinical tutor." })
     } finally {
       setIsAiLoading(false)
     }
