@@ -3,7 +3,8 @@
 
 import { useState } from "react"
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth"
-import { useAuth } from "@/firebase"
+import { useAuth, useFirestore } from "@/firebase"
+import { doc, getDoc, setDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -14,6 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const auth = useAuth()
+  const db = useFirestore()
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
@@ -64,16 +66,36 @@ export default function LoginPage() {
   }
 
   async function handleGoogleSignIn() {
-    if (!auth) return
+    if (!auth || !db) return
     const provider = new GoogleAuthProvider()
     try {
       setIsLoading(true)
-      await signInWithPopup(auth, provider)
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
+
+      // Check if user already has a profile
+      const userRef = doc(db, 'users', user.uid)
+      const docSnap = await getDoc(userRef)
+
+      if (!docSnap.exists()) {
+        const profileData = {
+          uid: user.uid,
+          displayName: user.displayName || "Medical Student",
+          email: user.email || "",
+          mobileNumber: "",
+          collegeName: "",
+          currentYear: "1st Year",
+          createdAt: new Date().toISOString(),
+          photoURL: user.photoURL || ""
+        }
+        await setDoc(userRef, profileData, { merge: true })
+      }
+
       router.push("/")
     } catch (error: any) {
       let message = error.message
       if (error.code === 'auth/unauthorized-domain') {
-        message = "This domain is not authorized for Google Sign-In. Please add it to your Firebase Console's Authorized Domains list."
+        message = "This domain is not authorized for Google Sign-In. Please add it to your Firebase Console's Authorized Domains list and wait a minute for it to take effect."
       }
       toast({
         variant: "destructive",

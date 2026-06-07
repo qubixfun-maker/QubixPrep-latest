@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
-import { doc, setDoc } from "firebase/firestore"
+import { doc, setDoc, getDoc } from "firebase/firestore"
 import { useAuth, useFirestore } from "@/firebase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,7 +38,7 @@ export default function SignUpPage() {
       toast({
         variant: "destructive",
         title: "System Error",
-        description: "Firebase initialization failed. Please check your internet connection."
+        description: "Firebase initialization failed. Please refresh the page."
       })
       return
     }
@@ -47,7 +47,7 @@ export default function SignUpPage() {
       toast({
         variant: "destructive",
         title: "Selection Required",
-        description: "Please select your current year of study (MBBS Year)."
+        description: "Please select your current year of study."
       })
       return
     }
@@ -57,7 +57,6 @@ export default function SignUpPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
       await updateProfile(userCredential.user, { displayName: formData.name })
       
-      const userRef = doc(db, 'users', userCredential.user.uid)
       const profileData = {
         uid: userCredential.user.uid,
         displayName: formData.name,
@@ -65,9 +64,13 @@ export default function SignUpPage() {
         mobileNumber: formData.mobile,
         collegeName: formData.college,
         currentYear: formData.year,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        photoURL: userCredential.user.photoURL || ""
       }
 
+      const userRef = doc(db, 'users', userCredential.user.uid)
+      
+      // Attempt to save profile, but don't block the UI
       setDoc(userRef, profileData, { merge: true }).catch(async (err) => {
         const permissionError = new FirestorePermissionError({
           path: userRef.path,
@@ -95,17 +98,42 @@ export default function SignUpPage() {
   }
 
   async function handleGoogleSignIn() {
-    if (!auth) return
+    if (!auth || !db) return
     const provider = new GoogleAuthProvider()
     try {
       setIsLoading(true)
-      await signInWithPopup(auth, provider)
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
+
+      // Check if user already has a profile
+      const userRef = doc(db, 'users', user.uid)
+      const docSnap = await getDoc(userRef)
+
+      if (!docSnap.exists()) {
+        // Create a basic profile for Google users if it doesn't exist
+        const profileData = {
+          uid: user.uid,
+          displayName: user.displayName || "Medical Student",
+          email: user.email || "",
+          mobileNumber: "",
+          collegeName: "",
+          currentYear: "1st Year", // Default
+          createdAt: new Date().toISOString(),
+          photoURL: user.photoURL || ""
+        }
+        await setDoc(userRef, profileData, { merge: true })
+      }
+
       router.push("/")
     } catch (error: any) {
+      let message = error.message
+      if (error.code === 'auth/unauthorized-domain') {
+        message = "This domain is not yet authorized in Firebase Console. Please wait 1-2 minutes for propagation or check your settings."
+      }
       toast({
         variant: "destructive",
         title: "Google Sign-In Failed",
-        description: error.message
+        description: message
       })
     } finally {
       setIsLoading(false)
