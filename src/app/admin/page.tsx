@@ -1,9 +1,10 @@
+
 "use client"
 
 import { useMemo, useState } from "react"
-import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
+import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
 import { doc, collection, setDoc, deleteDoc, query, orderBy, increment, updateDoc, getDoc } from "firebase/firestore"
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
+import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
@@ -40,7 +41,6 @@ const MBBS_SUBJECTS = [
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
   const db = useFirestore()
-  const storage = useStorage()
   const { toast } = useToast()
   
   // State for Subject management
@@ -69,7 +69,7 @@ export default function AdminDashboard() {
   const subjectsQuery = useMemo(() => (!db) ? null : collection(db, 'subjects'), [db])
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
-  const topicsQuery = useMemo(() => (!db) ? null : collection(db, 'all_topics'), [db])
+  const topicsQuery = useMemo(() => (!db) ? null : query(collection(db, 'all_topics'), orderBy('createdAt', 'desc')), [db])
   const { data: topics, loading: topicsLoading } = useCollection(topicsQuery)
 
   async function handleAddSubject() {
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
   }
 
   async function handleAddTopic() {
-    if (!db || !storage || !topicForm.subjectId || !topicForm.title || !topicForm.file) {
+    if (!db || !topicForm.subjectId || !topicForm.title || !topicForm.file) {
       toast({ variant: "destructive", title: "Missing Fields", description: "Please fill all fields and select a file." })
       return
     }
@@ -108,6 +108,7 @@ export default function AdminDashboard() {
       const subjectRef = doc(db, 'subjects', subjectId)
       const subjectSnap = await getDoc(subjectRef)
       
+      // Auto-initialize subject if it doesn't exist
       if (!subjectSnap.exists()) {
         await setDoc(subjectRef, {
           id: subjectId,
@@ -121,13 +122,23 @@ export default function AdminDashboard() {
       }
 
       const fileId = `${Date.now()}-${topicForm.file.name}`
-      const storagePath = `notes/${subjectId}/${fileId}`
-      const storageRef = ref(storage, storagePath)
+      const storagePath = `${subjectId}/${fileId}`
       
-      const snapshot = await uploadBytes(storageRef, topicForm.file)
-      const downloadUrl = await getDownloadURL(snapshot.ref)
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('notes')
+        .upload(storagePath, topicForm.file)
 
-      const topicId = fileId.replace(/\.[^/.]+$/, "")
+      if (uploadError) throw uploadError
+
+      // Get Public URL
+      const { data: { publicUrl } } = supabase
+        .storage
+        .from('notes')
+        .getPublicUrl(storagePath)
+
+      const topicId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
       const topicRef = doc(db, 'subjects', subjectId, 'topics', topicId)
       const globalTopicRef = doc(db, 'all_topics', topicId)
 
@@ -136,7 +147,7 @@ export default function AdminDashboard() {
         subjectId: subjectId,
         unitName: topicForm.unitName,
         title: topicForm.title,
-        contentUrl: downloadUrl,
+        contentUrl: publicUrl,
         storagePath: storagePath,
         contentType: topicForm.contentType,
         importance: topicForm.importance,
@@ -144,14 +155,16 @@ export default function AdminDashboard() {
         createdAt: new Date().toISOString()
       }
 
+      // Store metadata in Firestore
       await setDoc(topicRef, topicData)
       await setDoc(globalTopicRef, topicData)
 
+      // Update subject counts
       await updateDoc(subjectRef, {
         topicCount: increment(1)
       })
 
-      toast({ title: "Topic Published", description: "The note has been uploaded and linked successfully." })
+      toast({ title: "Topic Published", description: "The note has been uploaded to Supabase and linked successfully." })
       setTopicForm({ subjectId: "", unitName: "", title: "", importance: "Medium", contentType: "pdf", file: null })
       setIsAddingTopic(false)
     } catch (e: any) {
@@ -162,11 +175,11 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteTopic(topic: any) {
-    if (!db || !storage) return
+    if (!db) return
     try {
       if (topic.storagePath) {
-        const storageRef = ref(storage, topic.storagePath)
-        await deleteObject(storageRef).catch(() => console.log("File not found in storage"))
+        // Delete from Supabase Storage
+        await supabase.storage.from('notes').remove([topic.storagePath])
       }
 
       await deleteDoc(doc(db, 'subjects', topic.subjectId, 'topics', topic.id))
@@ -218,13 +231,13 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <ShieldAlert className="h-8 w-8 text-primary" /> Qubix Control Center
           </h1>
-          <p className="text-muted-foreground">Manage subjects, content library, and student roles.</p>
+          <p className="text-muted-foreground">Manage subjects, content library (Supabase), and student roles.</p>
         </div>
         <div className="flex gap-3">
           <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
             <DialogTrigger asChild>
               <Button className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2 shadow-lg shadow-accent/20 h-12 px-6">
-                <CloudUpload className="h-5 w-5" /> Upload New Note
+                <CloudUpload className="h-5 w-5" /> Upload to Supabase
               </Button>
             </DialogTrigger>
             <DialogContent className="glass border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -232,7 +245,7 @@ export default function AdminDashboard() {
                 <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                   <ArrowUpCircle className="h-6 w-6 text-accent" /> Publish Medical Topic
                 </DialogTitle>
-                <CardDescription>Upload a study resource and link it to a subject.</CardDescription>
+                <CardDescription>Upload a study resource to Supabase and link it to a subject.</CardDescription>
               </DialogHeader>
               <div className="grid md:grid-cols-2 gap-6 py-6">
                 <div className="grid gap-2">
@@ -307,7 +320,7 @@ export default function AdminDashboard() {
                   {uploading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      Uploading to Cloud...
+                      Uploading to Supabase...
                     </>
                   ) : (
                     <>
@@ -404,10 +417,10 @@ export default function AdminDashboard() {
             <CardHeader className="p-6 border-b border-white/5 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-xl font-bold">Content Repository</CardTitle>
-                <CardDescription>View and manage all uploaded study materials.</CardDescription>
+                <CardDescription>View and manage all uploaded study materials on Supabase.</CardDescription>
               </div>
               <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2">
-                <CloudUpload className="h-4 w-4" /> New Upload
+                <CloudUpload className="h-4 w-4" /> New Supabase Upload
               </Button>
             </CardHeader>
             <CardContent className="p-0">
@@ -432,7 +445,7 @@ export default function AdminDashboard() {
                           <span className="text-[10px] text-muted-foreground uppercase">{t.unitName}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">{t.subjectId}</TableCell>
+                      <TableCell className="text-sm capitalize">{t.subjectId}</TableCell>
                       <TableCell>
                         <span className="px-2 py-0.5 rounded bg-white/5 text-[10px] uppercase font-bold text-muted-foreground border border-white/5">
                           {t.contentType}
@@ -455,6 +468,13 @@ export default function AdminDashboard() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {!topicsLoading && topics?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
+                        No topics uploaded yet. Start by uploading a note to Supabase.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -476,7 +496,9 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {subjects?.map((item: any) => (
+                  {subjectsLoading ? (
+                    <TableRow><TableCell colSpan={3} className="text-center py-10"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                  ) : subjects?.map((item: any) => (
                     <TableRow key={item.id} className="border-white/5 hover:bg-white/5">
                       <TableCell className="py-4 font-bold flex items-center gap-2">
                         <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -492,6 +514,13 @@ export default function AdminDashboard() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {!subjectsLoading && subjects?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-20 text-muted-foreground">
+                        No subjects created yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
