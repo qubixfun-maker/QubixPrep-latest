@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Input } from "@/components/ui/input"
 import { 
   Trophy, 
   Sparkles, 
@@ -261,16 +262,26 @@ export default function TestSeriesPage() {
                   <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                     <BookOpen className="h-3.5 w-3.5" /> Question Volume
                   </Label>
-                  <span className="text-xl font-bold text-primary">{questionCount} Cases</span>
+                  <div className="flex items-center gap-3">
+                    <Input 
+                      type="number" 
+                      min={1}
+                      value={questionCount}
+                      onChange={(e) => setQuestionCount(Math.max(1, parseInt(e.target.value) || 0))}
+                      className="w-24 h-10 glass text-center text-lg font-bold text-primary border-white/10"
+                    />
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Cases</span>
+                  </div>
                 </div>
                 <Slider 
-                  value={[questionCount]} 
+                  value={[questionCount > 500 ? 500 : questionCount]} 
                   onValueChange={(v) => setQuestionCount(v[0])}
-                  max={100}
+                  max={500}
                   min={5}
                   step={5}
                   className="py-4"
                 />
+                <p className="text-[10px] text-muted-foreground italic">Use the input box for volumes greater than 500.</p>
               </div>
 
               <div className="space-y-4">

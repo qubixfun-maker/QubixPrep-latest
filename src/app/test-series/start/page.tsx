@@ -60,7 +60,8 @@ function QuizSessionContent() {
           query = query.in('topic_title', topics)
         }
         
-        const { data, error } = await query.limit(500)
+        // Fetch up to the count requested, with a buffer for shuffling
+        const { data, error } = await query.limit(Math.max(count + 200, 2000))
         
         if (error) throw error
 
