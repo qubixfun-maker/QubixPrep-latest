@@ -252,7 +252,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="grid gap-2 md:col-span-2">
                   <Label>Topic Title</Label>
-                  <Input placeholder="e.g. Connective Tissue Types" className="glass border-white/10 h-11" value={topicForm.title} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} />
+                  <Input placeholder="e.g. Connective Tissue Types" className="glass border-white/10 h-11" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} />
                 </div>
                 <div className="grid gap-2">
                   <Label>Content Type</Label>
