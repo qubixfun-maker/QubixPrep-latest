@@ -22,7 +22,9 @@ import {
   RefreshCw,
   Video,
   X,
-  Upload
+  Upload,
+  Layers,
+  HelpCircle
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -94,6 +96,21 @@ export default function AdminDashboard() {
 
   const pdfTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'pdf'), [subjectContent.topics])
   const videoTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'video'), [subjectContent.topics])
+
+  const groupedQuestions = useMemo(() => {
+    const groups: Record<string, Record<string, any[]>> = {}
+    subjectContent.questions.forEach(q => {
+      const unit = q.unit_title || "General Curriculum"
+      const topic = q.topic_title || "General"
+      if (!groups[unit]) groups[unit] = {}
+      if (!groups[unit][topic]) groups[unit][topic] = []
+      groups[unit][topic].push(q)
+    })
+    return Object.entries(groups).map(([unit, topics]) => ({
+      unit,
+      topics: Object.entries(topics).map(([topic, questions]) => ({ topic, questions }))
+    }))
+  }, [subjectContent.questions])
 
   // Load content for active subject
   useEffect(() => {
@@ -465,23 +482,48 @@ export default function AdminDashboard() {
                     <TabsContent value="qbank" className="space-y-4">
                       <div className="p-6 glass rounded-2xl">
                          <h4 className="font-bold mb-4 flex items-center gap-2 text-primary"><Database className="h-4 w-4" /> Assessment Data</h4>
-                         <Accordion type="multiple" className="space-y-2">
-                            {subjectContent.questions.length > 0 ? (
-                              <AccordionItem value="all-questions" className="border-none bg-white/5 rounded-xl px-4">
-                                <AccordionTrigger className="hover:no-underline">Questions Pool ({subjectContent.questions.length})</AccordionTrigger>
-                                <AccordionContent className="space-y-2">
-                                  {subjectContent.questions.slice(0, 50).map((q: any, i: number) => (
-                                    <div key={i} className="text-xs p-2 rounded bg-black/20 border border-white/5 truncate">
-                                      {q.question_text}
-                                    </div>
-                                  ))}
-                                  {subjectContent.questions.length > 50 && <p className="text-[10px] text-muted-foreground italic">+ {subjectContent.questions.length - 50} more questions...</p>}
-                                </AccordionContent>
-                              </AccordionItem>
-                            ) : (
-                              <p className="text-center py-12 text-muted-foreground text-sm">No QBank data imported.</p>
-                            )}
-                         </Accordion>
+                         {groupedQuestions.length > 0 ? (
+                            <Accordion type="multiple" className="space-y-3">
+                               {groupedQuestions.map((group, gIdx) => (
+                                 <AccordionItem key={gIdx} value={`unit-${gIdx}`} className="border-none bg-white/5 rounded-xl px-4 overflow-hidden">
+                                   <AccordionTrigger className="hover:no-underline py-4">
+                                      <div className="flex items-center gap-3">
+                                         <Layers className="h-4 w-4 text-accent" />
+                                         <span className="font-bold text-sm tracking-tight">{group.unit}</span>
+                                      </div>
+                                   </AccordionTrigger>
+                                   <AccordionContent className="pb-4 space-y-4">
+                                      {group.topics.map((topicGroup, tIdx) => (
+                                        <div key={tIdx} className="space-y-2 pl-4 border-l border-white/10">
+                                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+                                            <ChevronRight className="h-3 w-3" /> {topicGroup.topic} ({topicGroup.questions.length} cases)
+                                          </p>
+                                          <div className="grid gap-2">
+                                            {topicGroup.questions.slice(0, 10).map((q: any, qIdx: number) => (
+                                              <div key={qIdx} className="text-[10px] p-2.5 rounded bg-black/40 border border-white/5 flex items-start gap-3 group/item">
+                                                 <HelpCircle className="h-3 w-3 text-primary mt-0.5 shrink-0" />
+                                                 <span className="line-clamp-1 text-muted-foreground group-hover/item:text-white transition-colors">
+                                                   {q.question_text}
+                                                 </span>
+                                              </div>
+                                            ))}
+                                            {topicGroup.questions.length > 10 && (
+                                              <p className="text-[9px] text-muted-foreground italic pl-6">+ {topicGroup.questions.length - 10} more questions in this topic...</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                   </AccordionContent>
+                                 </AccordionItem>
+                               ))}
+                            </Accordion>
+                         ) : (
+                           <div className="text-center py-24 glass rounded-3xl text-muted-foreground border-2 border-dashed border-white/5">
+                             <Database className="h-12 w-12 mx-auto mb-4 opacity-10" />
+                             <p className="text-sm">No curriculum-based QBank data found.</p>
+                             <p className="text-[10px] mt-1">Use the "Import QBank" tool above to upload clinical cases.</p>
+                           </div>
+                         )}
                       </div>
                     </TabsContent>
                   </>
