@@ -532,26 +532,33 @@ export default function AdminDashboard() {
                               </div>
                             </AccordionTrigger>
                             <AccordionContent className="pb-4 px-2 space-y-4">
-                              {Object.entries(unit.topics).map(([topicTitle, questions], tIdx) => (
-                                <div key={tIdx} className="bg-black/20 rounded-xl p-4 border border-white/5">
-                                  <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">
-                                      <ChevronRight className="h-3 w-3" /> {topicTitle}
-                                      <Badge variant="secondary" className="text-[9px] h-4">{questions.length} cases</Badge>
-                                    </h4>
-                                  </div>
-                                  <div className="space-y-2">
-                                    {questions.map((q) => (
-                                      <div key={q.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 group hover:bg-white/10 transition-colors">
-                                        <p className="text-xs font-medium truncate flex-1 pr-4">{q.question_text}</p>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-7 w-7 text-muted-foreground hover:text-destructive rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
+                              <Accordion type="multiple" className="space-y-2">
+                                {Object.entries(unit.topics).map(([topicTitle, questions], tIdx) => (
+                                  <AccordionItem key={tIdx} value={`topic-${uIdx}-${tIdx}`} className="border-none bg-black/20 rounded-xl overflow-hidden">
+                                    <AccordionTrigger className="hover:no-underline py-3 px-4 group">
+                                      <div className="flex items-center gap-3">
+                                        <div className="p-1.5 rounded-lg bg-white/5 text-muted-foreground group-hover:text-primary transition-colors">
+                                          <FolderOpen className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-bold">{topicTitle}</span>
+                                          <Badge variant="secondary" className="text-[9px] h-4 font-mono">{questions.length}</Badge>
+                                        </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
+                                    </AccordionTrigger>
+                                    <AccordionContent className="px-4 pb-4 pt-2 space-y-2">
+                                      {questions.map((q) => (
+                                        <div key={q.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 group hover:bg-white/10 transition-colors">
+                                          <p className="text-[11px] font-medium truncate flex-1 pr-4">{q.question_text}</p>
+                                          <Button variant="ghost" size="icon" onClick={() => handleDeleteQuestion(q.id, q.subject_id)} className="h-7 w-7 text-muted-foreground hover:text-destructive rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </AccordionContent>
+                                  </AccordionItem>
+                                ))}
+                              </Accordion>
                             </AccordionContent>
                           </AccordionItem>
                         ))}
