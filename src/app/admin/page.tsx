@@ -19,7 +19,8 @@ import {
   BookOpen,
   CloudUpload,
   FileDown,
-  ArrowUpCircle
+  ArrowUpCircle,
+  AlertCircle
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,6 +29,7 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import Link from "next/link"
 
 const MBBS_SUBJECTS = [
@@ -133,7 +135,12 @@ export default function AdminDashboard() {
           upsert: false
         })
 
-      if (uploadError) throw uploadError
+      if (uploadError) {
+        if (uploadError.message.includes('security policy')) {
+          throw new Error("Supabase RLS Policy Error: Please ensure you've run the SQL policies for the 'notes-pdf' bucket in your Supabase dashboard.")
+        }
+        throw uploadError
+      }
 
       // Get Public URL
       const { data: { publicUrl } } = supabase
@@ -171,6 +178,7 @@ export default function AdminDashboard() {
       setTopicForm({ subjectId: "", unitName: "", title: "", importance: "Medium", contentType: "pdf", file: null })
       setIsAddingTopic(false)
     } catch (e: any) {
+      console.error("Upload error:", e)
       toast({ variant: "destructive", title: "Upload Failed", description: e.message })
     } finally {
       setUploading(false)
@@ -250,6 +258,7 @@ export default function AdminDashboard() {
                 </DialogTitle>
                 <CardDescription>Upload a study resource to Supabase (notes-pdf) and link it to a subject.</CardDescription>
               </DialogHeader>
+              
               <div className="grid md:grid-cols-2 gap-6 py-6">
                 <div className="grid gap-2">
                   <Label>Target Subject</Label>
@@ -314,6 +323,15 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
+              
+              <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Security Policy Reminder</AlertTitle>
+                <AlertDescription className="text-xs">
+                  If you see "security policy" errors, please ensure your Supabase <strong>notes-pdf</strong> bucket allows public uploads.
+                </AlertDescription>
+              </Alert>
+
               <DialogFooter className="pt-4 border-t border-white/5">
                 <Button 
                   onClick={handleAddTopic} 
