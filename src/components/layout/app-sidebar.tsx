@@ -13,7 +13,7 @@ import {
   Video, 
   History,
   CloudUpload,
-  Library
+  Network
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -53,9 +53,14 @@ export function AppSidebar() {
       icon: LayoutDashboard,
     },
     {
-      title: "Subjects",
+      title: "Library (Notes)",
       url: "/notes",
       icon: BookOpen,
+    },
+    {
+      title: "Mindmaps",
+      url: "/mindmaps",
+      icon: Network,
     },
     {
       title: "Video Lectures",
@@ -66,11 +71,6 @@ export function AppSidebar() {
       title: "AI Tools",
       url: "/ai-tools",
       icon: BrainCircuit,
-    },
-    {
-      title: "Notes & Books",
-      url: "/notes",
-      icon: FileText,
     },
     {
       title: "Study History",
@@ -111,12 +111,10 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        {/* Main Menu Group */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-6 text-xs uppercase tracking-widest text-muted-foreground/50">Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* Conditional Admin Quick-Link inside Main Menu for better visibility */}
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
@@ -151,32 +149,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        
-        {/* Secondary Management Group */}
-        {isAdmin && (
-          <SidebarGroup className="mt-auto">
-            <SidebarGroupLabel className="px-6 text-xs uppercase tracking-widest text-muted-foreground/50">Management</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.url}
-                      tooltip={item.title}
-                      className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-5 w-5" />
-                        <span className="font-medium">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
       <SidebarRail />
     </Sidebar>

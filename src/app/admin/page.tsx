@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useMemo, useState } from "react"
@@ -18,7 +19,8 @@ import {
   BookOpen,
   CloudUpload,
   FileDown,
-  ArrowUpCircle
+  ArrowUpCircle,
+  Network
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -48,7 +50,9 @@ export default function AdminDashboard() {
 
   // State for Topic management
   const [isAddingTopic, setIsAddingTopic] = useState(false)
+  const [isAddingMindmap, setIsAddingMindmap] = useState(false)
   const [uploading, setUploading] = useState(false)
+  
   const [topicForm, setTopicForm] = useState({
     subjectId: "",
     unitName: "",
@@ -58,18 +62,25 @@ export default function AdminDashboard() {
     file: null as File | null
   })
 
+  const [mindmapForm, setMindmapForm] = useState({
+    subjectId: "",
+    unitName: "",
+    title: "",
+    file: null as File | null
+  })
+
   // Fetch real data
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
-
-  const usersQuery = useMemo(() => (!db) ? null : query(collection(db, 'users'), orderBy('createdAt', 'desc')), [db])
-  const { data: systemUsers, loading: usersLoading } = useCollection(usersQuery)
 
   const subjectsQuery = useMemo(() => (!db) ? null : collection(db, 'subjects'), [db])
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
   const topicsQuery = useMemo(() => (!db) ? null : query(collection(db, 'all_topics'), orderBy('createdAt', 'desc')), [db])
   const { data: topics, loading: topicsLoading } = useCollection(topicsQuery)
+
+  const mindmapsQuery = useMemo(() => (!db) ? null : query(collection(db, 'all_mindmaps'), orderBy('createdAt', 'desc')), [db])
+  const { data: mindmaps, loading: mindmapsLoading } = useCollection(mindmapsQuery)
 
   async function handleAddSubject() {
     if (!db || !newSubject.name) return
@@ -83,6 +94,7 @@ export default function AdminDashboard() {
         id: subjectId,
         unitCount: 0,
         topicCount: 0,
+        mindmapCount: 0,
         createdAt: new Date().toISOString()
       }, { merge: true })
       
@@ -104,46 +116,13 @@ export default function AdminDashboard() {
     setUploading(true)
     try {
       const subjectId = topicForm.subjectId.toLowerCase().replace(/\s+/g, '-')
-      const subjectRef = doc(db, 'subjects', subjectId)
-      const subjectSnap = await getDoc(subjectRef)
-      
-      // Auto-initialize subject if it doesn't exist
-      if (!subjectSnap.exists()) {
-        await setDoc(subjectRef, {
-          id: subjectId,
-          name: topicForm.subjectId,
-          description: `Study materials for ${topicForm.subjectId}`,
-          iconName: "Brain",
-          unitCount: 0,
-          topicCount: 0,
-          createdAt: new Date().toISOString()
-        })
-      }
-
       const fileId = `${Date.now()}-${topicForm.file.name.replace(/\s+/g, '_')}`
       const storagePath = `${subjectId}/${fileId}`
       
-      // Upload to Supabase Storage
-      const { data: uploadData, error: uploadError } = await supabase
-        .storage
-        .from('notes-pdf')
-        .upload(storagePath, topicForm.file, {
-          cacheControl: '3600',
-          upsert: false
-        })
+      const { error: uploadError } = await supabase.storage.from('notes-pdf').upload(storagePath, topicForm.file)
+      if (uploadError) throw uploadError
 
-      if (uploadError) {
-        if (uploadError.message.includes('security policy')) {
-          throw new Error("Supabase RLS Policy Error: Please ensure you've run the SQL policies for the 'notes-pdf' bucket in your Supabase dashboard.")
-        }
-        throw uploadError
-      }
-
-      // Get Public URL
-      const { data: { publicUrl } } = supabase
-        .storage
-        .from('notes-pdf')
-        .getPublicUrl(storagePath)
+      const { data: { publicUrl } } = supabase.storage.from('notes-pdf').getPublicUrl(storagePath)
 
       const topicId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
       const topicRef = doc(db, 'subjects', subjectId, 'topics', topicId)
@@ -162,20 +141,59 @@ export default function AdminDashboard() {
         createdAt: new Date().toISOString()
       }
 
-      // Store metadata in Firestore
       await setDoc(topicRef, topicData)
       await setDoc(globalTopicRef, topicData)
+      await updateDoc(doc(db, 'subjects', subjectId), { topicCount: increment(1) })
 
-      // Update subject counts
-      await updateDoc(subjectRef, {
-        topicCount: increment(1)
-      })
-
-      toast({ title: "Topic Published", description: "The resource is now live in the library." })
+      toast({ title: "Topic Published" })
       setTopicForm({ subjectId: "", unitName: "", title: "", importance: "Medium", contentType: "pdf", file: null })
       setIsAddingTopic(false)
     } catch (e: any) {
-      console.error("Upload error:", e)
+      toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleAddMindmap() {
+    if (!db || !mindmapForm.subjectId || !mindmapForm.title || !mindmapForm.file) {
+      toast({ variant: "destructive", title: "Missing Fields" })
+      return
+    }
+
+    setUploading(true)
+    try {
+      const subjectId = mindmapForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const fileId = `${Date.now()}-${mindmapForm.file.name.replace(/\s+/g, '_')}`
+      const storagePath = `${subjectId}/${fileId}`
+      
+      const { error: uploadError } = await supabase.storage.from('mindmaps').upload(storagePath, mindmapForm.file)
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage.from('mindmaps').getPublicUrl(storagePath)
+
+      const mindmapId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
+      const mmRef = doc(db, 'subjects', subjectId, 'mindmaps', mindmapId)
+      const globalMmRef = doc(db, 'all_mindmaps', mindmapId)
+
+      const mmData = {
+        id: mindmapId,
+        subjectId: subjectId,
+        unitName: mindmapForm.unitName,
+        title: mindmapForm.title,
+        imageUrl: publicUrl,
+        storagePath: storagePath,
+        createdAt: new Date().toISOString()
+      }
+
+      await setDoc(mmRef, mmData)
+      await setDoc(globalMmRef, mmData)
+      await updateDoc(doc(db, 'subjects', subjectId), { mindmapCount: increment(1) })
+
+      toast({ title: "Mindmap Published" })
+      setMindmapForm({ subjectId: "", unitName: "", title: "", file: null })
+      setIsAddingMindmap(false)
+    } catch (e: any) {
       toast({ variant: "destructive", title: "Upload Failed", description: e.message })
     } finally {
       setUploading(false)
@@ -185,351 +203,100 @@ export default function AdminDashboard() {
   async function handleDeleteTopic(topic: any) {
     if (!db) return
     try {
-      if (topic.storagePath) {
-        await supabase.storage.from('notes-pdf').remove([topic.storagePath])
-      }
-
+      await supabase.storage.from('notes-pdf').remove([topic.storagePath])
       await deleteDoc(doc(db, 'subjects', topic.subjectId, 'topics', topic.id))
       await deleteDoc(doc(db, 'all_topics', topic.id))
-
-      await updateDoc(doc(db, 'subjects', topic.subjectId), {
-        topicCount: increment(-1)
-      })
-
+      await updateDoc(doc(db, 'subjects', topic.subjectId), { topicCount: increment(-1) })
       toast({ title: "Topic Deleted" })
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: e.message })
-    }
+    } catch (e: any) { toast({ variant: "destructive", title: "Error", description: e.message }) }
   }
 
-  if (authLoading || profileLoading) {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <Loader2 className="h-10 w-10 text-primary animate-spin" />
-      </div>
-    )
+  async function handleDeleteMindmap(mm: any) {
+    if (!db) return
+    try {
+      await supabase.storage.from('mindmaps').remove([mm.storagePath])
+      await deleteDoc(doc(db, 'subjects', mm.subjectId, 'mindmaps', mm.id))
+      await deleteDoc(doc(db, 'all_mindmaps', mm.id))
+      await updateDoc(doc(db, 'subjects', mm.subjectId), { mindmapCount: increment(-1) })
+      toast({ title: "Mindmap Deleted" })
+    } catch (e: any) { toast({ variant: "destructive", title: "Error", description: e.message }) }
   }
 
-  const isAdmin = profile && (profile as any).role === 'admin'
-
-  if (!user || !isAdmin) {
-    return (
-      <div className="h-[80vh] flex flex-col items-center justify-center space-y-4 text-center p-6">
-        <div className="w-16 h-16 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-4">
-          <Lock className="h-8 w-8" />
-        </div>
-        <h1 className="text-2xl font-bold">Admin Privileges Required</h1>
-        <p className="text-muted-foreground max-w-md">
-          Access to the Content Manager is restricted to faculty and administrative staff.
-        </p>
-        <Link href="/">
-          <Button variant="outline" className="rounded-xl glass border-white/10 mt-4">
-            Return to Study Dashboard
-          </Button>
-        </Link>
-      </div>
-    )
-  }
+  if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+  if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Required</h1><Link href="/"><Button className="mt-4">Back to Dashboard</Button></Link></div>
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-700">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ShieldAlert className="h-8 w-8 text-primary" /> Qubix Content Manager
+            <ShieldAlert className="h-8 w-8 text-primary" /> Content Orchestrator
           </h1>
-          <p className="text-muted-foreground">Orchestrate your medical library and resources across Supabase Storage.</p>
+          <p className="text-muted-foreground">Manage your MBBS study materials across Notes and Mindmaps.</p>
         </div>
         <div className="flex gap-3">
           <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
-            <DialogTrigger asChild>
-              <Button className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2 shadow-lg shadow-accent/20 h-12 px-6">
-                <CloudUpload className="h-5 w-5" /> Upload to Supabase
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass border-white/10 max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                  <ArrowUpCircle className="h-6 w-6 text-accent" /> Publish Medical Topic
-                </DialogTitle>
-                <CardDescription>Upload a study resource and link it to a subject.</CardDescription>
-              </DialogHeader>
-              
+            <DialogTrigger asChild><Button className="rounded-xl h-12 px-6">Upload Note</Button></DialogTrigger>
+            <DialogContent className="glass max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Publish Medical Note</DialogTitle></DialogHeader>
               <div className="grid md:grid-cols-2 gap-6 py-6">
-                <div className="grid gap-2">
-                  <Label>Target Subject</Label>
-                  <Select onValueChange={(v) => setTopicForm({...topicForm, subjectId: v})}>
-                    <SelectTrigger className="glass border-white/10 h-11">
-                      <SelectValue placeholder="Select Subject" />
-                    </SelectTrigger>
-                    <SelectContent className="glass border-white/10">
-                      {MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Unit Name</Label>
-                  <Input placeholder="e.g. Unit 3: Histology" className="glass border-white/10 h-11" value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} />
-                </div>
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Topic Title</Label>
-                  <Input placeholder="e.g. Connective Tissue Types" className="glass border-white/10 h-11" value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Content Type</Label>
-                  <Select onValueChange={(v: any) => setTopicForm({...topicForm, contentType: v})} defaultValue="pdf">
-                    <SelectTrigger className="glass border-white/10 h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="glass border-white/10">
-                      <SelectItem value="pdf">PDF Document</SelectItem>
-                      <SelectItem value="image">Medical Image</SelectItem>
-                      <SelectItem value="video">Video Lecture</SelectItem>
-                      <SelectItem value="csv">Q-Bank (CSV)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Importance Level</Label>
-                  <Select onValueChange={(v: any) => setTopicForm({...topicForm, importance: v})} defaultValue="Medium">
-                    <SelectTrigger className="glass border-white/10 h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="glass border-white/10">
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Essential">Essential (High-Yield)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2 md:col-span-2">
-                  <Label>Resource File</Label>
-                  <div className="border-2 border-dashed border-white/10 rounded-xl p-10 text-center hover:bg-white/5 transition-colors cursor-pointer relative group">
-                    <input 
-                      type="file" 
-                      className="absolute inset-0 opacity-0 cursor-pointer" 
-                      onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})}
-                    />
-                    <div className="flex flex-col items-center gap-3">
-                      <FileDown className={`h-10 w-10 transition-colors ${topicForm.file ? 'text-accent' : 'text-muted-foreground'}`} />
-                      <p className="text-sm font-bold">{topicForm.file ? topicForm.file.name : "Click or drag to select file"}</p>
-                      <p className="text-[10px] text-muted-foreground">Supported: PDF, JPG, PNG, MP4, CSV</p>
-                    </div>
-                  </div>
-                </div>
+                <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setTopicForm({...topicForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                <div className="grid gap-2"><Label>Unit</Label><Input value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} /></div>
+                <div className="grid gap-2 md:col-span-2"><Label>Title</Label><Input value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
+                <div className="grid gap-2 md:col-span-2"><Label>File</Label><Input type="file" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} /></div>
               </div>
-              
-              <DialogFooter className="pt-4 border-t border-white/5">
-                <Button 
-                  onClick={handleAddTopic} 
-                  disabled={uploading} 
-                  className="w-full rounded-xl bg-primary hover:bg-primary/90 h-14 text-lg font-bold shadow-xl shadow-primary/20"
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                      Uploading to Supabase...
-                    </>
-                  ) : (
-                    <>
-                      <CloudUpload className="h-5 w-5 mr-2" />
-                      Start Upload & Publish
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
+              <DialogFooter><Button onClick={handleAddTopic} disabled={uploading} className="w-full h-12">{uploading ? "Uploading..." : "Publish Note"}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="rounded-xl glass border-white/10 gap-2 h-12">
-                <PlusCircle className="h-4 w-4" /> Custom Subject
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass border-white/10">
-              <DialogHeader>
-                <DialogTitle>Create Custom Subject</DialogTitle>
-                <CardDescription>Manually add a specialized category.</CardDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label>Subject Name</Label>
-                  <Input placeholder="e.g. Neuroanatomy" className="glass border-white/10" value={newSubject.name} onChange={e => setNewSubject({...newSubject, name: e.target.value})} />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Description</Label>
-                  <Input placeholder="Overview of the subject curriculum..." className="glass border-white/10" value={newSubject.description} onChange={e => setNewSubject({...newSubject, description: e.target.value})} />
-                </div>
+          <Dialog open={isAddingMindmap} onOpenChange={setIsAddingMindmap}>
+            <DialogTrigger asChild><Button variant="secondary" className="rounded-xl h-12 px-6">Upload Mindmap</Button></DialogTrigger>
+            <DialogContent className="glass max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>Publish Mindmap Image</DialogTitle></DialogHeader>
+              <div className="grid md:grid-cols-2 gap-6 py-6">
+                <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setMindmapForm({...mindmapForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                <div className="grid gap-2"><Label>Unit</Label><Input value={mindmapForm.unitName} onChange={e => setMindmapForm({...mindmapForm, unitName: e.target.value})} /></div>
+                <div className="grid gap-2 md:col-span-2"><Label>Title</Label><Input value={mindmapForm.title} onChange={e => setMindmapForm({...mindmapForm, title: e.target.value})} /></div>
+                <div className="grid gap-2 md:col-span-2"><Label>Image (JPG/PNG)</Label><Input type="file" accept="image/*" onChange={e => setMindmapForm({...mindmapForm, file: e.target.files?.[0] || null})} /></div>
               </div>
-              <DialogFooter>
-                <Button onClick={handleAddSubject} disabled={isAddingSubject} className="w-full rounded-xl">
-                  {isAddingSubject ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Subject"}
-                </Button>
-              </DialogFooter>
+              <DialogFooter><Button onClick={handleAddMindmap} disabled={uploading} className="w-full h-12">{uploading ? "Uploading..." : "Publish Mindmap"}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
-      </div>
-
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="glass border-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Enrolled Students</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold tracking-tight">{systemUsers?.length || 0}</span>
-              <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
-                <Users className="h-5 w-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass border-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Resource Pool</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold tracking-tight">{topics?.length || 0}</span>
-              <div className="h-10 w-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
-                <BookOpen className="h-5 w-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass border-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Active Subjects</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-3xl font-bold tracking-tight">{subjects?.length || 0}</span>
-              <div className="h-10 w-10 rounded-xl bg-green-500/10 text-green-400 flex items-center justify-center">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Tabs defaultValue="topics" className="space-y-6">
         <TabsList className="glass p-1 h-12 rounded-xl">
-          <TabsTrigger value="topics" className="rounded-lg px-8">Content Repository</TabsTrigger>
-          <TabsTrigger value="subjects" className="rounded-lg px-8">Managed Subjects</TabsTrigger>
+          <TabsTrigger value="topics" className="rounded-lg px-8">Notes Repository</TabsTrigger>
+          <TabsTrigger value="mindmaps" className="rounded-lg px-8">Mindmap Gallery</TabsTrigger>
         </TabsList>
 
         <TabsContent value="topics">
           <Card className="glass border-none overflow-hidden">
-            <CardHeader className="p-6 border-b border-white/5 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-xl font-bold">Global Content Table</CardTitle>
-                <CardDescription>Direct control over live resources stored in Supabase notes-pdf bucket.</CardDescription>
-              </div>
-              <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl bg-accent text-background hover:bg-accent/90 gap-2">
-                <CloudUpload className="h-4 w-4" /> New Supabase Upload
-              </Button>
-            </CardHeader>
+            <CardHeader><CardTitle>Global Notes</CardTitle></CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-white/5">
-                  <TableRow className="border-white/5">
-                    <TableHead>Resource Title</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Importance</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Subject</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {topicsLoading ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-10"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-                  ) : topics?.map((t: any) => (
-                    <TableRow key={t.id} className="border-white/5 hover:bg-white/5 transition-colors">
-                      <TableCell className="font-bold">
-                        <div className="flex flex-col">
-                          <span>{t.title}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase">{t.unitName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm capitalize">{t.subjectId}</TableCell>
-                      <TableCell>
-                        <span className="px-2 py-0.5 rounded bg-white/5 text-[10px] uppercase font-bold text-muted-foreground border border-white/5">
-                          {t.contentType}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.importance === 'Essential' || t.importance === 'High' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                          {t.importance}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                            <a href={t.contentUrl} target="_blank" rel="noopener noreferrer"><FileText className="h-4 w-4" /></a>
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => handleDeleteTopic(t)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                  {topicsLoading ? <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow> : topics?.map((t: any) => (
+                    <TableRow key={t.id}><TableCell>{t.title}</TableCell><TableCell>{t.subjectId}</TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteTopic(t)}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>
                   ))}
-                  {!topicsLoading && topics?.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
-                        The repository is currently empty. Start by uploading resources.
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="subjects">
+        <TabsContent value="mindmaps">
           <Card className="glass border-none overflow-hidden">
-            <CardHeader className="p-6 border-b border-white/5">
-              <CardTitle className="text-xl font-bold">Active Subjects List</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Subject Mindmaps</CardTitle></CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-white/5">
-                  <TableRow className="border-white/5 hover:bg-transparent">
-                    <TableHead className="py-4">Subject Title</TableHead>
-                    <TableHead>Total Topics</TableHead>
-                    <TableHead className="text-right">Management</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableHeader><TableRow><TableHead>Mindmap Title</TableHead><TableHead>Subject</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {subjectsLoading ? (
-                    <TableRow><TableCell colSpan={3} className="text-center py-10"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-                  ) : subjects?.map((item: any) => (
-                    <TableRow key={item.id} className="border-white/5 hover:bg-white/5">
-                      <TableCell className="py-4 font-bold flex items-center gap-2">
-                        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                          <FileText className="h-4 w-4" />
-                        </div>
-                        {item.name}
-                      </TableCell>
-                      <TableCell>{item.topicCount || 0}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 text-destructive" onClick={() => deleteDoc(doc(db, 'subjects', item.id))}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                  {mindmapsLoading ? <TableRow><TableCell colSpan={3} className="text-center"><Loader2 className="animate-spin mx-auto" /></TableCell></TableRow> : mindmaps?.map((m: any) => (
+                    <TableRow key={m.id}><TableCell>{m.title}</TableCell><TableCell>{m.subjectId}</TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteMindmap(m)}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>
                   ))}
-                  {!subjectsLoading && subjects?.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-20 text-muted-foreground">
-                        No subjects have been initialized yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -537,5 +304,5 @@ export default function AdminDashboard() {
         </TabsContent>
       </Tabs>
     </div>
-  );
+  )
 }

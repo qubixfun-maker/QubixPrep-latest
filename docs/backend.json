@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -37,26 +38,41 @@
         "iconName": { "type": "string" },
         "color": { "type": "string" },
         "unitCount": { "type": "number" },
-        "topicCount": { "type": "number" }
+        "topicCount": { "type": "number" },
+        "mindmapCount": { "type": "number" }
       },
       "required": ["name", "iconName"]
     },
     "MedicalTopic": {
       "title": "Medical Topic",
-      "description": "A specific study topic within a subject.",
+      "description": "A specific study topic within a subject (Notes/Videos).",
       "type": "object",
       "properties": {
         "subjectId": { "type": "string" },
         "unitName": { "type": "string" },
         "title": { "type": "string" },
-        "contentUrl": { "type": "string", "description": "URL to the file in Firebase Storage." },
-        "storagePath": { "type": "string", "description": "Path in Storage for deletion." },
+        "contentUrl": { "type": "string" },
+        "storagePath": { "type": "string" },
         "contentType": { "type": "string", "enum": ["pdf", "video", "image", "csv"] },
         "importance": { "type": "string", "enum": ["Low", "Medium", "High", "Essential"] },
-        "readTime": { "type": "string" },
-        "status": { "type": "string", "enum": ["draft", "published"] }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["subjectId", "title", "contentType"]
+    },
+    "MedicalMindmap": {
+      "title": "Medical Mindmap",
+      "description": "A high-yield visual mindmap for a specific topic.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "unitName": { "type": "string" },
+        "title": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subjectId", "title", "imageUrl"]
     }
   },
   "auth": {
@@ -77,7 +93,15 @@
     },
     "/all_topics/{topicId}": {
       "schema": "MedicalTopic",
-      "description": "Global list of all topics for management."
+      "description": "Global list of all topics."
+    },
+    "/subjects/{subjectId}/mindmaps/{mindmapId}": {
+      "schema": "MedicalMindmap",
+      "description": "Mindmaps within a subject."
+    },
+    "/all_mindmaps/{mindmapId}": {
+      "schema": "MedicalMindmap",
+      "description": "Global list of all mindmaps."
     }
   }
 }
