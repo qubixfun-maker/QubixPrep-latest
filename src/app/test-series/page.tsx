@@ -16,11 +16,9 @@ import {
   Sparkles, 
   ShieldCheck, 
   Timer, 
-  Dna, 
   Stethoscope, 
   ArrowRight,
   Loader2,
-  AlertCircle,
   ChevronDown,
   BookOpen,
   Filter
@@ -43,6 +41,7 @@ export default function TestSeriesPage() {
   const [curriculum, setCurriculum] = useState<any[]>([])
   const [curriculumLoading, setCurriculumLoading] = useState(false)
   
+  // Use composite keys for uniqueness: subjectId|unitTitle or subjectId|unitTitle|topicTitle
   const [selectedUnits, setSelectedUnits] = useState<string[]>([])
   const [selectedTopics, setSelectedTopics] = useState<string[]>([])
   
@@ -65,7 +64,6 @@ export default function TestSeriesPage() {
         
         if (error) throw error
 
-        // Group by subject -> unit -> topics
         const map: Record<string, any> = {}
         data.forEach(q => {
           const sId = q.subject_id
@@ -102,24 +100,31 @@ export default function TestSeriesPage() {
     )
   }
 
-  const handleToggleUnit = (unitTitle: string) => {
+  const handleToggleUnit = (subjectId: string, unitTitle: string) => {
+    const key = `${subjectId}|${unitTitle}`
     setSelectedUnits(prev => 
-      prev.includes(unitTitle) ? prev.filter(u => u !== unitTitle) : [...prev, unitTitle]
+      prev.includes(key) ? prev.filter(u => u !== key) : [...prev, key]
     )
   }
 
-  const handleToggleTopic = (topicTitle: string) => {
+  const handleToggleTopic = (subjectId: string, unitTitle: string, topicTitle: string) => {
+    const key = `${subjectId}|${unitTitle}|${topicTitle}`
     setSelectedTopics(prev => 
-      prev.includes(topicTitle) ? prev.filter(t => t !== topicTitle) : [...prev, topicTitle]
+      prev.includes(key) ? prev.filter(t => t !== key) : [...prev, key]
     )
   }
 
   const handleStart = () => {
     if (selectedSubjects.length === 0) return
+    
+    // Extract raw titles for filtering in the start page
+    const unitTitles = selectedUnits.map(u => u.split('|')[1])
+    const topicTitles = selectedTopics.map(t => t.split('|')[2])
+
     const params = new URLSearchParams({
       subjects: selectedSubjects.join(','),
-      units: selectedUnits.join(','),
-      topics: selectedTopics.join(','),
+      units: unitTitles.join(','),
+      topics: topicTitles.join(','),
       count: questionCount.toString(),
       mode: mode
     })
@@ -162,12 +167,15 @@ export default function TestSeriesPage() {
                       onClick={() => handleToggleSubject(subject.id)}
                     >
                       <Checkbox 
-                        id={subject.id} 
+                        id={`subject-${subject.id}`} 
                         checked={selectedSubjects.includes(subject.id)}
                         onCheckedChange={() => handleToggleSubject(subject.id)}
+                        onClick={(e) => e.stopPropagation()} // Prevent double-toggle
                       />
                       <div className="flex-1">
-                        <Label htmlFor={subject.id} className="font-bold cursor-pointer">{subject.name}</Label>
+                        <Label htmlFor={`subject-${subject.id}`} className="font-bold cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                          {subject.name}
+                        </Label>
                         <p className="text-[10px] text-muted-foreground uppercase">{subject.questionCount || 0} Questions</p>
                       </div>
                     </div>
@@ -189,37 +197,48 @@ export default function TestSeriesPage() {
                 {curriculumLoading ? (
                   <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin opacity-20" /></div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {curriculum.map((s) => (
                       <div key={s.id} className="space-y-3">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{s.name}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-primary/60 border-b border-white/5 pb-2">{s.name}</p>
                         <Accordion type="multiple" className="space-y-2">
-                          {s.units.map((u: any, uIdx: number) => (
-                            <AccordionItem key={uIdx} value={`${s.id}-u-${uIdx}`} className="border-none bg-black/20 rounded-xl overflow-hidden px-2">
-                              <div className="flex items-center">
-                                <Checkbox 
-                                  className="ml-2"
-                                  checked={selectedUnits.includes(u.title)}
-                                  onCheckedChange={() => handleToggleUnit(u.title)}
-                                />
-                                <AccordionTrigger className="hover:no-underline py-3 px-4 flex-1 text-sm font-bold">{u.title}</AccordionTrigger>
-                              </div>
-                              <AccordionContent className="px-4 pb-4 pt-2 space-y-2">
-                                {u.topics.map((t: string, tIdx: number) => (
-                                  <div 
-                                    key={tIdx} 
-                                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
-                                      selectedTopics.includes(t) ? 'bg-primary/5 border-primary/20' : 'bg-white/5 border-white/5'
-                                    }`}
-                                    onClick={() => handleToggleTopic(t)}
-                                  >
-                                    <Checkbox checked={selectedTopics.includes(t)} onCheckedChange={() => handleToggleTopic(t)} />
-                                    <span className="text-xs font-medium">{t}</span>
-                                  </div>
-                                ))}
-                              </AccordionContent>
-                            </AccordionItem>
-                          ))}
+                          {s.units.map((u: any, uIdx: number) => {
+                            const unitKey = `${s.id}|${u.title}`
+                            return (
+                              <AccordionItem key={uIdx} value={`${s.id}-u-${uIdx}`} className="border-none bg-black/20 rounded-xl overflow-hidden px-2">
+                                <div className="flex items-center">
+                                  <Checkbox 
+                                    id={unitKey}
+                                    className="ml-2"
+                                    checked={selectedUnits.includes(unitKey)}
+                                    onCheckedChange={() => handleToggleUnit(s.id, u.title)}
+                                  />
+                                  <AccordionTrigger className="hover:no-underline py-3 px-4 flex-1 text-sm font-bold">{u.title}</AccordionTrigger>
+                                </div>
+                                <AccordionContent className="px-4 pb-4 pt-2 space-y-2">
+                                  {u.topics.map((t: string, tIdx: number) => {
+                                    const topicKey = `${s.id}|${u.title}|${t}`
+                                    return (
+                                      <div 
+                                        key={tIdx} 
+                                        className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                                          selectedTopics.includes(topicKey) ? 'bg-primary/10 border-primary/40' : 'bg-white/5 border-white/5'
+                                        }`}
+                                        onClick={() => handleToggleTopic(s.id, u.title, t)}
+                                      >
+                                        <Checkbox 
+                                          checked={selectedTopics.includes(topicKey)} 
+                                          onCheckedChange={() => handleToggleTopic(s.id, u.title, t)}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                        <span className="text-xs font-medium">{t}</span>
+                                      </div>
+                                    )
+                                  })}
+                                </AccordionContent>
+                              </AccordionItem>
+                            )
+                          })}
                         </Accordion>
                       </div>
                     ))}
