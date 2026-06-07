@@ -12,7 +12,8 @@ import {
   FileText, 
   Video, 
   History,
-  Loader2
+  CloudUpload,
+  Library
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -32,57 +33,6 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 
-const items = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Subjects",
-    url: "/notes",
-    icon: BookOpen,
-  },
-  {
-    title: "Video Lectures",
-    url: "/videos",
-    icon: Video,
-  },
-  {
-    title: "AI Tools",
-    url: "/ai-tools",
-    icon: BrainCircuit,
-  },
-  {
-    title: "Notes & Books",
-    url: "/notes",
-    icon: FileText,
-  },
-  {
-    title: "Study History",
-    url: "/history",
-    icon: History,
-  },
-]
-
-const adminItems = [
-  {
-    title: "Admin Panel",
-    url: "/admin",
-    icon: ShieldCheck,
-  },
-  {
-    title: "Global Search",
-    url: "/search",
-    icon: Search,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
-]
-
 export function AppSidebar() {
   const pathname = usePathname()
   const { user } = useUser()
@@ -95,6 +45,58 @@ export function AppSidebar() {
 
   const { data: profile } = useDoc(profileRef)
   const isAdmin = profile && (profile as any).role === 'admin'
+
+  const mainItems = [
+    {
+      title: "Dashboard",
+      url: "/",
+      icon: LayoutDashboard,
+    },
+    {
+      title: "Subjects",
+      url: "/notes",
+      icon: BookOpen,
+    },
+    {
+      title: "Video Lectures",
+      url: "/videos",
+      icon: Video,
+    },
+    {
+      title: "AI Tools",
+      url: "/ai-tools",
+      icon: BrainCircuit,
+    },
+    {
+      title: "Notes & Books",
+      url: "/notes",
+      icon: FileText,
+    },
+    {
+      title: "Study History",
+      url: "/history",
+      icon: History,
+    },
+  ]
+
+  const adminItems = [
+    {
+      title: "Content Manager",
+      url: "/admin",
+      icon: ShieldCheck,
+      badge: "Admin"
+    },
+    {
+      title: "Global Search",
+      url: "/search",
+      icon: Search,
+    },
+    {
+      title: "Settings",
+      url: "/settings",
+      icon: Settings,
+    },
+  ]
 
   return (
     <Sidebar collapsible="icon" className="border-r border-white/5 bg-card/50 backdrop-blur-xl">
@@ -109,11 +111,29 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
       <SidebarContent>
+        {/* Main Menu Group */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-6 text-xs uppercase tracking-widest text-muted-foreground/50">Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {/* Conditional Admin Quick-Link inside Main Menu for better visibility */}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/admin"}
+                    tooltip="Admin Content Control"
+                    className="mx-2 px-4 h-12 rounded-xl transition-all border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                  >
+                    <Link href="/admin">
+                      <CloudUpload className="h-5 w-5" />
+                      <span className="font-bold">Content Manager</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              
+              {mainItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -132,7 +152,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        {/* Only show admin section if user is strictly an admin */}
+        {/* Secondary Management Group */}
         {isAdmin && (
           <SidebarGroup className="mt-auto">
             <SidebarGroupLabel className="px-6 text-xs uppercase tracking-widest text-muted-foreground/50">Management</SidebarGroupLabel>
