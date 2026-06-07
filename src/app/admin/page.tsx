@@ -15,7 +15,8 @@ import {
   FileText,
   Network,
   Database,
-  Upload
+  Upload,
+  Plus
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -220,13 +221,14 @@ export default function AdminDashboard() {
           </h1>
           <p className="text-muted-foreground">Orchestrate clinical content and assessments.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
             <DialogTrigger asChild><Button className="rounded-xl">Upload Note</Button></DialogTrigger>
             <DialogContent className="glass">
               <DialogHeader><DialogTitle>Publish Medical Note</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setTopicForm({...topicForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                <div className="grid gap-2"><Label>Unit Name</Label><Input value={topicForm.unitName} onChange={e => setTopicForm({...topicForm, unitName: e.target.value})} /></div>
                 <div className="grid gap-2"><Label>Title</Label><Input value={topicForm.title} onChange={e => setTopicForm({...topicForm, title: e.target.value})} /></div>
                 <div className="grid gap-2"><Label>File (PDF)</Label><Input type="file" accept=".pdf" onChange={e => setTopicForm({...topicForm, file: e.target.files?.[0] || null})} /></div>
               </div>
@@ -234,8 +236,22 @@ export default function AdminDashboard() {
             </DialogContent>
           </Dialog>
 
+          <Dialog open={isAddingMindmap} onOpenChange={setIsAddingMindmap}>
+            <DialogTrigger asChild><Button variant="secondary" className="rounded-xl">Upload Mindmap</Button></DialogTrigger>
+            <DialogContent className="glass">
+              <DialogHeader><DialogTitle>Publish Mindmap Image</DialogTitle></DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setMindmapForm({...mindmapForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
+                <div className="grid gap-2"><Label>Unit Name</Label><Input value={mindmapForm.unitName} onChange={e => setMindmapForm({...mindmapForm, unitName: e.target.value})} /></div>
+                <div className="grid gap-2"><Label>Title</Label><Input value={mindmapForm.title} onChange={e => setMindmapForm({...mindmapForm, title: e.target.value})} /></div>
+                <div className="grid gap-2"><Label>Image File</Label><Input type="file" accept="image/*" onChange={e => setMindmapForm({...mindmapForm, file: e.target.files?.[0] || null})} /></div>
+              </div>
+              <DialogFooter><Button onClick={handleAddMindmap} disabled={uploading}>{uploading ? "Uploading..." : "Publish"}</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={isUploadingQBank} onOpenChange={setIsUploadingQBank}>
-            <DialogTrigger asChild><Button variant="secondary" className="rounded-xl">Upload QBank (CSV)</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline" className="rounded-xl">Upload QBank (CSV)</Button></DialogTrigger>
             <DialogContent className="glass">
               <DialogHeader><DialogTitle>Import Questions</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
@@ -244,7 +260,7 @@ export default function AdminDashboard() {
                 <div className="grid gap-2">
                   <Label>CSV File</Label>
                   <Input type="file" accept=".csv" onChange={e => setQbankForm({...qbankForm, file: e.target.files?.[0] || null})} />
-                  <p className="text-[10px] text-muted-foreground">Format: question, A, B, C, D, correct, explanation</p>
+                  <p className="text-[10px] text-muted-foreground">Format: Question, OptA, OptB, OptC, OptD, Correct, Explanation</p>
                 </div>
               </div>
               <DialogFooter><Button onClick={handleUploadQBank} disabled={uploading}>{uploading ? "Processing..." : "Import CSV"}</Button></DialogFooter>
@@ -259,21 +275,21 @@ export default function AdminDashboard() {
             <div className="p-2 rounded-lg bg-primary/10 text-primary"><FileText className="h-5 w-5" /></div>
             <CardTitle className="text-lg">Notes</CardTitle>
           </CardHeader>
-          <CardContent><p className="text-2xl font-bold">{topics?.length || 0}</p></CardContent>
+          <CardContent><p className="text-2xl font-bold">{(topics?.length || 0)}</p></CardContent>
         </Card>
         <Card className="glass border-none">
           <CardHeader className="flex flex-row items-center gap-4">
             <div className="p-2 rounded-lg bg-accent/10 text-accent"><Database className="h-5 w-5" /></div>
             <CardTitle className="text-lg">MCQs</CardTitle>
           </CardHeader>
-          <CardContent><p className="text-2xl font-bold">Live</p></CardContent>
+          <CardContent><p className="text-2xl font-bold">Cloud</p></CardContent>
         </Card>
         <Card className="glass border-none">
           <CardHeader className="flex flex-row items-center gap-4">
             <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500"><Network className="h-5 w-5" /></div>
             <CardTitle className="text-lg">Mindmaps</CardTitle>
           </CardHeader>
-          <CardContent><p className="text-2xl font-bold">Cloud</p></CardContent>
+          <CardContent><p className="text-2xl font-bold">Live</p></CardContent>
         </Card>
       </div>
     </div>
