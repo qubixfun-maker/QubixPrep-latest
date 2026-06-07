@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BookOpen, Stethoscope, Microbe, TestTube, Brain, HeartPulse, ChevronRight, Search } from "lucide-react";
+import { BookOpen, Stethoscope, Microscope, TestTube, Brain, HeartPulse, ChevronRight, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 
@@ -8,7 +8,7 @@ const subjects = [
   { id: 'physio', name: "Physiology", description: "Mechanism of human body functions and homeostasis.", icon: HeartPulse, color: "text-pink-400", bg: "bg-pink-400/10", units: 8, topics: 92 },
   { id: 'biochem', name: "Biochemistry", description: "Molecular basis of biological processes.", icon: TestTube, color: "text-blue-400", bg: "bg-blue-400/10", units: 10, topics: 110 },
   { id: 'patho', name: "Pathology", description: "Study of disease processes and morphological changes.", icon: Stethoscope, color: "text-purple-400", bg: "bg-purple-400/10", units: 15, topics: 210 },
-  { id: 'micro', name: "Microbiology", description: "Bacteriology, Virology, and Mycology concepts.", icon: Microbe, color: "text-green-400", bg: "bg-green-400/10", units: 9, topics: 135 },
+  { id: 'micro', name: "Microbiology", description: "Bacteriology, Virology, and Mycology concepts.", icon: Microscope, color: "text-green-400", bg: "bg-green-400/10", units: 9, topics: 135 },
   { id: 'pharma', name: "Pharmacology", description: "Drug actions, interactions, and therapeutic uses.", icon: BookOpen, color: "text-yellow-400", bg: "bg-yellow-400/10", units: 11, topics: 180 },
 ];
 
