@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react";
@@ -8,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, FileText, Sparkles, Copy, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export default function SummarizerPage() {
+export function SummarizerPageContent() {
   const [content, setContent] = useState("");
   const [summary, setSummary] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +41,56 @@ export default function SummarizerPage() {
   };
 
   return (
+    <div className="space-y-6">
+      <Card className="glass border-none overflow-hidden">
+        <CardHeader className="pb-3 border-b border-white/5">
+          <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Input Study Text</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Textarea
+            placeholder="Paste text from the note or textbook to analyze..."
+            className="min-h-[200px] border-none bg-transparent focus-visible:ring-0 p-4 text-sm leading-relaxed resize-none"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+          />
+          <div className="p-3 bg-black/20 border-t border-white/5 flex justify-end">
+            <Button 
+              onClick={handleSummarize} 
+              disabled={isLoading || !content.trim()}
+              className="rounded-xl bg-primary hover:bg-primary/90 h-10 px-6 text-sm gap-2"
+            >
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {isLoading ? "Analyzing..." : "Analyze Concepts"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {summary && (
+        <Card className="glass border-none animate-in slide-in-from-top-4 duration-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-white/5">
+            <CardTitle className="text-[10px] font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+              <CheckCircle2 className="h-3 w-3" /> AI Summary Results
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={handleCopy} className="h-7 text-xs text-muted-foreground hover:text-white">
+              <Copy className="h-3 w-3 mr-2" /> Copy
+            </Button>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="prose prose-invert max-w-none">
+              <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                {summary}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+export default function SummarizerPage() {
+  return (
     <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
       <div className="space-y-2">
         <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -49,52 +100,7 @@ export default function SummarizerPage() {
           Paste your medical text below. Our AI will identify critical diagnostic criteria and treatment protocols.
         </p>
       </div>
-
-      <div className="grid gap-6">
-        <Card className="glass border-none overflow-hidden">
-          <CardHeader className="pb-3 border-b border-white/5">
-            <CardTitle className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Input Content</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Textarea
-              placeholder="Paste medical notes, textbook chapters, or clinical case details here..."
-              className="min-h-[300px] border-none bg-transparent focus-visible:ring-0 p-6 text-base leading-relaxed resize-none"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-            <div className="p-4 bg-black/20 border-t border-white/5 flex justify-end">
-              <Button 
-                onClick={handleSummarize} 
-                disabled={isLoading || !content.trim()}
-                className="rounded-xl bg-primary hover:bg-primary/90 px-8 py-6 text-lg gap-2 shadow-lg shadow-primary/20"
-              >
-                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-                {isLoading ? "Analyzing..." : "Generate Summary"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {summary && (
-          <Card className="glass border-none animate-in slide-in-from-top-4 duration-500">
-            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-white/5">
-              <CardTitle className="text-sm font-medium uppercase tracking-widest text-accent flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" /> AI Summary Results
-              </CardTitle>
-              <Button variant="ghost" size="sm" onClick={handleCopy} className="text-muted-foreground hover:text-white">
-                <Copy className="h-4 w-4 mr-2" /> Copy
-              </Button>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="prose prose-invert max-w-none">
-                <p className="text-lg leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                  {summary}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      <SummarizerPageContent />
     </div>
   );
 }
