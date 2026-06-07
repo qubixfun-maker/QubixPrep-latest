@@ -17,7 +17,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function SignUpPage() {
-  const { auth } = useAuth()
+  const auth = useAuth()
   const db = useFirestore()
   const router = useRouter()
   const { toast } = useToast()
@@ -68,7 +68,6 @@ export default function SignUpPage() {
         createdAt: new Date().toISOString()
       }
 
-      // Initiate firestore save without blocking the redirect
       setDoc(userRef, profileData, { merge: true }).catch(async (err) => {
         const permissionError = new FirestorePermissionError({
           path: userRef.path,
