@@ -63,8 +63,6 @@ export default function AdminDashboard() {
 
   const [qbankForm, setQbankForm] = useState({
     subjectId: "",
-    unitName: "",
-    topicName: "",
     file: null as File | null
   })
 
@@ -182,7 +180,20 @@ export default function AdminDashboard() {
       let count = 0
       for (const row of rows) {
         if (!row.trim()) continue
-        const [questionText, optA, optB, optC, optD, correct, explanation] = row.split(',').map(s => s.trim().replace(/^"|"$/g, ''))
+        
+        // Support Tab-Separated (TSV) or Comma-Separated (CSV)
+        const separator = row.includes('\t') ? '\t' : ','
+        const columns = row.split(separator).map(s => s.trim().replace(/^"|"$/g, ''))
+        
+        if (columns.length < 9) continue // Skip invalid rows
+        
+        const unitName = columns[1]
+        const topicName = columns[2]
+        const questionText = columns[3]
+        const options = [columns[4], columns[5], columns[6], columns[7]]
+        const correctIdx = parseInt(columns[8])
+        const correctAnswer = options[correctIdx] || options[0]
+        const explanation = columns[9] || ""
         
         const qId = `${Date.now()}-${count}`
         const qRef = doc(db, 'subjects', subjectId, 'questions', qId)
@@ -190,11 +201,11 @@ export default function AdminDashboard() {
         batch.set(qRef, {
           id: qId,
           subjectId,
-          unitName: qbankForm.unitName,
-          topicName: qbankForm.topicName,
+          unitName,
+          topicName,
           questionText,
-          options: [optA, optB, optC, optD],
-          correctAnswer: correct,
+          options,
+          correctAnswer,
           explanation,
           createdAt: new Date().toISOString()
         })
@@ -204,11 +215,11 @@ export default function AdminDashboard() {
       await batch.commit()
       await updateDoc(doc(db, 'subjects', subjectId), { questionCount: increment(count) })
       
-      toast({ title: "QBank Processed", description: `Uploaded ${count} questions.` })
+      toast({ title: "QBank Processed", description: `Uploaded ${count} questions successfully.` })
       setIsUploadingQBank(false)
-      setQbankForm({ subjectId: "", unitName: "", topicName: "", file: null })
+      setQbankForm({ subjectId: "", file: null })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Parsing Failed", description: e.message })
+      toast({ variant: "destructive", title: "Import Failed", description: e.message })
     } finally {
       setUploading(false)
     }
@@ -253,20 +264,20 @@ export default function AdminDashboard() {
           </Dialog>
 
           <Dialog open={isUploadingQBank} onOpenChange={setIsUploadingQBank}>
-            <DialogTrigger asChild><Button variant="outline" className="rounded-xl">Upload QBank (CSV)</Button></DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline" className="rounded-xl">Upload QBank (CSV/TSV)</Button></DialogTrigger>
             <DialogContent className="glass">
-              <DialogHeader><DialogTitle>Import Questions</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>Import Medical Questions</DialogTitle></DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2"><Label>Subject</Label><Select onValueChange={v => setQbankForm({...qbankForm, subjectId: v})}><SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger><SelectContent>{MBBS_SUBJECTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
-                <div className="grid gap-2"><Label>Unit Name</Label><Input value={qbankForm.unitName} onChange={e => setQbankForm({...qbankForm, unitName: e.target.value})} /></div>
-                <div className="grid gap-2"><Label>Topic Name</Label><Input value={qbankForm.topicName} onChange={e => setQbankForm({...qbankForm, topicName: e.target.value})} /></div>
                 <div className="grid gap-2">
-                  <Label>CSV File</Label>
-                  <Input type="file" accept=".csv" onChange={e => setQbankForm({...qbankForm, file: e.target.files?.[0] || null})} />
-                  <p className="text-[10px] text-muted-foreground">Format: Question, OptA, OptB, OptC, OptD, Correct, Explanation</p>
+                  <Label>CSV/TSV File</Label>
+                  <Input type="file" accept=".csv,.tsv,.txt" onChange={e => setQbankForm({...qbankForm, file: e.target.files?.[0] || null})} />
+                  <p className="text-[10px] text-muted-foreground leading-relaxed mt-2">
+                    Format: Unit#, Unit Title, Topic, Question, Opt1, Opt2, Opt3, Opt4, CorrectIndex (0-3), Explanation
+                  </p>
                 </div>
               </div>
-              <DialogFooter><Button onClick={handleUploadQBank} disabled={uploading}>{uploading ? "Processing..." : "Import CSV"}</Button></DialogFooter>
+              <DialogFooter><Button onClick={handleUploadQBank} disabled={uploading}>{uploading ? "Processing Rows..." : "Import File"}</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
