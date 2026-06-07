@@ -10,6 +10,7 @@
         "displayName": { "type": "string", "description": "The user's full name." },
         "email": { "type": "string", "format": "email" },
         "mobileNumber": { "type": "string", "description": "User's mobile contact number." },
+        "collegeName": { "type": "string", "description": "The medical college or university name." },
         "photoURL": { "type": "string", "description": "URL to the user's profile picture." },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLogin": { "type": "string", "format": "date-time" }
