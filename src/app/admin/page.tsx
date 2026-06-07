@@ -19,13 +19,9 @@ import {
   ChevronRight,
   BookOpen,
   Layout,
-  UploadCloud,
-  AlertTriangle,
   RefreshCw,
-  FolderOpen,
-  ChevronDown,
   Video,
-  Link as LinkIcon
+  X
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -34,21 +30,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-
-const MBBS_SUBJECTS = [
-  "Anatomy", "Physiology", "Biochemistry", 
-  "Pathology", "Microbiology", "Pharmacology", "Forensic Medicine", "Community Medicine",
-  "Ophthalmology", "ENT", 
-  "General Medicine", "General Surgery", "Obstetrics & Gynecology", "Pediatrics",
-  "Orthopedics", "Dermatology", "Psychiatry", "Radiology", "Anesthesia"
-]
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
@@ -97,12 +84,15 @@ export default function AdminDashboard() {
     file: null as File | null
   })
 
-  // Fetch Subject List
+  // Hooks moved to top level to comply with Rules of Hooks
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
 
   const subjectsQuery = useMemo(() => (!db) ? null : query(collection(db, 'subjects'), orderBy('name', 'asc')), [db])
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
+
+  const pdfTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'pdf'), [subjectContent.topics])
+  const videoTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'video'), [subjectContent.topics])
 
   // Load content for active subject
   useEffect(() => {
@@ -123,7 +113,6 @@ export default function AdminDashboard() {
           .select('*')
           .eq('subject_id', subjectId)
           .order('unit_number', { ascending: true })
-          .order('created_at', { ascending: true })
         
         if (error) throw error
 
@@ -178,6 +167,24 @@ export default function AdminDashboard() {
       
       setSubjectContent(prev => ({ ...prev, topics: prev.topics.filter(t => t.id !== topic.id) }))
       toast({ title: "Content Removed" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Deletion Error", description: e.message })
+    }
+  }
+
+  async function handleDeleteMindmap(mm: any) {
+    if (!db || !confirm(`Delete mindmap "${mm.title}"?`)) return
+    try {
+      const subjectId = mm.subjectId
+      await deleteDoc(doc(db, 'subjects', subjectId, 'mindmaps', mm.id))
+      await updateDoc(doc(db, 'subjects', subjectId), { mindmapCount: increment(-1) })
+      
+      if (mm.storagePath) {
+        await supabase.storage.from('mindmaps').remove([mm.storagePath])
+      }
+      
+      setSubjectContent(prev => ({ ...prev, mindmaps: prev.mindmaps.filter(m => m.id !== mm.id) }))
+      toast({ title: "Mindmap Removed" })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Deletion Error", description: e.message })
     }
@@ -275,10 +282,53 @@ export default function AdminDashboard() {
     }
   }
 
-  // ... (Keep existing handleAddMindmap and handleImportQBank functions)
+  async function handleAddMindmap() {
+    if (!db || !mindmapForm.subjectId || !mindmapForm.title || !mindmapForm.file) {
+      toast({ variant: "destructive", title: "Missing Information" })
+      return
+    }
 
-  const pdfTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'pdf'), [subjectContent.topics])
-  const videoTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'video'), [subjectContent.topics])
+    setUploading(true)
+    try {
+      const subjectId = mindmapForm.subjectId.toLowerCase().replace(/\s+/g, '-')
+      const fileId = `${Date.now()}-${mindmapForm.file.name.replace(/\s+/g, '_')}`
+      const storagePath = `mindmaps/${subjectId}/${fileId}`
+      
+      const { error: uploadError } = await supabase.storage.from('mindmaps').upload(storagePath, mindmapForm.file)
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage.from('mindmaps').getPublicUrl(storagePath)
+
+      const mmId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
+      const subjectRef = doc(db, 'subjects', subjectId)
+      const mmRef = doc(db, 'subjects', subjectId, 'mindmaps', mmId)
+
+      await setDoc(subjectRef, {
+        id: subjectId,
+        name: mindmapForm.subjectId,
+        iconName: "Network",
+        mindmapCount: increment(1)
+      }, { merge: true })
+
+      await setDoc(mmRef, {
+        id: mmId,
+        subjectId: subjectId,
+        unitName: mindmapForm.unitName,
+        title: mindmapForm.title,
+        imageUrl: publicUrl,
+        storagePath: storagePath,
+        createdAt: new Date().toISOString()
+      })
+
+      toast({ title: "Mindmap Added" })
+      setIsAddingMindmap(false)
+      setActiveSubject(mindmapForm.subjectId)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
@@ -287,7 +337,7 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <ShieldAlert className="h-8 w-8 text-primary" /> Command Center
           </h1>
-          <p className="text-muted-foreground">Manage subjects, curriculum videos, and notes.</p>
+          <p className="text-muted-foreground">Manage subjects, curriculum videos, and high-yield notes.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl gap-2"><Plus className="h-4 w-4" /> New Note</Button>
@@ -343,7 +393,7 @@ export default function AdminDashboard() {
               <Tabs defaultValue="notes" className="w-full">
                 <TabsList className="glass border-none h-12 p-1 rounded-xl mb-6 flex-wrap">
                   <TabsTrigger value="notes" className="rounded-lg gap-2 data-[state=active]:bg-primary"><FileText className="h-4 w-4" /> PDF Notes</TabsTrigger>
-                  <TabsTrigger value="videos" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Video className="h-4 w-4" /> Videos</TabsTrigger>
+                  <TabsTrigger value="videos" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Video className="h-4 w-4" /> Video Curriculum</TabsTrigger>
                   <TabsTrigger value="mindmaps" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Network className="h-4 w-4" /> Mindmaps</TabsTrigger>
                   <TabsTrigger value="qbank" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Database className="h-4 w-4" /> QBank</TabsTrigger>
                 </TabsList>
@@ -371,7 +421,7 @@ export default function AdminDashboard() {
                           </CardContent>
                         </Card>
                       ))}
-                      {pdfTopics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No PDF notes found.</div>}
+                      {pdfTopics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No PDF notes found for this subject.</div>}
                     </TabsContent>
 
                     <TabsContent value="videos" className="space-y-3">
@@ -393,11 +443,10 @@ export default function AdminDashboard() {
                           </CardContent>
                         </Card>
                       ))}
-                      {videoTopics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No video lectures found.</div>}
+                      {videoTopics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No video lectures found for this subject.</div>}
                     </TabsContent>
 
                     <TabsContent value="mindmaps" className="grid md:grid-cols-2 gap-4">
-                       {/* Mindmap content as before */}
                        {subjectContent.mindmaps.map((mm) => (
                         <Card key={mm.id} className="glass border-none overflow-hidden group">
                           <div className="aspect-video relative">
@@ -409,13 +458,30 @@ export default function AdminDashboard() {
                           <div className="p-3 bg-card"><p className="text-sm font-bold truncate">{mm.title}</p></div>
                         </Card>
                       ))}
+                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No mindmaps found.</div>}
                     </TabsContent>
 
                     <TabsContent value="qbank" className="space-y-4">
-                      {/* QBank content as before */}
-                      <Accordion type="multiple" className="space-y-4">
-                        {/* (Accordion map as before) */}
-                      </Accordion>
+                      <div className="p-6 glass rounded-2xl">
+                         <h4 className="font-bold mb-4 flex items-center gap-2 text-primary"><Database className="h-4 w-4" /> Assessment Data</h4>
+                         <Accordion type="multiple" className="space-y-2">
+                            {subjectContent.questions.length > 0 ? (
+                              <AccordionItem value="all-questions" className="border-none bg-white/5 rounded-xl px-4">
+                                <AccordionTrigger className="hover:no-underline">Questions Pool ({subjectContent.questions.length})</AccordionTrigger>
+                                <AccordionContent className="space-y-2">
+                                  {subjectContent.questions.slice(0, 50).map((q: any, i: number) => (
+                                    <div key={i} className="text-xs p-2 rounded bg-black/20 border border-white/5 truncate">
+                                      {q.question_text}
+                                    </div>
+                                  ))}
+                                  {subjectContent.questions.length > 50 && <p className="text-[10px] text-muted-foreground italic">+ {subjectContent.questions.length - 50} more questions...</p>}
+                                </AccordionContent>
+                              </AccordionItem>
+                            ) : (
+                              <p className="text-center py-12 text-muted-foreground text-sm">No QBank data imported.</p>
+                            )}
+                         </Accordion>
+                      </div>
                     </TabsContent>
                   </>
                 )}
@@ -429,7 +495,116 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
-      {/* (Modals as before) */}
+
+      {/* Add Topic Modal */}
+      <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
+        <DialogContent className="glass border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Publish New Study Note</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Select onValueChange={(v) => setTopicForm({ ...topicForm, subjectId: v })}>
+                <SelectTrigger className="glass border-white/10">
+                  <SelectValue placeholder="Select Subject" />
+                </SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Unit Name</Label>
+              <Input placeholder="e.g., CNS Anatomy" className="glass border-white/10" value={topicForm.unitName} onChange={(e) => setTopicForm({ ...topicForm, unitName: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Note Title</Label>
+              <Input placeholder="e.g., Ventricular System" className="glass border-white/10" value={topicForm.title} onChange={(e) => setTopicForm({ ...topicForm, title: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>PDF Document</Label>
+              <Input type="file" accept=".pdf" className="glass border-white/10 cursor-pointer" onChange={(e) => setTopicForm({ ...topicForm, file: e.target.files?.[0] || null })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddingTopic(false)}>Cancel</Button>
+            <Button onClick={handleAddTopic} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Publish Note</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Video Modal */}
+      <Dialog open={isAddingVideo} onOpenChange={setIsAddingVideo}>
+        <DialogContent className="glass border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Curriculum Video</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Select onValueChange={(v) => setVideoForm({ ...videoForm, subjectId: v })}>
+                <SelectTrigger className="glass border-white/10">
+                  <SelectValue placeholder="Select Subject" />
+                </SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Unit Name</Label>
+              <Input placeholder="e.g., Physiology of Respiration" className="glass border-white/10" value={videoForm.unitName} onChange={(e) => setVideoForm({ ...videoForm, unitName: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Lecture Title</Label>
+              <Input placeholder="e.g., Gas Exchange Mechanisms" className="glass border-white/10" value={videoForm.title} onChange={(e) => setVideoForm({ ...videoForm, title: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>YouTube URL</Label>
+              <Input placeholder="https://youtube.com/watch?v=..." className="glass border-white/10" value={videoForm.url} onChange={(e) => setVideoForm({ ...videoForm, url: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddingVideo(false)}>Cancel</Button>
+            <Button onClick={handleAddVideo} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Add Video</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Mindmap Modal */}
+      <Dialog open={isAddingMindmap} onOpenChange={setIsAddingMindmap}>
+        <DialogContent className="glass border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Upload Subject Mindmap</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Select onValueChange={(v) => setMindmapForm({ ...mindmapForm, subjectId: v })}>
+                <SelectTrigger className="glass border-white/10">
+                  <SelectValue placeholder="Select Subject" />
+                </SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Mindmap Title</Label>
+              <Input placeholder="e.g., Coagulation Cascade" className="glass border-white/10" value={mindmapForm.title} onChange={(e) => setMindmapForm({ ...mindmapForm, title: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Image File (Visual Map)</Label>
+              <Input type="file" accept="image/*" className="glass border-white/10 cursor-pointer" onChange={(e) => setMindmapForm({ ...mindmapForm, file: e.target.files?.[0] || null })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddingMindmap(false)}>Cancel</Button>
+            <Button onClick={handleAddMindmap} disabled={uploading}>{uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Upload Map</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
