@@ -22,6 +22,8 @@
           "description": "The user's role in the system for access control."
         },
         "photoURL": { "type": "string", "description": "URL to the user's profile picture." },
+        "streakCount": { "type": "number", "description": "Current consecutive study days." },
+        "lastActivityDate": { "type": "string", "format": "date" },
         "createdAt": { "type": "string", "format": "date-time" },
         "lastLogin": { "type": "string", "format": "date-time" }
       },

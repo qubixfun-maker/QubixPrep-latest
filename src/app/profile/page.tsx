@@ -1,8 +1,11 @@
+
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
-import { useUser, useDoc, useFirestore } from "@/firebase"
+import { useMemo, useState, useEffect, useRef } from "react"
+import { useUser, useDoc, useFirestore, useAuth } from "@/firebase"
 import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { updateProfile, sendPasswordResetEmail, signOut } from "firebase/auth"
+import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,15 +22,15 @@ import {
   Loader2, 
   ShieldCheck, 
   LogOut,
-  Trophy,
   Target,
-  BookOpen,
-  CheckCircle2
+  CheckCircle2,
+  Lock,
+  Upload
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/firebase"
-import { signOut } from "firebase/auth"
 import { useRouter } from "next/navigation"
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useUser()
@@ -35,11 +38,13 @@ export default function ProfilePage() {
   const db = useFirestore()
   const { toast } = useToast()
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
 
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [formData, setFormData] = useState({
     displayName: "",
     mobileNumber: "",
@@ -47,59 +52,143 @@ export default function ProfilePage() {
     currentYear: ""
   })
 
-  // Track counts for progress
   const [stats, setStats] = useState({
     completedCount: 0,
-    totalNotes: 0
+    streakCount: 0
   })
 
   useEffect(() => {
     if (profile) {
       setFormData({
-        displayName: profile.displayName || "",
-        mobileNumber: profile.mobileNumber || "",
-        collegeName: profile.collegeName || "",
-        currentYear: profile.currentYear || ""
+        displayName: (profile as any).displayName || "",
+        mobileNumber: (profile as any).mobileNumber || "",
+        collegeName: (profile as any).collegeName || "",
+        currentYear: (profile as any).currentYear || ""
       })
+      setStats(prev => ({
+        ...prev,
+        streakCount: (profile as any).streakCount || 0
+      }))
     }
   }, [profile])
 
   useEffect(() => {
-    async function fetchProgress() {
+    async function fetchStats() {
       if (!db || !user) return
       try {
-        const completedSnap = await getDocs(query(collection(db, 'users', user.uid, 'progress'), where('completed', '==', true)))
+        const completedSnap = await getDocs(query(
+          collection(db, 'users', user.uid, 'progress'), 
+          where('completed', '==', true)
+        ))
         setStats(prev => ({ ...prev, completedCount: completedSnap.size }))
       } catch (e) {
-        console.error(e)
+        console.error("Stats Fetch Error:", e)
       }
     }
-    fetchProgress()
+    fetchStats()
   }, [db, user])
 
   const handleSave = async () => {
-    if (!profileRef) return
+    if (!profileRef || !user) return
     setIsSaving(true)
+    
+    const updateData = {
+      ...formData,
+      lastUpdated: new Date().toISOString()
+    }
+
     try {
-      await updateDoc(profileRef, {
-        ...formData,
-        lastUpdated: new Date().toISOString()
+      // 1. Update Auth Profile
+      if (formData.displayName !== user.displayName) {
+        await updateProfile(user, { displayName: formData.displayName })
+      }
+
+      // 2. Update Firestore Profile
+      await updateDoc(profileRef, updateData)
+
+      toast({ 
+        title: "Profile Updated", 
+        description: "Your academic settings have been successfully synchronized." 
       })
-      toast({ title: "Profile Updated", description: "Your academic settings have been saved." })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: e.message })
+      const permissionError = new FirestorePermissionError({
+        path: profileRef.path,
+        operation: 'update',
+        requestResourceData: updateData
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      
+      toast({ 
+        variant: "destructive", 
+        title: "Update Failed", 
+        description: e.message 
+      })
     } finally {
       setIsSaving(false)
     }
   }
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user || !profileRef) return
+
+    setIsUploading(true)
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${user.uid}-${Math.random()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('mindmaps') // Reusing existing bucket or assume an 'avatars' bucket exists
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('mindmaps')
+        .getPublicUrl(filePath)
+
+      // Update both Auth and Firestore
+      await updateProfile(user, { photoURL: publicUrl })
+      await updateDoc(profileRef, { photoURL: publicUrl })
+
+      toast({ title: "Photo Updated", description: "Your profile picture is now live." })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handlePasswordReset = async () => {
+    if (!user?.email) return
+    try {
+      await sendPasswordResetEmail(auth, user.email)
+      toast({ 
+        title: "Reset Email Sent", 
+        description: "Check your inbox for a secure link to change your password." 
+      })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Action Failed", description: e.message })
+    }
+  }
+
   const handleSignOut = async () => {
-    await signOut(auth)
-    router.push("/login")
+    try {
+      await signOut(auth)
+      router.push("/login")
+    } catch (e) {
+      toast({ variant: "destructive", title: "Sign Out Error" })
+    }
   }
 
   if (authLoading || profileLoading) {
-    return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="h-10 w-10 text-primary animate-spin" />
+      </div>
+    )
   }
 
   if (!user) return null
@@ -109,21 +198,37 @@ export default function ProfilePage() {
       <div className="flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-6">
           <div className="relative group">
-            <Avatar className="h-24 w-24 border-4 border-primary/20 shadow-2xl">
-              <AvatarImage src={user.photoURL || ""} />
+            <Avatar className="h-24 w-24 border-4 border-primary/20 shadow-2xl overflow-hidden">
+              <AvatarImage src={user.photoURL || ""} className="object-cover" />
               <AvatarFallback className="bg-primary/10 text-primary text-3xl font-bold">
-                {user.displayName?.[0] || "D"}
+                {user.displayName?.[0] || user.email?.[0]?.toUpperCase() || "D"}
               </AvatarFallback>
+              {isUploading && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 text-white animate-spin" />
+                </div>
+              )}
             </Avatar>
-            <button className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-white shadow-lg scale-0 group-hover:scale-100 transition-transform">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-0 right-0 p-2 rounded-full bg-primary text-white shadow-lg hover:scale-110 transition-transform"
+              disabled={isUploading}
+            >
               <Camera className="h-4 w-4" />
             </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*" 
+              onChange={handleAvatarUpload} 
+            />
           </div>
           <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight">{profile?.displayName || user.displayName}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{user.displayName || "Medical Student"}</h1>
             <div className="flex items-center gap-2 text-muted-foreground">
               <ShieldCheck className="h-4 w-4 text-accent" />
-              <span className="text-sm font-medium uppercase tracking-widest">{profile?.role || "Medical Student"}</span>
+              <span className="text-sm font-medium uppercase tracking-widest">{(profile as any)?.role || "Student"} ID: {user.uid.slice(0, 8)}</span>
             </div>
           </div>
         </div>
@@ -139,7 +244,7 @@ export default function ProfilePage() {
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" /> Personal Information
               </CardTitle>
-              <CardDescription>Update your contact and identification details.</CardDescription>
+              <CardDescription>Update your public identity and contact details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid md:grid-cols-2 gap-4">
@@ -151,6 +256,7 @@ export default function ProfilePage() {
                       className="pl-10 glass border-white/10" 
                       value={formData.displayName}
                       onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                      placeholder="e.g. Dr. Jane Doe"
                     />
                   </div>
                 </div>
@@ -160,6 +266,7 @@ export default function ProfilePage() {
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input className="pl-10 glass border-white/10 opacity-50" value={user.email || ""} disabled />
                   </div>
+                  <p className="text-[10px] text-muted-foreground italic">Email changes require administrative verification.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Mobile Number</Label>
@@ -169,6 +276,7 @@ export default function ProfilePage() {
                       className="pl-10 glass border-white/10" 
                       value={formData.mobileNumber}
                       onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                      placeholder="+91 XXXXX XXXXX"
                     />
                   </div>
                 </div>
@@ -181,7 +289,7 @@ export default function ProfilePage() {
               <CardTitle className="flex items-center gap-2">
                 <School className="h-5 w-5 text-accent" /> Academic Settings
               </CardTitle>
-              <CardDescription>Your current medical institution and study year.</CardDescription>
+              <CardDescription>Your current medical institution and curriculum track.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid md:grid-cols-2 gap-4">
@@ -193,6 +301,7 @@ export default function ProfilePage() {
                       className="pl-10 glass border-white/10" 
                       value={formData.collegeName}
                       onChange={(e) => setFormData({ ...formData, collegeName: e.target.value })}
+                      placeholder="Enter your college name"
                     />
                   </div>
                 </div>
@@ -220,10 +329,10 @@ export default function ProfilePage() {
                 <Button 
                   onClick={handleSave} 
                   disabled={isSaving}
-                  className="rounded-xl px-8 shadow-xl shadow-primary/20"
+                  className="rounded-xl px-8 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90"
                 >
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Save Changes
+                  Save Academic Profile
                 </Button>
               </div>
             </CardContent>
@@ -232,27 +341,27 @@ export default function ProfilePage() {
 
         <div className="space-y-6">
           <Card className="glass border-none overflow-hidden">
-            <div className="h-2 bg-accent" />
+            <div className="h-2 bg-gradient-to-r from-primary to-accent" />
             <CardHeader>
-              <CardTitle className="text-lg">Study Stats</CardTitle>
+              <CardTitle className="text-lg">Real-Time Study Stats</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary">
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4 hover:bg-white/10 transition-colors">
+                <div className="p-3 rounded-xl bg-primary/10 text-primary shadow-inner">
                   <CheckCircle2 className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{stats.completedCount}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Topics Mastered</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Mastered Topics</p>
                 </div>
               </div>
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-accent/10 text-accent">
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-4 hover:bg-white/10 transition-colors">
+                <div className="p-3 rounded-xl bg-accent/10 text-accent shadow-inner">
                   <Target className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">14</p>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Day Streak</p>
+                  <p className="text-2xl font-bold">{stats.streakCount}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Active Day Streak</p>
                 </div>
               </div>
             </CardContent>
@@ -260,15 +369,22 @@ export default function ProfilePage() {
 
           <Card className="glass border-none">
             <CardHeader>
-              <CardTitle className="text-lg">Security</CardTitle>
+              <CardTitle className="text-lg">Security & Access</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Your data is secured with Firebase Cloud encryption and access rules.
-              </p>
-              <Button variant="outline" className="w-full glass border-white/10 rounded-xl text-xs font-bold uppercase tracking-widest h-11">
-                Change Password
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your academic data is secured with AES-256 Cloud encryption and restricted by Firebase Security Rules.
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handlePasswordReset}
+                className="w-full glass border-white/10 rounded-xl text-xs font-bold uppercase tracking-widest h-11 gap-2 hover:bg-white/5"
+              >
+                <Lock className="h-3.5 w-3.5" /> Reset Password
               </Button>
+              <p className="text-[9px] text-center text-muted-foreground uppercase tracking-tighter">Last Login: {new Date(user.metadata.lastSignInTime || "").toLocaleString()}</p>
             </CardContent>
           </Card>
         </div>
