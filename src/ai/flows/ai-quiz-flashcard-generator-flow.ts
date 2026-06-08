@@ -1,78 +1,62 @@
-
 'use server';
-/**
- * @fileOverview AI Quiz and Flashcard Generator powered by Groq.
- */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { groqClient, GROQ_MODEL } from '@/ai/genkit';
 
-const GenerateQuizAndFlashcardsInputSchema = z.object({
-  studyTopic: z
-    .string()
-    .describe('The medical study topic for which to generate quizzes and flashcards.'),
-});
-export type GenerateQuizAndFlashcardsInput = z.infer<
-  typeof GenerateQuizAndFlashcardsInputSchema
->;
+export type GenerateQuizAndFlashcardsInput = {
+  studyTopic: string;
+};
 
-const QuizQuestionSchema = z.object({
-  question: z.string().describe('The question for the multiple-choice quiz.'),
-  options: z
-    .array(z.string())
-    .describe('An array of multiple-choice options for the question.'),
-  correctAnswer: z
-    .string()
-    .describe('The correct answer from the provided options.'),
-  explanation: z
-    .string()
-    .describe('An explanation for why the chosen answer is correct.'),
-});
+export type QuizQuestion = {
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+};
 
-const FlashcardSchema = z.object({
-  front: z.string().describe('The concept or question on the front of the flashcard.'),
-  back: z.string().describe('The answer or explanation on the back of the flashcard.'),
-});
+export type Flashcard = {
+  front: string;
+  back: string;
+};
 
-const GenerateQuizAndFlashcardsOutputSchema = z.object({
-  quizzes: z
-    .array(QuizQuestionSchema)
-    .describe('An array of generated multiple-choice quiz questions.'),
-  flashcards: z
-    .array(FlashcardSchema)
-    .describe('An array of generated flashcards.'),
-});
-export type GenerateQuizAndFlashcardsOutput = z.infer<
-  typeof GenerateQuizAndFlashcardsOutputSchema
->;
+export type GenerateQuizAndFlashcardsOutput = {
+  quizzes: QuizQuestion[];
+  flashcards: Flashcard[];
+};
 
 export async function generateQuizAndFlashcards(
   input: GenerateQuizAndFlashcardsInput
 ): Promise<GenerateQuizAndFlashcardsOutput> {
-  return generateQuizAndFlashcardsFlow(input);
+  const response = await groqClient.chat.completions.create({
+    model: GROQ_MODEL,
+    messages: [
+      {
+        role: 'user',
+        content: `You are an expert medical educator for MBBS and NEET-PG students.
+
+Generate 5 MCQs and 5 flashcards for the following topic: ${input.studyTopic}
+
+Respond ONLY with a valid JSON object in this exact format, no extra text:
+{
+  "quizzes": [
+    {
+      "question": "...",
+      "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
+      "correctAnswer": "A. ...",
+      "explanation": "..."
+    }
+  ],
+  "flashcards": [
+    {
+      "front": "...",
+      "back": "..."
+    }
+  ]
+}`,
+      },
+    ],
+  });
+
+  const raw = response.choices[0]?.message?.content ?? '{}';
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
 }
-
-const generateQuizAndFlashcardsPrompt = ai.definePrompt({
-  name: 'generateQuizAndFlashcardsPrompt',
-  input: {schema: GenerateQuizAndFlashcardsInputSchema},
-  output: {schema: GenerateQuizAndFlashcardsOutputSchema},
-  prompt: `You are an expert medical educator specializing in creating study materials for MBBS and NEET-PG students.
-
-Your task is to generate relevant multiple-choice questions (MCQs) and flashcards based on the provided medical study topic.
-
-Generate 5-7 MCQs and 5-7 flashcards. Ensure the questions and flashcards are challenging, comprehensive, and cover important concepts related to the topic.
-
-Study Topic: {{{studyTopic}}}`,
-});
-
-const generateQuizAndFlashcardsFlow = ai.defineFlow(
-  {
-    name: 'generateQuizAndFlashcardsFlow',
-    inputSchema: GenerateQuizAndFlashcardsInputSchema,
-    outputSchema: GenerateQuizAndFlashcardsOutputSchema,
-  },
-  async input => {
-    const {output} = await generateQuizAndFlashcardsPrompt(input);
-    return output!;
-  }
-);

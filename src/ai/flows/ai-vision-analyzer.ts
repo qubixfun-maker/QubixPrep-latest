@@ -1,44 +1,40 @@
-
 'use server';
-/**
- * @fileOverview Multimodal Vision analysis powered by Groq Llama 3.2 Vision.
- */
 
-import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import Groq from 'groq-sdk';
 
-const VisionAnalysisInputSchema = z.object({
-  imageDataUri: z.string().describe("The medical screenshot as a data URI (base64)."),
-  task: z.enum(['summarize', 'quiz', 'map']).describe("The analysis task to perform on the extracted text."),
-});
-export type VisionAnalysisInput = z.infer<typeof VisionAnalysisInputSchema>;
+const visionClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-export async function analyzeMedicalImage(input: VisionAnalysisInput) {
-  return aiVisionFlow(input);
+export type VisionAnalysisInput = {
+  imageDataUri: string;
+  task: 'summarize' | 'quiz' | 'map';
+};
+
+export async function analyzeMedicalImage(input: VisionAnalysisInput): Promise<string> {
+  const taskInstruction =
+    input.task === 'summarize'
+      ? 'Provide a high-yield clinical summary of the medical content.'
+      : input.task === 'quiz'
+      ? 'Generate 3 NEET-PG style MCQs with explanations based on the content.'
+      : 'Identify key concepts and their logical connections as a mind map in Markdown.';
+
+  const response = await visionClient.chat.completions.create({
+    model: 'llama-3.2-90b-vision-preview',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: input.imageDataUri },
+          },
+          {
+            type: 'text',
+            text: `You are a medical OCR specialist. Extract all relevant medical text from this image, then: ${taskInstruction}\n\nOutput in clean Markdown.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  return response.choices[0]?.message?.content ?? '';
 }
-
-const aiVisionFlow = ai.defineFlow(
-  {
-    name: 'aiVisionFlow',
-    inputSchema: VisionAnalysisInputSchema,
-    outputSchema: z.string(),
-  },
-  async (input) => {
-    const { text } = await ai.generate({
-      model: 'groq/llama-3.2-90b-vision-preview',
-      prompt: [
-        { media: { url: input.imageDataUri, contentType: 'image/jpeg' } },
-        { text: `You are a medical OCR specialist. 
-                First, extract all the relevant medical text from this screenshot. 
-                Then, perform the following task: ${input.task}. 
-                
-                If task is 'summarize', provide a high-yield clinical summary.
-                If task is 'quiz', generate 3 USMLE-style MCQs with explanations.
-                If task is 'map', identify key concepts and their logical connections.
-                
-                Output your response in clean, professional Markdown.` }
-      ]
-    });
-    return text;
-  }
-);
