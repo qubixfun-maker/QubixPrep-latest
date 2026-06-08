@@ -1,4 +1,4 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  serverExternalPackages: ['@napi-rs/canvas'],
   images: {
     remotePatterns: [
       {
@@ -29,6 +30,14 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  // Add custom webpack configuration to bypass loading the raw binary character stream
+  webpack: (config, { isServer }) => {
+    config.module.rules.push({
+      test: /\.node$/,
+      use: 'node-loader',
+    });
+    return config;
   },
 };
 

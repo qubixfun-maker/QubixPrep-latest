@@ -7,10 +7,10 @@ import os from 'os';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-export const maxDuration = 300; // 5 minutes timeout
+export const maxDuration = 300; // 5 minutes timeout for large PDFs
 
 export async function POST(req: NextRequest) {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qbank-'));
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qbank-upload-'));
 
   try {
     const formData = await req.formData();
@@ -19,15 +19,15 @@ export async function POST(req: NextRequest) {
     const subject = formData.get('subject') as string;
 
     if (!file || !userId) {
-      return NextResponse.json({ error: 'Missing file or user ID' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing critical data: file or user ID' }, { status: 400 });
     }
 
-    // Load pdfjs-dist and canvas dynamically
-    const { createCanvas } = await import('canvas');
-    // Using the legacy build which is more compatible with Node.js environments
+    // Load pdfjs and canvas dynamically to ensure server-side compatibility
+    const { createCanvas } = await import('@napi-rs/canvas');
+    // Using the legacy build for better Node.js compatibility
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs' as any);
     
-    // Disable worker for server-side environments to avoid path/import issues
+    // Explicitly disable worker to avoid path resolution errors in serverless/cloud environments
     pdfjs.GlobalWorkerOptions.workerSrc = false;
 
     const arrayBuffer = await file.arrayBuffer();
@@ -38,13 +38,13 @@ export async function POST(req: NextRequest) {
       useWorkerFetch: false,
       isEvalSupported: false,
       useSystemFonts: true,
-      disableFontFace: true, // Speeds up loading in server environments
+      disableFontFace: true,
     });
 
     const pdf = await loadingTask.promise;
     const numPages = pdf.numPages;
 
-    // Create qbank entry
+    // Create tracking entry in Supabase
     const { data: qbank, error: qbankError } = await supabase
       .from('pdf_qbanks')
       .insert({
@@ -57,24 +57,25 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (qbankError) throw new Error(`Supabase QBank Error: ${qbankError.message}`);
+    if (qbankError) throw new Error(`Database Error: ${qbankError.message}`);
 
     const questionsMap: Record<number, any> = {};
     const BATCH_SIZE = 5;
 
+    // Process pages in batches to respect Vision API rate limits and memory
     for (let i = 1; i <= numPages; i += BATCH_SIZE) {
       const batchEnd = Math.min(i + BATCH_SIZE - 1, numPages);
-      const batch = [];
+      const batchPromises = [];
 
       for (let pageNum = i; pageNum <= batchEnd; pageNum++) {
-        batch.push(renderPageToBase64(pdf, pageNum, createCanvas));
+        batchPromises.push(renderPageToBuffer(pdf, pageNum, createCanvas));
       }
 
-      const base64Images = await Promise.all(batch);
+      const pageBuffers = await Promise.all(batchPromises);
 
       const extractions = await Promise.all(
-        base64Images.map((b64, idx) =>
-          b64 ? extractFromImage(b64, i + idx) : Promise.resolve([])
+        pageBuffers.map((buffer, idx) =>
+          buffer ? extractClinicalData(buffer, i + idx) : Promise.resolve([])
         )
       );
 
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
           };
         }
 
-        // Merge logic: only overwrite if data is present (don't overwrite with nulls)
+        // Logic to merge questions and solutions if they are on separate pages
         if (item.question_text) {
           questionsMap[qNum].question_text = item.question_text;
           questionsMap[qNum].option_a = item.option_a;
@@ -107,17 +108,22 @@ export async function POST(req: NextRequest) {
           questionsMap[qNum].option_d = item.option_d;
           questionsMap[qNum].has_image = item.has_image || false;
         }
+        
         if (item.correct_answer) {
           questionsMap[qNum].correct_answer = item.correct_answer;
         }
+        
         if (item.explanation) {
-          questionsMap[qNum].explanation = item.explanation;
+          // If we already have a partial explanation, append to it
+          questionsMap[qNum].explanation = questionsMap[qNum].explanation 
+            ? `${questionsMap[qNum].explanation}\n\n${item.explanation}` 
+            : item.explanation;
         }
       });
 
-      // Throttle for API rate limits
+      // Throttling to prevent 429 errors from Groq
       if (i + BATCH_SIZE <= numPages) {
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 2000));
       }
     }
 
@@ -126,17 +132,17 @@ export async function POST(req: NextRequest) {
       .sort((a: any, b: any) => a.question_number - b.question_number);
 
     if (finalQuestions.length === 0) {
-       throw new Error('No clinical cases could be extracted from this PDF. Please check the format.');
+       throw new Error('Vision AI could not identify any clinical cases in this document. Please check the PDF format.');
     }
 
-    // Insert in chunks of 50 for database stability
-    for (let i = 0; i < finalQuestions.length; i += 50) {
-      const { error: insertError } = await supabase
-        .from('pdf_questions')
-        .insert(finalQuestions.slice(i, i + 50));
-      if (insertError) throw new Error(`Supabase Insert Error: ${insertError.message}`);
-    }
+    // Batch insert into database
+    const { error: insertError } = await supabase
+      .from('pdf_questions')
+      .insert(finalQuestions);
 
+    if (insertError) throw new Error(`Supabase Storage Error: ${insertError.message}`);
+
+    // Update bank status
     await supabase
       .from('pdf_qbanks')
       .update({ status: 'ready', total_questions: finalQuestions.length })
@@ -145,31 +151,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       qbankId: qbank.id,
-      totalPages: numPages,
       count: finalQuestions.length,
     });
   } catch (error: any) {
-    console.error('PDF Extraction Pipeline Error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error during PDF extraction' }, { status: 500 });
+    console.error('PDF Extraction Pipeline Failure:', error?.message);
+    return NextResponse.json({ error: error.message || 'Critical extraction failure' }, { status: 500 });
   } finally {
+    // Cleanup temporary directory
     try {
-      if (fs.existsSync(tmpDir)) {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      }
+      if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
     } catch (e) {
-      console.error('Cleanup Error:', e);
+      console.error('Extraction Cleanup Error:', e);
     }
   }
 }
 
-async function renderPageToBase64(
+async function renderPageToBuffer(
   pdf: any,
   pageNum: number,
   createCanvas: any
-): Promise<string | null> {
+): Promise<Buffer | null> {
   try {
     const page = await pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 1.5 });
+    const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR accuracy
 
     const canvas = createCanvas(viewport.width, viewport.height);
     const context = canvas.getContext('2d');
@@ -180,21 +184,23 @@ async function renderPageToBase64(
       intent: 'display'
     }).promise;
 
-    return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+    return canvas.toBuffer('image/jpeg', { quality: 0.9 });
   } catch (e) {
-    console.error(`Rendering Failure Page ${pageNum}:`, e);
+    console.error(`Render Error [Page ${pageNum}]:`, e);
     return null;
   }
 }
 
-async function extractFromImage(
-  base64: string,
+async function extractClinicalData(
+  buffer: Buffer,
   pageNum: number
 ): Promise<any[]> {
   try {
+    const base64 = buffer.toString('base64');
     const response = await groq.chat.completions.create({
       model: 'llama-3.2-90b-vision-preview',
-      max_tokens: 2000,
+      max_tokens: 3000,
+      temperature: 0.1, // Low temperature for factual extraction
       messages: [
         {
           role: 'user',
@@ -205,38 +211,33 @@ async function extractFromImage(
             },
             {
               type: 'text',
-              text: `You are a medical MCQ extractor. Look at this page from a clinical question bank PDF.
+              text: `You are a medical MCQ extraction engine. Analyze this page from a board-review PDF.
 
-Extract ALL medical content exactly as written. Return a JSON array only, no other text.
+EXTRACT ALL medical content exactly as written. Return a JSON array only.
 
-Extraction Rules:
-1. If this page has QUESTIONS (labeled "Question N:"):
+RULES:
+1. Identify QUESTIONS (e.g., "Question 42:"):
 {
-  "question_number": integer,
-  "question_text": "exact text",
-  "option_a": "text only",
-  "option_b": "text only",
-  "option_c": "text only",
-  "option_d": "text only",
-  "has_image": boolean (true if image is part of question),
+  "question_number": number,
+  "question_text": "full text",
+  "option_a": "text",
+  "option_b": "text",
+  "option_c": "text",
+  "option_d": "text",
+  "has_image": boolean,
   "correct_answer": null,
   "explanation": null
 }
 
-2. If this page has SOLUTIONS (labeled "Solution to Question N:"):
+2. Identify SOLUTIONS (e.g., "Solution to Question 42:"):
 {
-  "question_number": integer,
-  "correct_answer": "a" or "b" or "c" or "d",
-  "explanation": "full text",
-  "question_text": null,
-  "option_a": null,
-  "option_b": null,
-  "option_c": null,
-  "option_d": null,
-  "has_image": false
+  "question_number": number,
+  "correct_answer": "a" | "b" | "c" | "d",
+  "explanation": "full reasoning",
+  "question_text": null
 }
 
-Return ONLY a valid JSON array. If the page is blank or irrelevant, return [].`,
+Return ONLY valid JSON. If page is blank, return [].`,
             },
           ],
         },
@@ -248,7 +249,7 @@ Return ONLY a valid JSON array. If the page is blank or irrelevant, return [].`,
     const parsed = JSON.parse(clean);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    console.error(`Vision API Failure Page ${pageNum}:`, e);
+    console.error(`Vision AI Failure [Page ${pageNum}]:`, e);
     return [];
   }
 }
