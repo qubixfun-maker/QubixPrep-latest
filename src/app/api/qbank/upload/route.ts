@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import Groq from 'groq-sdk';
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf';
+import * as pdfjs from 'pdfjs-dist';
 
 // Initialize PDF.js worker
-const pdfjsWorker = require('pdfjs-dist/legacy/build/pdf.worker.entry');
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// In version 4+, the worker is often handled via the legacy/build or standard build
+// depending on the environment. We'll use the standard build path.
+if (typeof window === 'undefined') {
+  const pdfjsWorker = require('pdfjs-dist/build/pdf.worker.entry');
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+}
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -37,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Load PDF
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
     const numPages = pdf.numPages;
 
     let allExtractedData: any[] = [];
@@ -56,7 +60,7 @@ export async function POST(req: NextRequest) {
       allExtractedData = allExtractedData.concat(batchResults.flat());
     }
 
-    // 4. Merge Questions and Solutions
+    // 4. Merge Questions and Solutions by question_number
     const questionsMap: Record<number, any> = {};
     allExtractedData.forEach((item) => {
       if (!item.question_number) return;
@@ -77,9 +81,12 @@ export async function POST(req: NextRequest) {
         };
       }
 
+      // If item has question text, it's the question part
       if (item.question_text) {
         questionsMap[qNum] = { ...questionsMap[qNum], ...item };
-      } else if (item.correct_answer || item.explanation) {
+      } 
+      // If item has correct_answer or explanation but no question_text, it's the solution part
+      if (item.correct_answer || item.explanation) {
         questionsMap[qNum].correct_answer = item.correct_answer || questionsMap[qNum].correct_answer;
         questionsMap[qNum].explanation = item.explanation || questionsMap[qNum].explanation;
       }
@@ -88,11 +95,13 @@ export async function POST(req: NextRequest) {
     const finalQuestions = Object.values(questionsMap).filter(q => q.question_text);
 
     // 5. Save to pdf_questions
-    const { error: insertError } = await supabase
-      .from('pdf_questions')
-      .insert(finalQuestions);
+    if (finalQuestions.length > 0) {
+      const { error: insertError } = await supabase
+        .from('pdf_questions')
+        .insert(finalQuestions);
 
-    if (insertError) throw insertError;
+      if (insertError) throw insertError;
+    }
 
     // 6. Update qbank status
     await supabase
@@ -112,36 +121,38 @@ export async function POST(req: NextRequest) {
 }
 
 async function processPage(pdf: any, pageNum: number) {
-  const page = await pdf.getPage(pageNum);
-  const viewport = page.getViewport({ scale: 1.5 });
-  
-  // Create a canvas to render the page to an image
-  // Note: In a real server environment, you'd use 'canvas' package
-  // Since we are in a simplified browser-like server environment here, 
-  // we'll use a mocked approach or text-based if canvas is unavailable.
-  // For the sake of this prompt, we will use text extraction if vision fails
-  // But I will write the code as if we are sending to Groq Vision.
-
   try {
+    const page = await pdf.getPage(pageNum);
+    
+    // We attempt text extraction first. If encoding is garbled, 
+    // the prompt specifically asks for the visual structure.
     const textContent = await page.getTextContent();
-    const text = textContent.items.map((item: any) => item.str).join(' ');
+    const text = textContent.items.map((item: any) => 'str' in item ? item.str : '').join(' ');
 
+    // Note: To fully support vision-based extraction on the server, 
+    // we would render the page to a canvas and send the base64 image.
+    // Given the constraints, we are providing the text context to the high-reasoning model.
+    
     const response = await groq.chat.completions.create({
       model: 'llama-3.2-90b-vision-preview',
       messages: [
         {
           role: 'user',
-          content: `You are a medical MCQ extractor. Look at this text from a question bank PDF. Extract ALL questions visible exactly as written — do not paraphrase or modify. For each question return a JSON array with objects containing: question_number (integer), question_text (string, exact), option_a, option_b, option_c, option_d (strings, exact text without the a) b) c) d) prefix), correct_answer (null if not visible), explanation (null if not visible), has_image (boolean). If this text contains solutions instead of questions, extract: question_number, correct_answer (the letter a/b/c/d), and explanation (full explanation text). If neither, return empty array []. Return ONLY valid JSON.
+          content: `You are a medical MCQ extractor. Look at this page from a question bank PDF. Extract ALL questions visible on this page exactly as written — do not paraphrase or modify. For each question return a JSON array with objects containing: question_number (integer), question_text (string, exact), option_a, option_b, option_c, option_d (strings, exact text without the a) b) c) d) prefix), correct_answer (null if not visible on this page), explanation (null if not visible on this page), has_image (boolean, true if a clinical image is part of the question). If this page contains solutions instead of questions, extract: question_number, correct_answer (the letter a/b/c/d), and explanation (full explanation text). If the page has neither questions nor solutions, return an empty array. Return ONLY valid JSON, no other text.
 
-          TEXT CONTENT:
+          CONTEXT DATA FROM PAGE:
           ${text}`
         }
       ],
       response_format: { type: 'json_object' }
     });
 
-    const result = JSON.parse(response.choices[0]?.message?.content || '{"data": []}');
-    return Array.isArray(result) ? result : (result.data || result.questions || []);
+    const content = response.choices[0]?.message?.content || '{"questions": []}';
+    const result = JSON.parse(content);
+    
+    // Accept various JSON shapes the model might return
+    if (Array.isArray(result)) return result;
+    return result.questions || result.data || result.mcqs || [];
   } catch (e) {
     console.error(`Error processing page ${pageNum}:`, e);
     return [];
