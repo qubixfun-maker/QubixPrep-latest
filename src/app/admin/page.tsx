@@ -1,8 +1,9 @@
+
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, setDoc } from "firebase/firestore"
+import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, setDoc, writeBatch } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,7 +26,8 @@ import {
   Layers,
   HelpCircle,
   Edit2,
-  FileDown
+  FileDown,
+  AlertTriangle
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -41,6 +43,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { errorEmitter } from '@/firebase/error-emitter'
+import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
@@ -99,7 +103,6 @@ export default function AdminDashboard() {
     explanation: ""
   })
 
-  // ALL hooks must be at the top level
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
 
@@ -124,7 +127,6 @@ export default function AdminDashboard() {
     }))
   }, [subjectContent.questions])
 
-  // Load content for active subject
   const fetchSubjectDetails = async () => {
     if (!db || !activeSubject) return
     setLoadingContent(true)
@@ -160,6 +162,23 @@ export default function AdminDashboard() {
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Restricted</h1><Link href="/"><Button className="mt-4">Return Home</Button></Link></div>
 
+  async function handleDeleteSubject(s: any) {
+    if (!db || !confirm(`DANGER: This will delete the entire "${s.name}" subject record. Contents (topics, mindmaps) must be cleared first. Proceed?`)) return
+    
+    const subjectRef = doc(db, 'subjects', s.id)
+    try {
+      await deleteDoc(subjectRef)
+      toast({ title: "Subject Removed" })
+      setActiveSubject(null)
+    } catch (e: any) {
+      const permissionError = new FirestorePermissionError({
+        path: subjectRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    }
+  }
+
   async function handleSyncCounters() {
     if (!db || !activeSubject) return
     setLoadingContent(true)
@@ -187,9 +206,12 @@ export default function AdminDashboard() {
 
   async function handleDeleteTopic(topic: any) {
     if (!db || !confirm(`Delete "${topic.title}"?`)) return
+    
+    const sId = topic.subjectId
+    const topicRef = doc(db, 'subjects', sId, 'topics', topic.id)
+    
     try {
-      const sId = topic.subjectId
-      await deleteDoc(doc(db, 'subjects', sId, 'topics', topic.id))
+      await deleteDoc(topicRef)
       await updateDoc(doc(db, 'subjects', sId), { topicCount: increment(-1) })
       
       if (topic.storagePath) {
@@ -199,15 +221,22 @@ export default function AdminDashboard() {
       setSubjectContent(prev => ({ ...prev, topics: prev.topics.filter(t => t.id !== topic.id) }))
       toast({ title: "Content Removed" })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Deletion Error", description: e.message })
+      const permissionError = new FirestorePermissionError({
+        path: topicRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
     }
   }
 
   async function handleDeleteMindmap(mm: any) {
     if (!db || !confirm(`Delete mindmap "${mm.title}"?`)) return
+    
+    const subjectId = mm.subjectId
+    const mmRef = doc(db, 'subjects', subjectId, 'mindmaps', mm.id)
+    
     try {
-      const subjectId = mm.subjectId
-      await deleteDoc(doc(db, 'subjects', subjectId, 'mindmaps', mm.id))
+      await deleteDoc(mmRef)
       await updateDoc(doc(db, 'subjects', subjectId), { mindmapCount: increment(-1) })
       
       if (mm.storagePath) {
@@ -217,19 +246,51 @@ export default function AdminDashboard() {
       setSubjectContent(prev => ({ ...prev, mindmaps: prev.mindmaps.filter(m => m.id !== mm.id) }))
       toast({ title: "Mindmap Removed" })
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Deletion Error", description: e.message })
+      const permissionError = new FirestorePermissionError({
+        path: mmRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
     }
   }
 
   async function handleDeleteQuestion(qId: number) {
     if (!confirm("Are you sure you want to delete this clinical case?")) return
+    
+    // Optimistic Update
+    const originalQuestions = [...subjectContent.questions]
+    setSubjectContent(prev => ({ ...prev, questions: prev.questions.filter(q => q.id !== qId) }))
+
     try {
       const { error } = await supabase.from('questions').delete().eq('id', qId)
-      if (error) throw error
+      if (error) {
+        setSubjectContent(prev => ({ ...prev, questions: originalQuestions }))
+        throw error
+      }
       toast({ title: "Question Deleted" })
-      fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
+    }
+  }
+
+  async function handleDeleteTopicGroup(topicName: string) {
+    if (!confirm(`DANGER: Delete ALL clinical cases in topic "${topicName}"?`)) return
+    
+    setLoadingContent(true)
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .delete()
+        .eq('subject_id', activeSubject?.toLowerCase().replace(/\s+/g, '-'))
+        .eq('topic_title', topicName)
+      
+      if (error) throw error
+      toast({ title: "Topic Cleared" })
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Batch Error", description: e.message })
+    } finally {
+      setLoadingContent(false)
     }
   }
 
@@ -426,7 +487,6 @@ export default function AdminDashboard() {
         const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
         
         const newQuestions = rows.map(row => {
-          // Simple CSV parser logic
           const parts = row.split(',').map(s => s.trim().replace(/^"(.*)"$/, '$1'))
           if (parts.length < 8) return null
           
@@ -510,20 +570,30 @@ export default function AdminDashboard() {
             {subjectsLoading ? (
               <div className="p-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin opacity-20" /></div>
             ) : subjects?.map((s: any) => (
-              <button 
-                key={s.id}
-                onClick={() => setActiveSubject(s.name)}
-                className={`w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors group ${activeSubject === s.name ? 'bg-primary/10 border-r-2 border-primary' : ''}`}
-              >
-                <div>
-                  <p className="font-bold text-sm group-hover:text-primary transition-colors">{s.name}</p>
-                  <div className="flex gap-2 mt-1">
-                    <span className="text-[9px] text-muted-foreground uppercase">{s.topicCount || 0} Content</span>
-                    <span className="text-[9px] text-muted-foreground uppercase">{s.questionCount || 0} MCQs</span>
+              <div key={s.id} className={`group relative ${activeSubject === s.name ? 'bg-primary/10' : ''}`}>
+                <button 
+                  onClick={() => setActiveSubject(s.name)}
+                  className={`w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors ${activeSubject === s.name ? 'border-r-2 border-primary' : ''}`}
+                >
+                  <div className="flex-1 min-w-0 pr-8">
+                    <p className="font-bold text-sm group-hover:text-primary transition-colors truncate">{s.name}</p>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[9px] text-muted-foreground uppercase">{s.topicCount || 0} Content</span>
+                      <span className="text-[9px] text-muted-foreground uppercase">{s.questionCount || 0} MCQs</span>
+                    </div>
                   </div>
-                </div>
-                <ChevronRight className={`h-4 w-4 transition-transform ${activeSubject === s.name ? 'rotate-90 text-primary' : 'opacity-10 group-hover:opacity-100'}`} />
-              </button>
+                  <ChevronRight className={`h-4 w-4 transition-transform ${activeSubject === s.name ? 'rotate-90 text-primary' : 'opacity-10 group-hover:opacity-100'}`} />
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteSubject(s);
+                  }}
+                  className="absolute right-12 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             ))}
           </div>
         </Card>
@@ -670,33 +740,43 @@ export default function AdminDashboard() {
                                    <AccordionContent className="pb-4 space-y-6">
                                       {group.topics.map((topicGroup, tIdx) => (
                                         <div key={tIdx} className="space-y-3 pl-4 border-l border-white/10">
-                                          <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center justify-between mb-2 bg-black/20 p-2 rounded-lg">
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                                               <ChevronRight className="h-3 w-3 text-accent" /> {topicGroup.topic} ({topicGroup.questions.length} cases)
                                             </p>
-                                            <Button 
-                                              variant="ghost" 
-                                              size="sm" 
-                                              className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-primary/10 hover:text-primary gap-1"
-                                              onClick={() => {
-                                                setQbankForm({
-                                                  id: null,
-                                                  subjectId: activeSubject || "",
-                                                  unit_title: group.unit,
-                                                  topic_title: topicGroup.topic,
-                                                  question_text: "",
-                                                  option1: "",
-                                                  option2: "",
-                                                  option3: "",
-                                                  option4: "",
-                                                  correct_answer_index: "0",
-                                                  explanation: ""
-                                                })
-                                                setIsEditingQuestion(true)
-                                              }}
-                                            >
-                                              <Plus className="h-2.5 w-2.5" /> Add to Topic
-                                            </Button>
+                                            <div className="flex gap-1">
+                                              <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-primary/10 hover:text-primary gap-1"
+                                                onClick={() => {
+                                                  setQbankForm({
+                                                    id: null,
+                                                    subjectId: activeSubject || "",
+                                                    unit_title: group.unit,
+                                                    topic_title: topicGroup.topic,
+                                                    question_text: "",
+                                                    option1: "",
+                                                    option2: "",
+                                                    option3: "",
+                                                    option4: "",
+                                                    correct_answer_index: "0",
+                                                    explanation: ""
+                                                  })
+                                                  setIsEditingQuestion(true)
+                                                }}
+                                              >
+                                                <Plus className="h-2.5 w-2.5" /> Add
+                                              </Button>
+                                              <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-destructive/10 hover:text-destructive gap-1"
+                                                onClick={() => handleDeleteTopicGroup(topicGroup.topic)}
+                                              >
+                                                <Trash2 className="h-2.5 w-2.5" /> Clear Topic
+                                              </Button>
+                                            </div>
                                           </div>
                                           <div className="grid gap-2">
                                             {topicGroup.questions.map((q: any, qIdx: number) => (
