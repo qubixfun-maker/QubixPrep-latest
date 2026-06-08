@@ -57,13 +57,23 @@ export function MyPdfQbanks() {
         body: formData,
       })
 
-      if (!response.ok) throw new Error('Failed to process PDF')
-      
       const result = await response.json()
-      toast({ title: "Extraction Successful", description: `Found ${result.count} clinical cases.` })
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to process PDF library.')
+      }
+      
+      toast({ 
+        title: "Extraction Successful", 
+        description: `Successfully analyzed and extracted ${result.count} clinical cases.` 
+      })
       fetchQBanks()
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Extraction Failed", description: e.message })
+      toast({ 
+        variant: "destructive", 
+        title: "AI Extraction Error", 
+        description: e.message 
+      })
     } finally {
       setUploading(false)
       setUploadProgress(0)
@@ -76,7 +86,7 @@ export function MyPdfQbanks() {
       await supabase.from('pdf_questions').delete().eq('qbank_id', id)
       await supabase.from('pdf_qbanks').delete().eq('id', id)
       fetchQBanks()
-      toast({ title: "QBank Removed" })
+      toast({ title: "Library Removed" })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Deletion Failed" })
     }
@@ -89,8 +99,8 @@ export function MyPdfQbanks() {
       <div className="flex flex-col md:flex-row gap-6">
         <Card className="flex-1 glass border-none">
           <CardHeader>
-            <CardTitle>Upload Marrow-style PDF</CardTitle>
-            <CardDescription>Upload question bank PDFs. AI will extract MCQs and solutions automatically.</CardDescription>
+            <CardTitle>Upload Medical PDF</CardTitle>
+            <CardDescription>Upload question bank PDFs (e.g., Marrow, Pre-PLAB). AI will extract cases and clinical logic automatically.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="border-2 border-dashed border-white/10 rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-4 hover:border-primary/50 transition-colors cursor-pointer relative group">
@@ -105,16 +115,16 @@ export function MyPdfQbanks() {
                 <FileUp className="h-8 w-8" />
               </div>
               <div className="space-y-1">
-                <p className="font-bold">Click or drag PDF to begin extraction</p>
-                <p className="text-xs text-muted-foreground">Supports Question 1: and Solution format</p>
+                <p className="font-bold">Click to upload study PDF</p>
+                <p className="text-xs text-muted-foreground">Standardized Board Format Supported</p>
               </div>
             </div>
 
             {uploading && (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-bold uppercase">
-                  <span className="flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> AI Extraction in Progress...</span>
-                  <span>Processing Pages</span>
+                  <span className="flex items-center gap-2 text-primary animate-pulse"><Loader2 className="h-3 w-3 animate-spin" /> Analyzing Clinical Patterns...</span>
+                  <span>Processing...</span>
                 </div>
                 <Progress value={uploadProgress} className="h-2" />
               </div>
@@ -125,15 +135,15 @@ export function MyPdfQbanks() {
         <Card className="md:w-80 glass border-none bg-accent/5">
           <CardHeader>
             <CardTitle className="text-sm uppercase tracking-widest text-accent flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" /> Secure Extraction
+              <ShieldCheck className="h-4 w-4" /> Secure Vault
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-xs leading-relaxed text-muted-foreground">
-            <p>• Questions extracted exactly as written.</p>
-            <p>• Automated solution matching via OCR logic.</p>
-            <p>• Vision-based processing for high accuracy.</p>
+            <p>• Vision-based processing bypasses encrypted fonts.</p>
+            <p>• Automated matching of cases with clinical logic.</p>
+            <p>• Encrypted storage for private libraries.</p>
             <div className="pt-4 flex items-center gap-2 text-white font-bold">
-              <Database className="h-4 w-4" /> {qbanks.length} Banks Active
+              <Database className="h-4 w-4" /> {qbanks.length} Libraries Ready
             </div>
           </CardContent>
         </Card>
@@ -146,7 +156,7 @@ export function MyPdfQbanks() {
         {qbanks.length === 0 ? (
           <div className="text-center py-20 glass rounded-3xl text-muted-foreground border-2 border-dashed border-white/5">
             <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-10" />
-            <p>No custom QBanks yet. Upload your first PDF to get started.</p>
+            <p>No custom libraries found. Upload a study PDF to begin extraction.</p>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-4">
