@@ -70,7 +70,7 @@ export function AppSidebar() {
       icon: Database,
     },
     {
-      title: "Test Series",
+      title: "Custom quiz",
       url: "/test-series",
       icon: Trophy,
     },

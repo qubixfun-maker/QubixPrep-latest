@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
@@ -138,7 +137,7 @@ export default function TestSeriesPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-            <Trophy className="h-10 w-10 text-primary" /> Test Series
+            <Trophy className="h-10 w-10 text-primary" /> Custom quiz
           </h1>
           <p className="text-muted-foreground text-lg">Build clinical simulations tailored to your curriculum focus.</p>
         </div>
@@ -382,7 +381,7 @@ export default function TestSeriesPage() {
               <Button 
                 onClick={handleStart}
                 disabled={selectedSubjects.length === 0}
-                className="w-full h-14 rounded-xl text-lg font-bold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20 gap-2"
+                className="w-full h-14 rounded-xl text-lg font-bold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/30 gap-2"
               >
                 Launch Simulation <ArrowRight className="h-5 w-5" />
               </Button>
