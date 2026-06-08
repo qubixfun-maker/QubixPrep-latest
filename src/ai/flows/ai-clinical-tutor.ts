@@ -1,9 +1,7 @@
+
 'use server';
 /**
- * @fileOverview AI Clinical Tutor for QBank and Test Series.
- * 
- * - explainClinicalCase - Provides a deep explanation of an MCQ.
- * - analyzeTestPerformance - Summarizes strengths and weaknesses after a test session.
+ * @fileOverview AI Clinical Tutor powered by Groq.
  */
 
 import { ai } from '@/ai/genkit';
@@ -25,13 +23,6 @@ const PerformanceInputSchema = z.object({
   })),
 });
 export type PerformanceInput = z.infer<typeof PerformanceInputSchema>;
-
-const safetySettings: any = [
-  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-];
 
 export async function explainClinicalCase(input: ExplainCaseInput) {
   return explainClinicalCaseFlow(input);
@@ -62,7 +53,6 @@ const explainClinicalCaseFlow = ai.defineFlow(
       ${input.userAnswer ? `Student selected: ${input.userAnswer}` : ''}
 
       Output in clean Markdown.`,
-      config: { safetySettings }
     });
     return text;
   }
@@ -85,7 +75,6 @@ const analyzeTestPerformanceFlow = ai.defineFlow(
       3. Offer a word of encouragement in a professional medical tone.
 
       Output in clean Markdown.`,
-      config: { safetySettings }
     });
     return text;
   }

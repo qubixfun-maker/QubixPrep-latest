@@ -1,17 +1,18 @@
+
 import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
+import { groq } from 'genkitx-groq';
 
 /**
- * Genkit initialization for server-side AI processing.
+ * Genkit initialization for Groq AI processing.
  * 
- * Explicitly draws the API key from environment variables (GOOGLE_GENAI_API_KEY or GEMINI_API_KEY).
- * Forces the use of the Gemini 2.5 Flash model for efficient processing.
+ * Uses the Groq API key from environment variables.
+ * Defaults to llama-3.3-70b-versatile for high-performance medical analysis.
  */
-const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
 export const ai = genkit({
   plugins: [
-    googleAI({ apiKey: apiKey }),
+    groq({ apiKey: apiKey }),
   ],
-  model: 'googleai/gemini-2.5-flash', 
+  model: 'groq/llama-3.3-70b-versatile', 
 });

@@ -1,10 +1,7 @@
+
 'use server';
 /**
- * @fileOverview An AI agent that summarizes medical notes for students.
- *
- * - aiNoteSummarizer - A function that handles the medical note summarization process.
- * - AiNoteSummarizerInput - The input type for the aiNoteSummarizer function.
- * - AiNoteSummarizerOutput - The return type for the aiNoteSummarizer function.
+ * @fileOverview AI Note Summarizer powered by Groq.
  */
 
 import { ai } from '@/ai/genkit';

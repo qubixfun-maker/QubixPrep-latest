@@ -1,10 +1,7 @@
+
 'use server';
 /**
- * @fileOverview An AI agent that generates multiple-choice quizzes and flashcards from a given medical study topic.
- *
- * - generateQuizAndFlashcards - A function that handles the generation process.
- * - GenerateQuizAndFlashcardsInput - The input type for the generateQuizAndFlashcards function.
- * - GenerateQuizAndFlashcardsOutput - The return type for the generateQuizAndFlashcards function.
+ * @fileOverview AI Quiz and Flashcard Generator powered by Groq.
  */
 
 import {ai} from '@/ai/genkit';

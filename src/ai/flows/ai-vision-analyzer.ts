@@ -1,8 +1,7 @@
+
 'use server';
 /**
- * @fileOverview A multimodal AI agent that performs OCR and medical analysis on images/screenshots.
- * 
- * - analyzeMedicalImage - Extracts text from a medical image and processes it for study.
+ * @fileOverview Multimodal Vision analysis powered by Groq Llama 3.2 Vision.
  */
 
 import { ai } from '@/ai/genkit';
@@ -26,6 +25,7 @@ const aiVisionFlow = ai.defineFlow(
   },
   async (input) => {
     const { text } = await ai.generate({
+      model: 'groq/llama-3.2-90b-vision-preview',
       prompt: [
         { media: { url: input.imageDataUri, contentType: 'image/jpeg' } },
         { text: `You are a medical OCR specialist. 
