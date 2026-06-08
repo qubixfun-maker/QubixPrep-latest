@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo } from "react"
@@ -15,7 +14,8 @@ import {
   CloudUpload,
   Network,
   Database,
-  Trophy
+  Trophy,
+  User
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -139,6 +139,20 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/profile"}
+                  tooltip="Profile"
+                  className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                >
+                  <Link href="/profile">
+                    <User className="h-5 w-5" />
+                    <span className="font-medium">Profile</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

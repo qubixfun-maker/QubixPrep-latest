@@ -1,9 +1,8 @@
-
 "use client"
 
 import { useState, useMemo, use, useEffect, useRef } from "react"
-import { useDoc, useFirestore } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useDoc, useFirestore, useUser } from "@/firebase"
+import { doc, setDoc, deleteDoc } from "firebase/firestore"
 import { 
   ArrowLeft, 
   Bookmark, 
@@ -23,7 +22,8 @@ import {
   Zap,
   Camera,
   X,
-  Video
+  Video,
+  CheckCircle2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
@@ -42,11 +42,21 @@ import { analyzeMedicalImage } from "@/ai/flows/ai-vision-analyzer"
 export default function NoteViewerPage({ params }: { params: Promise<{ id: string, topicId: string }> }) {
   const { id, topicId } = use(params)
   
+  const { user } = useUser()
   const db = useFirestore()
   const { toast } = useToast()
-  const [isBookmarked, setIsBookmarked] = useState(false)
+  
   const [isFullView, setIsFullView] = useState(false)
   
+  // Progress State
+  const progressRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid, 'progress', topicId), [db, user, topicId])
+  const { data: progress, loading: progressLoading } = useDoc(progressRef)
+  const isCompleted = progress?.completed === true
+
+  const bookmarkRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid, 'bookmarks', topicId), [db, user, topicId])
+  const { data: bookmarkData } = useDoc(bookmarkRef)
+  const isBookmarked = !!bookmarkData
+
   // AI States
   const [inputText, setInputText] = useState("")
   const [isAiLoading, setIsAiLoading] = useState(false)
@@ -80,7 +90,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   const topicRef = useMemo(() => (!db) ? null : doc(db, 'subjects', id, 'topics', topicId), [db, id, topicId])
   const { data: topic, loading } = useDoc(topicRef)
 
-  if (loading) {
+  if (loading || progressLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0a0a0c]">
         <div className="flex flex-col items-center gap-4">
@@ -110,12 +120,50 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
 
   const topicData = topic as any
 
+  const handleToggleComplete = async () => {
+    if (!progressRef) return
+    try {
+      await setDoc(progressRef, { 
+        completed: !isCompleted,
+        type: topicData.contentType,
+        subjectId: id,
+        updatedAt: new Date().toISOString()
+      }, { merge: true })
+      toast({ 
+        title: !isCompleted ? "Topic Mastered!" : "Progress Reset",
+        description: !isCompleted ? "This topic has been added to your completed list." : "Topic status updated."
+      })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: e.message })
+    }
+  }
+
+  const handleToggleBookmark = async () => {
+    if (!bookmarkRef) return
+    try {
+      if (isBookmarked) {
+        await deleteDoc(bookmarkRef)
+        toast({ title: "Bookmark Removed" })
+      } else {
+        await setDoc(bookmarkRef, {
+          topicId,
+          subjectId: id,
+          title: topicData.title,
+          type: topicData.contentType,
+          savedAt: new Date().toISOString()
+        })
+        toast({ title: "Note Bookmarked" })
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Action Failed" })
+    }
+  }
+
   const getViewerUrl = (url: string) => {
     if (topicData.contentType === 'pdf') {
        return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
     }
     if (topicData.contentType === 'video') {
-       // Support YouTube embed conversion
        if (url.includes('youtube.com/watch?v=') || url.includes('youtu.be/')) {
          const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
          return `https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`;
@@ -213,6 +261,18 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
         </div>
 
         <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={`h-8 gap-2 rounded-xl transition-all ${isCompleted ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'text-muted-foreground hover:text-white'}`}
+            onClick={handleToggleComplete}
+          >
+            <CheckCircle2 className={`h-4 w-4 ${isCompleted ? 'fill-current' : ''}`} />
+            <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-tighter">
+              {isCompleted ? 'Completed' : 'Mark as Done'}
+            </span>
+          </Button>
+
           <Button 
             variant="ghost" 
             size="sm" 
@@ -347,7 +407,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={() => setIsBookmarked(!isBookmarked)}
+            onClick={handleToggleBookmark}
             className={`h-9 w-9 rounded-xl ${isBookmarked ? 'text-accent' : 'text-muted-foreground'}`}
           >
             <Bookmark className={`h-4.5 w-4.5 ${isBookmarked ? 'fill-current' : ''}`} />
