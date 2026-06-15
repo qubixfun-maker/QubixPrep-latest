@@ -1,22 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server'
+
+import { NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID!,
-  key_secret: process.env.RAZORPAY_KEY_SECRET!,
-})
+export async function POST(req: Request) {
+  const { amount, planId, userId } = await req.json()
 
-export async function POST(req: NextRequest) {
+  if (!amount || !planId || !userId) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+
+  const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID!,
+    key_secret: process.env.RAZORPAY_KEY_SECRET!,
+  })
+
+  const options = {
+    amount,
+    currency: 'INR',
+    receipt: `receipt_${planId}_${userId}`,
+    notes: {
+      planId,
+      userId
+    }
+  }
+
   try {
-    const { amount, userId, planId } = await req.json()
-    const order = await razorpay.orders.create({
-      amount,
-      currency: 'INR',
-      receipt: `receipt_${userId}_${planId}_${Date.now()}`,
-      notes: { userId, planId }
-    })
+    const order = await razorpay.orders.create(options)
     return NextResponse.json({ orderId: order.id, currency: order.currency })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch (error) {
+    console.error("Razorpay order creation failed:", error)
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
 }

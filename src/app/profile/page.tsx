@@ -25,12 +25,17 @@ import {
   Target,
   CheckCircle2,
   Lock,
-  Upload
+  Upload,
+  Crown,
+  Zap,
+  BookOpen
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
+import { usePlan } from '@/hooks/use-plan'
+import Link from 'next/link'
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useUser()
@@ -39,6 +44,7 @@ export default function ProfilePage() {
   const { toast } = useToast()
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { plan, isFree, isBasic, isPro } = usePlan()
 
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
@@ -340,6 +346,44 @@ export default function ProfilePage() {
         </div>
 
         <div className="space-y-6">
+          <Card className="glass border-none overflow-hidden">
+            <div className={`h-2 ${isPro ? 'bg-primary' : isBasic ? 'bg-accent' : 'bg-white/20'}`} />
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                {isPro ? <Zap className="h-5 w-5 text-primary" /> : isBasic ? <Crown className="h-5 w-5 text-accent" /> : <BookOpen className="h-5 w-5 text-muted-foreground" />}
+                Current Plan
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className={`p-4 rounded-2xl border flex items-center justify-between ${isPro ? 'bg-primary/10 border-primary/20' : isBasic ? 'bg-accent/10 border-accent/20' : 'bg-white/5 border-white/10'}`}>
+                <div>
+                  <p className={`text-xl font-bold ${isPro ? 'text-primary' : isBasic ? 'text-accent' : 'text-white'}`}>
+                    {isPro ? 'Clinician' : isBasic ? 'Scholar' : 'Explorer'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                    {isPro ? '₹59/month' : isBasic ? '₹29/month' : 'Free forever'}
+                  </p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${isPro ? 'bg-primary/20 text-primary' : isBasic ? 'bg-accent/20 text-accent' : 'bg-white/10 text-muted-foreground'}`}>
+                  Active
+                </div>
+              </div>
+              {!isPro && (
+                <Link href="/pricing">
+                  <Button className={`w-full rounded-xl h-11 font-bold gap-2 ${isBasic ? 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30' : 'bg-accent/20 hover:bg-accent/30 text-accent border border-accent/30'}`}>
+                    {isBasic ? <Zap className="h-4 w-4" /> : <Crown className="h-4 w-4" />}
+                    {isBasic ? 'Upgrade to Clinician' : 'Upgrade Plan'}
+                  </Button>
+                </Link>
+              )}
+              {isPro && (
+                <p className="text-[10px] text-center text-muted-foreground">
+                  All features unlocked · Cancel from billing
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="glass border-none overflow-hidden">
             <div className="h-2 bg-gradient-to-r from-primary to-accent" />
             <CardHeader>
