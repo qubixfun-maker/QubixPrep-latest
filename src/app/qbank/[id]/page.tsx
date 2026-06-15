@@ -66,7 +66,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
         .from('questions')
         .select('*')
         .eq('subject_id', subjectId)
-        .order('unit_number', { ascending: true })
+        .order('created_at', { ascending: true })
       
       if (error) {
         toast({ variant: "destructive", title: "Fetch Error", description: error.message })
