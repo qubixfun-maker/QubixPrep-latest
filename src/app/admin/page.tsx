@@ -27,7 +27,8 @@ import {
   HelpCircle,
   Edit2,
   FileDown,
-  AlertTriangle
+  AlertTriangle,
+  Trophy
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -63,6 +64,7 @@ export default function AdminDashboard() {
   const [isEditingQuestion, setIsEditingQuestion] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
+  const [isUploadingPYQ, setIsUploadingPYQ] = useState(false)
   
   const [topicForm, setTopicForm] = useState({
     subjectId: "",
@@ -534,6 +536,42 @@ export default function AdminDashboard() {
     reader.readAsText(file)
   }
 
+  async function handleImportPYQ(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string
+        const rows = text.split('\n').slice(1)
+        const questions = rows.map(row => {
+          const parts = row.split(',').map(s => s.trim().replace(/^"(.*)"$/, '$1'))
+          if (parts.length < 8) return null
+          return {
+            exam_type: parts[0],
+            year: parseInt(parts[1]),
+            subject: parts[2] || null,
+            question_text: parts[3],
+            option1: parts[4],
+            option2: parts[5],
+            option3: parts[6] || null,
+            option4: parts[7] || null,
+            correct_answer_index: parseInt(parts[8]) || 0,
+            explanation: parts[9] || null
+          }
+        }).filter(Boolean)
+        const { error } = await supabase.from('pyq_questions').insert(questions)
+        if (error) throw error
+        toast({ title: "PYQ Imported", description: `${questions.length} questions added.` })
+        setIsUploadingPYQ(false)
+      } catch (e: any) {
+        toast({ variant: "destructive", title: "Import Failed", description: e.message })
+      } finally { setUploading(false) }
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -547,6 +585,9 @@ export default function AdminDashboard() {
           <Button onClick={() => setIsAddingTopic(true)} className="rounded-xl gap-2"><Plus className="h-4 w-4" /> New Note</Button>
           <Button onClick={() => setIsAddingVideo(true)} variant="secondary" className="rounded-xl gap-2"><Video className="h-4 w-4" /> Add Video</Button>
           <Button onClick={() => setIsAddingMindmap(true)} variant="outline" className="rounded-xl gap-2 glass"><Network className="h-4 w-4" /> New Mindmap</Button>
+          <Button onClick={() => setIsUploadingPYQ(true)} variant="outline" className="rounded-xl gap-2 glass">
+            <Trophy className="h-4 w-4" /> Upload PYQ
+          </Button>
           <Button 
             onClick={() => {
               setQbankForm({
@@ -896,6 +937,26 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+
+      <Dialog open={isUploadingPYQ} onOpenChange={setIsUploadingPYQ}>
+        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upload PYQ Questions</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+              <p className="text-[10px] font-bold uppercase text-primary">Required CSV Headers</p>
+              <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                exam_type, year, subject, question_text, option1, option2, option3, option4, correct_answer_index, explanation
+              </p>
+              <p className="text-[9px] text-muted-foreground">exam_type: NEET PG / INICET / USMLE Step 1 / USMLE Step 2 / FMGE</p>
+            </div>
+            <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={handleImportPYQ} disabled={uploading} />
+            {uploading && <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 animate-pulse"><Loader2 className="h-4 w-4 animate-spin text-primary" /><span className="text-[10px] font-bold uppercase">Importing...</span></div>}
+          </div>
+          <DialogFooter><Button variant="ghost" onClick={() => setIsUploadingPYQ(false)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Question Dialog */}
       <Dialog open={isEditingQuestion} onOpenChange={setIsEditingQuestion}>

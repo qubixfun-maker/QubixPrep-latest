@@ -71,6 +71,11 @@ export function AppSidebar() {
       icon: Database,
     },
     {
+      title: "PYQ Series", 
+      url: "/pyq", 
+      icon: Trophy
+    },
+    {
       title: "Custom quiz",
       url: "/test-series",
       icon: Trophy,
