@@ -1,9 +1,9 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useUser, useFirestore } from "@/firebase"
+import { useUser } from "@/firebase"
+import { useFirestore } from "@/firebase/provider"
 import { doc, getDoc } from "firebase/firestore"
 import { StudyHeatMap } from "@/components/dashboard/heat-map"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,22 +29,46 @@ export default function Dashboard() {
   const [checkingRole, setCheckingRole] = useState(true)
 
   useEffect(() => {
+    let isMounted = true;
+
     async function checkUserRole() {
-      if (!loading) {
-        if (!user) {
-          router.push("/signup")
-        } else if (db) {
-          const userRef = doc(db, 'users', user.uid)
-          const docSnap = await getDoc(userRef)
+      // 1. Wait until the user authentication state is resolved
+      if (loading) return;
+
+      // 2. If no user is authenticated, redirect to signup
+      if (!user) {
+        router.push("/signup")
+        return;
+      }
+
+      // 3. Wait until Firestore provider is fully available
+      if (!db) return;
+
+      try {
+        const userRef = doc(db, 'users', user.uid)
+        const docSnap = await getDoc(userRef)
+        
+        if (isMounted) {
           if (docSnap.exists() && (docSnap.data() as any).role === 'admin') {
             router.push("/admin")
           } else {
             setCheckingRole(false)
           }
         }
+      } catch (error) {
+        console.error("Error fetching user role:", error)
+        if (isMounted) {
+          setCheckingRole(false) // Fallback so user isn't stuck on loading screen
+        }
       }
     }
+
     checkUserRole()
+
+    // Cleanup subscription to prevent memory leaks / state updates on unmounted components
+    return () => {
+      isMounted = false;
+    };
   }, [user, loading, router, db])
 
   if (loading || checkingRole) {

@@ -8,12 +8,16 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ChevronRight, Share2, LayoutList, Loader2, FileText, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
+import { usePlan } from '@/hooks/use-plan'
+import { UpgradeGate } from '@/components/upgrade-gate'
 
 export default function SubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
   
   const { user } = useUser()
   const db = useFirestore()
+
+  const { canAccessContent, isFree } = usePlan()
 
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set())
 
@@ -110,35 +114,72 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         ) : (
           <div className="space-y-3">
-            {pdfTopics.map((topic: any) => {
-              const isDone = completedTopics.has(topic.id)
-              return (
-                <Link key={topic.id} href={`/notes/${subjectId}/${topic.id}`}>
-                  <div className={`glass group p-6 rounded-2xl border transition-all flex items-center justify-between cursor-pointer mb-3 ${isDone ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 hover:border-primary/50'}`}>
-                    <div className="flex items-center gap-6">
-                      <div className={`p-3 rounded-full ${isDone ? 'bg-green-500/10 text-green-400' : 'bg-primary/10 text-primary'}`}>
-                        {isDone ? <CheckCircle2 className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-lg group-hover:text-primary transition-colors">{topic.title}</h4>
-                          {isDone && <span className="text-[10px] font-black uppercase text-green-400 tracking-tighter">Done</span>}
+            {isFree ? (
+              <>
+                {pdfTopics.slice(0, 3).map((topic: any) => {
+                  const isDone = completedTopics.has(topic.id)
+                  return (
+                    <Link key={topic.id} href={`/notes/${subjectId}/${topic.id}`}>
+                      <div className={`glass group p-6 rounded-2xl border transition-all flex items-center justify-between cursor-pointer mb-3 ${isDone ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 hover:border-primary/50'}`}>
+                        <div className="flex items-center gap-6">
+                          <div className={`p-3 rounded-full ${isDone ? 'bg-green-500/10 text-green-400' : 'bg-primary/10 text-primary'}`}>
+                            {isDone ? <CheckCircle2 className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-lg group-hover:text-primary transition-colors">{topic.title}</h4>
+                              {isDone && <span className="text-[10px] font-black uppercase text-green-400 tracking-tighter">Done</span>}
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1 uppercase tracking-tighter">{topic.unitName || 'General'}</span>
+                              <span className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold ${topic.importance === 'High' || topic.importance === 'Essential' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                {topic.importance}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                          <span className="flex items-center gap-1 uppercase tracking-tighter">{topic.unitName || 'General'}</span>
-                          <span className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold ${topic.importance === 'High' || topic.importance === 'Essential' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                            {topic.importance}
-                          </span>
+                        <Button variant="ghost" size="icon" className="group-hover:translate-x-1 transition-transform">
+                          <ChevronRight className="h-5 w-5" />
+                        </Button>
+                      </div>
+                    </Link>
+                  )
+                })}
+                {pdfTopics.length > 3 && (
+                  <UpgradeGate type="content" title={`${pdfTopics.length - 3} more notes locked`} description="Upgrade to Scholar to access the full library for this subject." />
+                )}
+              </>
+            ) : (
+              pdfTopics.map((topic: any) => {
+                const isDone = completedTopics.has(topic.id)
+                return (
+                  <Link key={topic.id} href={`/notes/${subjectId}/${topic.id}`}>
+                    <div className={`glass group p-6 rounded-2xl border transition-all flex items-center justify-between cursor-pointer mb-3 ${isDone ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 hover:border-primary/50'}`}>
+                      <div className="flex items-center gap-6">
+                        <div className={`p-3 rounded-full ${isDone ? 'bg-green-500/10 text-green-400' : 'bg-primary/10 text-primary'}`}>
+                          {isDone ? <CheckCircle2 className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-lg group-hover:text-primary transition-colors">{topic.title}</h4>
+                            {isDone && <span className="text-[10px] font-black uppercase text-green-400 tracking-tighter">Done</span>}
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1 uppercase tracking-tighter">{topic.unitName || 'General'}</span>
+                            <span className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold ${topic.importance === 'High' || topic.importance === 'Essential' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                              {topic.importance}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <Button variant="ghost" size="icon" className="group-hover:translate-x-1 transition-transform">
+                        <ChevronRight className="h-5 w-5" />
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="icon" className="group-hover:translate-x-1 transition-transform">
-                      <ChevronRight className="h-5 w-5" />
-                    </Button>
-                  </div>
-                </Link>
-              )
-            })}
+                  </Link>
+                )
+              })
+            )}
             {pdfTopics.length === 0 && (
               <div className="text-center py-20 text-muted-foreground border-2 border-dashed border-white/5 rounded-3xl">
                 No notes uploaded for this subject yet.

@@ -43,8 +43,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { errorEmitter } from '@/firebase/error-emitter'
-import { FirestorePermissionError } from '@/firebase/errors'
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
@@ -71,6 +69,7 @@ export default function AdminDashboard() {
     unitName: "",
     title: "",
     importance: "Medium" as "Low" | "Medium" | "High" | "Essential",
+    tier: "free" as "free" | "paid",
     file: null as File | null
   })
 
@@ -79,13 +78,15 @@ export default function AdminDashboard() {
     unitName: "",
     title: "",
     url: "",
-    importance: "Medium" as "Low" | "Medium" | "High" | "Essential"
+    importance: "Medium" as "Low" | "Medium" | "High" | "Essential",
+    tier: "free" as "free" | "paid"
   })
 
   const [mindmapForm, setMindmapForm] = useState({
     subjectId: "",
     unitName: "",
     title: "",
+    tier: "free" as "free" | "paid",
     file: null as File | null
   })
 
@@ -163,7 +164,7 @@ export default function AdminDashboard() {
   if (!user || (profile as any)?.role !== 'admin') return <div className="h-[80vh] flex flex-col items-center justify-center p-6 text-center"><Lock className="h-12 w-12 text-destructive mb-4" /><h1 className="text-2xl font-bold">Admin Restricted</h1><Link href="/"><Button className="mt-4">Return Home</Button></Link></div>
 
   async function handleDeleteSubject(s: any) {
-    if (!db || !confirm(`DANGER: This will delete the entire "${s.name}" subject record. Contents (topics, mindmaps) must be cleared first. Proceed?`)) return
+    if (!db || !confirm(`DANGER: This will delete the entire \"${s.name}\" subject record. Contents (topics, mindmaps) must be cleared first. Proceed?`)) return
     
     const subjectRef = doc(db, 'subjects', s.id)
     try {
@@ -171,11 +172,7 @@ export default function AdminDashboard() {
       toast({ title: "Subject Removed" })
       setActiveSubject(null)
     } catch (e: any) {
-      const permissionError = new FirestorePermissionError({
-        path: subjectRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
     }
   }
 
@@ -205,7 +202,7 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteTopic(topic: any) {
-    if (!db || !confirm(`Delete "${topic.title}"?`)) return
+    if (!db || !confirm(`Delete \"${topic.title}\"?`)) return
     
     const sId = topic.subjectId
     const topicRef = doc(db, 'subjects', sId, 'topics', topic.id)
@@ -221,16 +218,12 @@ export default function AdminDashboard() {
       setSubjectContent(prev => ({ ...prev, topics: prev.topics.filter(t => t.id !== topic.id) }))
       toast({ title: "Content Removed" })
     } catch (e: any) {
-      const permissionError = new FirestorePermissionError({
-        path: topicRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
     }
   }
 
   async function handleDeleteMindmap(mm: any) {
-    if (!db || !confirm(`Delete mindmap "${mm.title}"?`)) return
+    if (!db || !confirm(`Delete mindmap \"${mm.title}\"?`)) return
     
     const subjectId = mm.subjectId
     const mmRef = doc(db, 'subjects', subjectId, 'mindmaps', mm.id)
@@ -246,11 +239,7 @@ export default function AdminDashboard() {
       setSubjectContent(prev => ({ ...prev, mindmaps: prev.mindmaps.filter(m => m.id !== mm.id) }))
       toast({ title: "Mindmap Removed" })
     } catch (e: any) {
-      const permissionError = new FirestorePermissionError({
-        path: mmRef.path,
-        operation: 'delete',
-      });
-      errorEmitter.emit('permission-error', permissionError);
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
     }
   }
 
@@ -274,7 +263,7 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteTopicGroup(topicName: string) {
-    if (!confirm(`DANGER: Delete ALL clinical cases in topic "${topicName}"?`)) return
+    if (!confirm(`DANGER: Delete ALL clinical cases in topic \"${topicName}\"?`)) return
     
     setLoadingContent(true)
     try {
@@ -286,6 +275,27 @@ export default function AdminDashboard() {
       
       if (error) throw error
       toast({ title: "Topic Cleared" })
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Batch Error", description: e.message })
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
+  async function handleDeleteUnit(unitName: string) {
+    if (!confirm(`DANGER: Delete ALL clinical cases in unit \"${unitName}\"?`)) return
+
+    setLoadingContent(true)
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .delete()
+        .eq('subject_id', activeSubject?.toLowerCase().replace(/\s+/g, '-'))
+        .eq('unit_title', unitName)
+
+      if (error) throw error
+      toast({ title: "Unit Cleared" })
       fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Batch Error", description: e.message })
@@ -331,6 +341,7 @@ export default function AdminDashboard() {
         storagePath: storagePath,
         contentType: "pdf",
         importance: topicForm.importance,
+        tier: topicForm.tier,
         createdAt: new Date().toISOString()
       })
 
@@ -373,6 +384,7 @@ export default function AdminDashboard() {
         contentUrl: videoForm.url,
         contentType: "video",
         importance: videoForm.importance,
+        tier: videoForm.tier,
         createdAt: new Date().toISOString()
       })
 
@@ -421,6 +433,7 @@ export default function AdminDashboard() {
         title: mindmapForm.title,
         imageUrl: publicUrl,
         storagePath: storagePath,
+        tier: mindmapForm.tier,
         createdAt: new Date().toISOString()
       })
 
@@ -573,8 +586,7 @@ export default function AdminDashboard() {
               <div key={s.id} className={`group relative ${activeSubject === s.name ? 'bg-primary/10' : ''}`}>
                 <button 
                   onClick={() => setActiveSubject(s.name)}
-                  className={`w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors ${activeSubject === s.name ? 'border-r-2 border-primary' : ''}`}
-                >
+                  className={`w-full p-4 flex items-center justify-between text-left hover:bg-white/5 transition-colors ${activeSubject === s.name ? 'border-r-2 border-primary' : ''}`}>
                   <div className="flex-1 min-w-0 pr-8">
                     <p className="font-bold text-sm group-hover:text-primary transition-colors truncate">{s.name}</p>
                     <div className="flex gap-2 mt-1">
@@ -589,8 +601,7 @@ export default function AdminDashboard() {
                     e.stopPropagation();
                     handleDeleteSubject(s);
                   }}
-                  className="absolute right-12 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
-                >
+                  className="absolute right-12 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -635,6 +646,9 @@ export default function AdminDashboard() {
                               <div>
                                 <p className="font-bold text-sm">{t.title}</p>
                                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{t.unitName || 'General'}</p>
+                                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${t.tier === 'paid' ? 'bg-primary/10 text-primary' : 'bg-green-500/10 text-green-400'}`}>
+                                  {t.tier === 'paid' ? '👑 Paid' : '🆓 Free'}
+                                </span>
                               </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => handleDeleteTopic(t)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all">
@@ -657,6 +671,9 @@ export default function AdminDashboard() {
                               <div>
                                 <p className="font-bold text-sm">{t.title}</p>
                                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{t.unitName || 'General'}</p>
+                                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${t.tier === 'paid' ? 'bg-primary/10 text-primary' : 'bg-green-500/10 text-green-400'}`}>
+                                  {t.tier === 'paid' ? '👑 Paid' : '🆓 Free'}
+                                </span>
                               </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => handleDeleteTopic(t)} className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all">
@@ -708,16 +725,14 @@ export default function AdminDashboard() {
                                 explanation: ""
                               })
                               setIsEditingQuestion(true)
-                            }}
-                          >
+                            }}>
                             <Plus className="h-3 w-3" /> Add Case
                           </Button>
                           <Button 
                             variant="outline" 
                             size="sm" 
                             className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass"
-                            onClick={() => setIsUploadingQBank(true)}
-                          >
+                            onClick={() => setIsUploadingQBank(true)}>
                             <Upload className="h-3 w-3" /> Bulk Import
                           </Button>
                         </div>
@@ -727,17 +742,50 @@ export default function AdminDashboard() {
                          {groupedQuestions.length > 0 ? (
                             <Accordion type="multiple" className="space-y-3">
                                {groupedQuestions.map((group, gIdx) => (
-                                 <AccordionItem key={gIdx} value={`unit-${gIdx}`} className="border-none bg-white/5 rounded-xl px-4 overflow-hidden">
-                                   <AccordionTrigger className="hover:no-underline py-4">
-                                      <div className="flex items-center gap-3">
-                                         <Layers className="h-4 w-4 text-accent" />
-                                         <div className="flex flex-col items-start">
-                                            <span className="font-bold text-sm tracking-tight">{group.unit}</span>
-                                            <span className="text-[10px] text-muted-foreground uppercase">{group.topics.length} Topics</span>
-                                         </div>
-                                      </div>
-                                   </AccordionTrigger>
-                                   <AccordionContent className="pb-4 space-y-6">
+                                 <AccordionItem key={gIdx} value={`unit-${gIdx}`} className="border-none bg-white/5 rounded-xl overflow-hidden">
+                                    <div className="flex items-center justify-between px-4">
+                                        <AccordionTrigger className="flex-1 hover:no-underline py-4">
+                                            <div className="flex items-center gap-3">
+                                                <Layers className="h-4 w-4 text-accent" />
+                                                <div className="flex flex-col items-start">
+                                                    <span className="font-bold text-sm tracking-tight">{group.unit}</span>
+                                                    <span className="text-[10px] text-muted-foreground uppercase">{group.topics.reduce((acc, t) => acc + t.questions.length, 0)} Cases in {group.topics.length} Topics</span>
+                                                </div>
+                                            </div>
+                                        </AccordionTrigger>
+                                        <div className="flex gap-1 shrink-0">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-primary/10 hover:text-primary gap-1"
+                                                onClick={() => {
+                                                    setQbankForm({
+                                                        id: null,
+                                                        subjectId: activeSubject || "",
+                                                        unit_title: group.unit,
+                                                        topic_title: "",
+                                                        question_text: "",
+                                                        option1: "",
+                                                        option2: "",
+                                                        option3: "",
+                                                        option4: "",
+                                                        correct_answer_index: "0",
+                                                        explanation: ""
+                                                    });
+                                                    setIsEditingQuestion(true);
+                                                }}>
+                                                <Plus className="h-2.5 w-2.5" /> Add Case
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-destructive/10 hover:text-destructive gap-1"
+                                                onClick={() => handleDeleteUnit(group.unit)}>
+                                                <Trash2 className="h-2.5 w-2.5" /> Clear Unit
+                                            </Button>
+                                        </div>
+                                    </div>
+                                   <AccordionContent className="pb-4 px-4 space-y-6">
                                       {group.topics.map((topicGroup, tIdx) => (
                                         <div key={tIdx} className="space-y-3 pl-4 border-l border-white/10">
                                           <div className="flex items-center justify-between mb-2 bg-black/20 p-2 rounded-lg">
@@ -764,16 +812,14 @@ export default function AdminDashboard() {
                                                     explanation: ""
                                                   })
                                                   setIsEditingQuestion(true)
-                                                }}
-                                              >
+                                                }}>
                                                 <Plus className="h-2.5 w-2.5" /> Add
                                               </Button>
                                               <Button 
                                                 variant="ghost" 
                                                 size="sm" 
                                                 className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-destructive/10 hover:text-destructive gap-1"
-                                                onClick={() => handleDeleteTopicGroup(topicGroup.topic)}
-                                              >
+                                                onClick={() => handleDeleteTopicGroup(topicGroup.topic)}>
                                                 <Trash2 className="h-2.5 w-2.5" /> Clear Topic
                                               </Button>
                                             </div>
@@ -809,16 +855,14 @@ export default function AdminDashboard() {
                                                         explanation: q.explanation || ""
                                                       })
                                                       setIsEditingQuestion(true)
-                                                    }}
-                                                   >
+                                                    }}>
                                                      <Edit2 className="h-3 w-3" />
                                                    </Button>
                                                    <Button 
                                                     variant="ghost" 
                                                     size="icon" 
                                                     className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive transition-all"
-                                                    onClick={() => handleDeleteQuestion(q.id)}
-                                                   >
+                                                    onClick={() => handleDeleteQuestion(q.id)}>
                                                      <Trash2 className="h-3 w-3" />
                                                    </Button>
                                                  </div>
@@ -947,8 +991,7 @@ export default function AdminDashboard() {
                     accept=".csv" 
                     className="glass border-white/10 cursor-pointer h-14 pt-4 pr-10" 
                     onChange={handleImportCSV}
-                    disabled={uploading}
-                   />
+                    disabled={uploading}/>
                    <FileDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground opacity-20 group-hover:opacity-100 transition-opacity" />
                 </div>
              </div>
@@ -974,7 +1017,7 @@ export default function AdminDashboard() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Subject</Label>
-              <Select onValueChange={(v) => setTopicForm({ ...topicForm, subjectId: v })}>
+              <Select value={topicForm.subjectId} onValueChange={(v) => setTopicForm({ ...topicForm, subjectId: v })}>
                 <SelectTrigger className="glass border-white/10">
                   <SelectValue placeholder="Select Subject" />
                 </SelectTrigger>
@@ -995,6 +1038,25 @@ export default function AdminDashboard() {
               <Label>PDF Document</Label>
               <Input type="file" accept=".pdf" className="glass border-white/10 cursor-pointer" onChange={(e) => setTopicForm({ ...topicForm, file: e.target.files?.[0] || null })} />
             </div>
+            <div className="space-y-2">
+              <Label>Access Tier</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTopicForm({ ...topicForm, tier: "free" })}
+                  className={`p-3 rounded-xl border text-sm font-bold transition-all ${topicForm.tier === 'free' ? 'bg-green-500/10 border-green-500/40 text-green-400' : 'bg-white/5 border-white/10 text-muted-foreground'}`}
+                >
+                  🆓 Free
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTopicForm({ ...topicForm, tier: "paid" })}
+                  className={`p-3 rounded-xl border text-sm font-bold transition-all ${topicForm.tier === 'paid' ? 'bg-primary/10 border-primary/40 text-primary' : 'bg-white/5 border-white/10 text-muted-foreground'}`}
+                >
+                  👑 Paid
+                </button>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsAddingTopic(false)}>Cancel</Button>
@@ -1012,7 +1074,7 @@ export default function AdminDashboard() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Subject</Label>
-              <Select onValueChange={(v) => setVideoForm({ ...videoForm, subjectId: v })}>
+              <Select value={videoForm.subjectId} onValueChange={(v) => setVideoForm({ ...videoForm, subjectId: v })}>
                 <SelectTrigger className="glass border-white/10">
                   <SelectValue placeholder="Select Subject" />
                 </SelectTrigger>
@@ -1033,6 +1095,25 @@ export default function AdminDashboard() {
               <Label>YouTube URL</Label>
               <Input placeholder="https://youtube.com/watch?v=..." className="glass border-white/10" value={videoForm.url} onChange={(e) => setVideoForm({ ...videoForm, url: e.target.value })} />
             </div>
+            <div className="space-y-2">
+              <Label>Access Tier</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setVideoForm({ ...videoForm, tier: "free" })}
+                  className={`p-3 rounded-xl border text-sm font-bold transition-all ${videoForm.tier === 'free' ? 'bg-green-500/10 border-green-500/40 text-green-400' : 'bg-white/5 border-white/10 text-muted-foreground'}`}
+                >
+                  🆓 Free
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoForm({ ...videoForm, tier: "paid" })}
+                  className={`p-3 rounded-xl border text-sm font-bold transition-all ${videoForm.tier === 'paid' ? 'bg-primary/10 border-primary/40 text-primary' : 'bg-white/5 border-white/10 text-muted-foreground'}`}
+                >
+                  👑 Paid
+                </button>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsAddingVideo(false)}>Cancel</Button>
@@ -1050,7 +1131,7 @@ export default function AdminDashboard() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Subject</Label>
-              <Select onValueChange={(v) => setMindmapForm({ ...mindmapForm, subjectId: v })}>
+              <Select value={mindmapForm.subjectId} onValueChange={(v) => setMindmapForm({ ...mindmapForm, subjectId: v })}>
                 <SelectTrigger className="glass border-white/10">
                   <SelectValue placeholder="Select Subject" />
                 </SelectTrigger>
@@ -1066,6 +1147,25 @@ export default function AdminDashboard() {
             <div className="space-y-2">
               <Label>Image File (Visual Map)</Label>
               <Input type="file" accept="image/*" className="glass border-white/10 cursor-pointer" onChange={(e) => setMindmapForm({ ...mindmapForm, file: e.target.files?.[0] || null })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Access Tier</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMindmapForm({ ...mindmapForm, tier: "free" })}
+                  className={`p-3 rounded-xl border text-sm font-bold transition-all ${mindmapForm.tier === 'free' ? 'bg-green-500/10 border-green-500/40 text-green-400' : 'bg-white/5 border-white/10 text-muted-foreground'}`}
+                >
+                  🆓 Free
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMindmapForm({ ...mindmapForm, tier: "paid" })}
+                  className={`p-3 rounded-xl border text-sm font-bold transition-all ${mindmapForm.tier === 'paid' ? 'bg-primary/10 border-primary/40 text-primary' : 'bg-white/5 border-white/10 text-muted-foreground'}`}
+                >
+                  👑 Paid
+                </button>
+              </div>
             </div>
           </div>
           <DialogFooter>

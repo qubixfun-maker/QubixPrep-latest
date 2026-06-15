@@ -15,7 +15,8 @@ import {
   Network,
   Database,
   Trophy,
-  User
+  User,
+  Zap
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -89,6 +90,11 @@ export function AppSidebar() {
       url: "/history",
       icon: History,
     },
+    {
+      title: "Pricing",
+      url: "/pricing",
+      icon: Zap,
+    }
   ]
 
   return (
@@ -128,7 +134,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === item.url}
+                    isActive={item.url === "/" ? pathname === "/" : pathname.startsWith(item.url)}
                     tooltip={item.title}
                     className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                   >

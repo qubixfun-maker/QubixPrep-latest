@@ -30,12 +30,15 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { explainClinicalCase } from "@/ai/flows/ai-clinical-tutor"
+import { usePlan } from '@/hooks/use-plan'
+import { UpgradeGate } from '@/components/upgrade-gate'
 
 export default function QuizSubjectCurriculumPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
   
   const db = useFirestore()
   const { toast } = useToast()
+  const { isFree } = usePlan()
 
   const [questions, setQuestions] = useState<any[]>([])
   const [qLoading, setQLoading] = useState(true)
@@ -271,36 +274,74 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
       <div className="space-y-6">
         {groupedQBank.length > 0 ? (
           <Accordion type="multiple" className="space-y-4">
-            {groupedQBank.map((unit, uIdx) => (
-              <AccordionItem key={uIdx} value={`unit-${uIdx}`} className="border-none glass rounded-3xl px-4 overflow-hidden">
-                <AccordionTrigger className="hover:no-underline py-6">
-                  <div className="flex flex-col items-start text-left">
-                    <span className="text-[10px] text-accent font-bold uppercase tracking-[0.2em] mb-1">Unit {uIdx + 1}</span>
-                    <span className="text-2xl font-bold tracking-tight">{unit.title}</span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="pb-6 pt-2 space-y-3">
-                  {Object.entries(unit.topics).map(([topicTitle, topicQs], tIdx) => (
-                    <div 
-                      key={tIdx} 
-                      onClick={() => startTopicQuiz(topicQs)}
-                      className="group flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-4">
-                         <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                           <FileText className="h-5 w-5" />
-                         </div>
-                         <div>
-                           <p className="font-bold text-base">{topicTitle}</p>
-                           <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mt-0.5">{topicQs.length} Clinical Cases</p>
-                         </div>
+            {isFree ? (
+              <>
+                {groupedQBank.slice(0, 1).map((unit, uIdx) => (
+                  <AccordionItem key={uIdx} value={`unit-${uIdx}`} className="border-none glass rounded-3xl px-4 overflow-hidden">
+                    <AccordionTrigger className="hover:no-underline py-6">
+                      <div className="flex flex-col items-start text-left">
+                        <span className="text-[10px] text-accent font-bold uppercase tracking-[0.2em] mb-1">Unit {uIdx + 1}</span>
+                        <span className="text-2xl font-bold tracking-tight">{unit.title}</span>
                       </div>
-                      <PlayCircle className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-6 pt-2 space-y-3">
+                      {Object.entries(unit.topics).map(([topicTitle, topicQs], tIdx) => (
+                        <div 
+                          key={tIdx} 
+                          onClick={() => startTopicQuiz(topicQs)}
+                          className="group flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
+                        >
+                          <div className="flex items-center gap-4">
+                             <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                               <FileText className="h-5 w-5" />
+                             </div>
+                             <div>
+                               <p className="font-bold text-base">{topicTitle}</p>
+                               <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mt-0.5">{topicQs.length} Clinical Cases</p>
+                             </div>
+                          </div>
+                          <PlayCircle className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                        </div>
+                      ))}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+                {groupedQBank.length > 1 && (
+                  <UpgradeGate type="content" title={`${groupedQBank.length - 1} more units locked`} description="Upgrade to Scholar to access all QBank units." />
+                )}
+              </>
+            ) : (
+              groupedQBank.map((unit, uIdx) => (
+                <AccordionItem key={uIdx} value={`unit-${uIdx}`} className="border-none glass rounded-3xl px-4 overflow-hidden">
+                  <AccordionTrigger className="hover:no-underline py-6">
+                    <div className="flex flex-col items-start text-left">
+                      <span className="text-[10px] text-accent font-bold uppercase tracking-[0.2em] mb-1">Unit {uIdx + 1}</span>
+                      <span className="text-2xl font-bold tracking-tight">{unit.title}</span>
                     </div>
-                  ))}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-6 pt-2 space-y-3">
+                    {Object.entries(unit.topics).map(([topicTitle, topicQs], tIdx) => (
+                      <div 
+                        key={tIdx} 
+                        onClick={() => startTopicQuiz(topicQs)}
+                        className="group flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-4">
+                           <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                             <FileText className="h-5 w-5" />
+                           </div>
+                           <div>
+                             <p className="font-bold text-base">{topicTitle}</p>
+                             <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mt-0.5">{topicQs.length} Clinical Cases</p>
+                           </div>
+                        </div>
+                        <PlayCircle className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+                    ))}
+                  </AccordionContent>
+                </AccordionItem>
+              ))
+            )}
           </Accordion>
         ) : (
           <div className="text-center py-20 text-muted-foreground border-2 border-dashed border-white/5 rounded-3xl">

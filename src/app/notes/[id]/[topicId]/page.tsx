@@ -38,6 +38,8 @@ import { aiNoteSummarizer } from "@/ai/flows/ai-note-summarizer"
 import { generateQuizAndFlashcards, type GenerateQuizAndFlashcardsOutput } from "@/ai/flows/ai-quiz-flashcard-generator-flow"
 import { generateMindMap, type MindMapGeneratorOutput } from "@/ai/flows/ai-mind-map-generator"
 import { analyzeMedicalImage } from "@/ai/flows/ai-vision-analyzer"
+import { usePlan } from '@/hooks/use-plan'
+import { UpgradeGate } from '@/components/upgrade-gate'
 
 export default function NoteViewerPage({ params }: { params: Promise<{ id: string, topicId: string }> }) {
   const { id, topicId } = use(params)
@@ -45,6 +47,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   const { user } = useUser()
   const db = useFirestore()
   const { toast } = useToast()
+  const { canAccessContent, canAccessAI } = usePlan()
   
   const [isFullView, setIsFullView] = useState(false)
   
@@ -119,6 +122,14 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   }
 
   const topicData = topic as any
+
+  if (topicData.tier === 'paid' && !canAccessContent) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-6">
+        <UpgradeGate type="content" />
+      </div>
+    )
+  }
 
   const handleToggleComplete = async () => {
     if (!progressRef) return
@@ -285,124 +296,132 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
             </span>
           </Button>
 
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="sm" className="rounded-full bg-primary/10 border-primary/20 hover:bg-primary/20 gap-2 text-primary h-8 px-4 font-bold text-[11px] shadow-lg shadow-primary/5 transition-all">
-                <Sparkles className="h-3.5 w-3.5" /> 
-                <span className="hidden sm:inline uppercase">AI Laboratory</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-full sm:max-w-xl glass-darker border-l border-white/10 p-0 overflow-y-auto">
-              <SheetTitle className="sr-only">AI Study Intelligence</SheetTitle>
-              <div className="p-8 space-y-8 pb-20">
-                 <div className="flex items-center justify-between">
-                   <h2 className="text-xl font-bold flex items-center gap-3">
-                     <BrainCircuit className="h-6 w-6 text-primary" /> Qubix AI Insight
-                   </h2>
-                   <SheetTrigger asChild>
-                     <Button variant="ghost" size="icon" className="h-8 w-8 opacity-50 hover:opacity-100">
-                       <PanelRightClose className="h-5 w-5" />
-                     </Button>
-                   </SheetTrigger>
-                 </div>
-                 
-                 <div className="bg-white/5 rounded-2xl p-5 border border-white/5 space-y-4">
+          {canAccessAI ? (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" size="sm" className="rounded-full bg-primary/10 border-primary/20 hover:bg-primary/20 gap-2 text-primary h-8 px-4 font-bold text-[11px] shadow-lg shadow-primary/5 transition-all">
+                  <Sparkles className="h-3.5 w-3.5" /> 
+                  <span className="hidden sm:inline uppercase">AI Laboratory</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-full sm:max-w-xl glass-darker border-l border-white/10 p-0 overflow-y-auto">
+                <SheetTitle className="sr-only">AI Study Intelligence</SheetTitle>
+                <div className="p-8 space-y-8 pb-20">
                    <div className="flex items-center justify-between">
-                     <span className="text-[10px] font-bold text-accent uppercase tracking-widest flex items-center gap-1">
-                       <Zap className="h-3 w-3" /> Content Capture
-                     </span>
-                     <Badge variant="secondary" className="text-[9px] uppercase">{topicData.importance} Yield</Badge>
+                     <h2 className="text-xl font-bold flex items-center gap-3">
+                       <BrainCircuit className="h-6 w-6 text-primary" /> Qubix AI Insight
+                     </h2>
+                     <SheetTrigger asChild>
+                       <Button variant="ghost" size="icon" className="h-8 w-8 opacity-50 hover:opacity-100">
+                         <PanelRightClose className="h-5 w-5" />
+                       </Button>
+                     </SheetTrigger>
                    </div>
                    
-                   {!previewImage ? (
-                     <div 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-white/10 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/5 transition-colors"
-                     >
-                       <Camera className="h-5 w-5 text-muted-foreground" />
-                       <span className="text-[10px] font-bold uppercase text-muted-foreground">Scan Screenshot</span>
-                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                   <div className="bg-white/5 rounded-2xl p-5 border border-white/5 space-y-4">
+                     <div className="flex items-center justify-between">
+                       <span className="text-[10px] font-bold text-accent uppercase tracking-widest flex items-center gap-1">
+                         <Zap className="h-3 w-3" /> Content Capture
+                       </span>
+                       <Badge variant="secondary" className="text-[9px] uppercase">{topicData.importance} Yield</Badge>
                      </div>
-                   ) : (
-                     <div className="relative rounded-xl overflow-hidden group">
-                        <img src={previewImage} alt="Preview" className="w-full h-32 object-cover opacity-50" />
-                        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40">
-                          <Button size="sm" variant="secondary" className="h-7 text-[9px] font-bold uppercase rounded-lg" onClick={() => handleVisionAnalyze('summarize')}>OCR Analyze</Button>
-                          <Button size="icon" variant="destructive" className="h-7 w-7 rounded-full" onClick={() => setPreviewImage(null)}><X className="h-3 w-3" /></Button>
-                        </div>
-                     </div>
-                   )}
+                     
+                     {!previewImage ? (
+                       <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-white/10 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/5 transition-colors"
+                       >
+                         <Camera className="h-5 w-5 text-muted-foreground" />
+                         <span className="text-[10px] font-bold uppercase text-muted-foreground">Scan Screenshot</span>
+                         <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                       </div>
+                     ) : (
+                       <div className="relative rounded-xl overflow-hidden group">
+                          <img src={previewImage} alt="Preview" className="w-full h-32 object-cover opacity-50" />
+                          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40">
+                            <Button size="sm" variant="secondary" className="h-7 text-[9px] font-bold uppercase rounded-lg" onClick={() => handleVisionAnalyze('summarize')}>OCR Analyze</Button>
+                            <Button size="icon" variant="destructive" className="h-7 w-7 rounded-full" onClick={() => setPreviewImage(null)}><X className="h-3 w-3" /></Button>
+                          </div>
+                       </div>
+                     )}
 
-                   <Textarea 
-                     placeholder="Paste excerpts or type concepts to explore..."
-                     className="min-h-[100px] glass border-white/5 text-xs resize-none"
-                     value={inputText}
-                     onChange={(e) => setInputText(e.target.value)}
-                   />
-                 </div>
+                     <Textarea 
+                       placeholder="Paste excerpts or type concepts to explore..."
+                       className="min-h-[100px] glass border-white/5 text-xs resize-none"
+                       value={inputText}
+                       onChange={(e) => setInputText(e.target.value)}
+                     />
+                   </div>
 
-                 <Tabs defaultValue="summary" className="w-full">
-                    <TabsList className="glass grid grid-cols-3 h-12 p-1 rounded-xl mb-6">
-                      <TabsTrigger value="summary" className="rounded-lg text-[10px] font-bold uppercase">Summary</TabsTrigger>
-                      <TabsTrigger value="quiz" className="rounded-lg text-[10px] font-bold uppercase">Quiz</TabsTrigger>
-                      <TabsTrigger value="map" className="rounded-lg text-[10px] font-bold uppercase">Mindmap</TabsTrigger>
-                    </TabsList>
+                   <Tabs defaultValue="summary" className="w-full">
+                      <TabsList className="glass grid grid-cols-3 h-12 p-1 rounded-xl mb-6">
+                        <TabsTrigger value="summary" className="rounded-lg text-[10px] font-bold uppercase">Summary</TabsTrigger>
+                        <TabsTrigger value="quiz" className="rounded-lg text-[10px] font-bold uppercase">Quiz</TabsTrigger>
+                        <TabsTrigger value="map" className="rounded-lg text-[10px] font-bold uppercase">Mindmap</TabsTrigger>
+                      </TabsList>
 
-                    <TabsContent value="summary" className="space-y-6">
-                       <Button onClick={handleSummarize} disabled={isAiLoading || !inputText.trim()} className="w-full rounded-xl bg-primary gap-2 h-11">
-                         {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                         Summarize Concepts
-                       </Button>
-                       {(summary || visionResult) && (
-                         <div className="glass rounded-2xl p-6 border-white/5 animate-in slide-in-from-top-2">
-                           <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
-                              {summary || visionResult}
+                      <TabsContent value="summary" className="space-y-6">
+                         <Button onClick={handleSummarize} disabled={isAiLoading || !inputText.trim()} className="w-full rounded-xl bg-primary gap-2 h-11">
+                           {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                           Summarize Concepts
+                         </Button>
+                         {(summary || visionResult) && (
+                           <div className="glass rounded-2xl p-6 border-white/5 animate-in slide-in-from-top-2">
+                             <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                                {summary || visionResult}
+                             </div>
                            </div>
-                         </div>
-                       )}
-                    </TabsContent>
+                         )}
+                      </TabsContent>
 
-                    <TabsContent value="quiz" className="space-y-6">
-                       <Button onClick={handleGenerateQuiz} disabled={isAiLoading || !inputText.trim()} className="w-full rounded-xl bg-accent text-background hover:bg-accent/90 gap-2 h-11">
-                         {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LayoutList className="h-4 w-4" />}
-                         Generate Cases
-                       </Button>
-                       {quizResults && (
-                         <div className="space-y-4 animate-in slide-in-from-top-2">
-                           {quizResults.quizzes.slice(0, 3).map((q, i) => (
-                             <div key={i} className="glass rounded-2xl p-5 border-white/5 space-y-3">
-                               <p className="text-[11px] font-bold text-primary uppercase">Clinical Case {i+1}</p>
-                               <p className="text-sm font-semibold">{q.question}</p>
-                               <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                                  <p className="text-[10px] font-bold text-green-400 uppercase">Answer: {q.correctAnswer}</p>
+                      <TabsContent value="quiz" className="space-y-6">
+                         <Button onClick={handleGenerateQuiz} disabled={isAiLoading || !inputText.trim()} className="w-full rounded-xl bg-accent text-background hover:bg-accent/90 gap-2 h-11">
+                           {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LayoutList className="h-4 w-4" />}
+                           Generate Cases
+                         </Button>
+                         {quizResults && (
+                           <div className="space-y-4 animate-in slide-in-from-top-2">
+                             {quizResults.quizzes.slice(0, 3).map((q, i) => (
+                               <div key={i} className="glass rounded-2xl p-5 border-white/5 space-y-3">
+                                 <p className="text-[11px] font-bold text-primary uppercase">Clinical Case {i+1}</p>
+                                 <p className="text-sm font-semibold">{q.question}</p>
+                                 <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                                    <p className="text-[10px] font-bold text-green-400 uppercase">Answer: {q.correctAnswer}</p>
+                                 </div>
                                </div>
-                             </div>
-                           ))}
-                         </div>
-                       )}
-                    </TabsContent>
+                             ))}
+                           </div>
+                         )}
+                      </TabsContent>
 
-                    <TabsContent value="map" className="space-y-6">
-                       <Button onClick={handleGenerateMindmap} disabled={isAiLoading || !inputText.trim()} className="w-full rounded-xl bg-secondary gap-2 h-11 border border-white/5">
-                         {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Network className="h-4 w-4" />}
-                         Relationship Map
-                       </Button>
-                       {mindmapResult && (
-                         <div className="glass rounded-2xl p-6 border-white/5 animate-in zoom-in-95">
-                           {mindmapResult.edges.map((e, i) => (
-                             <div key={i} className="text-[11px] p-2.5 rounded-lg bg-black/20 flex items-center gap-2 mb-2">
-                               <span className="font-bold text-accent">{e.source}</span>
-                               <span className="text-muted-foreground opacity-50">→</span>
-                               <span className="text-primary font-bold">{e.target}</span>
-                             </div>
-                           ))}
-                         </div>
-                       )}
-                    </TabsContent>
-                 </Tabs>
-              </div>
-            </SheetContent>
-          </Sheet>
+                      <TabsContent value="map" className="space-y-6">
+                         <Button onClick={handleGenerateMindmap} disabled={isAiLoading || !inputText.trim()} className="w-full rounded-xl bg-secondary gap-2 h-11 border border-white/5">
+                           {isAiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Network className="h-4 w-4" />}
+                           Relationship Map
+                         </Button>
+                         {mindmapResult && (
+                           <div className="glass rounded-2xl p-6 border-white/5 animate-in zoom-in-95">
+                             {mindmapResult.edges.map((e, i) => (
+                               <div key={i} className="text-[11px] p-2.5 rounded-lg bg-black/20 flex items-center gap-2 mb-2">
+                                 <span className="font-bold text-accent">{e.source}</span>
+                                 <span className="text-muted-foreground opacity-50">→</span>
+                                 <span className="text-primary font-bold">{e.target}</span>
+                               </div>
+                             ))}
+                           </div>
+                         )}
+                      </TabsContent>
+                   </Tabs>
+                </div>
+              </SheetContent>
+            </Sheet>
+          ) : (
+            <Link href="/pricing">
+              <Button variant="outline" size="sm" className="rounded-full bg-primary/10 border-primary/20 gap-2 text-primary h-8 px-4 font-bold text-[11px]">
+                <Zap className="h-3.5 w-3.5" /> <span className="hidden sm:inline uppercase">Unlock AI</span>
+              </Button>
+            </Link>
+          )}
 
           <Button 
             variant="ghost" 

@@ -7,11 +7,14 @@ import { doc, collection, query, orderBy } from "firebase/firestore"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { usePlan } from '@/hooks/use-plan'
+import { UpgradeGate } from '@/components/upgrade-gate'
 
 export default function MindmapSubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
   
   const db = useFirestore()
+  const { isFree } = usePlan()
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
@@ -37,19 +40,38 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
           <div className="col-span-full flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : mindmaps?.map((mm: any) => (
-          <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>
-            <Card className="glass border-none hover:bg-white/5 transition-all group overflow-hidden h-48">
-              <CardContent className="p-0 h-full relative">
-                <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-opacity" />
-                <div className="absolute inset-0 p-6 flex flex-col justify-end bg-gradient-to-t from-black/80 to-transparent">
-                  <h4 className="font-bold text-xl">{mm.title}</h4>
-                  <span className="text-xs text-muted-foreground uppercase tracking-widest">{mm.unitName || 'General'}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+        ) : isFree ? (
+          <>
+            {mindmaps?.slice(0, 2).map((mm: any) => (
+              <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>
+                <Card className="glass border-none hover:bg-white/5 transition-all group overflow-hidden h-48">
+                  <CardContent className="p-0 h-full relative">
+                    <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-opacity" />
+                    <div className="absolute inset-0 p-6 flex flex-col justify-end bg-gradient-to-t from-black/80 to-transparent">
+                      <h4 className="font-bold text-xl">{mm.title}</h4>
+                      <span className="text-xs text-muted-foreground uppercase tracking-widest">{mm.unitName || 'General'}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+            {mindmaps && mindmaps.length > 2 && <UpgradeGate type="content" />}
+          </>
+        ) : (
+          mindmaps?.map((mm: any) => (
+            <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>
+              <Card className="glass border-none hover:bg-white/5 transition-all group overflow-hidden h-48">
+                <CardContent className="p-0 h-full relative">
+                  <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-opacity" />
+                  <div className="absolute inset-0 p-6 flex flex-col justify-end bg-gradient-to-t from-black/80 to-transparent">
+                    <h4 className="font-bold text-xl">{mm.title}</h4>
+                    <span className="text-xs text-muted-foreground uppercase tracking-widest">{mm.unitName || 'General'}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))
+        )}
         {!mindmapsLoading && (!mindmaps || mindmaps.length === 0) && (
           <div className="col-span-full text-center py-20 text-muted-foreground border-2 border-dashed border-white/5 rounded-3xl">
             No mindmaps uploaded for this subject yet.
