@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { adminDb } from '@/lib/firebase-admin'
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
+    const { getAdminDb } = await import('@/lib/firebase-admin')
+    const adminDb = getAdminDb()
     await adminDb.doc(`users/${userId}`).update({
       plan: planId,
       planActivatedAt: new Date().toISOString(),
