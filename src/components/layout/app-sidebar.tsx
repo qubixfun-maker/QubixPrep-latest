@@ -16,7 +16,8 @@ import {
   Database,
   Trophy,
   User,
-  Zap
+  Zap,
+  ShoppingBag
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -94,6 +95,11 @@ export function AppSidebar() {
       title: "History",
       url: "/history",
       icon: History,
+    },
+    {
+      title: "Store", 
+      url: "/products", 
+      icon: ShoppingBag
     },
     {
       title: "Pricing",

@@ -28,7 +28,8 @@ import {
   Edit2,
   FileDown,
   AlertTriangle,
-  Trophy
+  Trophy,
+  ShoppingBag
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -65,6 +66,11 @@ export default function AdminDashboard() {
   const [uploading, setUploading] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
   const [isUploadingPYQ, setIsUploadingPYQ] = useState(false)
+  const [isAddingProduct, setIsAddingProduct] = useState(false)
+  const [productForm, setProductForm] = useState({
+    title: "", description: "", price: "",
+    category: "Notes Pack", buy_link: "", image_url: ""
+  })
   
   const [topicForm, setTopicForm] = useState({
     subjectId: "",
@@ -571,6 +577,30 @@ export default function AdminDashboard() {
     }
     reader.readAsText(file)
   }
+  
+  async function handleAddProduct() {
+    if (!productForm.title || !productForm.price || !productForm.buy_link) {
+      toast({ variant: "destructive", title: "Missing fields" }); return
+    }
+    setUploading(true)
+    try {
+      const { error } = await supabase.from('products').insert([{
+        title: productForm.title,
+        description: productForm.description,
+        price: parseFloat(productForm.price),
+        category: productForm.category,
+        buy_link: productForm.buy_link,
+        image_url: productForm.image_url || null,
+        is_active: true
+      }])
+      if (error) throw error
+      toast({ title: "Product Added" })
+      setIsAddingProduct(false)
+      setProductForm({ title: "", description: "", price: "", category: "Notes Pack", buy_link: "", image_url: "" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally { setUploading(false) }
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
@@ -587,6 +617,9 @@ export default function AdminDashboard() {
           <Button onClick={() => setIsAddingMindmap(true)} variant="outline" className="rounded-xl gap-2 glass"><Network className="h-4 w-4" /> New Mindmap</Button>
           <Button onClick={() => setIsUploadingPYQ(true)} variant="outline" className="rounded-xl gap-2 glass">
             <Trophy className="h-4 w-4" /> Upload PYQ
+          </Button>
+          <Button onClick={() => setIsAddingProduct(true)} variant="outline" className="rounded-xl gap-2 glass">
+            <ShoppingBag className="h-4 w-4" /> Add Product
           </Button>
           <Button 
             onClick={() => {
@@ -955,6 +988,58 @@ export default function AdminDashboard() {
             {uploading && <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 animate-pulse"><Loader2 className="h-4 w-4 animate-spin text-primary" /><span className="text-[10px] font-bold uppercase">Importing...</span></div>}
           </div>
           <DialogFooter><Button variant="ghost" onClick={() => setIsUploadingPYQ(false)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddingProduct} onOpenChange={setIsAddingProduct}>
+        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-lg">
+          <DialogHeader><DialogTitle>Add New Product</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input placeholder="e.g., NEET PG Notes Pack 2024" className="glass border-white/10"
+                value={productForm.title} onChange={e => setProductForm({...productForm, title: e.target.value})} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea placeholder="Brief description of the product..." className="glass border-white/10"
+                value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Price (₹)</Label>
+                <Input type="number" placeholder="499" className="glass border-white/10"
+                  value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={productForm.category} onValueChange={v => setProductForm({...productForm, category: v})}>
+                  <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                  <SelectContent className="glass border-white/10">
+                    {["Notes Pack", "Question Bank", "Flashcards", "Video Pack", "Combo Pack"].map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Buy Link (WhatsApp/Instamojo URL)</Label>
+              <Input placeholder="https://wa.me/91..." className="glass border-white/10"
+                value={productForm.buy_link} onChange={e => setProductForm({...productForm, buy_link: e.target.value})} />
+            </div>
+            <div className="space-y-2">
+              <Label>Product Image URL (optional)</Label>
+              <Input placeholder="https://..." className="glass border-white/10"
+                value={productForm.image_url} onChange={e => setProductForm({...productForm, image_url: e.target.value})} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddingProduct(false)}>Cancel</Button>
+            <Button onClick={handleAddProduct} disabled={uploading}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Add Product
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
