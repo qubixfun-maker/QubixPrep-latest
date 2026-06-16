@@ -84,6 +84,8 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 lg:p-12 space-y-8 animate-in fade-in duration-700">
+
+      {/* Hero */}
       <div className="relative overflow-hidden rounded-3xl glass p-8 md:p-12">
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-accent text-xs font-bold tracking-widest uppercase">
@@ -94,7 +96,7 @@ export default function Dashboard() {
           </h1>
           <p className="text-muted-foreground text-sm md:text-lg max-w-lg leading-relaxed">
             {subjectCount > 0
-              ? `${subjectCount} subject${subjectCount > 1 ? 's' : ''} available. Pick up where you left off.`
+              ? subjectCount + " subject" + (subjectCount > 1 ? "s" : "") + " available. Pick up where you left off."
               : "Start exploring notes, QBanks, videos, and AI tools built for NEET-PG."}
           </p>
           <div className="flex flex-wrap gap-4 pt-4">
@@ -109,11 +111,12 @@ export default function Dashboard() {
         <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary/20 to-transparent pointer-events-none" />
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <Card key={stat.label} className="glass border-none shadow-none neumorph-inset hover:scale-[1.02] transition-transform cursor-default">
             <CardContent className="p-4 md:p-6 flex items-center gap-4">
-              <div className={`p-2 md:p-3 rounded-2xl bg-white/5 ${stat.color}`}>
+              <div className={"p-2 md:p-3 rounded-2xl bg-white/5 " + stat.color}>
                 <stat.icon className="h-5 w-5 md:h-6 md:w-6" />
               </div>
               <div>
@@ -125,6 +128,7 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* Subjects + Quick Access */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="glass border-none lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -143,7 +147,7 @@ export default function Dashboard() {
             ) : subjects && subjects.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {subjects.slice(0, 6).map((subject: any) => (
-                  <Link key={subject.id} href={`/notes/${subject.id}`}>
+                  <Link key={subject.id} href={"/notes/" + subject.id}>
                     <div className="p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-primary/20 transition-all group">
                       <p className="font-semibold text-sm group-hover:text-primary transition-colors">{subject.name}</p>
                       <p className="text-xs text-muted-foreground mt-1">{subject.topicCount || 0} topics</p>
@@ -171,12 +175,12 @@ export default function Dashboard() {
               { label: "QBank", desc: "Practice MCQs", href: "/qbank", icon: Database, color: "text-blue-400" },
               { label: "PYQ Series", desc: "Previous year questions", href: "/pyq", icon: Trophy, color: "text-yellow-400" },
               { label: "Custom Quiz", desc: "AI-powered test", href: "/test-series", icon: BrainCircuit, color: "text-purple-400" },
-              { label: "Video Lectures", desc: `${videoCount} videos available`, href: "/videos", icon: Video, color: "text-green-400" },
-              { label: "Mindmaps", desc: `${mindmapCount} mindmaps`, href: "/mindmaps", icon: Network, color: "text-accent" },
+              { label: "Video Lectures", desc: videoCount + " videos available", href: "/videos", icon: Video, color: "text-green-400" },
+              { label: "Mindmaps", desc: mindmapCount + " mindmaps", href: "/mindmaps", icon: Network, color: "text-accent" },
             ].map((item) => (
               <Link key={item.label} href={item.href}>
                 <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all group cursor-pointer">
-                  <div className={`p-2 rounded-lg bg-white/5 ${item.color}`}>
+                  <div className={"p-2 rounded-lg bg-white/5 " + item.color}>
                     <item.icon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -191,6 +195,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* AI Banner */}
       <Card className="glass border-none overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent pointer-events-none" />
         <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
@@ -211,6 +216,7 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
     </div>
   )
 }

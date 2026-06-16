@@ -10,7 +10,6 @@ import {
   ShieldCheck, 
   FileText, 
   Video, 
-  History,
   CloudUpload,
   Network,
   Database,
@@ -92,10 +91,6 @@ export function AppSidebar() {
       icon: BrainCircuit,
     },
     {
-      title: "History",
-      url: "/history",
-      icon: History,
-    },
     {
       title: "Store", 
       url: "/products", 
