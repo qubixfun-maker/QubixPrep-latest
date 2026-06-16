@@ -1,6 +1,6 @@
 'use server';
 
-import { groqClient, GROQ_MODEL } from '@/ai/genkit';
+import { getGroqClient, GROQ_MODEL } from '@/ai/genkit';
 
 export type AiNoteSummarizerInput = {
   noteContent: string;
@@ -11,6 +11,7 @@ export type AiNoteSummarizerOutput = {
 };
 
 export async function aiNoteSummarizer(input: AiNoteSummarizerInput): Promise<AiNoteSummarizerOutput> {
+    const groqClient = getGroqClient();
   const response = await groqClient.chat.completions.create({
     model: GROQ_MODEL,
     messages: [

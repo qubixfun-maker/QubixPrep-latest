@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import Groq from 'groq-sdk';
@@ -5,9 +7,96 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
 export const maxDuration = 300; // 5 minutes timeout for large PDFs
+
+async function extractClinicalData(
+  buffer: Buffer,
+  pageNum: number
+): Promise<any[]> {
+  try {
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const base64 = buffer.toString('base64');
+    const response = await groq.chat.completions.create({
+      model: 'llama-3.2-90b-vision-preview',
+      max_tokens: 3000,
+      temperature: 0.1, // Low temperature for factual extraction
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:image/jpeg;base64,${base64}` },
+            },
+            {
+              type: 'text',
+              text: `You are a medical MCQ extraction engine. Analyze this page from a board-review PDF.
+
+EXTRACT ALL medical content exactly as written. Return a JSON array only.
+
+RULES:
+1. Identify QUESTIONS (e.g., "Question 42:"):
+{
+  "question_number": number,
+  "question_text": "full text",
+  "option_a": "text",
+  "option_b": "text",
+  "option_c": "text",
+  "option_d": "text",
+  "has_image": boolean,
+  "correct_answer": null,
+  "explanation": null
+}
+
+2. Identify SOLUTIONS (e.g., "Solution to Question 42:"):
+{
+  "question_number": number,
+  "correct_answer": "a" | "b" | "c" | "d",
+  "explanation": "full reasoning",
+  "question_text": null
+}
+
+Return ONLY valid JSON. If page is blank, return [].`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const content = response.choices[0]?.message?.content?.trim() || '[]';
+    const clean = content.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error(`Vision AI Failure [Page ${pageNum}]:`, e);
+    return [];
+  }
+}
+
+async function renderPageToBuffer(
+  pdf: any,
+  pageNum: number,
+  createCanvas: any
+): Promise<Buffer | null> {
+  try {
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR accuracy
+
+    const canvas = createCanvas(viewport.width, viewport.height);
+    const context = canvas.getContext('2d');
+
+    await page.render({
+      canvasContext: context,
+      viewport,
+      intent: 'display'
+    }).promise;
+
+    return canvas.toBuffer('image/jpeg', { quality: 0.9 });
+  } catch (e) {
+    console.error(`Render Error [Page ${pageNum}]:`, e);
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qbank-upload-'));
@@ -163,93 +252,5 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error('Extraction Cleanup Error:', e);
     }
-  }
-}
-
-async function renderPageToBuffer(
-  pdf: any,
-  pageNum: number,
-  createCanvas: any
-): Promise<Buffer | null> {
-  try {
-    const page = await pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR accuracy
-
-    const canvas = createCanvas(viewport.width, viewport.height);
-    const context = canvas.getContext('2d');
-
-    await page.render({
-      canvasContext: context,
-      viewport,
-      intent: 'display'
-    }).promise;
-
-    return canvas.toBuffer('image/jpeg', { quality: 0.9 });
-  } catch (e) {
-    console.error(`Render Error [Page ${pageNum}]:`, e);
-    return null;
-  }
-}
-
-async function extractClinicalData(
-  buffer: Buffer,
-  pageNum: number
-): Promise<any[]> {
-  try {
-    const base64 = buffer.toString('base64');
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.2-90b-vision-preview',
-      max_tokens: 3000,
-      temperature: 0.1, // Low temperature for factual extraction
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image_url',
-              image_url: { url: `data:image/jpeg;base64,${base64}` },
-            },
-            {
-              type: 'text',
-              text: `You are a medical MCQ extraction engine. Analyze this page from a board-review PDF.
-
-EXTRACT ALL medical content exactly as written. Return a JSON array only.
-
-RULES:
-1. Identify QUESTIONS (e.g., "Question 42:"):
-{
-  "question_number": number,
-  "question_text": "full text",
-  "option_a": "text",
-  "option_b": "text",
-  "option_c": "text",
-  "option_d": "text",
-  "has_image": boolean,
-  "correct_answer": null,
-  "explanation": null
-}
-
-2. Identify SOLUTIONS (e.g., "Solution to Question 42:"):
-{
-  "question_number": number,
-  "correct_answer": "a" | "b" | "c" | "d",
-  "explanation": "full reasoning",
-  "question_text": null
-}
-
-Return ONLY valid JSON. If page is blank, return [].`,
-            },
-          ],
-        },
-      ],
-    });
-
-    const content = response.choices[0]?.message?.content?.trim() || '[]';
-    const clean = content.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.error(`Vision AI Failure [Page ${pageNum}]:`, e);
-    return [];
   }
 }

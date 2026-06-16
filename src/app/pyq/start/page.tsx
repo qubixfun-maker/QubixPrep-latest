@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle2, XCircle, Loader2, ArrowLeft, ChevronRight, Trophy, Timer, BrainCircuit, AlertTriangle, MessageSquare } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { explainClinicalCase } from "@/ai/flows/ai-clinical-tutor"
+import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 
 function PYQSessionContent() {
   const searchParams = useSearchParams()
@@ -86,7 +86,7 @@ function PYQSessionContent() {
     const options = [q.option1, q.option2, q.option3, q.option4].filter(Boolean)
     setIsAiLoading(true)
     try {
-      const result = await explainClinicalCase({ question: q.question_text, options, correctAnswer: options[q.correct_answer_index], userAnswer: selectedOption !== null ? options[selectedOption] : undefined })
+      const result = await clinicalTutorFlow(q.question_text, options[q.correct_answer_index], q.explanation)
       setAiExplanation(result)
     } catch (e: any) { toast({ variant: "destructive", title: "AI Error", description: e.message }) }
     finally { setIsAiLoading(false) }

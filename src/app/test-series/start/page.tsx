@@ -21,7 +21,8 @@ import {
   Activity
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { explainClinicalCase, analyzeTestPerformance } from "@/ai/flows/ai-clinical-tutor"
+import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
+import { analyzeTestPerformance } from "@/ai/flows/ai-performance-analyzer"
 
 function QuizSessionContent() {
   const searchParams = useSearchParams()
@@ -112,12 +113,7 @@ function QuizSessionContent() {
     const options = [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4]
     setIsAiLoading(true)
     try {
-      const result = await explainClinicalCase({
-        question: currentQ.question_text,
-        options,
-        correctAnswer: options[currentQ.correct_answer_index],
-        userAnswer: selectedOption !== null ? options[selectedOption] : undefined
-      })
+      const result = await clinicalTutorFlow(currentQ.question_text, options[currentQ.correct_answer_index], currentQ.explanation)
       setAiExplanation(result)
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message || "Tutor unavailable." })
@@ -134,7 +130,7 @@ function QuizSessionContent() {
         isCorrect: mode === 'exam' ? answers[i] === q.correct_answer_index : true,
         question: q.question_text
       }))
-      const result = await analyzeTestPerformance({ results: resultData })
+      const result = await analyzeTestPerformance(resultData)
       setAiAnalysis(result)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Analysis Error", description: e.message })

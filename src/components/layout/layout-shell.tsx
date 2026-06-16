@@ -2,9 +2,11 @@
 
 import { usePathname } from "next/navigation"
 import { SidebarProvider } from '@/components/ui/sidebar'
-import { AppSidebar } from '@/components/layout/app-sidebar'
-import { MobileNav } from '@/components/layout/mobile-nav'
 import { cn } from "@/lib/utils"
+import dynamic from "next/dynamic"
+
+const AppSidebar = dynamic(() => import('@/components/layout/app-sidebar').then(mod => mod.AppSidebar), { ssr: false })
+const MobileNav = dynamic(() => import('@/components/layout/mobile-nav').then(mod => mod.MobileNav), { ssr: false })
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()

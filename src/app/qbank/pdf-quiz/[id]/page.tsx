@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
-import { explainClinicalCase } from "@/ai/flows/ai-clinical-tutor"
+import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 
 export default function PdfQuizPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: qbankId } = use(params)
@@ -128,12 +128,7 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
     
     setIsAiLoading(true)
     try {
-      const result = await explainClinicalCase({
-        question: currentQ.question_text,
-        options: optsArr,
-        correctAnswer: optsArr[correctIdx] || currentQ.correct_answer,
-        userAnswer: selectedOption ? optsArr[['a', 'b', 'c', 'd'].indexOf(selectedOption.toLowerCase())] : undefined
-      })
+      const result = await clinicalTutorFlow(currentQ.question_text, optsArr[correctIdx] || currentQ.correct_answer, currentQ.explanation)
       setAiExplanation(result)
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message || "Tutor is currently in rounds." })

@@ -1,6 +1,6 @@
 'use server';
 
-import { groqClient, GROQ_MODEL } from '@/ai/genkit';
+import { getGroqClient, GROQ_MODEL } from '@/ai/genkit';
 
 export type GenerateQuizAndFlashcardsInput = {
   studyTopic: string;
@@ -26,6 +26,7 @@ export type GenerateQuizAndFlashcardsOutput = {
 export async function generateQuizAndFlashcards(
   input: GenerateQuizAndFlashcardsInput
 ): Promise<GenerateQuizAndFlashcardsOutput> {
+  const groqClient = getGroqClient();
   const response = await groqClient.chat.completions.create({
     model: GROQ_MODEL,
     messages: [

@@ -37,7 +37,7 @@ import { useToast } from "@/hooks/use-toast"
 import { aiNoteSummarizer } from "@/ai/flows/ai-note-summarizer"
 import { generateQuizAndFlashcards, type GenerateQuizAndFlashcardsOutput } from "@/ai/flows/ai-quiz-flashcard-generator-flow"
 import { generateMindMap, type MindMapGeneratorOutput } from "@/ai/flows/ai-mind-map-generator"
-import { analyzeMedicalImage } from "@/ai/flows/ai-vision-analyzer"
+import { visionAnalyzerFlow } from "@/ai/flows/ai-vision-analyzer"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
 
@@ -200,7 +200,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
     setIsAiLoading(true)
     setVisionResult(null)
     try {
-      const result = await analyzeMedicalImage({ imageDataUri: previewImage, task })
+      const result = await visionAnalyzerFlow(previewImage)
       setVisionResult(result)
       toast({ title: "Vision Scan Complete", description: "Text extracted and analyzed." })
     } catch (e) {

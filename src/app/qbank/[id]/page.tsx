@@ -29,7 +29,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { explainClinicalCase } from "@/ai/flows/ai-clinical-tutor"
+import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
 
@@ -108,12 +108,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
     const currentQ = selectedTopicQuestions[currentIndex]
     setIsAiLoading(true)
     try {
-      const result = await explainClinicalCase({
-        question: currentQ.question_text,
-        options: [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4],
-        correctAnswer: [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4][currentQ.correct_answer_index],
-        userAnswer: selectedOption || undefined
-      })
+      const result = await clinicalTutorFlow(currentQ.question_text, [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4][currentQ.correct_answer_index], currentQ.explanation)
       setAiExplanation(result)
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message || "Could not reach the clinical tutor." })
