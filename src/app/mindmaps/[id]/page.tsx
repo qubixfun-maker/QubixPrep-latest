@@ -1,20 +1,15 @@
-
 "use client"
 
 import { useMemo, use } from "react"
 import { useDoc, useCollection, useFirestore } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
-import { Card, CardContent } from "@/components/ui/card"
-import { ChevronRight, Loader2 } from "lucide-react"
+import { ChevronRight, ChevronLeft, Loader2, Network } from "lucide-react"
 import Link from "next/link"
-import { usePlan } from '@/hooks/use-plan'
-import { UpgradeGate } from '@/components/upgrade-gate'
 
 export default function MindmapSubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
-  
+
   const db = useFirestore()
-  const { isFree } = usePlan()
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
@@ -26,54 +21,39 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
   if (subjectLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-12 space-y-12 animate-in slide-in-from-right-4 duration-700">
-      <div className="glass rounded-3xl p-8 md:p-12 border-accent/20">
-        <Link href="/mindmaps" className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-1 mb-4 hover:underline">
-          <ChevronRight className="h-3 w-3 rotate-180" /> Back to Mindmaps
+    <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">
+      <div>
+        <Link href="/mindmaps" className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-1 mb-4 hover:underline w-fit">
+          <ChevronLeft className="h-3 w-3" /> Back to Mindmaps
         </Link>
-        <h1 className="text-5xl font-bold tracking-tighter capitalize">{subject ? (subject as any).name : 'Subject'} Mindmaps</h1>
-        <p className="text-muted-foreground text-lg mt-4">Visual summaries and logical flows for better retention.</p>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight capitalize">{subject ? (subject as any).name : 'Subject'} Mindmaps</h1>
+        <p className="text-muted-foreground mt-2">Tap a topic to view its mindmap.</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="rounded-2xl glass border-none divide-y divide-white/5 overflow-hidden">
         {mindmapsLoading ? (
-          <div className="col-span-full flex justify-center py-12">
+          <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : isFree ? (
-          <>
-            {mindmaps?.slice(0, 2).map((mm: any) => (
-              <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>
-                <Card className="glass border-none hover:bg-white/5 transition-all group overflow-hidden h-48">
-                  <CardContent className="p-0 h-full relative">
-                    <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-opacity" />
-                    <div className="absolute inset-0 p-6 flex flex-col justify-end bg-gradient-to-t from-black/80 to-transparent">
-                      <h4 className="font-bold text-xl">{mm.title}</h4>
-                      <span className="text-xs text-muted-foreground uppercase tracking-widest">{mm.unitName || 'General'}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-            {mindmaps && mindmaps.length > 2 && <UpgradeGate type="content" />}
-          </>
-        ) : (
-          mindmaps?.map((mm: any) => (
+        ) : mindmaps && mindmaps.length > 0 ? (
+          mindmaps.map((mm: any) => (
             <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>
-              <Card className="glass border-none hover:bg-white/5 transition-all group overflow-hidden h-48">
-                <CardContent className="p-0 h-full relative">
-                  <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-opacity" />
-                  <div className="absolute inset-0 p-6 flex flex-col justify-end bg-gradient-to-t from-black/80 to-transparent">
-                    <h4 className="font-bold text-xl">{mm.title}</h4>
-                    <span className="text-xs text-muted-foreground uppercase tracking-widest">{mm.unitName || 'General'}</span>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="flex items-center gap-4 px-6 py-4 hover:bg-white/5 transition-colors group">
+                <div className="p-2 rounded-lg bg-accent/10 text-accent shrink-0">
+                  <Network className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm group-hover:text-accent transition-colors">{mm.title}</p>
+                  {mm.unitName && (
+                    <p className="text-xs text-muted-foreground">{mm.unitName}</p>
+                  )}
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
+              </div>
             </Link>
           ))
-        )}
-        {!mindmapsLoading && (!mindmaps || mindmaps.length === 0) && (
-          <div className="col-span-full text-center py-20 text-muted-foreground border-2 border-dashed border-white/5 rounded-3xl">
+        ) : (
+          <div className="text-center py-16 text-muted-foreground">
             No mindmaps uploaded for this subject yet.
           </div>
         )}

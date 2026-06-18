@@ -9,8 +9,10 @@ export function usePlan() {
   const db = useFirestore()
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading } = useDoc(profileRef)
-  const plan: Plan = (profile as any)?.plan || 'free'
-  
+
+  const isAdmin = (profile as any)?.role === 'admin'
+  const plan: Plan = isAdmin ? 'pro' : ((profile as any)?.plan || 'free')
+
   return {
     plan,
     loading,
