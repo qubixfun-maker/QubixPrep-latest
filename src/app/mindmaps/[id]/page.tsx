@@ -3,13 +3,18 @@
 import { useMemo, use } from "react"
 import { useDoc, useCollection, useFirestore } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
-import { ChevronRight, ChevronLeft, Loader2, Network } from "lucide-react"
+import { ChevronRight, ChevronLeft, Loader2, Network, Lock } from "lucide-react"
 import Link from "next/link"
+import { usePlan } from '@/hooks/use-plan'
+import { UpgradeGate } from '@/components/upgrade-gate'
+
+const FREE_LIMIT = 2
 
 export default function MindmapSubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
 
   const db = useFirestore()
+  const { canAccessContent, loading: planLoading } = usePlan()
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
@@ -18,7 +23,10 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
   const mmQuery = useMemo(() => (!mmRef ? null : query(mmRef, orderBy('createdAt', 'desc'))), [mmRef])
   const { data: mindmaps, loading: mindmapsLoading } = useCollection(mmQuery)
 
-  if (subjectLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+  if (subjectLoading || planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+
+  const visibleMindmaps = canAccessContent ? mindmaps : mindmaps?.slice(0, FREE_LIMIT)
+  const lockedCount = !canAccessContent && mindmaps ? Math.max(0, mindmaps.length - FREE_LIMIT) : 0
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">
@@ -35,8 +43,8 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : mindmaps && mindmaps.length > 0 ? (
-          mindmaps.map((mm: any) => (
+        ) : visibleMindmaps && visibleMindmaps.length > 0 ? (
+          visibleMindmaps.map((mm: any) => (
             <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>
               <div className="flex items-center gap-4 px-6 py-4 hover:bg-white/5 transition-colors group">
                 <div className="p-2 rounded-lg bg-accent/10 text-accent shrink-0">
@@ -57,7 +65,27 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
             No mindmaps uploaded for this subject yet.
           </div>
         )}
+
+        {lockedCount > 0 && (
+          <>
+            {Array.from({ length: lockedCount }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 px-6 py-4 opacity-40">
+                <div className="p-2 rounded-lg bg-white/5 text-muted-foreground shrink-0">
+                  <Lock className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">Locked mindmap</p>
+                  <p className="text-xs text-muted-foreground">Upgrade to unlock</p>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
+
+      {lockedCount > 0 && (
+        <UpgradeGate type="content" />
+      )}
     </div>
   )
 }
