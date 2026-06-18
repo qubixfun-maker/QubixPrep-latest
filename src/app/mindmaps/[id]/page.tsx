@@ -25,8 +25,7 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
 
   if (subjectLoading || planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
 
-  const visibleMindmaps = canAccessContent ? mindmaps : mindmaps?.slice(0, FREE_LIMIT)
-  const lockedCount = !canAccessContent && mindmaps ? Math.max(0, mindmaps.length - FREE_LIMIT) : 0
+  const hasLocked = !canAccessContent && mindmaps && mindmaps.length > FREE_LIMIT
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">
@@ -43,47 +42,38 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : visibleMindmaps && visibleMindmaps.length > 0 ? (
-          visibleMindmaps.map((mm: any) => (
-            <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>
-              <div className="flex items-center gap-4 px-6 py-4 hover:bg-white/5 transition-colors group">
-                <div className="p-2 rounded-lg bg-accent/10 text-accent shrink-0">
-                  <Network className="h-4 w-4" />
+        ) : mindmaps && mindmaps.length > 0 ? (
+          mindmaps.map((mm: any, index: number) => {
+            const isLocked = !canAccessContent && index >= FREE_LIMIT
+            const content = (
+              <div className={`flex items-center gap-4 px-6 py-4 transition-colors group ${isLocked ? 'opacity-50' : 'hover:bg-white/5'}`}>
+                <div className={`p-2 rounded-lg shrink-0 ${isLocked ? 'bg-white/5 text-muted-foreground' : 'bg-accent/10 text-accent'}`}>
+                  {isLocked ? <Lock className="h-4 w-4" /> : <Network className="h-4 w-4" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm group-hover:text-accent transition-colors">{mm.title}</p>
+                  <p className={`font-medium text-sm transition-colors ${isLocked ? '' : 'group-hover:text-accent'}`}>{mm.title}</p>
                   {mm.unitName && (
-                    <p className="text-xs text-muted-foreground">{mm.unitName}</p>
+                    <p className="text-xs text-muted-foreground">{isLocked ? 'Upgrade to unlock' : mm.unitName}</p>
                   )}
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
+                {!isLocked && <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />}
               </div>
-            </Link>
-          ))
+            )
+
+            return isLocked ? (
+              <div key={mm.id} className="cursor-not-allowed">{content}</div>
+            ) : (
+              <Link key={mm.id} href={`/mindmaps/${subjectId}/${mm.id}`}>{content}</Link>
+            )
+          })
         ) : (
           <div className="text-center py-16 text-muted-foreground">
             No mindmaps uploaded for this subject yet.
           </div>
         )}
-
-        {lockedCount > 0 && (
-          <>
-            {Array.from({ length: lockedCount }).map((_, i) => (
-              <div key={i} className="flex items-center gap-4 px-6 py-4 opacity-40">
-                <div className="p-2 rounded-lg bg-white/5 text-muted-foreground shrink-0">
-                  <Lock className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">Locked mindmap</p>
-                  <p className="text-xs text-muted-foreground">Upgrade to unlock</p>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
       </div>
 
-      {lockedCount > 0 && (
+      {hasLocked && (
         <UpgradeGate type="content" />
       )}
     </div>
