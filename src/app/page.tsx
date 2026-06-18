@@ -3,13 +3,13 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useUser, useCollection, useFirestore } from "@/firebase"
-import { doc, getDoc, collection } from "firebase/firestore"
+import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { 
-  Play, 
-  ArrowRight, 
-  Zap, 
+import {
+  Play,
+  ArrowRight,
+  Zap,
   BrainCircuit,
   Bookmark,
   Loader2,
@@ -26,14 +26,42 @@ export default function Dashboard() {
   const db = useFirestore()
   const router = useRouter()
   const [checkingRole, setCheckingRole] = useState(true)
+  const [counts, setCounts] = useState({ videos: 0, mindmaps: 0, loadingCounts: true })
 
   const subjectsQuery = useMemo(() => db ? collection(db, 'subjects') : null, [db])
-  const videosQuery = useMemo(() => db ? collection(db, 'videos') : null, [db])
-  const mindmapsQuery = useMemo(() => db ? collection(db, 'mindmaps') : null, [db])
-
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
-  const { data: videos } = useCollection(videosQuery)
-  const { data: mindmaps } = useCollection(mindmapsQuery)
+
+  useEffect(() => {
+    async function fetchNestedCounts() {
+      if (!db || !subjects || subjects.length === 0) {
+        setCounts({ videos: 0, mindmaps: 0, loadingCounts: false })
+        return
+      }
+      try {
+        let videoTotal = 0
+        let mindmapTotal = 0
+
+        await Promise.all(
+          subjects.map(async (subject: any) => {
+            const topicsRef = collection(db, 'subjects', subject.id, 'topics')
+            const videoQuery = query(topicsRef, where('contentType', '==', 'video'))
+            const videoSnap = await getDocs(videoQuery)
+            videoTotal += videoSnap.size
+
+            const mindmapsRef = collection(db, 'subjects', subject.id, 'mindmaps')
+            const mindmapSnap = await getDocs(mindmapsRef)
+            mindmapTotal += mindmapSnap.size
+          })
+        )
+
+        setCounts({ videos: videoTotal, mindmaps: mindmapTotal, loadingCounts: false })
+      } catch (e) {
+        console.error("Error fetching nested counts:", e)
+        setCounts({ videos: 0, mindmaps: 0, loadingCounts: false })
+      }
+    }
+    fetchNestedCounts()
+  }, [db, subjects])
 
   useEffect(() => {
     let isMounted = true
@@ -72,20 +100,19 @@ export default function Dashboard() {
 
   const firstName = user.displayName?.split(' ')[0] || 'Doctor'
   const subjectCount = subjects?.length ?? 0
-  const videoCount = videos?.length ?? 0
-  const mindmapCount = mindmaps?.length ?? 0
+  const videoCount = counts.videos
+  const mindmapCount = counts.mindmaps
 
   const stats = [
     { label: "Subjects", value: subjectsLoading ? "..." : String(subjectCount), icon: BookOpen, color: "text-blue-400" },
-    { label: "Video Lectures", value: String(videoCount), icon: Video, color: "text-purple-400" },
-    { label: "Mindmaps", value: String(mindmapCount), icon: Network, color: "text-green-400" },
-    { label: "AI Tools", value: "3", icon: BrainCircuit, color: "text-accent" },
+    { label: "Video Lectures", value: counts.loadingCounts ? "..." : String(videoCount), icon: Video, color: "text-purple-400" },
+    { label: "Mindmaps", value: counts.loadingCounts ? "..." : String(mindmapCount), icon: Network, color: "text-green-400" },
+    { label: "AI Tools", value: "2", icon: BrainCircuit, color: "text-accent" },
   ]
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 lg:p-12 space-y-8 animate-in fade-in duration-700">
 
-      {/* Hero */}
       <div className="relative overflow-hidden rounded-3xl glass p-8 md:p-12">
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-accent text-xs font-bold tracking-widest uppercase">
@@ -111,7 +138,6 @@ export default function Dashboard() {
         <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary/20 to-transparent pointer-events-none" />
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat) => (
           <Card key={stat.label} className="glass border-none shadow-none neumorph-inset hover:scale-[1.02] transition-transform cursor-default">
@@ -128,7 +154,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Subjects + Quick Access */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="glass border-none lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -195,7 +220,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* AI Banner */}
       <Card className="glass border-none overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent pointer-events-none" />
         <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
@@ -204,14 +228,14 @@ export default function Dashboard() {
               <BrainCircuit className="h-4 w-4" /> AI-Powered
             </div>
             <h3 className="text-xl md:text-2xl font-bold">Supercharge your prep with AI</h3>
-            <p className="text-muted-foreground text-sm max-w-md">Summarize notes, generate mindmaps, and get personalised quiz analysis — all powered by Groq.</p>
+            <p className="text-muted-foreground text-sm max-w-md">Summarize notes and run quiz simulations — all powered by Groq.</p>
           </div>
           <div className="flex flex-wrap gap-3 shrink-0">
             <Button asChild variant="outline" className="glass border-white/10 rounded-xl gap-2">
               <Link href="/ai-tools/summarizer"><Bookmark className="h-4 w-4" /> Summarizer</Link>
             </Button>
             <Button asChild className="bg-primary rounded-xl gap-2">
-              <Link href="/ai-tools/quiz"><Play className="h-4 w-4 fill-current" /> AI Quiz</Link>
+              <Link href="/ai-tools/quiz"><Play className="h-4 w-4 fill-current" /> Quiz Simulator</Link>
             </Button>
           </div>
         </CardContent>

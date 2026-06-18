@@ -93,3 +93,19 @@ export function SummarizerPageContent() {
     </div>
   );
 }
+
+export default function SummarizerPage() {
+  return (
+    <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <FileText className="h-8 w-8 text-primary" /> AI Note Summarizer
+        </h1>
+        <p className="text-muted-foreground">
+          Paste your medical text below. Our AI will identify critical diagnostic criteria and treatment protocols.
+        </p>
+      </div>
+      <SummarizerPageContent />
+    </div>
+  );
+}
