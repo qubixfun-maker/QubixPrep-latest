@@ -1,9 +1,10 @@
 'use server';
 
-import { getGroqClient, GROQ_MODEL } from '@/ai/genkit';
+import { groqClient, GROQ_MODEL } from '@/ai/genkit';
 
 export type GenerateQuizAndFlashcardsInput = {
   studyTopic: string;
+  numQuestions?: number;
 };
 
 export type QuizQuestion = {
@@ -26,7 +27,8 @@ export type GenerateQuizAndFlashcardsOutput = {
 export async function generateQuizAndFlashcards(
   input: GenerateQuizAndFlashcardsInput
 ): Promise<GenerateQuizAndFlashcardsOutput> {
-  const groqClient = getGroqClient();
+  const count = Math.min(Math.max(input.numQuestions ?? 5, 1), 25);
+
   const response = await groqClient.chat.completions.create({
     model: GROQ_MODEL,
     messages: [
@@ -34,7 +36,7 @@ export async function generateQuizAndFlashcards(
         role: 'user',
         content: `You are an expert medical educator for MBBS and NEET-PG students.
 
-Generate 5 MCQs and 5 flashcards for the following topic: ${input.studyTopic}
+Generate exactly ${count} MCQs for the following topic: ${input.studyTopic}
 
 Respond ONLY with a valid JSON object in this exact format, no extra text:
 {
@@ -46,12 +48,7 @@ Respond ONLY with a valid JSON object in this exact format, no extra text:
       "explanation": "..."
     }
   ],
-  "flashcards": [
-    {
-      "front": "...",
-      "back": "..."
-    }
-  ]
+  "flashcards": []
 }`,
       },
     ],
@@ -59,5 +56,9 @@ Respond ONLY with a valid JSON object in this exact format, no extra text:
 
   const raw = response.choices[0]?.message?.content ?? '{}';
   const clean = raw.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  try {
+    return JSON.parse(clean);
+  } catch {
+    return { quizzes: [], flashcards: [] };
+  }
 }

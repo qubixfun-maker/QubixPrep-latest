@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BrainCircuit, FileText, LayoutList, Share2, Sparkles, Wand2 } from "lucide-react";
+import { BrainCircuit, FileText, LayoutList, Wand2 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
@@ -13,28 +13,12 @@ const tools = [
     feature: "Critical Concept Identification"
   },
   {
-    title: "Quiz Generator",
-    description: "Generate USMLE-style MCQs from any topic to test your knowledge retention.",
+    title: "Quiz Simulator",
+    description: "Choose a topic and question count to generate a board-style mock test instantly.",
     icon: LayoutList,
     href: "/ai-tools/quiz",
     color: "bg-purple-500/10 text-purple-400",
-    feature: "Smart MCQ Logic"
-  },
-  {
-    title: "Flashcard Generator",
-    description: "Turn complex subjects into active recall flashcards with one click.",
-    icon: Sparkles,
-    href: "/ai-tools/quiz", // Shares same flow usually
-    color: "bg-orange-500/10 text-orange-400",
-    feature: "Spaced Repetition Ready"
-  },
-  {
-    title: "Mind Map Viz",
-    description: "Visualize relationships between complex medical concepts in an interactive graph.",
-    icon: Share2,
-    href: "/ai-tools/mindmap",
-    color: "bg-cyan-500/10 text-cyan-400",
-    feature: "Conceptual Mapping"
+    feature: "Custom Length Mock Tests"
   }
 ];
 
@@ -47,7 +31,7 @@ export default function AIToolsPage() {
         </div>
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Qubix AI Laboratory</h1>
         <p className="text-muted-foreground text-lg leading-relaxed">
-          Supercharge your MBBS prep with clinical-grade AI tools designed to extract 
+          Supercharge your MBBS prep with clinical-grade AI tools designed to extract
           high-yield concepts from complex medical literature.
         </p>
       </div>

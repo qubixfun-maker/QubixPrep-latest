@@ -3,21 +3,21 @@
 import { useMemo, use, useState, useEffect } from "react"
 import { useDoc, useCollection, useFirestore, useUser } from "@/firebase"
 import { doc, collection, query, orderBy, getDocs } from "firebase/firestore"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { ChevronRight, Share2, LayoutList, Loader2, FileText, CheckCircle2 } from "lucide-react"
+import { ChevronRight, ChevronLeft, LayoutList, Loader2, FileText, CheckCircle2, Lock } from "lucide-react"
 import Link from "next/link"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
 
+const FREE_LIMIT = 3
+
 export default function SubjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
-  
+
   const { user } = useUser()
   const db = useFirestore()
-
-  const { canAccessContent, isFree } = usePlan()
+  const { canAccessContent } = usePlan()
 
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set())
 
@@ -74,120 +74,72 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
+  const hasLocked = !canAccessContent && pdfTopics.length > FREE_LIMIT
+
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-12 space-y-12 animate-in slide-in-from-right-4 duration-700">
-      <div className="relative overflow-hidden rounded-3xl glass p-8 md:p-12 border-primary/20">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-8">
-          <div className="space-y-4 max-w-xl">
-            <Link href="/notes" className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 hover:text-accent transition-colors">
-              <ChevronRight className="h-3 w-3 rotate-180" /> Back to Library
-            </Link>
-            <h1 className="text-5xl font-bold tracking-tighter capitalize">{(subject as any).name} Notes</h1>
-            <p className="text-muted-foreground text-lg leading-relaxed">
-              {(subject as any).description || "Master the core concepts through high-quality illustrations and clinician-curated notes."}
-            </p>
-            <div className="flex items-center gap-6 pt-2">
-              <div className="flex items-center gap-2">
-                <LayoutList className="h-4 w-4 text-accent" />
-                <span className="text-sm font-bold">{pdfTopics.length} PDF Notes</span>
-              </div>
-            </div>
+    <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">
+      <div>
+        <Link href="/notes" className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1 mb-4 hover:underline w-fit">
+          <ChevronLeft className="h-3 w-3" /> Back to Library
+        </Link>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight capitalize">{(subject as any).name} Notes</h1>
+        <p className="text-muted-foreground mt-2">
+          {(subject as any).description || "Tap a topic to start reading."}
+        </p>
+        <div className="flex items-center gap-4 mt-4">
+          <div className="flex items-center gap-2 text-sm">
+            <LayoutList className="h-4 w-4 text-accent" />
+            <span className="font-medium">{pdfTopics.length} notes</span>
           </div>
-          <div className="w-full md:w-64 space-y-3 glass-darker p-6 rounded-2xl border-white/5">
-            <div className="flex justify-between items-center text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              <span>Reading Progress</span>
-              <span className="text-accent">{completionPercentage}%</span>
-            </div>
-            <Progress value={completionPercentage} className="h-2 bg-white/5" />
+          <div className="flex-1 flex items-center gap-2">
+            <Progress value={completionPercentage} className="h-1.5 bg-white/5" />
+            <span className="text-xs text-muted-foreground shrink-0">{completionPercentage}%</span>
           </div>
         </div>
       </div>
 
-      <div className="space-y-6">
-        <div className="flex items-center justify-between px-2">
-          <h2 className="text-xl font-bold">Study Notes</h2>
-        </div>
-
+      <div className="rounded-2xl glass border-none divide-y divide-white/5 overflow-hidden">
         {topicsLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : (
-          <div className="space-y-3">
-            {isFree ? (
-              <>
-                {pdfTopics.slice(0, 3).map((topic: any) => {
-                  const isDone = completedTopics.has(topic.id)
-                  return (
-                    <Link key={topic.id} href={`/notes/${subjectId}/${topic.id}`}>
-                      <div className={`glass group p-6 rounded-2xl border transition-all flex items-center justify-between cursor-pointer mb-3 ${isDone ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 hover:border-primary/50'}`}>
-                        <div className="flex items-center gap-6">
-                          <div className={`p-3 rounded-full ${isDone ? 'bg-green-500/10 text-green-400' : 'bg-primary/10 text-primary'}`}>
-                            {isDone ? <CheckCircle2 className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-bold text-lg group-hover:text-primary transition-colors">{topic.title}</h4>
-                              {isDone && <span className="text-[10px] font-black uppercase text-green-400 tracking-tighter">Done</span>}
-                            </div>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                              <span className="flex items-center gap-1 uppercase tracking-tighter">{topic.unitName || 'General'}</span>
-                              <span className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold ${topic.importance === 'High' || topic.importance === 'Essential' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                                {topic.importance}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="icon" className="group-hover:translate-x-1 transition-transform">
-                          <ChevronRight className="h-5 w-5" />
-                        </Button>
-                      </div>
-                    </Link>
-                  )
-                })}
-                {pdfTopics.length > 3 && (
-                  <UpgradeGate type="content" title={`${pdfTopics.length - 3} more notes locked`} description="Upgrade to Scholar to access the full library for this subject." />
-                )}
-              </>
-            ) : (
-              pdfTopics.map((topic: any) => {
-                const isDone = completedTopics.has(topic.id)
-                return (
-                  <Link key={topic.id} href={`/notes/${subjectId}/${topic.id}`}>
-                    <div className={`glass group p-6 rounded-2xl border transition-all flex items-center justify-between cursor-pointer mb-3 ${isDone ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 hover:border-primary/50'}`}>
-                      <div className="flex items-center gap-6">
-                        <div className={`p-3 rounded-full ${isDone ? 'bg-green-500/10 text-green-400' : 'bg-primary/10 text-primary'}`}>
-                          {isDone ? <CheckCircle2 className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-lg group-hover:text-primary transition-colors">{topic.title}</h4>
-                            {isDone && <span className="text-[10px] font-black uppercase text-green-400 tracking-tighter">Done</span>}
-                          </div>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                            <span className="flex items-center gap-1 uppercase tracking-tighter">{topic.unitName || 'General'}</span>
-                            <span className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold ${topic.importance === 'High' || topic.importance === 'Essential' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                              {topic.importance}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="icon" className="group-hover:translate-x-1 transition-transform">
-                        <ChevronRight className="h-5 w-5" />
-                      </Button>
-                    </div>
-                  </Link>
-                )
-              })
-            )}
-            {pdfTopics.length === 0 && (
-              <div className="text-center py-20 text-muted-foreground border-2 border-dashed border-white/5 rounded-3xl">
-                No notes uploaded for this subject yet.
+        ) : pdfTopics.length > 0 ? (
+          pdfTopics.map((topic: any, index: number) => {
+            const isLocked = !canAccessContent && index >= FREE_LIMIT
+            const isDone = completedTopics.has(topic.id)
+
+            const content = (
+              <div className={`flex items-center gap-4 px-6 py-4 transition-colors group ${isLocked ? 'opacity-50' : 'hover:bg-white/5'}`}>
+                <div className={`p-2 rounded-lg shrink-0 ${
+                  isLocked ? 'bg-white/5 text-muted-foreground' :
+                  isDone ? 'bg-green-500/10 text-green-400' : 'bg-primary/10 text-primary'
+                }`}>
+                  {isLocked ? <Lock className="h-4 w-4" /> : isDone ? <CheckCircle2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`font-medium text-sm transition-colors ${isLocked ? '' : 'group-hover:text-primary'}`}>{topic.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isLocked ? 'Upgrade to unlock' : (topic.unitName || 'General')}
+                  </p>
+                </div>
+                {!isLocked && <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />}
               </div>
-            )}
+            )
+
+            return isLocked ? (
+              <div key={topic.id} className="cursor-not-allowed">{content}</div>
+            ) : (
+              <Link key={topic.id} href={`/notes/${subjectId}/${topic.id}`}>{content}</Link>
+            )
+          })
+        ) : (
+          <div className="text-center py-16 text-muted-foreground">
+            No notes uploaded for this subject yet.
           </div>
         )}
       </div>
+
+      {hasLocked && <UpgradeGate type="content" />}
     </div>
   )
 }
