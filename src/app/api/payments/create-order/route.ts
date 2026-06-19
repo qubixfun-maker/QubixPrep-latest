@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic"
 
-
 import { NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
 
@@ -20,6 +19,7 @@ export async function POST(req: Request) {
     amount,
     currency: 'INR',
     receipt: `receipt_${planId}_${userId}`,
+    payment_capture: 1,
     notes: {
       planId,
       userId

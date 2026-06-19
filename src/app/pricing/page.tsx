@@ -106,7 +106,13 @@ export default function PricingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId: plan.id, userId: user.uid, amount: plan.price * 100 })
       })
-      const { orderId, currency } = await res.json()
+      const orderData = await res.json()
+
+      if (!res.ok || !orderData.orderId) {
+        throw new Error(orderData.error || 'Could not create payment order. Please try again.')
+      }
+
+      const { orderId, currency } = orderData
 
       const rzp = new (window as any).Razorpay({
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
@@ -116,13 +122,32 @@ export default function PricingPage() {
         description: `${plan.name} Plan - Monthly`,
         order_id: orderId,
         handler: async (response: any) => {
-          await fetch('/api/payments/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...response, userId: user.uid, planId: plan.id })
-          })
-          toast({ title: "Payment Successful!", description: `Welcome to ${plan.name}!` })
-          window.location.reload()
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...response, userId: user.uid, planId: plan.id })
+            })
+            const verifyData = await verifyRes.json()
+
+            if (!verifyRes.ok || !verifyData.success) {
+              toast({
+                variant: "destructive",
+                title: "Payment received, but activation failed",
+                description: "Your payment went through but we couldn't activate your plan. Contact support with payment ID: " + response.razorpay_payment_id
+              })
+              return
+            }
+
+            toast({ title: "Payment Successful!", description: `Welcome to ${plan.name}!` })
+            window.location.reload()
+          } catch (verifyError: any) {
+            toast({
+              variant: "destructive",
+              title: "Activation error",
+              description: "Payment succeeded but verification failed. Contact support with payment ID: " + response.razorpay_payment_id
+            })
+          }
         },
         prefill: { email: user.email || '' },
         theme: { color: '#7C3AED' }
