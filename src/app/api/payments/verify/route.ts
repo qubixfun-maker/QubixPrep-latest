@@ -1,16 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const rawKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY || ''
-  return NextResponse.json({
-    length: rawKey.length,
-    first10: rawKey.slice(0, 10),
-    last10: rawKey.slice(-10),
-    startsWithQuote: rawKey.startsWith('"'),
-    endsWithQuote: rawKey.endsWith('"'),
-    containsEscapedNewline: rawKey.includes('\\n'),
-    containsRealNewline: rawKey.includes('\n')
-  })
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId, planId } = await req.json()
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !userId || !planId) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET!)
+      .update(body)
+      .digest('hex')
+
+    if (expectedSignature !== razorpay_signature) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
+    }
+
+    const { getAdminDb } = await import('@/lib/firebase-admin')
+    const adminDb = getAdminDb()
+
+    await adminDb.doc(`users/${userId}`).update({
+      plan: planId,
+      planActivatedAt: new Date().toISOString(),
+      razorpayPaymentId: razorpay_payment_id
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    console.error('[VERIFY] FAILED:', e.message, e.stack)
+    return NextResponse.json({ error: e.message, stack: e.stack }, { status: 500 })
+  }
 }

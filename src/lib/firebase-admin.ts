@@ -2,17 +2,15 @@ import * as admin from 'firebase-admin'
 
 export function getAdminDb() {
   if (!admin.apps.length) {
-    let rawKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY || ''
+    let rawKey = (process.env.FIREBASE_ADMIN_PRIVATE_KEY || '').trim()
 
-    // Strip wrapping quotes if accidentally included when pasting into Vercel
+    // Strip wrapping quotes (handles cases where quotes got pasted in literally)
     if (rawKey.startsWith('"') && rawKey.endsWith('"')) {
       rawKey = rawKey.slice(1, -1)
     }
 
-    // Handle both escaped (\n as text) and literal newline formats
-    const privateKey = rawKey.includes('\\n')
-      ? rawKey.replace(/\\n/g, '\n')
-      : rawKey
+    // Convert literal \n escape sequences into real newlines
+    const privateKey = rawKey.replace(/\\n/g, '\n').trim()
 
     if (!process.env.FIREBASE_ADMIN_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !privateKey) {
       throw new Error(
