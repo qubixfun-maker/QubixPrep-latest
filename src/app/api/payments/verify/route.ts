@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { updateUserPlan } from '@/lib/firestore-rest'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,14 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
-    const { getAdminDb } = await import('@/lib/firebase-admin')
-    const adminDb = getAdminDb()
-
-    await adminDb.doc(`users/${userId}`).update({
-      plan: planId,
-      planActivatedAt: new Date().toISOString(),
-      razorpayPaymentId: razorpay_payment_id
-    })
+    await updateUserPlan(userId, planId, razorpay_payment_id)
 
     return NextResponse.json({ success: true })
   } catch (e: any) {
