@@ -19,7 +19,8 @@ import {
   PlayCircle,
   FileText,
   Zap,
-  MessageSquare
+  MessageSquare,
+  Eye
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -46,10 +47,12 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   // Selection state
   const [selectedTopicQuestions, setSelectedTopicQuestions] = useState<any[] | null>(null)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [selectedOption, setSelectedOption] = useState<string | null>(null)
+  const [selectedOption, setSelectedOption] = useState<number | null>(null)
+  const [sessionAnswers, setSessionAnswers] = useState<Record<number, number>>({})
   const [showExplanation, setShowExplanation] = useState(false)
   const [score, setScore] = useState(0)
   const [quizFinished, setQuizFinished] = useState(false)
+  const [reviewMode, setReviewMode] = useState(false)
 
   // AI State
   const [aiExplanation, setAiExplanation] = useState<string | null>(null)
@@ -97,9 +100,11 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
     setSelectedTopicQuestions(topicQs)
     setCurrentIndex(0)
     setSelectedOption(null)
+    setSessionAnswers({})
     setShowExplanation(false)
     setScore(0)
     setQuizFinished(false)
+    setReviewMode(false)
     setAiExplanation(null)
   }
 
@@ -119,6 +124,64 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
 
   if (selectedTopicQuestions) {
     if (quizFinished) {
+      if (reviewMode) return (
+        <div className="max-w-3xl mx-auto p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <Eye className="h-6 w-6 text-primary" /> Answer Review
+            </h2>
+            <Button variant="ghost" onClick={() => setReviewMode(false)} className="gap-2">
+              <ArrowLeft className="h-4 w-4" /> Back to Results
+            </Button>
+          </div>
+          <div className="space-y-4">
+            {questions.map((q: any, i: number) => {
+              const userAnswer = sessionAnswers[i]
+              const isCorrect = userAnswer === q.correct_answer_index
+              const options = [q.option1, q.option2, q.option3, q.option4].filter(Boolean)
+              return (
+                <Card key={i} className={`glass border-none overflow-hidden ${isCorrect ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-red-500'}`}>
+                  <CardContent className="p-5 space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isCorrect ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {isCorrect ? '✓' : '✗'}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{q.unit_title} · Q{i+1}</p>
+                        <p className="font-medium text-sm leading-relaxed">{q.question_text}</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 pl-10">
+                      {options.map((opt: string, oi: number) => {
+                        const isUserAnswer = userAnswer === oi
+                        const isCorrectAnswer = q.correct_answer_index === oi
+                        let style = "bg-white/5 border-white/5 text-muted-foreground"
+                        if (isCorrectAnswer) style = "bg-green-500/10 border-green-500/30 text-green-400"
+                        else if (isUserAnswer && !isCorrectAnswer) style = "bg-red-500/10 border-red-500/30 text-red-400"
+                        return (
+                          <div key={oi} className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${style}`}>
+                            <span className="font-bold">{String.fromCharCode(65+oi)}.</span>
+                            <span>{opt}</span>
+                            {isCorrectAnswer && <span className="ml-auto text-[9px] font-bold uppercase">Correct</span>}
+                            {isUserAnswer && !isCorrectAnswer && <span className="ml-auto text-[9px] font-bold uppercase">Your Answer</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {q.explanation && (
+                      <div className="pl-10 p-3 rounded-xl bg-accent/5 border border-accent/20">
+                        <p className="text-[10px] font-bold text-accent uppercase tracking-widest mb-1">Explanation</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{q.explanation}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      )
+
       return (
         <div className="max-w-2xl mx-auto p-4 md:p-12 space-y-8 animate-in zoom-in-95 duration-500">
           <Card className="glass border-none overflow-hidden relative">
@@ -143,6 +206,13 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
               </div>
               <div className="pt-6 flex flex-col gap-3">
                 <Button onClick={() => startTopicQuiz(selectedTopicQuestions)} className="w-full h-12 rounded-xl">Retake Assessment</Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setReviewMode(true)}
+                  className="w-full rounded-xl h-12 glass border-white/10 gap-2"
+                >
+                  <Eye className="h-4 w-4" /> Review Answers
+                </Button>
                 <Button variant="ghost" onClick={() => setSelectedTopicQuestions(null)} className="w-full">Return to Curriculum</Button>
               </div>
             </CardContent>
@@ -153,13 +223,13 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
 
     const currentQ = selectedTopicQuestions[currentIndex]
     const currentOptions = [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4]
-    const correctAnswer = currentOptions[currentQ.correct_answer_index]
 
-    const handleAnswer = (opt: string) => {
-      if (selectedOption) return
-      setSelectedOption(opt)
+    const handleAnswer = (optionIndex: number) => {
+      if (selectedOption !== null) return
+      setSelectedOption(optionIndex)
+      setSessionAnswers(prev => ({ ...prev, [currentIndex]: optionIndex }))
       setShowExplanation(true)
-      if (opt === correctAnswer) setScore(s => s + 1)
+      if (optionIndex === currentQ.correct_answer_index) setScore(s => s + 1)
     }
 
     const nextQuestion = () => {
@@ -195,19 +265,19 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
             <CardContent className="space-y-4">
               <div className="grid gap-3">
                 {currentOptions.map((opt: string, i: number) => {
-                  const isCorrect = opt === correctAnswer
-                  const isSelected = opt === selectedOption
+                  const isCorrect = i === currentQ.correct_answer_index
+                  const isSelected = i === selectedOption
                   let styles = "bg-white/5 border-white/5"
-                  if (selectedOption) {
+                  if (selectedOption !== null) {
                     if (isCorrect) styles = "bg-green-500/10 border-green-500/50 text-green-400"
                     else if (isSelected) styles = "bg-red-500/10 border-red-500/50 text-red-400"
                     else styles = "bg-white/5 border-white/5 opacity-50"
                   }
                   return (
-                    <button key={i} disabled={!!selectedOption} onClick={() => handleAnswer(opt)} className={`p-5 rounded-2xl border text-left transition-all flex items-center justify-between group ${styles}`}>
+                    <button key={i} disabled={selectedOption !== null} onClick={() => handleAnswer(i)} className={`p-5 rounded-2xl border text-left transition-all flex items-center justify-between group ${styles}`}>
                       <span className="text-sm font-medium">{opt}</span>
-                      {selectedOption && isCorrect && <CheckCircle2 className="h-5 w-5 shrink-0" />}
-                      {selectedOption && isSelected && !isCorrect && <XCircle className="h-5 w-5 shrink-0" />}
+                      {selectedOption !== null && isCorrect && <CheckCircle2 className="h-5 w-5 shrink-0" />}
+                      {selectedOption !== null && isSelected && !isCorrect && <XCircle className="h-5 w-5 shrink-0" />}
                     </button>
                   )
                 })}

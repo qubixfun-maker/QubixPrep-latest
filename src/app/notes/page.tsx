@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useCollection, useFirestore } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -24,15 +24,42 @@ const ICON_MAP: Record<string, any> = {
   "Pharmacology": BookOpen
 }
 
+const SUBJECT_ORDER = [
+  // 1st Year
+  "Anatomy", "Physiology", "Biochemistry",
+  // 2nd Year  
+  "Pathology", "Pharmacology", "Microbiology", "Forensic Medicine", "Community Medicine",
+  // 3rd Year (Part 1)
+  "Ophthalmology", "ENT", "Medicine", "Surgery",
+  // Final Year
+  "Obstetrics & Gynaecology", "Paediatrics", "Psychiatry", "Orthopaedics",
+  "Radiology", "Anaesthesia", "Dermatology", "Anesthesiology"
+];
+
 export default function NotesPage() {
   const db = useFirestore()
+  const [subjects, setSubjects] = useState<any[]>([]);
   
   const subjectsQuery = useMemo(() => {
     if (!db) return null
     return collection(db, 'subjects')
   }, [db])
   
-  const { data: subjects, loading } = useCollection(subjectsQuery)
+  const { data, loading } = useCollection(subjectsQuery)
+
+  useEffect(() => {
+    if (data) {
+      const sorted = data.sort((a, b) => {
+        const ai = SUBJECT_ORDER.indexOf(a.name)
+        const bi = SUBJECT_ORDER.indexOf(b.name)
+        if (ai === -1 && bi === -1) return a.name.localeCompare(b.name)
+        if (ai === -1) return 1
+        if (bi === -1) return -1
+        return ai - bi
+      })
+      setSubjects(sorted)
+    }
+  }, [data])
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-bottom-4 duration-700">
