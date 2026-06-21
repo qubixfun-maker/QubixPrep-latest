@@ -5,84 +5,33 @@ import { useUser, useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Check, Zap, BookOpen, BrainCircuit, Crown, Loader2 } from "lucide-react"
+import { Check, Zap, BookOpen, Crown, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 const PLANS = [
   {
-    id: "free",
-    name: "Explorer",
-    price: 0,
-    icon: BookOpen,
-    color: "text-muted-foreground",
-    border: "border-white/10",
+    id: "free", name: "Explorer", price: 0, icon: BookOpen,
+    color: "text-muted-foreground", border: "border-white/10",
     description: "Get started with limited access",
-    features: [
-      "5 free notes per subject",
-      "All video lectures",
-      "3 free mindmaps per subject",
-      "10 QBank questions per subject",
-      "Basic dashboard",
-    ],
-    locked: [
-      "Full notes library",
-      "All mindmaps",
-      "Unlimited QBank",
-      "AI Tools",
-      "Custom Test Series",
-      "PDF AI Extraction",
-    ],
-    cta: "Current Plan",
-    razorpayPlanId: null,
+    features: ["5 free notes per subject", "All video lectures", "3 free mindmaps per subject", "10 QBank questions per subject", "Basic dashboard"],
+    locked: ["Full notes library", "All mindmaps", "Unlimited QBank", "AI Tools", "Custom Test Series", "PDF AI Extraction"],
+    cta: "Current Plan", razorpayPlanId: null,
   },
   {
-    id: "basic",
-    name: "Scholar",
-    price: 29,
-    icon: Crown,
-    color: "text-accent",
-    border: "border-accent/40",
-    badge: "Most Popular",
+    id: "basic", name: "Scholar", price: 29, icon: Crown,
+    color: "text-accent", border: "border-accent/40", badge: "Most Popular",
     description: "Full content library unlocked",
-    features: [
-      "Everything in Explorer",
-      "Unlimited notes access",
-      "All mindmaps",
-      "Full QBank — all subjects",
-      "Custom Test Series",
-      "Video lectures (all)",
-    ],
-    locked: [
-      "AI Tutor",
-      "AI Summarizer",
-      "AI Quiz Generator",
-      "AI Mindmap Generator",
-      "PDF AI Extraction",
-    ],
-    cta: "Upgrade to Scholar",
-    razorpayPlanId: "plan_scholar_29",
+    features: ["Everything in Explorer", "Unlimited notes access", "All mindmaps", "Full QBank — all subjects", "Custom Test Series", "Video lectures (all)"],
+    locked: ["AI Tutor", "AI Summarizer", "AI Quiz Generator", "PDF AI Extraction"],
+    cta: "Upgrade to Scholar", razorpayPlanId: "basic",
   },
   {
-    id: "pro",
-    name: "Clinician",
-    price: 59,
-    icon: Zap,
-    color: "text-primary",
-    border: "border-primary/40",
-    badge: "All Features",
+    id: "pro", name: "Clinician", price: 59, icon: Zap,
+    color: "text-primary", border: "border-primary/40", badge: "All Features",
     description: "Everything + full AI suite",
-    features: [
-      "Everything in Scholar",
-      "AI Clinical Tutor",
-      "AI Note Summarizer",
-      "AI Quiz & Flashcard Generator",
-      "AI Mindmap Generator",
-      "PDF AI Extraction (Vision OCR)",
-      "Priority support",
-    ],
+    features: ["Everything in Scholar", "AI Clinical Tutor", "AI Note Summarizer", "AI Quiz Generator", "PDF AI Extraction (Vision OCR)", "Priority support"],
     locked: [],
-    cta: "Upgrade to Clinician",
-    razorpayPlanId: "plan_clinician_59",
+    cta: "Upgrade to Clinician", razorpayPlanId: "pro",
   },
 ]
 
@@ -101,60 +50,39 @@ export default function PricingPage() {
     setLoading(plan.id)
 
     try {
-      const res = await fetch('/api/payments/create-order', {
+      const res = await fetch('/api/payments/create-subscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: plan.id, userId: user.uid, amount: plan.price * 100 })
+        body: JSON.stringify({ planId: plan.razorpayPlanId, userId: user.uid, email: user.email })
       })
-      const orderData = await res.json()
+      const data = await res.json()
 
-      if (!res.ok || !orderData.orderId) {
-        throw new Error(orderData.error || 'Could not create payment order. Please try again.')
+      if (!res.ok || !data.subscriptionId) {
+        throw new Error(data.error || 'Could not create subscription. Please try again.')
       }
-
-      const { orderId, currency } = orderData
 
       const rzp = new (window as any).Razorpay({
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: plan.price * 100,
-        currency: currency || 'INR',
+        subscription_id: data.subscriptionId,
         name: 'QubixPrep',
-        description: `${plan.name} Plan - Monthly`,
-        order_id: orderId,
-        handler: async (response: any) => {
-          try {
-            const verifyRes = await fetch('/api/payments/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...response, userId: user.uid, planId: plan.id })
-            })
-            const verifyData = await verifyRes.json()
-
-            if (!verifyRes.ok || !verifyData.success) {
-              toast({
-                variant: "destructive",
-                title: "Payment received, but activation failed",
-                description: "Your payment went through but we couldn't activate your plan. Contact support with payment ID: " + response.razorpay_payment_id
-              })
-              return
-            }
-
-            toast({ title: "Payment Successful!", description: `Welcome to ${plan.name}!` })
-            window.location.reload()
-          } catch (verifyError: any) {
-            toast({
-              variant: "destructive",
-              title: "Activation error",
-              description: "Payment succeeded but verification failed. Contact support with payment ID: " + response.razorpay_payment_id
-            })
-          }
+        description: `${plan.name} Plan - Monthly Subscription`,
+        handler: async () => {
+          toast({
+            title: "Subscription Activated!",
+            description: `Welcome to ${plan.name}! Your plan will update shortly.`
+          })
+          setTimeout(() => window.location.reload(), 2000)
         },
         prefill: { email: user.email || '' },
-        theme: { color: '#7C3AED' }
+        theme: { color: '#7C3AED' },
+        notes: {
+          userId: user.uid,
+          planId: plan.razorpayPlanId,
+        }
       })
       rzp.open()
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Payment Failed", description: e.message })
+      toast({ variant: "destructive", title: "Subscription Failed", description: e.message })
     } finally {
       setLoading(null)
     }
@@ -170,7 +98,7 @@ export default function PricingPage() {
           Choose Your <span className="text-gradient">Learning Path</span>
         </h1>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-          Start free. Upgrade when you're ready. Cancel anytime.
+          Start free. Upgrade when you're ready. Cancel anytime — auto-renews monthly via Razorpay.
         </p>
       </div>
 
@@ -187,9 +115,7 @@ export default function PricingPage() {
                   {plan.badge}
                 </div>
               )}
-              {isCurrent && (
-                <div className="absolute top-0 left-0 w-full h-1 bg-primary" />
-              )}
+              {isCurrent && <div className="absolute top-0 left-0 w-full h-1 bg-primary" />}
               <CardHeader className="p-8 pb-4">
                 <div className={`p-3 rounded-2xl bg-white/5 w-fit mb-4 ${plan.color}`}>
                   <Icon className="h-6 w-6" />

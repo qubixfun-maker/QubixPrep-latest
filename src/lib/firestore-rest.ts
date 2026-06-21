@@ -37,13 +37,16 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
   return data.access_token
 }
 
-export async function updateUserPlan(userId: string, planId: string, paymentId: string) {
+function getServiceAccount(): ServiceAccount {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
   if (!serviceAccountJson) {
     throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON env var is not set')
   }
+  return JSON.parse(serviceAccountJson)
+}
 
-  const sa: ServiceAccount = JSON.parse(serviceAccountJson)
+export async function updateUserPlan(userId: string, planId: string, paymentId: string) {
+  const sa = getServiceAccount()
   const accessToken = await getAccessToken(sa)
 
   const url = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents/users/${userId}?updateMask.fieldPaths=plan&updateMask.fieldPaths=planActivatedAt&updateMask.fieldPaths=razorpayPaymentId`
@@ -61,6 +64,44 @@ export async function updateUserPlan(userId: string, planId: string, paymentId: 
         razorpayPaymentId: { stringValue: paymentId },
       },
     }),
+  })
+
+  if (!res.ok) {
+    const errorBody = await res.text()
+    throw new Error(`Firestore update failed: ${res.status} ${errorBody}`)
+  }
+
+  return await res.json()
+}
+
+export async function setUserPlanFromSubscription(
+  userId: string,
+  planId: string,
+  subscriptionId: string | undefined,
+  status: string
+) {
+  const sa = getServiceAccount()
+  const accessToken = await getAccessToken(sa)
+
+  const fields: Record<string, any> = {
+    plan: { stringValue: planId },
+    subscriptionStatus: { stringValue: status },
+    planUpdatedAt: { stringValue: new Date().toISOString() },
+  }
+  if (subscriptionId) {
+    fields.razorpaySubscriptionId = { stringValue: subscriptionId }
+  }
+
+  const maskFields = Object.keys(fields).map(f => `updateMask.fieldPaths=${f}`).join('&')
+  const url = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents/users/${userId}?${maskFields}`
+
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fields }),
   })
 
   if (!res.ok) {
