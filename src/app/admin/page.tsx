@@ -46,6 +46,55 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 
+function parseCSVLine(line: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    const nextChar = line[i + 1]
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  result.push(current.trim())
+  return result
+}
+
+function parseCSV(text: string): string[][] {
+  const lines: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    if (char === '"') {
+      inQuotes = !inQuotes
+      current += char
+    } else if (char === '\n' && !inQuotes) {
+      if (current.trim()) lines.push(current)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  if (current.trim()) lines.push(current)
+
+  return lines.map(parseCSVLine)
+}
+
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
   const db = useFirestore()
@@ -504,13 +553,12 @@ export default function AdminDashboard() {
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string
-        const rows = text.split('\n').slice(1) // Skip header
+        const rows = parseCSV(text).slice(1) // Skip header
         const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-        
-        const newQuestions = rows.map(row => {
-          const parts = row.split(',').map(s => s.trim().replace(/^"(.*)"$/, '$1'))
-          if (parts.length < 8) return null
-          
+
+        const newQuestions = rows.map(parts => {
+          if (parts.length < 8 || !parts[2]) return null
+
           return {
             subject_id: subjectId,
             unit_title: parts[0],
@@ -550,10 +598,9 @@ export default function AdminDashboard() {
     reader.onload = async (event) => {
       try {
         const text = event.target?.result as string
-        const rows = text.split('\n').slice(1)
-        const questions = rows.map(row => {
-          const parts = row.split(',').map(s => s.trim().replace(/^"(.*)"$/, '$1'))
-          if (parts.length < 8) return null
+        const rows = parseCSV(text).slice(1)
+        const questions = rows.map(parts => {
+          if (parts.length < 8 || !parts[3]) return null
           return {
             exam_type: parts[0],
             year: parseInt(parts[1]),
