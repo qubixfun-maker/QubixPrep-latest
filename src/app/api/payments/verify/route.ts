@@ -21,18 +21,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
-    return NextResponse.json({
-      success: true,
-      debug: 'Signature verified OK. Skipping Firebase Admin for this test.',
-      checks: {
-        hasProjectId: !!process.env.FIREBASE_ADMIN_PROJECT_ID,
-        hasClientEmail: !!process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        hasPrivateKey: !!process.env.FIREBASE_ADMIN_PRIVATE_KEY,
-        privateKeyLength: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.length || 0,
-        privateKeyStart: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.slice(0, 30) || 'NONE'
-      }
+    const { getAdminDb } = await import('@/lib/firebase-admin')
+    const adminDb = getAdminDb()
+
+    await adminDb.doc(`users/${userId}`).update({
+      plan: planId,
+      planActivatedAt: new Date().toISOString(),
+      razorpayPaymentId: razorpay_payment_id
     })
+
+    return NextResponse.json({ success: true })
   } catch (e: any) {
+    console.error('[VERIFY] FAILED:', e.message, e.stack)
     return NextResponse.json({ error: e.message, stack: e.stack }, { status: 500 })
   }
 }
