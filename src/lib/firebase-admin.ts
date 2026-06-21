@@ -2,28 +2,21 @@ import * as admin from 'firebase-admin'
 
 export function getAdminDb() {
   if (!admin.apps.length) {
-    let rawKey = (process.env.FIREBASE_ADMIN_PRIVATE_KEY || '').trim()
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
 
-    // Strip wrapping quotes (handles cases where quotes got pasted in literally)
-    if (rawKey.startsWith('"') && rawKey.endsWith('"')) {
-      rawKey = rawKey.slice(1, -1)
+    if (!serviceAccountJson) {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON env var is not set')
     }
 
-    // Convert literal \n escape sequences into real newlines
-    const privateKey = rawKey.replace(/\\n/g, '\n').trim()
-
-    if (!process.env.FIREBASE_ADMIN_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !privateKey) {
-      throw new Error(
-        `Firebase Admin credentials missing. projectId=${!!process.env.FIREBASE_ADMIN_PROJECT_ID}, clientEmail=${!!process.env.FIREBASE_ADMIN_CLIENT_EMAIL}, privateKey=${!!privateKey}`
-      )
+    let serviceAccount
+    try {
+      serviceAccount = JSON.parse(serviceAccountJson)
+    } catch (e: any) {
+      throw new Error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON: ' + e.message)
     }
 
     admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey,
-      }),
+      credential: admin.credential.cert(serviceAccount),
     })
   }
   return admin.firestore()
