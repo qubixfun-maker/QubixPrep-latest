@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
 import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, setDoc, writeBatch } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
+import Papa from "papaparse"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
@@ -45,55 +46,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-
-function parseCSVLine(line: string): string[] {
-  const result: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-    const nextChar = line[i + 1]
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        current += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
-      }
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim())
-      current = ''
-    } else {
-      current += char
-    }
-  }
-  result.push(current.trim())
-  return result
-}
-
-function parseCSV(text: string): string[][] {
-  const lines: string[] = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]
-    if (char === '"') {
-      inQuotes = !inQuotes
-      current += char
-    } else if (char === '\n' && !inQuotes) {
-      if (current.trim()) lines.push(current)
-      current = ''
-    } else {
-      current += char
-    }
-  }
-  if (current.trim()) lines.push(current)
-
-  return lines.map(parseCSVLine)
-}
 
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
@@ -547,84 +499,99 @@ export default function AdminDashboard() {
   async function handleImportCSV(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !activeSubject) return
-
     setUploading(true)
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string
-        const rows = parseCSV(text).slice(1) // Skip header
-        const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+    const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
 
-        const newQuestions = rows.map(parts => {
-          if (parts.length < 8 || !parts[2]) return null
+    Papa.parse(file, {
+      header: false,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const rows = (results.data as string[][]).slice(1)
+          const newQuestions = rows.map(parts => {
+            if (!parts || parts.length < 8 || !parts[2]) return null
+            return {
+              subject_id: subjectId,
+              unit_title: parts[0]?.trim(),
+              topic_title: parts[1]?.trim(),
+              question_text: parts[2]?.trim(),
+              option1: parts[3]?.trim(),
+              option2: parts[4]?.trim(),
+              option3: parts[5]?.trim(),
+              option4: parts[6]?.trim(),
+              correct_answer_index: parseInt(parts[7]) || 0,
+              explanation: parts[8]?.trim() || ""
+            }
+          }).filter(Boolean)
 
-          return {
-            subject_id: subjectId,
-            unit_title: parts[0],
-            topic_title: parts[1],
-            question_text: parts[2],
-            option1: parts[3],
-            option2: parts[4],
-            option3: parts[5],
-            option4: parts[6],
-            correct_answer_index: parseInt(parts[7]) || 0,
-            explanation: parts[8] || ""
-          }
-        }).filter(Boolean)
+          if (newQuestions.length === 0) throw new Error("No valid question rows found in file.")
 
-        if (newQuestions.length === 0) throw new Error("No valid question rows found in file.")
+          const { error } = await supabase.from('questions').insert(newQuestions)
+          if (error) throw error
 
-        const { error } = await supabase.from('questions').insert(newQuestions)
-        if (error) throw error
-
-        toast({ title: "Import Successful", description: `Added ${newQuestions.length} clinical cases to ${activeSubject}.` })
-        setIsUploadingQBank(false)
-        fetchSubjectDetails()
-      } catch (e: any) {
-        toast({ variant: "destructive", title: "Import Failed", description: e.message })
-      } finally {
+          toast({ title: "Import Successful", description: `Added ${newQuestions.length} clinical cases to ${activeSubject}.` })
+          setIsUploadingQBank(false)
+          fetchSubjectDetails()
+        } catch (e: any) {
+          toast({ variant: "destructive", title: "Import Failed", description: e.message })
+        } finally {
+          setUploading(false)
+        }
+      },
+      error: (err) => {
+        toast({ variant: "destructive", title: "Parse Error", description: err.message })
         setUploading(false)
       }
-    }
-    reader.readAsText(file)
+    })
   }
 
   async function handleImportPYQ(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string
-        const rows = parseCSV(text).slice(1)
-        const questions = rows.map(parts => {
-          if (parts.length < 8 || !parts[3]) return null
-          return {
-            exam_type: parts[0],
-            year: parseInt(parts[1]),
-            subject: parts[2] || null,
-            question_text: parts[3],
-            option1: parts[4],
-            option2: parts[5],
-            option3: parts[6] || null,
-            option4: parts[7] || null,
-            correct_answer_index: parseInt(parts[8]) || 0,
-            explanation: parts[9] || null
-          }
-        }).filter(Boolean)
-        const { error } = await supabase.from('pyq_questions').insert(questions)
-        if (error) throw error
-        toast({ title: "PYQ Imported", description: `${questions.length} questions added.` })
-        setIsUploadingPYQ(false)
-      } catch (e: any) {
-        toast({ variant: "destructive", title: "Import Failed", description: e.message })
-      } finally { setUploading(false) }
-    }
-    reader.readAsText(file)
+
+    Papa.parse(file, {
+      header: false,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const rows = (results.data as string[][]).slice(1)
+          const questions = rows.map(parts => {
+            if (!parts || parts.length < 8 || !parts[3]) return null
+            return {
+              exam_type: parts[0]?.trim(),
+              year: parseInt(parts[1]),
+              subject: parts[2]?.trim() || null,
+              question_text: parts[3]?.trim(),
+              option1: parts[4]?.trim(),
+              option2: parts[5]?.trim(),
+              option3: parts[6]?.trim() || null,
+              option4: parts[7]?.trim() || null,
+              correct_answer_index: parseInt(parts[8]) || 0,
+              explanation: parts[9]?.trim() || null
+            }
+          }).filter(Boolean)
+
+          if (questions.length === 0) throw new Error("No valid question rows found in file.")
+
+          const { error } = await supabase.from('pyq_questions').insert(questions)
+          if (error) throw error
+
+          toast({ title: "PYQ Imported", description: `${questions.length} questions added.` })
+          setIsUploadingPYQ(false)
+        } catch (e: any) {
+          toast({ variant: "destructive", title: "Import Failed", description: e.message })
+        } finally {
+          setUploading(false)
+        }
+      },
+      error: (err) => {
+        toast({ variant: "destructive", title: "Parse Error", description: err.message })
+        setUploading(false)
+      }
+    })
   }
-  
+
   async function handleAddProduct() {
     if (!productForm.title || !productForm.price || !productForm.buy_link) {
       toast({ variant: "destructive", title: "Missing fields" }); return

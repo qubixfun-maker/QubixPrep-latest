@@ -6,16 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, BrainCircuit, Sparkles, CheckCircle, XCircle, Info, RotateCcw, ArrowRight } from "lucide-react";
+import { Loader2, BrainCircuit, Sparkles, CheckCircle, XCircle, Info, RotateCcw, ArrowRight, ArrowLeft, BookOpen, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePlan } from "@/hooks/use-plan";
 import { UpgradeGate } from "@/components/upgrade-gate";
 
 const QUESTION_COUNT_OPTIONS = [5, 10, 15, 20, 25];
+type Mode = "practice" | "exam";
 
 export default function QuizGeneratorPage() {
   const [topic, setTopic] = useState("");
   const [numQuestions, setNumQuestions] = useState(10);
+  const [mode, setMode] = useState<Mode>("practice");
   const [results, setResults] = useState<GenerateQuizAndFlashcardsOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -24,6 +26,7 @@ export default function QuizGeneratorPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [lockedAnswers, setLockedAnswers] = useState<Record<number, boolean>>({});
   const [showResult, setShowResult] = useState(false);
 
   async function handleGenerate() {
@@ -33,6 +36,7 @@ export default function QuizGeneratorPage() {
     setCurrentIndex(0);
     setSelectedAnswer(null);
     setAnswers({});
+    setLockedAnswers({});
     setShowResult(false);
     try {
       const result = await generateQuizAndFlashcards({ studyTopic: topic, numQuestions });
@@ -49,19 +53,35 @@ export default function QuizGeneratorPage() {
   }
 
   function handleSelectOption(option: string) {
-    if (selectedAnswer) return;
+    // In practice mode, once locked for this question, no more changes
+    if (mode === "practice" && lockedAnswers[currentIndex]) return;
+
     setSelectedAnswer(option);
     setAnswers(prev => ({ ...prev, [currentIndex]: option }));
+
+    if (mode === "practice") {
+      setLockedAnswers(prev => ({ ...prev, [currentIndex]: true }));
+    }
+  }
+
+  function goToQuestion(index: number) {
+    if (!results) return;
+    if (index < 0 || index >= results.quizzes.length) return;
+    setCurrentIndex(index);
+    setSelectedAnswer(answers[index] || null);
   }
 
   function handleNext() {
     if (!results) return;
     if (currentIndex + 1 < results.quizzes.length) {
-      setCurrentIndex(currentIndex + 1);
-      setSelectedAnswer(answers[currentIndex + 1] || null);
+      goToQuestion(currentIndex + 1);
     } else {
       setShowResult(true);
     }
+  }
+
+  function handlePrevious() {
+    goToQuestion(currentIndex - 1);
   }
 
   function handleRestart() {
@@ -70,6 +90,7 @@ export default function QuizGeneratorPage() {
     setCurrentIndex(0);
     setSelectedAnswer(null);
     setAnswers({});
+    setLockedAnswers({});
     setShowResult(false);
   }
 
@@ -125,6 +146,37 @@ export default function QuizGeneratorPage() {
               </div>
             </div>
 
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground text-left">Mode</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setMode("practice")}
+                  className={`h-14 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                    mode === "practice"
+                      ? 'bg-accent text-background shadow-lg shadow-accent/30'
+                      : 'glass border border-white/10 text-muted-foreground hover:text-white hover:border-accent/40'
+                  }`}
+                >
+                  <BookOpen className="h-4 w-4" /> Practice
+                </button>
+                <button
+                  onClick={() => setMode("exam")}
+                  className={`h-14 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                    mode === "exam"
+                      ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                      : 'glass border border-white/10 text-muted-foreground hover:text-white hover:border-primary/40'
+                  }`}
+                >
+                  <Timer className="h-4 w-4" /> Exam
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                {mode === "practice"
+                  ? "Answers lock immediately with instant feedback and explanations."
+                  : "Navigate freely between questions, see results only at the end."}
+              </p>
+            </div>
+
             <Button
               onClick={handleGenerate}
               disabled={isLoading || !topic.trim()}
@@ -139,7 +191,7 @@ export default function QuizGeneratorPage() {
         {!isLoading && (
           <div className="flex flex-col items-center justify-center py-20 opacity-30">
             <Info className="h-12 w-12 mb-4" />
-            <p className="text-lg">Pick a topic and question count to begin.</p>
+            <p className="text-lg">Pick a topic, mode, and question count to begin.</p>
           </div>
         )}
       </div>
@@ -154,7 +206,7 @@ export default function QuizGeneratorPage() {
     const percentage = Math.round((correctCount / total) * 100);
 
     return (
-      <div className="max-w-2xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
+      <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
         <Card className="glass border-none text-center p-8">
           <CardContent className="space-y-6 pt-6">
             <div className="inline-flex items-center justify-center p-4 rounded-full bg-primary/20 text-accent">
@@ -162,7 +214,7 @@ export default function QuizGeneratorPage() {
             </div>
             <div>
               <h2 className="text-3xl font-bold">Quiz Complete!</h2>
-              <p className="text-muted-foreground mt-2">{topic}</p>
+              <p className="text-muted-foreground mt-2">{topic} · {mode === "practice" ? "Practice Mode" : "Exam Mode"}</p>
             </div>
             <div className="text-6xl font-bold text-primary">{percentage}%</div>
             <p className="text-lg">
@@ -180,16 +232,48 @@ export default function QuizGeneratorPage() {
           {results.quizzes.map((q, i) => {
             const userAnswer = answers[i];
             const isCorrect = userAnswer === q.correctAnswer;
+            const wasSkipped = !userAnswer;
+
             return (
-              <Card key={i} className={`glass border-none ${isCorrect ? 'border-l-2 border-l-green-500' : 'border-l-2 border-l-red-500'}`}>
-                <CardContent className="p-5 space-y-2">
+              <Card key={i} className={`glass border-none ${isCorrect ? 'border-l-2 border-l-green-500' : wasSkipped ? 'border-l-2 border-l-yellow-500' : 'border-l-2 border-l-red-500'}`}>
+                <CardContent className="p-5 space-y-3">
                   <div className="flex items-start gap-2">
-                    {isCorrect ? <CheckCircle className="h-4 w-4 text-green-400 shrink-0 mt-0.5" /> : <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />}
-                    <p className="text-sm font-medium">{q.question}</p>
+                    {isCorrect ? (
+                      <CheckCircle className="h-4 w-4 text-green-400 shrink-0 mt-0.5" />
+                    ) : wasSkipped ? (
+                      <Info className="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                    )}
+                    <p className="text-sm font-medium flex-1">
+                      <span className="text-muted-foreground mr-2">Q{i + 1}.</span>{q.question}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground pl-6">
-                    Your answer: <span className={isCorrect ? 'text-green-400' : 'text-red-400'}>{userAnswer || 'Skipped'}</span>
-                    {!isCorrect && <> · Correct: <span className="text-green-400">{q.correctAnswer}</span></>}
+
+                  <div className="grid gap-1.5 pl-6">
+                    {q.options.map((opt, oi) => {
+                      const isUserChoice = opt === userAnswer;
+                      const isCorrectChoice = opt === q.correctAnswer;
+
+                      let style = "text-muted-foreground";
+                      if (isCorrectChoice) style = "text-green-400 font-medium";
+                      else if (isUserChoice && !isCorrectChoice) style = "text-red-400 font-medium line-through";
+
+                      return (
+                        <div key={oi} className={`text-xs flex items-center gap-2 ${style}`}>
+                          <span className="w-4 h-4 rounded-full bg-white/5 flex items-center justify-center text-[10px] shrink-0">
+                            {String.fromCharCode(65 + oi)}
+                          </span>
+                          <span>{opt}</span>
+                          {isCorrectChoice && <CheckCircle className="h-3 w-3 text-green-400 shrink-0" />}
+                          {isUserChoice && !isCorrectChoice && <XCircle className="h-3 w-3 text-red-400 shrink-0" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-xs text-muted-foreground italic pl-6 pt-1 border-t border-white/5">
+                    {q.explanation}
                   </p>
                 </CardContent>
               </Card>
@@ -201,14 +285,17 @@ export default function QuizGeneratorPage() {
   }
 
   const currentQuestion = results.quizzes[currentIndex];
-  const isAnswered = !!selectedAnswer;
+  const isLockedThisQuestion = mode === "practice" ? !!lockedAnswers[currentIndex] : false;
+  const isAnswered = mode === "practice" ? isLockedThisQuestion : !!selectedAnswer;
+  const showFeedback = mode === "practice" && isLockedThisQuestion;
   const isLastQuestion = currentIndex === results.quizzes.length - 1;
+  const canGoNext = mode === "exam" ? true : isAnswered;
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-6 animate-in fade-in duration-500">
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          <span>{topic}</span>
+          <span>{topic} · {mode === "practice" ? "Practice" : "Exam"}</span>
           <span>Question {currentIndex + 1} of {results.quizzes.length}</span>
         </div>
         <Progress value={((currentIndex + 1) / results.quizzes.length) * 100} className="h-1.5 bg-white/5" />
@@ -225,7 +312,8 @@ export default function QuizGeneratorPage() {
               const isCorrectOption = opt === currentQuestion.correctAnswer;
 
               let optionStyle = "bg-white/5 border border-white/5 hover:bg-white/10 cursor-pointer";
-              if (isAnswered) {
+
+              if (showFeedback) {
                 if (isCorrectOption) {
                   optionStyle = "bg-green-500/10 border border-green-500/40";
                 } else if (isSelected && !isCorrectOption) {
@@ -233,26 +321,28 @@ export default function QuizGeneratorPage() {
                 } else {
                   optionStyle = "bg-white/5 border border-white/5 opacity-50";
                 }
+              } else if (isSelected) {
+                optionStyle = "bg-primary/10 border border-primary/40";
               }
 
               return (
                 <div
                   key={oi}
                   onClick={() => handleSelectOption(opt)}
-                  className={`p-4 rounded-xl transition-colors flex items-center gap-3 ${optionStyle}`}
+                  className={`p-4 rounded-xl transition-colors flex items-center gap-3 ${optionStyle} ${isLockedThisQuestion ? 'cursor-default' : 'cursor-pointer'}`}
                 >
                   <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
                     {String.fromCharCode(65 + oi)}
                   </div>
                   <span className="text-sm flex-1">{opt}</span>
-                  {isAnswered && isCorrectOption && <CheckCircle className="h-4 w-4 text-green-400 shrink-0" />}
-                  {isAnswered && isSelected && !isCorrectOption && <XCircle className="h-4 w-4 text-red-400 shrink-0" />}
+                  {showFeedback && isCorrectOption && <CheckCircle className="h-4 w-4 text-green-400 shrink-0" />}
+                  {showFeedback && isSelected && !isCorrectOption && <XCircle className="h-4 w-4 text-red-400 shrink-0" />}
                 </div>
               );
             })}
           </div>
 
-          {isAnswered && (
+          {showFeedback && (
             <div className="mt-6 p-4 rounded-xl bg-accent/5 border border-accent/20 animate-in fade-in slide-in-from-top-2">
               <p className="text-xs font-bold text-accent uppercase tracking-widest mb-1 flex items-center gap-1">
                 <CheckCircle className="h-3 w-3" /> Correct Answer: {currentQuestion.correctAnswer}
@@ -265,13 +355,25 @@ export default function QuizGeneratorPage() {
         </CardContent>
       </Card>
 
-      <Button
-        onClick={handleNext}
-        disabled={!isAnswered}
-        className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 gap-2 font-bold disabled:opacity-30"
-      >
-        {isLastQuestion ? 'Finish Quiz' : 'Next Question'} <ArrowRight className="h-4 w-4" />
-      </Button>
+      <div className="flex gap-3">
+        {mode === "exam" && (
+          <Button
+            onClick={handlePrevious}
+            disabled={currentIndex === 0}
+            variant="outline"
+            className="h-12 px-6 rounded-xl glass border-white/10 gap-2 font-bold disabled:opacity-30"
+          >
+            <ArrowLeft className="h-4 w-4" /> Previous
+          </Button>
+        )}
+        <Button
+          onClick={handleNext}
+          disabled={!canGoNext}
+          className="flex-1 h-12 rounded-xl bg-primary hover:bg-primary/90 gap-2 font-bold disabled:opacity-30"
+        >
+          {isLastQuestion ? 'Finish Quiz' : 'Next Question'} <ArrowRight className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
