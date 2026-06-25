@@ -189,6 +189,49 @@ export default function ProfilePage() {
     }
   }
 
+  const [isCancelling, setIsCancelling] = useState(false)
+
+  const handleCancelSubscription = async () => {
+    if (!profile || !user) return
+    const subscriptionId = (profile as any).razorpaySubscriptionId
+
+    if (!subscriptionId) {
+      toast({
+        variant: "destructive",
+        title: "No active subscription found",
+        description: "If you believe this is an error, please contact support."
+      })
+      return
+    }
+
+    if (!confirm("Are you sure you want to cancel your subscription? You'll keep access until your current billing period ends.")) {
+      return
+    }
+
+    setIsCancelling(true)
+    try {
+      const res = await fetch('/api/payments/cancel-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId })
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Could not cancel subscription')
+      }
+
+      toast({
+        title: "Subscription Cancelled",
+        description: "You'll keep access until the end of your current billing period."
+      })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Cancellation Failed", description: e.message })
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
   if (authLoading || profileLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -377,9 +420,26 @@ export default function ProfilePage() {
                 </Link>
               )}
               {isPro && (
-                <p className="text-[10px] text-center text-muted-foreground">
-                  All features unlocked · Cancel from billing
-                </p>
+                <Button
+                  onClick={handleCancelSubscription}
+                  disabled={isCancelling}
+                  variant="outline"
+                  className="w-full rounded-xl h-10 text-xs font-bold uppercase tracking-widest glass border-white/10 text-muted-foreground hover:text-red-400 hover:border-red-400/30"
+                >
+                  {isCancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : null}
+                  Cancel Subscription
+                </Button>
+              )}
+              {!isPro && isBasic && (
+                <Button
+                  onClick={handleCancelSubscription}
+                  disabled={isCancelling}
+                  variant="ghost"
+                  className="w-full rounded-xl h-9 text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-red-400"
+                >
+                  {isCancelling ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
+                  Cancel Subscription
+                </Button>
               )}
             </CardContent>
           </Card>

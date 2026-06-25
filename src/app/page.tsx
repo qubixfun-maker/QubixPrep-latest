@@ -3,65 +3,50 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useUser, useCollection, useFirestore } from "@/firebase"
-import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { doc, getDoc, collection } from "firebase/firestore"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
-  Play,
-  ArrowRight,
-  Zap,
-  BrainCircuit,
-  Bookmark,
-  Loader2,
-  BookOpen,
-  Database,
-  Video,
-  Network,
-  Trophy
+  ArrowRight, BrainCircuit, Loader2, Database, Network,
+  Trophy, ChevronRight, Brain, HeartPulse, TestTube,
+  Stethoscope, Microscope, BookOpen, Target, Flame,
 } from "lucide-react"
 import Link from "next/link"
+
+const ICON_MAP: Record<string, any> = {
+  "Anatomy": Brain, "Physiology": HeartPulse, "Biochemistry": TestTube,
+  "Pathology": Stethoscope, "Microbiology": Microscope, "Pharmacology": BookOpen,
+}
+
+const SUBJECT_ORDER = [
+  "Anatomy", "Physiology", "Biochemistry", "Pathology", "Pharmacology",
+  "Microbiology", "Forensic Medicine", "Community Medicine", "Ophthalmology",
+  "ENT", "Medicine", "Surgery", "Obstetrics & Gynaecology", "Paediatrics",
+  "Psychiatry", "Orthopaedics", "Radiology", "Anaesthesia", "Dermatology", "Anesthesiology"
+]
 
 export default function Dashboard() {
   const { user, loading } = useUser()
   const db = useFirestore()
   const router = useRouter()
   const [checkingRole, setCheckingRole] = useState(true)
-  const [counts, setCounts] = useState({ videos: 0, mindmaps: 0, loadingCounts: true })
-
+  const [subjects, setSubjects] = useState<any[]>([])
   const subjectsQuery = useMemo(() => db ? collection(db, 'subjects') : null, [db])
-  const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
+  const { data: rawSubjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
   useEffect(() => {
-    async function fetchNestedCounts() {
-      if (!db || !subjects || subjects.length === 0) {
-        setCounts({ videos: 0, mindmaps: 0, loadingCounts: false })
-        return
-      }
-      try {
-        let videoTotal = 0
-        let mindmapTotal = 0
-
-        await Promise.all(
-          subjects.map(async (subject: any) => {
-            const topicsRef = collection(db, 'subjects', subject.id, 'topics')
-            const videoQuery = query(topicsRef, where('contentType', '==', 'video'))
-            const videoSnap = await getDocs(videoQuery)
-            videoTotal += videoSnap.size
-
-            const mindmapsRef = collection(db, 'subjects', subject.id, 'mindmaps')
-            const mindmapSnap = await getDocs(mindmapsRef)
-            mindmapTotal += mindmapSnap.size
-          })
-        )
-
-        setCounts({ videos: videoTotal, mindmaps: mindmapTotal, loadingCounts: false })
-      } catch (e) {
-        console.error("Error fetching nested counts:", e)
-        setCounts({ videos: 0, mindmaps: 0, loadingCounts: false })
-      }
+    if (rawSubjects) {
+      const sorted = [...rawSubjects].sort((a, b) => {
+        const ai = SUBJECT_ORDER.indexOf(a.name)
+        const bi = SUBJECT_ORDER.indexOf(b.name)
+        if (ai === -1 && bi === -1) return a.name.localeCompare(b.name)
+        if (ai === -1) return 1
+        if (bi === -1) return -1
+        return ai - bi
+      })
+      setSubjects(sorted)
     }
-    fetchNestedCounts()
-  }, [db, subjects])
+  }, [rawSubjects])
 
   useEffect(() => {
     let isMounted = true
@@ -99,16 +84,10 @@ export default function Dashboard() {
   if (!user) return null
 
   const firstName = user.displayName?.split(' ')[0] || 'Doctor'
-  const subjectCount = subjects?.length ?? 0
-  const videoCount = counts.videos
-  const mindmapCount = counts.mindmaps
-
-  const stats = [
-    { label: "Subjects", value: subjectsLoading ? "..." : String(subjectCount), icon: BookOpen, color: "text-blue-400" },
-    { label: "Video Lectures", value: counts.loadingCounts ? "..." : String(videoCount), icon: Video, color: "text-purple-400" },
-    { label: "Mindmaps", value: counts.loadingCounts ? "..." : String(mindmapCount), icon: Network, color: "text-green-400" },
-    { label: "AI Tools", value: "2", icon: BrainCircuit, color: "text-accent" },
-  ]
+  const totalQuestions = subjects.reduce((sum, s) => sum + (s.questionCount || 0), 0)
+  const totalMindmaps = subjects.reduce((sum, s) => sum + (s.mindmapCount || 0), 0)
+  const topQBankSubjects = [...subjects].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0)).slice(0, 6)
+  const topMindmapSubjects = [...subjects].sort((a, b) => (b.mindmapCount || 0) - (a.mindmapCount || 0)).slice(0, 6)
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 lg:p-12 space-y-8 animate-in fade-in duration-700">
@@ -116,22 +95,22 @@ export default function Dashboard() {
       <div className="relative overflow-hidden rounded-3xl glass p-8 md:p-12">
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-accent text-xs font-bold tracking-widest uppercase">
-            <Zap className="h-3 w-3" /> Welcome Back, {firstName}
+            <Flame className="h-3 w-3" /> Welcome Back, {firstName}
           </div>
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight">
-            Your medical prep <span className="text-gradient italic">command center</span>
+            Practice smarter, <span className="text-gradient italic">score higher</span>
           </h1>
           <p className="text-muted-foreground text-sm md:text-lg max-w-lg leading-relaxed">
-            {subjectCount > 0
-              ? subjectCount + " subject" + (subjectCount > 1 ? "s" : "") + " available. Pick up where you left off."
-              : "Start exploring notes, QBanks, videos, and AI tools built for NEET-PG."}
+            {totalQuestions > 0
+              ? `${totalQuestions.toLocaleString()} questions and ${totalMindmaps} mindmaps ready for your NEET PG prep.`
+              : "Your QBank and mindmaps are ready. Start practicing now."}
           </p>
           <div className="flex flex-wrap gap-4 pt-4">
             <Button size="lg" asChild className="w-full md:w-auto rounded-xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/30 gap-2">
-              <Link href="/notes"><Play className="h-4 w-4 fill-current" /> Study Notes</Link>
+              <Link href="/qbank"><Database className="h-4 w-4" /> Go to QBank</Link>
             </Button>
             <Button variant="outline" size="lg" asChild className="w-full md:w-auto rounded-xl glass border-white/10 hover:bg-white/5 gap-2">
-              <Link href="/ai-tools"><BrainCircuit className="h-4 w-4" /> AI Tools</Link>
+              <Link href="/mindmaps"><Network className="h-4 w-4" /> Browse Mindmaps</Link>
             </Button>
           </div>
         </div>
@@ -139,7 +118,12 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
+        {[
+          { label: "Total Questions", value: subjectsLoading ? "..." : totalQuestions.toLocaleString(), icon: Database, color: "text-blue-400" },
+          { label: "Mindmaps", value: subjectsLoading ? "..." : String(totalMindmaps), icon: Network, color: "text-accent" },
+          { label: "Subjects", value: subjectsLoading ? "..." : String(subjects.length), icon: BookOpen, color: "text-purple-400" },
+          { label: "PYQ Series", value: "NEET PG", icon: Trophy, color: "text-yellow-400" },
+        ].map((stat) => (
           <Card key={stat.label} className="glass border-none shadow-none neumorph-inset hover:scale-[1.02] transition-transform cursor-default">
             <CardContent className="p-4 md:p-6 flex items-center gap-4">
               <div className={"p-2 md:p-3 rounded-2xl bg-white/5 " + stat.color}>
@@ -154,92 +138,120 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="glass border-none lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" /> Subjects
-            </CardTitle>
-            <Link href="/notes" className="text-xs text-muted-foreground hover:text-accent flex items-center gap-1">
-              All Subjects <ArrowRight className="h-3 w-3" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {subjectsLoading ? (
-              <div className="flex items-center justify-center h-24">
-                <Loader2 className="h-6 w-6 text-primary animate-spin" />
-              </div>
-            ) : subjects && subjects.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {subjects.slice(0, 6).map((subject: any) => (
-                  <Link key={subject.id} href={"/notes/" + subject.id}>
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-primary/20 transition-all group">
-                      <p className="font-semibold text-sm group-hover:text-primary transition-colors">{subject.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{subject.topicCount || 0} topics</p>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-bold">Question Bank</h2>
+          </div>
+          <Link href="/qbank" className="text-xs text-muted-foreground hover:text-accent flex items-center gap-1 transition-colors">
+            All Subjects <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+        {subjectsLoading ? (
+          <div className="h-40 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 text-primary animate-spin" />
+          </div>
+        ) : topQBankSubjects.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {topQBankSubjects.map((subject: any) => {
+              const Icon = ICON_MAP[subject.name] || Database
+              return (
+                <Link key={subject.id} href={`/qbank/${subject.id}`}>
+                  <div className="glass rounded-2xl p-4 flex flex-col items-center text-center gap-3 hover:bg-white/10 hover:border-primary/20 border border-white/5 transition-all group h-full cursor-pointer">
+                    <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+                      <Icon className="h-6 w-6" />
                     </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                <p className="text-sm">No subjects yet. Add them from the Admin Panel.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="glass border-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-bold flex items-center gap-2">
-              <Zap className="h-5 w-5 text-accent" /> Quick Access
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { label: "QBank", desc: "Practice MCQs", href: "/qbank", icon: Database, color: "text-blue-400" },
-              { label: "PYQ Series", desc: "Previous year questions", href: "/pyq", icon: Trophy, color: "text-yellow-400" },
-              { label: "Custom Quiz", desc: "AI-powered test", href: "/test-series", icon: BrainCircuit, color: "text-purple-400" },
-              { label: "Video Lectures", desc: videoCount + " videos available", href: "/videos", icon: Video, color: "text-green-400" },
-              { label: "Mindmaps", desc: mindmapCount + " mindmaps", href: "/mindmaps", icon: Network, color: "text-accent" },
-            ].map((item) => (
-              <Link key={item.label} href={item.href}>
-                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all group cursor-pointer">
-                  <div className={"p-2 rounded-lg bg-white/5 " + item.color}>
-                    <item.icon className="h-4 w-4" />
+                    <div>
+                      <p className="font-semibold text-xs group-hover:text-primary transition-colors leading-tight">{subject.name}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{subject.questionCount || 0} Qs</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm group-hover:text-primary transition-colors">{item.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
-                </div>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
+                </Link>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-muted-foreground glass rounded-2xl">
+            <Database className="h-8 w-8 mx-auto mb-2 opacity-20" />
+            <p className="text-sm">No QBanks yet. Add subjects in the Admin Panel.</p>
+          </div>
+        )}
       </div>
 
-      <Card className="glass border-none overflow-hidden relative">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-accent/5 to-transparent pointer-events-none" />
-        <CardContent className="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-accent text-xs font-bold uppercase tracking-widest">
-              <BrainCircuit className="h-4 w-4" /> AI-Powered
-            </div>
-            <h3 className="text-xl md:text-2xl font-bold">Supercharge your prep with AI</h3>
-            <p className="text-muted-foreground text-sm max-w-md">Summarize notes and run quiz simulations — all powered by Groq.</p>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Network className="h-5 w-5 text-accent" />
+            <h2 className="text-xl font-bold">Visual Mindmaps</h2>
           </div>
-          <div className="flex flex-wrap gap-3 shrink-0">
-            <Button asChild variant="outline" className="glass border-white/10 rounded-xl gap-2">
-              <Link href="/ai-tools/summarizer"><Bookmark className="h-4 w-4" /> Summarizer</Link>
-            </Button>
-            <Button asChild className="bg-primary rounded-xl gap-2">
-              <Link href="/ai-tools/quiz"><Play className="h-4 w-4 fill-current" /> Quiz Simulator</Link>
-            </Button>
+          <Link href="/mindmaps" className="text-xs text-muted-foreground hover:text-accent flex items-center gap-1 transition-colors">
+            All Mindmaps <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+        {subjectsLoading ? (
+          <div className="h-40 flex items-center justify-center">
+            <Loader2 className="h-6 w-6 text-primary animate-spin" />
           </div>
-        </CardContent>
-      </Card>
+        ) : topMindmapSubjects.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {topMindmapSubjects.map((subject: any) => {
+              const Icon = ICON_MAP[subject.name] || Network
+              return (
+                <Link key={subject.id} href={`/mindmaps/${subject.id}`}>
+                  <div className="glass rounded-2xl p-4 flex flex-col items-center text-center gap-3 hover:bg-white/10 hover:border-accent/20 border border-white/5 transition-all group h-full cursor-pointer">
+                    <div className="p-3 rounded-xl bg-accent/10 text-accent group-hover:bg-accent/20 transition-colors">
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-xs group-hover:text-accent transition-colors leading-tight">{subject.name}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{subject.mindmapCount || 0} maps</p>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12 text-muted-foreground glass rounded-2xl">
+            <Network className="h-8 w-8 mx-auto mb-2 opacity-20" />
+            <p className="text-sm">No mindmaps yet. Add them in the Admin Panel.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-4">
+        <Link href="/pyq">
+          <Card className="glass border-none group cursor-pointer hover:bg-white/5 transition-all overflow-hidden relative h-full">
+            <div className="absolute top-0 left-0 w-1 h-full bg-yellow-400" />
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-yellow-400/10 text-yellow-400"><Trophy className="h-6 w-6" /></div>
+              <div className="flex-1"><p className="font-bold">PYQ Series</p><p className="text-xs text-muted-foreground">NEET PG · INICET · USMLE</p></div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/test-series">
+          <Card className="glass border-none group cursor-pointer hover:bg-white/5 transition-all overflow-hidden relative h-full">
+            <div className="absolute top-0 left-0 w-1 h-full bg-purple-400" />
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-purple-400/10 text-purple-400"><Target className="h-6 w-6" /></div>
+              <div className="flex-1"><p className="font-bold">Custom Test</p><p className="text-xs text-muted-foreground">AI-powered test series</p></div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/ai-tools">
+          <Card className="glass border-none group cursor-pointer hover:bg-white/5 transition-all overflow-hidden relative h-full">
+            <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-primary/10 text-primary"><BrainCircuit className="h-6 w-6" /></div>
+              <div className="flex-1"><p className="font-bold">AI Tools</p><p className="text-xs text-muted-foreground">Quiz simulator · Summarizer</p></div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
 
     </div>
   )
