@@ -20,7 +20,8 @@ import {
   FileText,
   Zap,
   MessageSquare,
-  Eye
+  Eye,
+  Lock
 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
@@ -369,6 +370,18 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                         </div>
                       ))}
                     </AccordionContent>
+                  </AccordionItem>
+                ))}
+                {groupedQBank.slice(1).map((unit, uIdx) => (
+                  <AccordionItem key={`locked-${uIdx}`} value={`locked-unit-${uIdx}`} className="border-none glass rounded-3xl px-4 overflow-hidden opacity-60">
+                    <div className="flex items-center justify-between py-6 cursor-not-allowed">
+                      <div className="flex flex-col items-start text-left">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em] mb-1">Unit {uIdx + 2}</span>
+                        <span className="text-2xl font-bold tracking-tight text-muted-foreground">{unit.title}</span>
+                        <span className="text-xs text-muted-foreground mt-1">{Object.keys(unit.topics).length} topics &middot; Upgrade to unlock</span>
+                      </div>
+                      <Lock className="h-5 w-5 text-muted-foreground shrink-0" />
+                    </div>
                   </AccordionItem>
                 ))}
                 {groupedQBank.length > 1 && (
