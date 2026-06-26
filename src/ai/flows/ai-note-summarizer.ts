@@ -1,27 +1,27 @@
 'use server';
-
 import { getGroqClient, GROQ_MODEL } from '@/ai/genkit';
+import { requireProPlan } from '@/lib/check-plan';
 
 export type AiNoteSummarizerInput = {
   noteContent: string;
+  userId?: string;
 };
-
 export type AiNoteSummarizerOutput = {
   summary: string;
 };
 
 export async function aiNoteSummarizer(input: AiNoteSummarizerInput): Promise<AiNoteSummarizerOutput> {
-    const groqClient = getGroqClient();
+  await requireProPlan(input.userId);
+
+  const groqClient = getGroqClient();
   const response = await groqClient.chat.completions.create({
     model: GROQ_MODEL,
     messages: [
       {
         role: 'user',
         content: `You are an AI assistant specialized in summarizing medical notes for MBBS and NEET-PG students. Provide a concise summary highlighting key concepts, definitions, diagnostic criteria, treatment protocols, and high-yield facts.
-
 Medical Note Content:
 ${input.noteContent}
-
 Provide a concise summary of the critical information.`,
       },
     ],

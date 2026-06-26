@@ -3,10 +3,29 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { LayoutShell } from '@/components/layout/layout-shell';
+import { PwaInstallPrompt } from '@/components/pwa-install-prompt';
+import { ServiceWorkerRegister } from '@/components/service-worker-register';
 
 export const metadata: Metadata = {
   title: 'QubixPrep - AI Medical Learning Platform',
   description: 'Modern AI-powered medical learning platform for MBBS and NEET-PG students.',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/icons/favicon-32.png',
+    apple: '/icons/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'QubixPrep',
+  },
+};
+
+export const viewport = {
+  themeColor: '#7C3AED',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -28,6 +47,8 @@ export default function RootLayout({
             {children}
           </LayoutShell>
           <Toaster />
+          <PwaInstallPrompt />
+          <ServiceWorkerRegister />
         </FirebaseClientProvider>
       </body>
     </html>
