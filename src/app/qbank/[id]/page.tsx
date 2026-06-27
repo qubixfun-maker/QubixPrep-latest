@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, use, useState, useEffect } from "react"
-import { useDoc, useFirestore } from "@/firebase"
+import ReactMarkdown from "react-markdown"
+import { useDoc, useFirestore, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +40,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   const { id: subjectId } = use(params)
   
   const db = useFirestore()
+  const { user } = useUser()
   const { toast } = useToast()
   const { isFree } = usePlan()
 
@@ -114,7 +116,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
     const currentQ = selectedTopicQuestions[currentIndex]
     setIsAiLoading(true)
     try {
-      const result = await clinicalTutorFlow(currentQ.question_text, [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4][currentQ.correct_answer_index], currentQ.explanation)
+      const result = await clinicalTutorFlow(currentQ.question_text, [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4][currentQ.correct_answer_index], currentQ.explanation, user?.uid)
       setAiExplanation(result)
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message || "Could not reach the clinical tutor." })
@@ -328,7 +330,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                           <MessageSquare className="h-3.5 w-3.5" /> AI Clinical Reasoning
                        </div>
                        <div className="prose prose-invert max-w-none text-sm leading-relaxed text-foreground/80 whitespace-pre-wrap">
-                          {aiExplanation}
+                          <ReactMarkdown>{aiExplanation}</ReactMarkdown>
                        </div>
                     </div>
                   )}

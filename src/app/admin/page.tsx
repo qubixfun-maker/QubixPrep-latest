@@ -35,6 +35,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -53,6 +54,11 @@ export default function AdminDashboard() {
   const { toast } = useToast()
   
   const [activeSubject, setActiveSubject] = useState<string | null>(null)
+  const [importedTopics, setImportedTopics] = useState<string[]>([])
+  const [isAssigningUnit, setIsAssigningUnit] = useState(false)
+  const [selectedTopicsForUnit, setSelectedTopicsForUnit] = useState<Set<string>>(new Set())
+  const [unitNameInput, setUnitNameInput] = useState("")
+  const [assigningUnit, setAssigningUnit] = useState(false)
   const [subjectContent, setSubjectContent] = useState<{
     topics: any[],
     mindmaps: any[],
@@ -509,18 +515,17 @@ export default function AdminDashboard() {
         try {
           const rows = (results.data as string[][]).slice(1)
           const newQuestions = rows.map(parts => {
-            if (!parts || parts.length < 8 || !parts[2]) return null
+            if (!parts || parts.length < 7 || !parts[1]) return null
             return {
               subject_id: subjectId,
-              unit_title: parts[0]?.trim(),
-              topic_title: parts[1]?.trim(),
-              question_text: parts[2]?.trim(),
-              option1: parts[3]?.trim(),
-              option2: parts[4]?.trim(),
-              option3: parts[5]?.trim(),
-              option4: parts[6]?.trim(),
-              correct_answer_index: parseInt(parts[7]) || 0,
-              explanation: parts[8]?.trim() || ""
+              topic_title: parts[0]?.trim(),
+              question_text: parts[1]?.trim(),
+              option1: parts[2]?.trim(),
+              option2: parts[3]?.trim(),
+              option3: parts[4]?.trim(),
+              option4: parts[5]?.trim(),
+              correct_answer_index: parseInt(parts[6]) || 0,
+              explanation: parts[7]?.trim() || ""
             }
           }).filter(Boolean)
 
@@ -529,8 +534,14 @@ export default function AdminDashboard() {
           const { error } = await supabase.from('questions').insert(newQuestions)
           if (error) throw error
 
+          const uniqueTopics = Array.from(new Set(newQuestions.map((q: any) => q.topic_title).filter(Boolean)))
+          setImportedTopics(uniqueTopics)
+          setSelectedTopicsForUnit(new Set())
+          setUnitNameInput("")
+
           toast({ title: "Import Successful", description: `Added ${newQuestions.length} clinical cases to ${activeSubject}.` })
           setIsUploadingQBank(false)
+          setIsAssigningUnit(true)
           fetchSubjectDetails()
         } catch (e: any) {
           toast({ variant: "destructive", title: "Import Failed", description: e.message })
@@ -542,6 +553,42 @@ export default function AdminDashboard() {
         toast({ variant: "destructive", title: "Parse Error", description: err.message })
         setUploading(false)
       }
+    })
+  }
+  
+  async function handleAssignUnit() {
+    if (!activeSubject || !unitNameInput.trim() || selectedTopicsForUnit.size === 0) return
+    setAssigningUnit(true)
+    try {
+      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
+      const topicsArray = Array.from(selectedTopicsForUnit)
+
+      const { error } = await supabase
+        .from('questions')
+        .update({ unit_title: unitNameInput.trim() })
+        .eq('subject_id', subjectId)
+        .in('topic_title', topicsArray)
+
+      if (error) throw error
+
+      toast({ title: "Unit Assigned", description: `${topicsArray.length} topic(s) grouped under "${unitNameInput.trim()}".` })
+
+      setImportedTopics(prev => prev.filter(t => !selectedTopicsForUnit.has(t)))
+      setSelectedTopicsForUnit(new Set())
+      setUnitNameInput("")
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Assignment Failed", description: err.message })
+    } finally {
+      setAssigningUnit(false)
+    }
+  }
+
+  function toggleTopicSelection(topic: string) {
+    setSelectedTopicsForUnit(prev => {
+      const next = new Set(prev)
+      if (next.has(topic)) next.delete(topic)
+      else next.add(topic)
+      return next
     })
   }
 
@@ -1167,6 +1214,61 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Assign Unit Dialog */}
+      <Dialog open={isAssigningUnit} onOpenChange={setIsAssigningUnit}>
+        <DialogContent className="glass border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Group Topics Into a Unit</DialogTitle>
+            <DialogDescription>Select topics from this import and assign them a unit name. Repeat for as many units as you need.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Unit Name</Label>
+              <Input
+                placeholder="e.g. Unit 1: Trauma & Injury"
+                value={unitNameInput}
+                onChange={(e) => setUnitNameInput(e.target.value)}
+                className="glass border-white/10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Select Topics ({selectedTopicsForUnit.size} selected)</Label>
+              <div className="rounded-xl glass border border-white/10 divide-y divide-white/5 max-h-64 overflow-y-auto">
+                {importedTopics.length > 0 ? importedTopics.map((topic) => (
+                  <label key={topic} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 cursor-pointer transition-colors">
+                    <Checkbox
+                      checked={selectedTopicsForUnit.has(topic)}
+                      onCheckedChange={() => toggleTopicSelection(topic)}
+                    />
+                    <span className="text-sm">{topic}</span>
+                  </label>
+                )) : (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    All imported topics have been assigned to units.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Button
+              onClick={handleAssignUnit}
+              disabled={assigningUnit || !unitNameInput.trim() || selectedTopicsForUnit.size === 0}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              {assigningUnit ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Assign {selectedTopicsForUnit.size} Topic(s) to "{unitNameInput || '...'}"
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setIsAssigningUnit(false); setImportedTopics([]) }}>
+              {importedTopics.length === 0 ? 'Done' : 'Skip Remaining (Leave as General)'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Add Topic Modal */}
       <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
