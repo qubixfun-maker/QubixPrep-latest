@@ -545,7 +545,7 @@ export default function AdminDashboard() {
               correct_answer_index: parseInt(parts[6]) || 0,
               explanation: parts[7]?.trim() || ""
             }
-          }).filter(Boolean)
+          }).filter((q): q is NonNullable<typeof q> => q !== null)
 
           if (newQuestions.length === 0) throw new Error("No valid question rows found in file.")
 
@@ -635,7 +635,7 @@ export default function AdminDashboard() {
               correct_answer_index: parseInt(parts[8]) || 0,
               explanation: parts[9]?.trim() || null
             }
-          }).filter(Boolean)
+          }).filter((q): q is NonNullable<typeof q> => q !== null)
 
           if (questions.length === 0) throw new Error("No valid question rows found in file.")
 

@@ -1,6 +1,4 @@
-import { GENKIT_MODEL, getGroqClient, GROQ_MODEL } from '@/ai/genkit';
-import { HumanMessage } from '@langchain/core/messages';
-import { StringOutputParser } from '@langchain/core/output_parsers';
+import { getGroqClient, GROQ_MODEL } from '@/ai/genkit';
 
 const TEMPLATE = `
 As an expert medical image analyst, your task is to interpret a medical image (like a mind map, a diagram, or a table) and provide a structured, high-yield summary for a student preparing for board exams (NEET-PG, USMLE).

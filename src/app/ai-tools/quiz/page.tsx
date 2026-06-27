@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, BrainCircuit, Sparkles, CheckCircle, XCircle, Info, RotateCcw, ArrowRight, ArrowLeft, BookOpen, Timer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePlan } from "@/hooks/use-plan";
+import { useUser } from "@/firebase";
 import { UpgradeGate } from "@/components/upgrade-gate";
 
 const QUESTION_COUNT_OPTIONS = [5, 10, 15, 20, 25];
@@ -22,6 +23,7 @@ export default function QuizGeneratorPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { canAccessAI, loading: planLoading } = usePlan();
+  const { user } = useUser();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export default function QuizGeneratorPage() {
     setLockedAnswers({});
     setShowResult(false);
     try {
-      const result = await generateQuizAndFlashcards({ studyTopic: topic, numQuestions });
+      const result = await generateQuizAndFlashcards({ studyTopic: topic, numQuestions, userId: user?.uid });
       setResults(result);
     } catch (error) {
       toast({

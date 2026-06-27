@@ -8,20 +8,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, FileText, Sparkles, Copy, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePlan } from "@/hooks/use-plan";
+import { useUser } from "@/firebase";
 import { UpgradeGate } from "@/components/upgrade-gate";
 
-export function SummarizerPageContent() {
+function SummarizerPageContent() {
   const [content, setContent] = useState("");
   const [summary, setSummary] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const { canAccessAI, loading: planLoading } = usePlan();
+  const { user } = useUser();
 
   async function handleSummarize() {
     if (!content.trim()) return;
     setIsLoading(true);
     try {
-      const result = await aiNoteSummarizer({ noteContent: content });
+      const result = await aiNoteSummarizer({ noteContent: content, userId: user?.uid });
       setSummary(result.summary);
     } catch (error) {
       toast({
