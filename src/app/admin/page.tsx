@@ -98,6 +98,7 @@ export default function AdminDashboard() {
   const [aiFixing, setAiFixing] = useState(false)
   const [aiFixLog, setAiFixLog] = useState<{row: number, field: string, before: string, after: string}[]>([])
   const [showFixLog, setShowFixLog] = useState(false)
+  const [aiFixProgress, setAiFixProgress] = useState({ done: 0, total: 0, message: "" })
   const [productForm, setProductForm] = useState({
     title: "", description: "", price: "",
     category: "Notes Pack", buy_link: "", image_url: ""
@@ -544,7 +545,7 @@ export default function AdminDashboard() {
     return 0
   }
 
-  async function aiFixBatch(questions: any[], onProgress: (n: number) => void): Promise<{ fixed: any[], log: any[] }> {
+  async function aiFixBatch(questions: any[], onProgress: (n: number, msg: string) => void): Promise<{ fixed: any[], log: any[] }> {
     const BATCH = 8
     const fixLog: any[] = []
     const allFixed: any[] = []
@@ -575,7 +576,7 @@ export default function AdminDashboard() {
       } catch(err) {
         batch.forEach((q: any) => allFixed.push(q))
       }
-      onProgress(Math.min(i + BATCH, questions.length))
+      onProgress(Math.min(i + BATCH, questions.length), '')
       await new Promise(r => setTimeout(r, 200))
     }
     return { fixed: allFixed, log: fixLog }
@@ -623,7 +624,10 @@ export default function AdminDashboard() {
         setAiFixing(true)
         setIsUploadingQBank(false)
         toast({ title: 'AI Fixing CSV...', description: 'Checking ' + allQuestions.length + ' questions for errors.' })
-        const { fixed, log } = await aiFixBatch(allQuestions, () => {})
+        setAiFixProgress({ done: 0, total: allQuestions.length, message: 'Starting...' })
+        const { fixed, log } = await aiFixBatch(allQuestions, (done, message) => {
+          setAiFixProgress({ done, total: allQuestions.length, message: message || '' })
+        })
         setAiFixLog(log)
         setAiFixing(false)
         const topicMap: Record<string, any[]> = {}
@@ -1502,6 +1506,166 @@ export default function AdminDashboard() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsUploadingQBank(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {aiFixing && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm gap-6 p-8">
+          <div className="glass border border-white/10 rounded-2xl p-8 max-w-md w-full space-y-6">
+            <div className="flex items-center gap-4">
+              <Loader2 className="h-8 w-8 text-primary animate-spin shrink-0" />
+              <div>
+                <p className="text-white font-bold text-lg">AI is fixing your CSV</p>
+                <p className="text-muted-foreground text-sm">{aiFixProgress.message || 'Analysing questions...'}</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{aiFixProgress.done} of {aiFixProgress.total} questions</span>
+                <span>{aiFixProgress.total > 0 ? Math.round((aiFixProgress.done / aiFixProgress.total) * 100) : 0}%</span>
+              </div>
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: aiFixProgress.total > 0 ? (aiFixProgress.done / aiFixProgress.total * 100) + '%' : '0%' }}
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground text-center">Fixing column shifts, wrong answers and missing explanations</p>
+          </div>
+        </div>
+      )}
+
+      {/* CSV Organizer Dialog */}
+      <Dialog open={showCsvOrganizer} onOpenChange={setShowCsvOrganizer}>
+        <DialogContent className="glass border-white/10 max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Organise Import — {activeSubject}</DialogTitle>
+            <DialogDescription>
+              {csvParsedTopics.reduce((s: number, t: any) => s + t.questions.length, 0)} questions across {csvParsedTopics.length} topics detected. Rename topics, assign units, and reorder before importing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {aiFixLog.length > 0 && (
+              <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 space-y-2">
+                <button onClick={() => setShowFixLog((v: boolean) => !v)} className="flex items-center gap-2 text-xs font-bold text-yellow-400 uppercase tracking-widest w-full">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  AI Auto-Fixed {aiFixLog.length} issues
+                  <ChevronDown className={`h-3 w-3 ml-auto transition-transform ${showFixLog ? 'rotate-180' : ''}`} />
+                </button>
+                {showFixLog && (
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {aiFixLog.map((log: any, i: number) => (
+                      <div key={i} className="text-[10px] text-muted-foreground bg-white/5 rounded-lg px-2 py-1 flex gap-2">
+                        <span className="text-yellow-400 font-bold shrink-0">Row {log.row} [{log.field}]</span>
+                        <span className="line-through opacity-50 truncate">{log.before}</span>
+                        <span className="text-green-400 shrink-0">→</span>
+                        <span className="truncate">{log.after}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-widest text-primary">Default Unit Name (applies to all topics)</Label>
+              <Input
+                placeholder="e.g., General Anatomy, Unit 1..."
+                className="glass border-white/10"
+                value={csvUnitName}
+                onChange={(e: any) => setCsvUnitName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Topics ({csvParsedTopics.length})</Label>
+              <div className="space-y-2">
+                {[...csvParsedTopics].sort((a: any, b: any) => a.order - b.order).map((topic: any, idx: number) => (
+                  <div key={idx} className="glass rounded-xl border border-white/5 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-0.5 shrink-0">
+                        <button
+                          onClick={() => {
+                            if (idx === 0) return
+                            setCsvParsedTopics((prev: any[]) => {
+                              const updated = [...prev].sort((a,b) => a.order - b.order)
+                              const temp = updated[idx].order
+                              updated[idx].order = updated[idx-1].order
+                              updated[idx-1].order = temp
+                              return [...updated]
+                            })
+                          }}
+                          disabled={idx === 0}
+                          className="p-0.5 text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                        >
+                          <ChevronUp className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (idx === csvParsedTopics.length - 1) return
+                            setCsvParsedTopics((prev: any[]) => {
+                              const updated = [...prev].sort((a,b) => a.order - b.order)
+                              const temp = updated[idx].order
+                              updated[idx].order = updated[idx+1].order
+                              updated[idx+1].order = temp
+                              return [...updated]
+                            })
+                          }}
+                          disabled={idx === csvParsedTopics.length - 1}
+                          className="p-0.5 text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                        >
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <Input
+                          value={topic.topicName}
+                          onChange={(e: any) => setCsvParsedTopics((prev: any[]) => prev.map((t: any) =>
+                            t.order === topic.order ? { ...t, topicName: e.target.value } : t
+                          ))}
+                          className="glass border-white/10 h-8 text-sm font-medium"
+                          placeholder="Topic name..."
+                        />
+                      </div>
+                      <span className="text-[10px] font-bold text-muted-foreground bg-white/5 px-2 py-1 rounded-lg shrink-0">
+                        {topic.questions.length} Qs
+                      </span>
+                      <button
+                        onClick={() => setCsvParsedTopics((prev: any[]) => prev.filter((t: any) => t.order !== topic.order))}
+                        className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="pl-9 flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">Unit override:</span>
+                      <Input
+                        value={topic.unitName}
+                        onChange={(e: any) => setCsvParsedTopics((prev: any[]) => prev.map((t: any) =>
+                          t.order === topic.order ? { ...t, unitName: e.target.value } : t
+                        ))}
+                        placeholder={csvUnitName || "uses default unit above"}
+                        className="glass border-white/10 h-7 text-xs"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-3 rounded-xl bg-accent/5 border border-accent/20 flex items-center gap-3">
+              <CheckCircle2 className="h-4 w-4 text-accent shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Ready to import <span className="font-bold text-foreground">{csvParsedTopics.reduce((s: number, t: any) => s + t.questions.length, 0)} questions</span> across <span className="font-bold text-foreground">{csvParsedTopics.length} topics</span> into <span className="font-bold text-foreground">{activeSubject}</span>.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setShowCsvOrganizer(false)}>Cancel</Button>
+            <Button onClick={handleConfirmImport} disabled={uploading} className="gap-2">
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {uploading ? "Importing..." : "Confirm Import"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
