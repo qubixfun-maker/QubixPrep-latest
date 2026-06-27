@@ -30,7 +30,11 @@ import {
   FileDown,
   AlertTriangle,
   Trophy,
-  ShoppingBag
+  ShoppingBag,
+  GripVertical,
+  ChevronUp,
+  ChevronDown,
+  CheckCircle2
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -54,11 +58,7 @@ export default function AdminDashboard() {
   const { toast } = useToast()
   
   const [activeSubject, setActiveSubject] = useState<string | null>(null)
-  const [importedTopics, setImportedTopics] = useState<string[]>([])
   const [isAssigningUnit, setIsAssigningUnit] = useState(false)
-  const [selectedTopicsForUnit, setSelectedTopicsForUnit] = useState<Set<string>>(new Set())
-  const [unitNameInput, setUnitNameInput] = useState("")
-  const [assigningUnit, setAssigningUnit] = useState(false)
   const [subjectContent, setSubjectContent] = useState<{
     topics: any[],
     mindmaps: any[],
@@ -92,6 +92,12 @@ export default function AdminDashboard() {
     explanation: ""
   })
   const [isAddingProduct, setIsAddingProduct] = useState(false)
+  const [csvParsedTopics, setCsvParsedTopics] = useState<{topicName: string, unitName: string, questions: any[], order: number}[]>([])
+  const [csvUnitName, setCsvUnitName] = useState("")
+  const [showCsvOrganizer, setShowCsvOrganizer] = useState(false)
+  const [aiFixing, setAiFixing] = useState(false)
+  const [aiFixLog, setAiFixLog] = useState<{row: number, field: string, before: string, after: string}[]>([])
+  const [showFixLog, setShowFixLog] = useState(false)
   const [productForm, setProductForm] = useState({
     title: "", description: "", price: "",
     category: "Notes Pack", buy_link: "", image_url: ""
@@ -520,94 +526,150 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleImportCSV(e: React.ChangeEvent<HTMLInputElement>) {
+  function detectRowShift(parts: any[]): boolean {
+    if (!parts[6] && parts[6] !== 0) return true
+    const v = parseInt(parts[6])
+    return isNaN(v) || v < 0 || v > 3
+  }
+
+  function recoverCorrectIndex(opts: string[], explanation: string): number {
+    if (!explanation) return 0
+    const boldMatch = explanation.match(/\*\*(.+?)\*\*/)
+    if (boldMatch) {
+      const term = boldMatch[1].toLowerCase()
+      for (let i = 0; i < opts.length; i++) {
+        if (opts[i] && opts[i].toLowerCase().includes(term)) return i
+      }
+    }
+    return 0
+  }
+
+  async function aiFixBatch(questions: any[], onProgress: (n: number) => void): Promise<{ fixed: any[], log: any[] }> {
+    const BATCH = 8
+    const fixLog: any[] = []
+    const allFixed: any[] = []
+    for (let i = 0; i < questions.length; i += BATCH) {
+      const batch = questions.slice(i, i + BATCH)
+      const prompt = 'You are a medical education data fixer. Fix these MCQ questions and return ONLY a valid JSON array, no markdown, no extra text. For each question: 1) If correct_answer_index is wrong fix it (0=option1,1=option2,2=option3,3=option4). 2) If explanation is empty write a concise 80-word NEET PG explanation. 3) Clean formatting issues. Return same number of objects with fields: topic_title, question_text, option1, option2, option3, option4, correct_answer_index (integer 0-3), explanation, _fixed (boolean). Questions: ' + JSON.stringify(batch)
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
+        })
+        const data = await res.json()
+        const text = data.content?.[0]?.text || '[]'
+        const clean = text.replace(/```[a-z]*/g, '').replace(/```/g, '').trim()
+        const parsed = JSON.parse(clean)
+        parsed.forEach((q: any, idx2: number) => {
+          const orig = batch[idx2]
+          if (q._fixed) {
+            if (q.correct_answer_index !== orig.correct_answer_index)
+              fixLog.push({ row: i+idx2+1, field: 'correct_answer_index', before: String(orig.correct_answer_index), after: String(q.correct_answer_index) })
+            if (q.explanation !== orig.explanation)
+              fixLog.push({ row: i+idx2+1, field: 'explanation', before: (orig.explanation||'(empty)').slice(0,40), after: (q.explanation||'').slice(0,40) })
+          }
+          delete q._fixed
+          allFixed.push(q)
+        })
+      } catch(err) {
+        batch.forEach((q: any) => allFixed.push(q))
+      }
+      onProgress(Math.min(i + BATCH, questions.length))
+      await new Promise(r => setTimeout(r, 200))
+    }
+    return { fixed: allFixed, log: fixLog }
+  }
+
+  function handleImportCSV(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !activeSubject) return
-    setUploading(true)
-    const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-
     Papa.parse(file, {
       header: false,
       skipEmptyLines: true,
       complete: async (results) => {
-        try {
-          const rows = (results.data as string[][]).slice(1)
-          const newQuestions = rows.map(parts => {
-            if (!parts || parts.length < 7 || !parts[1]) return null
-            return {
-              subject_id: subjectId,
-              topic_title: parts[0]?.trim(),
-              question_text: parts[1]?.trim(),
-              option1: parts[2]?.trim(),
-              option2: parts[3]?.trim(),
-              option3: parts[4]?.trim(),
-              option4: parts[5]?.trim(),
-              correct_answer_index: parseInt(parts[6]) || 0,
-              explanation: parts[7]?.trim() || ""
-            }
-          }).filter((q): q is NonNullable<typeof q> => q !== null)
-
-          if (newQuestions.length === 0) throw new Error("No valid question rows found in file.")
-
-          const { error } = await supabase.from('questions').insert(newQuestions)
-          if (error) throw error
-
-          const uniqueTopics = Array.from(new Set(newQuestions.map((q: any) => q.topic_title).filter(Boolean)))
-          setImportedTopics(uniqueTopics)
-          setSelectedTopicsForUnit(new Set())
-          setUnitNameInput("")
-
-          toast({ title: "Import Successful", description: `Added ${newQuestions.length} clinical cases to ${activeSubject}.` })
-          setIsUploadingQBank(false)
-          setIsAssigningUnit(true)
-          fetchSubjectDetails()
-        } catch (e: any) {
-          toast({ variant: "destructive", title: "Import Failed", description: e.message })
-        } finally {
-          setUploading(false)
+        const rows = (results.data as string[][]).slice(1)
+        const allQuestions: any[] = []
+        rows.forEach((parts: any[]) => {
+          if (!parts || parts.length < 3) return
+          const shifted = detectRowShift(parts)
+          let topic: string, question: string, o1: string, o2: string, o3: string, o4: string, correct: number, explanation: string
+          if (!shifted) {
+            topic = parts[0]?.trim() || 'General'
+            question = parts[1]?.trim()
+            o1 = parts[2]?.trim()
+            o2 = parts[3]?.trim()
+            o3 = parts[4]?.trim() || ''
+            o4 = parts[5]?.trim() || ''
+            correct = parseInt(parts[6]) || 0
+            explanation = parts[7]?.trim() || ''
+          } else {
+            topic = parts[0]?.trim() || 'General'
+            question = parts[2]?.trim()
+            o1 = parts[3]?.trim()
+            o2 = parts[4]?.trim()
+            o3 = parts[5]?.trim() || ''
+            o4 = parts[6]?.trim() || ''
+            explanation = parts[8]?.trim() || ''
+            correct = recoverCorrectIndex([o1,o2,o3,o4], explanation)
+          }
+          if (!question || !o1 || !o2) return
+          allQuestions.push({ topic_title: topic, question_text: question, option1: o1, option2: o2, option3: o3, option4: o4, correct_answer_index: correct, explanation })
+        })
+        if (allQuestions.length === 0) {
+          toast({ variant: 'destructive', title: 'No valid rows found', description: 'Check your CSV format.' })
+          return
+        }
+        setAiFixing(true)
+        setIsUploadingQBank(false)
+        toast({ title: 'AI Fixing CSV...', description: 'Checking ' + allQuestions.length + ' questions for errors.' })
+        const { fixed, log } = await aiFixBatch(allQuestions, () => {})
+        setAiFixLog(log)
+        setAiFixing(false)
+        const topicMap: Record<string, any[]> = {}
+        fixed.forEach((q: any) => {
+          const t = q.topic_title || 'General'
+          if (!topicMap[t]) topicMap[t] = []
+          topicMap[t].push(q)
+        })
+        const parsed = Object.entries(topicMap).map(([name, qs], i) => ({ topicName: name, unitName: '', questions: qs, order: i }))
+        setCsvParsedTopics(parsed)
+        setCsvUnitName('')
+        setShowCsvOrganizer(true)
+        if (log.length > 0) {
+          toast({ title: 'AI fixed ' + log.length + ' issues', description: 'Review the fix log in the organizer.' })
+        } else {
+          toast({ title: 'CSV looks clean!', description: fixed.length + ' questions ready to import.' })
         }
       },
-      error: (err) => {
-        toast({ variant: "destructive", title: "Parse Error", description: err.message })
-        setUploading(false)
+      error: (err: any) => {
+        toast({ variant: 'destructive', title: 'Parse Error', description: err.message })
+        setAiFixing(false)
       }
     })
   }
-  
-  async function handleAssignUnit() {
-    if (!activeSubject || !unitNameInput.trim() || selectedTopicsForUnit.size === 0) return
-    setAssigningUnit(true)
+
+  async function handleConfirmImport() {
+    if (!activeSubject) return
+    setUploading(true)
+    const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
     try {
-      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-      const topicsArray = Array.from(selectedTopicsForUnit)
-
-      const { error } = await supabase
-        .from('questions')
-        .update({ unit_title: unitNameInput.trim() })
-        .eq('subject_id', subjectId)
-        .in('topic_title', topicsArray)
-
+      const allQuestions = csvParsedTopics
+        .sort((a, b) => a.order - b.order)
+        .flatMap(t => t.questions.map((q: any) => ({ ...q, subject_id: subjectId, topic_title: t.topicName, unit_title: t.unitName || csvUnitName || null })))
+      if (allQuestions.length === 0) throw new Error('No questions to import.')
+      const { error } = await supabase.from('questions').insert(allQuestions)
       if (error) throw error
-
-      toast({ title: "Unit Assigned", description: `${topicsArray.length} topic(s) grouped under "${unitNameInput.trim()}".` })
-
-      setImportedTopics(prev => prev.filter(t => !selectedTopicsForUnit.has(t)))
-      setSelectedTopicsForUnit(new Set())
-      setUnitNameInput("")
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Assignment Failed", description: err.message })
+      toast({ title: 'Import Successful', description: 'Added ' + allQuestions.length + ' questions across ' + csvParsedTopics.length + ' topics.' })
+      setShowCsvOrganizer(false)
+      setCsvParsedTopics([])
+      setAiFixLog([])
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Import Failed', description: e.message })
     } finally {
-      setAssigningUnit(false)
+      setUploading(false)
     }
-  }
-
-  function toggleTopicSelection(topic: string) {
-    setSelectedTopicsForUnit(prev => {
-      const next = new Set(prev)
-      if (next.has(topic)) next.delete(topic)
-      else next.add(topic)
-      return next
-    })
   }
 
   async function handleImportPYQ(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1443,61 +1505,6 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Assign Unit Dialog */}
-      <Dialog open={isAssigningUnit} onOpenChange={setIsAssigningUnit}>
-        <DialogContent className="glass border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Group Topics Into a Unit</DialogTitle>
-            <DialogDescription>Select topics from this import and assign them a unit name. Repeat for as many units as you need.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Unit Name</Label>
-              <Input
-                placeholder="e.g. Unit 1: Trauma & Injury"
-                value={unitNameInput}
-                onChange={(e) => setUnitNameInput(e.target.value)}
-                className="glass border-white/10"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Select Topics ({selectedTopicsForUnit.size} selected)</Label>
-              <div className="rounded-xl glass border border-white/10 divide-y divide-white/5 max-h-64 overflow-y-auto">
-                {importedTopics.length > 0 ? importedTopics.map((topic) => (
-                  <label key={topic} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 cursor-pointer transition-colors">
-                    <Checkbox
-                      checked={selectedTopicsForUnit.has(topic)}
-                      onCheckedChange={() => toggleTopicSelection(topic)}
-                    />
-                    <span className="text-sm">{topic}</span>
-                  </label>
-                )) : (
-                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                    All imported topics have been assigned to units.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <Button
-              onClick={handleAssignUnit}
-              disabled={assigningUnit || !unitNameInput.trim() || selectedTopicsForUnit.size === 0}
-              className="w-full bg-primary hover:bg-primary/90"
-            >
-              {assigningUnit ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Assign {selectedTopicsForUnit.size} Topic(s) to "{unitNameInput || '...'}"
-            </Button>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => { setIsAssigningUnit(false); setImportedTopics([]) }}>
-              {importedTopics.length === 0 ? 'Done' : 'Skip Remaining (Leave as General)'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
 
       {/* Add Topic Modal */}
       <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
