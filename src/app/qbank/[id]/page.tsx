@@ -59,7 +59,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   const [aiExplanation, setAiExplanation] = useState<string | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
 
-  const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
+  const subjectRef = useMemo(() => (!db ? null : doc(db, 'users', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
 
   useEffect(() => {
@@ -244,14 +244,27 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
       }
     }
 
+    const previousQuestion = () => {
+      if (currentIndex > 0) {
+        const prevIndex = currentIndex - 1
+        setCurrentIndex(prevIndex)
+        const prevAnswer = sessionAnswers[prevIndex]
+        setSelectedOption(prevAnswer !== undefined ? prevAnswer : null)
+        setShowExplanation(prevAnswer !== undefined)
+        setAiExplanation(null)
+      }
+    }
+
     return (
       <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedTopicQuestions(null)} className="gap-2 text-muted-foreground hover:text-white">
-            <ArrowLeft className="h-4 w-4" /> Exit
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={previousQuestion}
+            disabled={currentIndex === 0}
+            className="gap-2 text-muted-foreground hover:text-white disabled:opacity-30">
+            <ArrowLeft className="h-4 w-4" /> Prev
           </Button>
           <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-            Case {currentIndex + 1} of {selectedTopicQuestions.length}
+            {currentIndex + 1} / {selectedTopicQuestions.length}
           </div>
         </div>
 
@@ -299,7 +312,14 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                         {isAiLoading ? "Consulting AI..." : "Ask AI Tutor"}
                       </Button>
                     </div>
-                    <p className="text-sm leading-relaxed text-muted-foreground italic">{currentQ.explanation}</p>
+                    <p className="text-sm leading-relaxed text-muted-foreground italic"
+                      dangerouslySetInnerHTML={{
+                        __html: (currentQ.explanation || "")
+                          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                          .replace(/\*(.+?)\*/g, "<em>$1</em>")
+                          .replace(/\n/g, "<br/>")
+                      }}
+                    />
                   </div>
 
                   {aiExplanation && (

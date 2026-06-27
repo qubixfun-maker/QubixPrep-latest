@@ -15,4 +15,4 @@ export const getGroqClient = () => {
     return groqClientInstance;
 };
 
-export const GROQ_MODEL = 'llama-3.3-70b-versatile';
+export const GROQ_MODEL = 'openai/gpt-oss-120b';

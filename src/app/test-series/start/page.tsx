@@ -249,9 +249,14 @@ function QuizSessionContent() {
                     </div>
 
                     {q.explanation && (
-                      <p className="text-xs text-muted-foreground italic pl-6 pt-2 border-t border-white/5 leading-relaxed">
-                        {q.explanation}
-                      </p>
+                      <p className="text-xs text-muted-foreground italic pl-6 pt-2 border-t border-white/5 leading-relaxed"
+                        dangerouslySetInnerHTML={{
+                          __html: (q.explanation || "")
+                            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                            .replace(/\*(.+?)\*/g, "<em>$1</em>")
+                            .replace(/\n/g, "<br/>")
+                        }}
+                      />
                     )}
                   </CardContent>
                 </Card>
@@ -410,7 +415,14 @@ function QuizSessionContent() {
                       {isAiLoading ? "Asking Tutor..." : "Ask AI Tutor"}
                     </Button>
                   </div>
-                  <p className="text-sm leading-relaxed text-muted-foreground italic">{currentQ.explanation}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground italic"
+                    dangerouslySetInnerHTML={{
+                      __html: (currentQ.explanation || "")
+                        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+                        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+                        .replace(/\n/g, "<br/>")
+                    }}
+                  />
                 </div>
 
                 {aiExplanation && (
