@@ -98,6 +98,9 @@ export default function AdminDashboard() {
   const [aiFixing, setAiFixing] = useState(false)
   const [aiFixLog, setAiFixLog] = useState<{row: number, field: string, before: string, after: string}[]>([])
   const [showFixLog, setShowFixLog] = useState(false)
+  const [reassignTopic, setReassignTopic] = useState<{topic: string, currentUnit: string} | null>(null)
+  const [reassignUnitInput, setReassignUnitInput] = useState("")
+  const [reassigning, setReassigning] = useState(false)
   const [aiFixProgress, setAiFixProgress] = useState({ done: 0, total: 0, message: "" })
   const [productForm, setProductForm] = useState({
     title: "", description: "", price: "",
@@ -156,7 +159,7 @@ export default function AdminDashboard() {
   const groupedQuestions = useMemo(() => {
     const groups: Record<string, Record<string, any[]>> = {}
     subjectContent.questions.forEach(q => {
-      const unit = q.unit_title || "General Curriculum"
+      const unit = q.unit_title || "Uncategorised"
       const topic = q.topic_title || "General"
       if (!groups[unit]) groups[unit] = {}
       if (!groups[unit][topic]) groups[unit][topic] = []
@@ -320,6 +323,28 @@ export default function AdminDashboard() {
       toast({ variant: "destructive", title: "Batch Error", description: e.message })
     } finally {
       setLoadingContent(false)
+    }
+  }
+
+  async function handleReassignTopicUnit(topicName: string, newUnit: string) {
+    if (!activeSubject || !newUnit.trim()) return
+    setReassigning(true)
+    const subjectId = activeSubject.toLowerCase().replace(/s+/g, '-')
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ unit_title: newUnit.trim() })
+        .eq('subject_id', subjectId)
+        .eq('topic_title', topicName)
+      if (error) throw error
+      toast({ title: 'Unit Updated', description: topicName + ' moved to ' + newUnit })
+      setReassignTopic(null)
+      setReassignUnitInput("")
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Update Failed', description: e.message })
+    } finally {
+      setReassigning(false)
     }
   }
 
@@ -1138,6 +1163,13 @@ export default function AdminDashboard() {
                                                 }}>
                                                 <Plus className="h-2.5 w-2.5" /> Add
                                               </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-accent/10 hover:text-accent gap-1"
+                                                onClick={() => { setReassignTopic({ topic: topicGroup.topic, currentUnit: group.unit }); setReassignUnitInput(group.unit) }}>
+                                                <Edit2 className="h-2.5 w-2.5" /> Move
+                                              </Button>
                                               <Button 
                                                 variant="ghost" 
                                                 size="sm" 
@@ -1669,6 +1701,42 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reassign Topic Unit Dialog */}
+      {reassignTopic && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass border border-white/10 rounded-2xl p-6 max-w-md w-full space-y-4">
+            <div>
+              <h3 className="font-bold text-base">Move Topic to Unit</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Moving <span className="text-white font-semibold">{reassignTopic.topic}</span> from <span className="text-muted-foreground">{reassignTopic.currentUnit}</span>
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">New Unit Name</Label>
+              <Input
+                value={reassignUnitInput}
+                onChange={(e) => setReassignUnitInput(e.target.value)}
+                placeholder="e.g., Unit I — Cell Biology"
+                className="glass border-white/10"
+                autoFocus
+              />
+              <p className="text-[10px] text-muted-foreground">Type an existing unit name to merge, or a new name to create a new unit.</p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setReassignTopic(null)}>Cancel</Button>
+              <Button
+                onClick={() => handleReassignTopicUnit(reassignTopic.topic, reassignUnitInput)}
+                disabled={reassigning || !reassignUnitInput.trim()}
+                className="gap-2"
+              >
+                {reassigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit2 className="h-4 w-4" />}
+                {reassigning ? 'Moving...' : 'Move Topic'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Topic Modal */}
       <Dialog open={isAddingTopic} onOpenChange={setIsAddingTopic}>
