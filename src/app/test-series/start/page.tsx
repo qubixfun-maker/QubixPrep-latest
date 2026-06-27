@@ -24,10 +24,12 @@ import {
   Info
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useUser } from "@/firebase"
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { analyzeTestPerformance } from "@/ai/flows/ai-performance-analyzer"
 
 function QuizSessionContent() {
+  const { user } = useUser()
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
@@ -118,7 +120,7 @@ function QuizSessionContent() {
     const options = [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4]
     setIsAiLoading(true)
     try {
-      const result = await clinicalTutorFlow(currentQ.question_text, options[currentQ.correct_answer_index], currentQ.explanation)
+      const result = await clinicalTutorFlow(currentQ.question_text, options[currentQ.correct_answer_index], currentQ.explanation, user?.uid)
       setAiExplanation(result)
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message || "Tutor unavailable." })

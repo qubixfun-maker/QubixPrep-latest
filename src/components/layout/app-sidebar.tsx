@@ -47,12 +47,12 @@ export function AppSidebar() {
 
   const mainItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Notes", url: "/notes", icon: BookOpen },
+    // { title: "Notes", url: "/notes", icon: BookOpen },
     { title: "Mindmaps", url: "/mindmaps", icon: Network },
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit },
-    { title: "Video Lectures", url: "/videos", icon: Video },
+    // { title: "Video Lectures", url: "/videos", icon: Video },
     { title: "AI Tools", url: "/ai-tools", icon: BrainCircuit },
     { title: "Store", url: "/products", icon: ShoppingBag },
     { title: "Pricing", url: "/pricing", icon: Zap },

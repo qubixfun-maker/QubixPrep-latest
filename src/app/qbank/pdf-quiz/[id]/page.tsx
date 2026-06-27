@@ -128,7 +128,7 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
     
     setIsAiLoading(true)
     try {
-      const result = await clinicalTutorFlow(currentQ.question_text, optsArr[correctIdx] || currentQ.correct_answer, currentQ.explanation)
+      const result = await clinicalTutorFlow(currentQ.question_text, optsArr[correctIdx] || currentQ.correct_answer, currentQ.explanation, user?.uid)
       setAiExplanation(result)
     } catch (e: any) {
       toast({ variant: "destructive", title: "AI Error", description: e.message || "Tutor is currently in rounds." })

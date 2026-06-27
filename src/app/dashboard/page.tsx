@@ -77,7 +77,7 @@ export default function Dashboard() {
 
   const stats = [
     { label: "Subjects", value: subjectsLoading ? "..." : String(subjectCount), icon: BookOpen, color: "text-blue-400" },
-    { label: "Video Lectures", value: String(videoCount), icon: Video, color: "text-purple-400" },
+    // { label: "Video Lectures", value: String(videoCount), icon: Video, color: "text-purple-400" },
     { label: "Mindmaps", value: String(mindmapCount), icon: Network, color: "text-green-400" },
     { label: "AI Tools", value: "3", icon: BrainCircuit, color: "text-accent" },
   ]
@@ -101,7 +101,7 @@ export default function Dashboard() {
           </p>
           <div className="flex flex-wrap gap-4 pt-4">
             <Button size="lg" asChild className="w-full md:w-auto rounded-xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/30 gap-2">
-              <Link href="/notes"><Play className="h-4 w-4 fill-current" /> Study Notes</Link>
+              <Link href="/qbank"><Play className="h-4 w-4 fill-current" /> QBank Practice</Link>
             </Button>
             <Button variant="outline" size="lg" asChild className="w-full md:w-auto rounded-xl glass border-white/10 hover:bg-white/5 gap-2">
               <Link href="/ai-tools"><BrainCircuit className="h-4 w-4" /> AI Tools</Link>
@@ -135,7 +135,7 @@ export default function Dashboard() {
             <CardTitle className="text-xl font-bold flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-primary" /> Subjects
             </CardTitle>
-            <Link href="/notes" className="text-xs text-muted-foreground hover:text-accent flex items-center gap-1">
+            <Link href="/qbank" className="text-xs text-muted-foreground hover:text-accent flex items-center gap-1">
               All Subjects <ArrowRight className="h-3 w-3" />
             </Link>
           </CardHeader>
@@ -147,7 +147,7 @@ export default function Dashboard() {
             ) : subjects && subjects.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
                 {subjects.slice(0, 6).map((subject: any) => (
-                  <Link key={subject.id} href={"/notes/" + subject.id}>
+                  <Link key={subject.id} href={"/qbank/" + subject.id}>
                     <div className="p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-primary/20 transition-all group">
                       <p className="font-semibold text-sm group-hover:text-primary transition-colors">{subject.name}</p>
                       <p className="text-xs text-muted-foreground mt-1">{subject.topicCount || 0} topics</p>
@@ -175,7 +175,7 @@ export default function Dashboard() {
               { label: "QBank", desc: "Practice MCQs", href: "/qbank", icon: Database, color: "text-blue-400" },
               { label: "PYQ Series", desc: "Previous year questions", href: "/pyq", icon: Trophy, color: "text-yellow-400" },
               { label: "Custom Quiz", desc: "AI-powered test", href: "/test-series", icon: BrainCircuit, color: "text-purple-400" },
-              { label: "Video Lectures", desc: videoCount + " videos available", href: "/videos", icon: Video, color: "text-green-400" },
+              // { label: "Video Lectures", desc: videoCount + " videos available", href: "/videos", icon: Video, color: "text-green-400" },
               { label: "Mindmaps", desc: mindmapCount + " mindmaps", href: "/mindmaps", icon: Network, color: "text-accent" },
             ].map((item) => (
               <Link key={item.label} href={item.href}>

@@ -73,6 +73,24 @@ export default function AdminDashboard() {
   const [uploading, setUploading] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
   const [isUploadingPYQ, setIsUploadingPYQ] = useState(false)
+  const [pyqQuestions, setPyqQuestions] = useState<any[]>([])
+  const [loadingPYQ, setLoadingPYQ] = useState(false)
+  const [pyqSearch, setPyqSearch] = useState("")
+  const [pyqExamFilter, setPyqExamFilter] = useState("All")
+  const [pyqYearFilter, setPyqYearFilter] = useState("All")
+  const [editingPYQId, setEditingPYQId] = useState<number | null>(null)
+  const [pyqForm, setPyqForm] = useState({
+    exam_type: "NEET PG",
+    year: new Date().getFullYear().toString(),
+    subject: "",
+    question_text: "",
+    option1: "",
+    option2: "",
+    option3: "",
+    option4: "",
+    correct_answer_index: "0",
+    explanation: ""
+  })
   const [isAddingProduct, setIsAddingProduct] = useState(false)
   const [productForm, setProductForm] = useState({
     title: "", description: "", price: "",
@@ -639,6 +657,110 @@ export default function AdminDashboard() {
     })
   }
 
+
+  async function fetchPYQQuestions() {
+    setLoadingPYQ(true)
+    try {
+      const { data, error } = await supabase
+        .from("pyq_questions")
+        .select("*")
+        .order("year", { ascending: false })
+      if (error) throw error
+      setPyqQuestions(data || [])
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Fetch Failed", description: e.message })
+    } finally {
+      setLoadingPYQ(false)
+    }
+  }
+
+  async function handleSavePYQ() {
+    if (!pyqForm.question_text || !pyqForm.option1 || !pyqForm.option2) {
+      toast({ variant: "destructive", title: "Incomplete Form" })
+      return
+    }
+    setUploading(true)
+    try {
+      const payload = {
+        exam_type: pyqForm.exam_type,
+        year: parseInt(pyqForm.year),
+        subject: pyqForm.subject || null,
+        question_text: pyqForm.question_text,
+        option1: pyqForm.option1,
+        option2: pyqForm.option2,
+        option3: pyqForm.option3 || null,
+        option4: pyqForm.option4 || null,
+        correct_answer_index: parseInt(pyqForm.correct_answer_index),
+        explanation: pyqForm.explanation || null
+      }
+      if (editingPYQId) {
+        const { error } = await supabase.from("pyq_questions").update(payload).eq("id", editingPYQId)
+        if (error) throw error
+        toast({ title: "PYQ Updated" })
+      } else {
+        const { error } = await supabase.from("pyq_questions").insert([payload])
+        if (error) throw error
+        toast({ title: "PYQ Added" })
+      }
+      setEditingPYQId(null)
+      setPyqForm({
+        exam_type: "NEET PG",
+        year: new Date().getFullYear().toString(),
+        subject: "",
+        question_text: "",
+        option1: "",
+        option2: "",
+        option3: "",
+        option4: "",
+        correct_answer_index: "0",
+        explanation: ""
+      })
+      fetchPYQQuestions()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Save Failed", description: e.message })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleDeletePYQ(id: number) {
+    if (!confirm("Delete this PYQ question?")) return
+    const original = [...pyqQuestions]
+    setPyqQuestions(prev => prev.filter(q => q.id !== id))
+    try {
+      const { error } = await supabase.from("pyq_questions").delete().eq("id", id)
+      if (error) {
+        setPyqQuestions(original)
+        throw error
+      }
+      toast({ title: "PYQ Deleted" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+    }
+  }
+
+  function startEditPYQ(q: any) {
+    setEditingPYQId(q.id)
+    setPyqForm({
+      exam_type: q.exam_type,
+      year: q.year.toString(),
+      subject: q.subject || "",
+      question_text: q.question_text,
+      option1: q.option1,
+      option2: q.option2,
+      option3: q.option3 || "",
+      option4: q.option4 || "",
+      correct_answer_index: q.correct_answer_index.toString(),
+      explanation: q.explanation || ""
+    })
+  }
+
+  const filteredPYQ = pyqQuestions.filter(q => {
+    const matchesSearch = pyqSearch === "" || q.question_text.toLowerCase().includes(pyqSearch.toLowerCase())
+    const matchesExam = pyqExamFilter === "All" || q.exam_type === pyqExamFilter
+    const matchesYear = pyqYearFilter === "All" || q.year.toString() === pyqYearFilter
+    return matchesSearch && matchesExam && matchesYear
+  })
   async function handleAddProduct() {
     if (!productForm.title || !productForm.price || !productForm.buy_link) {
       toast({ variant: "destructive", title: "Missing fields" }); return
@@ -1032,22 +1154,129 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      <Dialog open={isUploadingPYQ} onOpenChange={setIsUploadingPYQ}>
-        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-md">
+      <Dialog open={isUploadingPYQ} onOpenChange={(open) => { setIsUploadingPYQ(open); if (open) fetchPYQQuestions() }}>
+        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Upload PYQ Questions</DialogTitle>
+            <DialogTitle>PYQ Question Bank</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
-              <p className="text-[10px] font-bold uppercase text-primary">Required CSV Headers</p>
-              <p className="text-[9px] text-muted-foreground font-mono leading-tight">
-                exam_type, year, subject, question_text, option1, option2, option3, option4, correct_answer_index, explanation
-              </p>
-              <p className="text-[9px] text-muted-foreground">exam_type: NEET PG / INICET / USMLE Step 1 / USMLE Step 2 / FMGE</p>
-            </div>
-            <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={handleImportPYQ} disabled={uploading} />
-            {uploading && <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 animate-pulse"><Loader2 className="h-4 w-4 animate-spin text-primary" /><span className="text-[10px] font-bold uppercase">Importing...</span></div>}
-          </div>
+          <Tabs defaultValue="manage" className="w-full">
+            <TabsList className="glass border-none h-11 p-1 rounded-xl mb-4">
+              <TabsTrigger value="manage" className="rounded-lg data-[state=active]:bg-primary">Manage</TabsTrigger>
+              <TabsTrigger value="add" className="rounded-lg data-[state=active]:bg-primary">{editingPYQId ? "Edit Question" : "Add Question"}</TabsTrigger>
+              <TabsTrigger value="bulk" className="rounded-lg data-[state=active]:bg-primary">Bulk Import</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="manage" className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <Input placeholder="Search question text..." value={pyqSearch} onChange={(e) => setPyqSearch(e.target.value)} className="glass border-white/10 col-span-1" />
+                <Select value={pyqExamFilter} onValueChange={setPyqExamFilter}>
+                  <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                  <SelectContent className="glass border-white/10">
+                    <SelectItem value="All">All Exams</SelectItem>
+                    {["NEET PG", "INICET", "USMLE Step 1", "USMLE Step 2", "FMGE"].map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={pyqYearFilter} onValueChange={setPyqYearFilter}>
+                  <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                  <SelectContent className="glass border-white/10">
+                    <SelectItem value="All">All Years</SelectItem>
+                    {Array.from(new Set(pyqQuestions.map(q => q.year))).sort((a,b) => b-a).map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {loadingPYQ ? (
+                <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : filteredPYQ.length > 0 ? (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {filteredPYQ.map((q) => (
+                    <div key={q.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between gap-3 hover:bg-white/10 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex gap-2 mb-1">
+                          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary">{q.exam_type}</span>
+                          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">{q.year}</span>
+                          {q.subject && <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">{q.subject}</span>}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2">{q.question_text}</p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-accent" onClick={() => startEditPYQ(q)}><Edit2 className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive" onClick={() => handleDeletePYQ(q.id)}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16 text-muted-foreground text-sm">No PYQ questions found.</div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="add" className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Exam Type</Label>
+                  <Select value={pyqForm.exam_type} onValueChange={(v) => setPyqForm({ ...pyqForm, exam_type: v })}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      {["NEET PG", "INICET", "USMLE Step 1", "USMLE Step 2", "FMGE"].map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Year</Label>
+                  <Input type="number" className="glass border-white/10" value={pyqForm.year} onChange={(e) => setPyqForm({ ...pyqForm, year: e.target.value })} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Subject (optional)</Label>
+                  <Input placeholder="e.g., Medicine" className="glass border-white/10" value={pyqForm.subject} onChange={(e) => setPyqForm({ ...pyqForm, subject: e.target.value })} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Question Text</Label>
+                  <Textarea className="glass border-white/10 min-h-[80px]" value={pyqForm.question_text} onChange={(e) => setPyqForm({ ...pyqForm, question_text: e.target.value })} />
+                </div>
+                <div className="space-y-2"><Label>Option A</Label><Input className="glass border-white/10" value={pyqForm.option1} onChange={(e) => setPyqForm({ ...pyqForm, option1: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Option B</Label><Input className="glass border-white/10" value={pyqForm.option2} onChange={(e) => setPyqForm({ ...pyqForm, option2: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Option C</Label><Input className="glass border-white/10" value={pyqForm.option3} onChange={(e) => setPyqForm({ ...pyqForm, option3: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Option D</Label><Input className="glass border-white/10" value={pyqForm.option4} onChange={(e) => setPyqForm({ ...pyqForm, option4: e.target.value })} /></div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Correct Answer Index (0-3)</Label>
+                  <Select value={pyqForm.correct_answer_index} onValueChange={(v) => setPyqForm({ ...pyqForm, correct_answer_index: v })}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      <SelectItem value="0">Option A</SelectItem>
+                      <SelectItem value="1">Option B</SelectItem>
+                      <SelectItem value="2">Option C</SelectItem>
+                      <SelectItem value="3">Option D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Explanation</Label>
+                  <Textarea className="glass border-white/10 min-h-[80px]" value={pyqForm.explanation} onChange={(e) => setPyqForm({ ...pyqForm, explanation: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {editingPYQId && (
+                  <Button variant="ghost" onClick={() => { setEditingPYQId(null); setPyqForm({ exam_type: "NEET PG", year: new Date().getFullYear().toString(), subject: "", question_text: "", option1: "", option2: "", option3: "", option4: "", correct_answer_index: "0", explanation: "" }) }}>Cancel Edit</Button>
+                )}
+                <Button onClick={handleSavePYQ} disabled={uploading} className="flex-1">
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} {editingPYQId ? "Update Question" : "Add Question"}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="bulk" className="space-y-4">
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+                <p className="text-[10px] font-bold uppercase text-primary">Required CSV Headers</p>
+                <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                  exam_type, year, subject, question_text, option1, option2, option3, option4, correct_answer_index, explanation
+                </p>
+                <p className="text-[9px] text-muted-foreground">exam_type: NEET PG / INICET / USMLE Step 1 / USMLE Step 2 / FMGE</p>
+              </div>
+              <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={handleImportPYQ} disabled={uploading} />
+              {uploading && <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 animate-pulse"><Loader2 className="h-4 w-4 animate-spin text-primary" /><span className="text-[10px] font-bold uppercase">Importing...</span></div>}
+            </TabsContent>
+          </Tabs>
           <DialogFooter><Button variant="ghost" onClick={() => setIsUploadingPYQ(false)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
