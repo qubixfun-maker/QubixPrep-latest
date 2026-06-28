@@ -3,6 +3,7 @@
 export type GenerateQBankInput = {
   topic: string;
   subject: string;
+  unitName?: string;
   numQuestions: number;
 };
 
@@ -30,7 +31,7 @@ const SUBJECT_LENS: Record<string, string> = {
   "Microbiology": "Focus strictly on the organism itself: morphology, classification, virulence factors, pathogenesis at the cellular/molecular level, laboratory diagnosis (culture, staining, serology), and antimicrobial sensitivity. Do NOT cover epidemiology, national health programs, clinical management, or public health policy - that belongs to Community Medicine or clinical subjects.",
   "Pharmacology": "Focus strictly on drugs: mechanism of action, pharmacokinetics, pharmacodynamics, adverse effects, drug interactions, and contraindications. Do NOT cover disease pathophysiology, organism biology, or epidemiology in depth.",
   "Forensic Medicine": "Focus strictly on medico-legal aspects: cause/manner/mechanism of death, postmortem findings, legal procedures (Indian law: IPC, CrPC sections relevant to medicine), toxicology, and forensic significance. Do NOT cover clinical management of living patients.",
-  "Community Medicine": "Focus strictly on the public health and epidemiological angle: incidence/prevalence, national control programs (e.g. NTEP/RNTCP, NVBDCP, UIP), prevention strategies, screening, biostatistics, demography, and health system administration. Do NOT cover organism biology, pathophysiology, or individual clinical management - that belongs to Microbiology, Pathology, or clinical subjects.",
+  "Community Medicine": "Focus on the public health and programmatic angle of the topic: disease burden, national health programs and policies, prevention strategies at population level, screening program design, health education, and health system response. Use biostatistics/epidemiological calculations (rates, ratios, OR/RR, Hardy-Weinberg, sensitivity/specificity) ONLY when the unit or topic name explicitly indicates a biostatistics/epidemiology methods topic - do NOT default to calculation-heavy questions for topics that are about specific diseases or programs unless the topic itself is about measurement/statistics. Do NOT cover organism biology, individual clinical management, or drug mechanisms - that belongs to Microbiology, Pathology, Pharmacology, or clinical subjects.",
   "Medicine": "Focus on clinical presentation, diagnosis, investigation, and management of conditions in adult patients as tested in internal medicine. Include relevant subspecialties (cardiology, nephrology, neurology, endocrinology, gastroenterology, pulmonology, rheumatology, infectious disease, hematology, oncology) at a general medicine level.",
   "Surgery": "Focus on surgical indications, operative principles, pre/post-operative management, and surgical complications as tested in general surgery. Include relevant subspecialties (urology, vascular surgery, trauma, GI surgery, endocrine surgery) at a general surgery level.",
   "Obstetrics & Gynaecology": "Focus on antenatal/intranatal/postnatal care, obstetric complications, gynaecological conditions, contraception, and reproductive health as tested in O&G.",
@@ -44,13 +45,17 @@ const SUBJECT_LENS: Record<string, string> = {
   "Anaesthesia": "Focus on anaesthetic agents, techniques, perioperative monitoring, pain management, and critical care as tested in anaesthesiology.",
 }
 
-function buildPrompt(subject: string, topic: string, count: number): string {
+function buildPrompt(subject: string, unitName: string | undefined, topic: string, count: number): string {
   const subjectScope = SUBJECT_LENS[subject] || `Stay strictly within the scope of ${subject} as a distinct subject from other MBBS subjects - do not drift into content that belongs to a different subject.`
+  const unitContext = unitName ? `Unit: ${unitName}\n` : ''
 
   return `You are an expert medical educator writing NEET-PG and INICET level multiple choice questions for MBBS students in India preparing for postgraduate medical entrance exams.
 
 Subject: ${subject}
-Topic: ${topic}
+${unitContext}Topic: ${topic}
+
+CRITICAL - USE THE UNIT AND TOPIC NAME TO DETERMINE SCOPE:
+Read the unit name and topic name carefully and let them guide what kind of question to write. If the topic name names a specific disease, condition, or program (e.g. "Tuberculosis", "Genetics and Health", "Maternal Health"), write questions ABOUT that subject matter as covered in standard textbooks for this subject - definitions, classification, programs, prevention strategies, clinical/public-health facts relevant to it. Do NOT mechanically convert every topic into a statistics word-problem. Only write calculation-based questions (odds ratio, relative risk, Hardy-Weinberg, sensitivity/specificity, rates) if the unit or topic name itself is explicitly about biostatistics, epidemiological methods, or measurement (e.g. "Biostatistics", "Epidemiological Methods", "Screening Tests").
 
 DIFFICULTY LEVEL (critical):
 Write at NEET-PG / INICET exam difficulty - application-based and scenario-based questions, not simple one-line recall. Where appropriate, frame as brief clinical vignettes.
@@ -61,7 +66,7 @@ ${subjectScope}
 REFERENCE STANDARD:
 Base every question on content found in standard Indian MBBS textbooks for this subject. Match the style and difficulty of recent NEET-PG and INICET exams.
 
-Generate exactly ${count} high-yield multiple choice questions on this topic, strictly within the subject scope above.
+Generate exactly ${count} high-yield multiple choice questions on this topic, strictly within the subject and unit/topic scope above. Vary the question type - do not repeat the same question format/structure across the set.
 
 Respond ONLY with a valid JSON array, no markdown, no extra text, no trailing commas, in this exact format:
 [{"topic_title":"${topic}","question_text":"...","option1":"...","option2":"...","option3":"...","option4":"...","correct_answer_index":0,"explanation":"..."}]
@@ -70,14 +75,15 @@ Rules:
 - correct_answer_index must be an integer 0-3
 - No markdown bold (**) inside any field
 - Vary the correct answer position, do not always pick 0
+- Each option must be a genuinely plausible distractor, not circular or self-referential to the question
 - Output must be complete, valid JSON - do not truncate`
 }
 
-async function generateBatch(subject: string, topic: string, count: number): Promise<{ questions: QBankQuestion[], rawError?: string }> {
+async function generateBatch(subject: string, unitName: string | undefined, topic: string, count: number): Promise<{ questions: QBankQuestion[], rawError?: string }> {
   const apiKey = process.env.CEREBRAS_API_KEY
   if (!apiKey) return { questions: [], rawError: 'CEREBRAS_API_KEY is not set in environment variables.' }
 
-  const prompt = buildPrompt(subject, topic, count)
+  const prompt = buildPrompt(subject, unitName, topic, count)
 
   try {
     const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -125,7 +131,7 @@ export async function generateQBankQuestions(input: GenerateQBankInput): Promise
 
   for (let done = 0; done < total; done += BATCH_SIZE) {
     const batchCount = Math.min(BATCH_SIZE, total - done)
-    const result = await generateBatch(input.subject, input.topic, batchCount)
+    const result = await generateBatch(input.subject, input.unitName, input.topic, batchCount)
     if (result.questions.length > 0) {
       allQuestions.push(...result.questions)
     } else if (result.rawError) {

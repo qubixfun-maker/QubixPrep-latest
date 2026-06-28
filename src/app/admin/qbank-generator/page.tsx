@@ -54,7 +54,7 @@ export default function QBankGeneratorPage() {
     setIsGenerating(true)
     setGenerated([])
     try {
-      const result = await generateQBankQuestions({ subject, topic: topic.trim(), numQuestions })
+      const result = await generateQBankQuestions({ subject, unitName: unitName.trim(), topic: topic.trim(), numQuestions })
       if (result.questions.length === 0) {
         toast({ variant: "destructive", title: "Generation Failed", description: result.error || "AI returned no usable questions. Try again." })
       } else if (result.questions.length < numQuestions) {
