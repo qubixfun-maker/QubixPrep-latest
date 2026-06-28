@@ -1,18 +1,17 @@
-
 "use client"
 
 import { useMemo, use, useEffect, useState } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ArrowLeft, Loader2, ShieldCheck, Maximize2, Minimize2 } from "lucide-react"
+import { ArrowLeft, Loader2, ShieldCheck, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
 
 export default function MindmapViewerPage({ params }: { params: Promise<{ id: string, mindmapId: string }> }) {
   const { id, mindmapId } = use(params)
-  
+
   const db = useFirestore()
-  const [isFullWidth, setIsFullWidth] = useState(false)
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -47,42 +46,59 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{mmData.unitName || 'General'}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-muted-foreground h-8 gap-2 hover:text-white"
-            onClick={() => setIsFullWidth(!isFullWidth)}
-          >
-            {isFullWidth ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-tighter">
-              {isFullWidth ? 'Fit Screen' : 'Full Width'}
-            </span>
-          </Button>
-          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-bold text-muted-foreground uppercase">
-            <ShieldCheck className="h-3 w-3 text-accent" /> Secure Content
-          </div>
+        <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/5 text-[9px] font-bold text-muted-foreground uppercase">
+          <ShieldCheck className="h-3 w-3 text-accent" /> Secure Content
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto bg-[#000] scrollbar-hide">
-        <div className={`mx-auto transition-all duration-500 flex justify-center py-8 px-4 ${isFullWidth ? 'w-full max-w-none' : 'max-w-6xl'}`}>
-          <div className="relative inline-block">
-            <img 
-              src={mmData.imageUrl} 
-              alt={mmData.title} 
-              className="w-full h-auto rounded-lg shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5" 
-              onContextMenu={e => e.preventDefault()}
-            />
-            <div className="absolute inset-0 pointer-events-none opacity-[0.02] flex items-center justify-center rotate-45 select-none overflow-hidden">
-               <div className="text-6xl font-black whitespace-nowrap">QUBIX PREP • SECURED CONTENT • QUBIX PREP • SECURED CONTENT • </div>
-            </div>
-          </div>
-        </div>
+      <div className="flex-1 relative overflow-hidden bg-[#000]">
+        <TransformWrapper
+          initialScale={1}
+          minScale={0.5}
+          maxScale={6}
+          centerOnInit
+          wheel={{ step: 0.15 }}
+          pinch={{ step: 5 }}
+          doubleClick={{ mode: "zoomIn", step: 0.7 }}
+        >
+          {({ zoomIn, zoomOut, resetTransform }) => (
+            <>
+              <TransformComponent
+                wrapperStyle={{ width: "100%", height: "100%" }}
+                contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <div className="relative inline-block px-4 py-8">
+                  <img
+                    src={mmData.imageUrl}
+                    alt={mmData.title}
+                    className="max-w-[90vw] md:max-w-4xl rounded-lg shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5"
+                    onContextMenu={e => e.preventDefault()}
+                    draggable={false}
+                  />
+                  <div className="absolute inset-0 pointer-events-none opacity-[0.02] flex items-center justify-center rotate-45 select-none overflow-hidden">
+                    <div className="text-6xl font-black whitespace-nowrap">QUBIX PREP • SECURED CONTENT • QUBIX PREP • SECURED CONTENT • </div>
+                  </div>
+                </div>
+              </TransformComponent>
+
+              <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
+                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => zoomIn()}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => zoomOut()}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => resetTransform()}>
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
+          )}
+        </TransformWrapper>
       </div>
-      
+
       <footer className="h-10 glass-darker border-t border-white/5 flex items-center justify-center px-4">
-        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Visual Study Canvas • Protected for Medical Education</p>
+        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Pinch or scroll to zoom • Drag to pan • Protected for Medical Education</p>
       </footer>
     </div>
   )
