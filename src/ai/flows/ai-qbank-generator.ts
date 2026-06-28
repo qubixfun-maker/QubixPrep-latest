@@ -1,7 +1,5 @@
 'use server';
 
-import { getGroqClient, GROQ_MODEL } from '@/ai/genkit';
-
 export type GenerateQBankInput = {
   topic: string;
   subject: string;
@@ -76,17 +74,32 @@ Rules:
 }
 
 async function generateBatch(subject: string, topic: string, count: number): Promise<{ questions: QBankQuestion[], rawError?: string }> {
-  const groqClient = getGroqClient();
+  const apiKey = process.env.CEREBRAS_API_KEY
+  if (!apiKey) return { questions: [], rawError: 'CEREBRAS_API_KEY is not set in environment variables.' }
+
   const prompt = buildPrompt(subject, topic, count)
 
   try {
-    const response = await groqClient.chat.completions.create({
-      model: GROQ_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
+    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-oss-120b',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+      }),
     })
 
-    const raw = response.choices[0]?.message?.content ?? ''
+    if (!res.ok) {
+      const errText = await res.text()
+      return { questions: [], rawError: `Cerebras API error ${res.status}: ${errText.slice(0, 200)}` }
+    }
+
+    const data = await res.json()
+    const raw = data.choices?.[0]?.message?.content ?? ''
     if (!raw) return { questions: [], rawError: 'Empty response from AI model' }
 
     let clean = raw.replace(/```json|```/g, '').trim()
