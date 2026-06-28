@@ -34,7 +34,8 @@ import {
   GripVertical,
   ChevronUp,
   ChevronDown,
-  CheckCircle2
+  CheckCircle2,
+  Wand2
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -1069,6 +1070,14 @@ export default function AdminDashboard() {
                             className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass"
                             onClick={() => setIsUploadingQBank(true)}>
                             <Upload className="h-3 w-3" /> Bulk Import
+                          <Link href="/admin/qbank-generator">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass border-accent/30 text-accent hover:bg-accent/10">
+                              <Wand2 className="h-3 w-3" /> AI Generate
+                            </Button>
+                          </Link>
                           </Button>
                         </div>
                       </div>
