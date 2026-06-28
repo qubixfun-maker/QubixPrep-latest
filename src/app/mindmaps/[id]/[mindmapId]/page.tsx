@@ -1,17 +1,19 @@
 "use client"
 
-import { useMemo, use, useEffect, useState } from "react"
+import { useMemo, use, useEffect, useState, useRef } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ArrowLeft, Loader2, ShieldCheck, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
+import { ArrowLeft, Loader2, ShieldCheck, ZoomIn, ZoomOut, RotateCcw, Maximize } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch"
+import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch"
 
 export default function MindmapViewerPage({ params }: { params: Promise<{ id: string, mindmapId: string }> }) {
   const { id, mindmapId } = use(params)
 
   const db = useFirestore()
+  const transformRef = useRef<ReactZoomPanPinchRef>(null)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -36,6 +38,10 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
 
   const mmData = mm as any
 
+  const fitToScreen = () => {
+    transformRef.current?.resetTransform()
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#0a0a0c] text-white select-none">
       <header className="h-14 glass-darker border-b border-white/5 flex items-center justify-between px-4 z-40">
@@ -53,26 +59,29 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
 
       <div className="flex-1 relative overflow-hidden bg-[#000]">
         <TransformWrapper
+          ref={transformRef}
           initialScale={1}
-          minScale={0.5}
+          minScale={1}
           maxScale={6}
           centerOnInit
+          limitToBounds={true}
           wheel={{ step: 0.15 }}
           pinch={{ step: 5 }}
           doubleClick={{ mode: "zoomIn", step: 0.7 }}
         >
-          {({ zoomIn, zoomOut, resetTransform }) => (
+          {({ zoomIn, zoomOut }) => (
             <>
               <TransformComponent
                 wrapperStyle={{ width: "100%", height: "100%" }}
-                contentStyle={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+                contentStyle={{ width: "100%", height: "100%" }}
               >
-                <div className="relative inline-block px-4 py-8">
+                <div className="relative w-full h-full flex items-center justify-center p-4">
                   <img
                     src={mmData.imageUrl}
                     alt={mmData.title}
-                    className="max-w-[90vw] md:max-w-4xl rounded-lg shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5"
+                    className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5"
                     onContextMenu={e => e.preventDefault()}
+                    onLoad={() => setImageLoaded(true)}
                     draggable={false}
                   />
                   <div className="absolute inset-0 pointer-events-none opacity-[0.02] flex items-center justify-center rotate-45 select-none overflow-hidden">
@@ -88,8 +97,8 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
                 <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => zoomOut()}>
                   <ZoomOut className="h-4 w-4" />
                 </Button>
-                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => resetTransform()}>
-                  <RotateCcw className="h-4 w-4" />
+                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={fitToScreen}>
+                  <Maximize className="h-4 w-4" />
                 </Button>
               </div>
             </>
@@ -98,7 +107,7 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
       </div>
 
       <footer className="h-10 glass-darker border-t border-white/5 flex items-center justify-center px-4">
-        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Pinch or scroll to zoom • Drag to pan • Protected for Medical Education</p>
+        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Tap to zoom in • Drag to pan • Tap fit-screen to reset • Protected for Medical Education</p>
       </footer>
     </div>
   )
