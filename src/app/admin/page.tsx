@@ -191,6 +191,8 @@ export default function AdminDashboard() {
         .select('*')
         .eq('subject_id', subjectId)
         .order('unit_number', { ascending: true })
+        .range(0, 9999)
+        .range(0, 9999)
       
       if (error) throw error
 

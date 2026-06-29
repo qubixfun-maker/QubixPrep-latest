@@ -43,7 +43,7 @@ function PYQSessionContent() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      let query = supabase.from('pyq_questions').select('*').eq('exam_type', exam)
+      let query = supabase.from('pyq_questions').select('*').eq('exam_type', exam).range(0, 9999)
 
       const realYears = years.filter(y => y !== 0)
       const includesRandom = years.includes(0)
