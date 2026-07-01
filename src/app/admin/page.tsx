@@ -691,6 +691,43 @@ export default function AdminDashboard() {
     }
   }
 
+
+  async function handleExportCSV() {
+    if (!activeSubject) return
+    const subjectId = activeSubject.toLowerCase().replace(/\s+/g, "-")
+    try {
+      toast({ title: "Exporting...", description: "Fetching all questions for " + activeSubject })
+      const { data, error } = await supabase
+        .from("questions")
+        .select("topic_title,question_text,option1,option2,option3,option4,correct_answer_index,explanation")
+        .eq("subject_id", subjectId)
+        .order("unit_title", { ascending: true })
+      if (error) throw error
+      if (!data || data.length === 0) {
+        toast({ variant: "destructive", title: "No questions found" })
+        return
+      }
+      const headers = ["topic_title","question_text","option1","option2","option3","option4","correct_answer_index","explanation"]
+      const csvRows = [headers.join(",")]
+      data.forEach((q: any) => {
+        const row = headers.map(h => {
+          const val = String(q[h] ?? "").replace(/"/g, "\"\"")
+          return val.includes(",") || val.includes("\n") || val.includes("\"") ? `"${val}"` : val
+        })
+        csvRows.push(row.join(","))
+      })
+      const blob = new Blob([csvRows.join("\n")], { type: "text/csv" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = subjectId + "-qbank.csv"
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({ title: "Export Complete", description: data.length + " questions exported." })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Export Failed", description: e.message })
+    }
+  }
   async function handleImportPYQ(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -1066,20 +1103,19 @@ export default function AdminDashboard() {
                             }}>
                             <Plus className="h-3 w-3" /> Add Case
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass"
                             onClick={() => setIsUploadingQBank(true)}>
                             <Upload className="h-3 w-3" /> Bulk Import
-                          <Link href="/admin/qbank-generator">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass border-accent/30 text-accent hover:bg-accent/10">
-                              <Wand2 className="h-3 w-3" /> AI Generate
-                            </Button>
-                          </Link>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass border-green-500/30 text-green-400 hover:bg-green-500/10"
+                            onClick={handleExportCSV}>
+                            <FileDown className="h-3 w-3" /> Export CSV
                           </Button>
                         </div>
                       </div>
