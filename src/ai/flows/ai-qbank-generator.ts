@@ -1,4 +1,5 @@
 'use server';
+import { callAI } from '@/ai/genkit';
 
 export type GenerateQBankInput = {
   topic: string;
@@ -80,32 +81,10 @@ Rules:
 }
 
 async function generateBatch(subject: string, unitName: string | undefined, topic: string, count: number): Promise<{ questions: QBankQuestion[], rawError?: string }> {
-  const apiKey = process.env.CEREBRAS_API_KEY
-  if (!apiKey) return { questions: [], rawError: 'CEREBRAS_API_KEY is not set in environment variables.' }
-
   const prompt = buildPrompt(subject, unitName, topic, count)
 
   try {
-    const res = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-oss-120b',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-      }),
-    })
-
-    if (!res.ok) {
-      const errText = await res.text()
-      return { questions: [], rawError: `Cerebras API error ${res.status}: ${errText.slice(0, 200)}` }
-    }
-
-    const data = await res.json()
-    const raw = data.choices?.[0]?.message?.content ?? ''
+    const raw = await callAI([{ role: 'user', content: prompt }], 4000)
     if (!raw) return { questions: [], rawError: 'Empty response from AI model' }
 
     let clean = raw.replace(/```json|```/g, '').trim()
