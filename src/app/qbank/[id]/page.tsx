@@ -76,7 +76,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
         .range(0, 9999)
       
       if (error) {
-        toast({ variant: "destructive", title: "Fetch Error", description: error.message })
+        console.error('QBank fetch error:', error.message)
       } else {
         setQuestions(data || [])
       }
