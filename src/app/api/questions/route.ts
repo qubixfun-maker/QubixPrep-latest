@@ -1,11 +1,18 @@
 export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
-import sql from '@/lib/neon'
+import { neon } from '@neondatabase/serverless'
+
+function getSql() {
+  const url = process.env.NEON_DATABASE_URL
+  if (!url) throw new Error('NEON_DATABASE_URL not set')
+  return neon(url)
+}
 
 export async function GET(req: NextRequest) {
   const subjectId = req.nextUrl.searchParams.get('subject_id')
   if (!subjectId) return NextResponse.json({ error: 'subject_id required' }, { status: 400 })
   try {
+    const sql = getSql()
     const rows = await sql`
       SELECT * FROM questions
       WHERE subject_id = ${subjectId}
@@ -19,6 +26,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const sql = getSql()
     const { questions } = await req.json()
     if (!questions?.length) return NextResponse.json({ error: 'No questions' }, { status: 400 })
     for (const q of questions) {
@@ -40,6 +48,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    const sql = getSql()
     const { subject_id, topic_title } = await req.json()
     if (topic_title) {
       await sql`DELETE FROM questions WHERE subject_id = ${subject_id} AND topic_title = ${topic_title}`
