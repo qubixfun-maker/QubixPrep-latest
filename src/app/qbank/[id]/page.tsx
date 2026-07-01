@@ -68,17 +68,12 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
     async function fetchQuestions() {
       if (!subjectId) return
       setQLoading(true)
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('subject_id', subjectId)
-        .order('created_at', { ascending: true })
-        .range(0, 9999)
-      
-      if (error) {
-        console.error('QBank fetch error:', error.message)
-      } else {
-        setQuestions(data || [])
+      try {
+        const res = await fetch('/api/questions?subject_id=' + subjectId)
+        const json = await res.json()
+        setQuestions(json.data || [])
+      } catch (e) {
+        console.error('QBank fetch error:', e)
       }
       setQLoading(false)
     }

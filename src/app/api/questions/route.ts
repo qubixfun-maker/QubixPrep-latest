@@ -1,0 +1,53 @@
+export const dynamic = "force-dynamic"
+import { NextRequest, NextResponse } from 'next/server'
+import sql from '@/lib/neon'
+
+export async function GET(req: NextRequest) {
+  const subjectId = req.nextUrl.searchParams.get('subject_id')
+  if (!subjectId) return NextResponse.json({ error: 'subject_id required' }, { status: 400 })
+  try {
+    const rows = await sql`
+      SELECT * FROM questions
+      WHERE subject_id = ${subjectId}
+      ORDER BY unit_number ASC NULLS LAST, created_at ASC
+    `
+    return NextResponse.json({ data: rows })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { questions } = await req.json()
+    if (!questions?.length) return NextResponse.json({ error: 'No questions' }, { status: 400 })
+    for (const q of questions) {
+      await sql`
+        INSERT INTO questions (subject_id, unit_title, unit_number, topic_title, question_text, option1, option2, option3, option4, correct_answer_index, explanation)
+        VALUES (
+          ${q.subject_id}, ${q.unit_title || null}, ${q.unit_number || null},
+          ${q.topic_title}, ${q.question_text},
+          ${q.option1}, ${q.option2}, ${q.option3 || null}, ${q.option4 || null},
+          ${q.correct_answer_index}, ${q.explanation || ''}
+        )
+      `
+    }
+    return NextResponse.json({ success: true, count: questions.length })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { subject_id, topic_title } = await req.json()
+    if (topic_title) {
+      await sql`DELETE FROM questions WHERE subject_id = ${subject_id} AND topic_title = ${topic_title}`
+    } else {
+      await sql`DELETE FROM questions WHERE subject_id = ${subject_id}`
+    }
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
