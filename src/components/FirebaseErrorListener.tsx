@@ -14,7 +14,7 @@ export function FirebaseErrorListener() {
       // In production, we might want to log this or show a more generic message.
       console.error('Firebase Permission Error:', error.context);
       
-      toast({
+      if (process.env.NODE_ENV === 'development') toast({
         variant: 'destructive',
         title: 'Permission Denied',
         description: `You don't have permission to ${error.context.operation} this data.`,
