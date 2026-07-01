@@ -1117,6 +1117,14 @@ export default function AdminDashboard() {
                             onClick={handleExportCSV}>
                             <FileDown className="h-3 w-3" /> Export CSV
                           </Button>
+                          <Link href="/admin/qbank-generator">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest glass border-accent/30 text-accent hover:bg-accent/10">
+                              <Wand2 className="h-3 w-3" /> AI Generate
+                            </Button>
+                          </Link>
                         </div>
                       </div>
 
