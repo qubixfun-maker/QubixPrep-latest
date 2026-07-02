@@ -699,7 +699,7 @@ export default function AdminDashboard() {
       toast({ title: "Exporting...", description: "Fetching all questions for " + activeSubject })
       const { data, error } = await supabase
         .from("questions")
-        .select("topic_title,question_text,option1,option2,option3,option4,correct_answer_index,explanation")
+        .select("unit_title,topic_title,question_text,option1,option2,option3,option4,correct_answer_index,explanation")
         .eq("subject_id", subjectId)
         .order("unit_title", { ascending: true })
       if (error) throw error
@@ -707,7 +707,7 @@ export default function AdminDashboard() {
         toast({ variant: "destructive", title: "No questions found" })
         return
       }
-      const headers = ["topic_title","question_text","option1","option2","option3","option4","correct_answer_index","explanation"]
+      const headers = ["unit_title","topic_title","question_text","option1","option2","option3","option4","correct_answer_index","explanation"]
       const csvRows = [headers.join(",")]
       data.forEach((q: any) => {
         const row = headers.map(h => {
