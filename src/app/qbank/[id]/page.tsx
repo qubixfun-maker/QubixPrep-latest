@@ -42,7 +42,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   const db = useFirestore()
   const { user } = useUser()
   const { toast } = useToast()
-  const { isFree } = usePlan()
+  const { isFree, canAccessAI } = usePlan()
 
   const [questions, setQuestions] = useState<any[]>([])
   const [qLoading, setQLoading] = useState(true)

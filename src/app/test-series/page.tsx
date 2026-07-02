@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useCollection, useFirestore } from "@/firebase"
+import { usePlan } from "@/hooks/use-plan"
+import { UpgradeGate } from "@/components/upgrade-gate"
 import { collection } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -34,6 +36,7 @@ import {
 
 export default function TestSeriesPage() {
   const db = useFirestore()
+  const { canAccessContent, loading: planLoading } = usePlan()
   const router = useRouter()
   const subjectsQuery = useMemo(() => (!db ? null : collection(db, 'subjects')), [db])
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
@@ -130,6 +133,20 @@ export default function TestSeriesPage() {
       mode: mode
     })
     router.push(`/test-series/start?${params.toString()}`)
+  }
+
+  if (planLoading) return null
+
+  if (!canAccessContent) {
+    return (
+      <div className="max-w-2xl mx-auto p-8 md:p-12 flex items-center justify-center min-h-[60vh]">
+        <UpgradeGate
+          type="content"
+          title="Custom Quiz — Scholar & Clinician Only"
+          description="Upgrade to Scholar or Clinician plan to access AI-powered custom test series with topic selection, timed mode, and performance analytics."
+        />
+      </div>
+    )
   }
 
   return (
