@@ -134,7 +134,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
             </Button>
           </div>
           <div className="space-y-4">
-            {questions.map((q: any, i: number) => {
+            {selectedTopicQuestions.map((q: any, i: number) => {
               const userAnswer = sessionAnswers[i]
               const isCorrect = userAnswer === q.correct_answer_index
               const options = [q.option1, q.option2, q.option3, q.option4].filter(Boolean)
