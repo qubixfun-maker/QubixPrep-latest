@@ -697,12 +697,23 @@ export default function AdminDashboard() {
     const subjectId = activeSubject.toLowerCase().replace(/\s+/g, "-")
     try {
       toast({ title: "Exporting...", description: "Fetching all questions for " + activeSubject })
-      const { data, error } = await supabase
-        .from("questions")
-        .select("unit_title,topic_title,question_text,option1,option2,option3,option4,correct_answer_index,explanation")
-        .eq("subject_id", subjectId)
-        .order("unit_title", { ascending: true })
-      if (error) throw error
+      // Try Neon first, fallback to Supabase
+      let data: any[] = []
+      try {
+        const neonRes = await fetch('/api/questions?subject_id=' + subjectId)
+        const neonJson = await neonRes.json()
+        if (neonJson.data?.length) data = neonJson.data
+      } catch (e) { console.warn('Neon export fetch failed:', e) }
+
+      if (data.length === 0) {
+        const { data: sbData, error } = await supabase
+          .from("questions")
+          .select("unit_title,topic_title,question_text,option1,option2,option3,option4,correct_answer_index,explanation")
+          .eq("subject_id", subjectId)
+          .order("unit_title", { ascending: true })
+        if (!error && sbData?.length) data = sbData
+      }
+
       if (!data || data.length === 0) {
         toast({ variant: "destructive", title: "No questions found" })
         return
