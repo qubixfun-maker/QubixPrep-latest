@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
 For each question object below, check:
 1. correct_answer_index must be an integer 0-3 matching which option (0=option1, 1=option2, 2=option3, 3=option4) is actually correct based on the explanation and medical knowledge. If it's wrong or missing, fix it.
 2. If explanation is empty or missing, write a concise 2-3 sentence high-yield explanation suitable for NEET-PG prep.
-3. Do not change topic_title, question_text, option1-4 unless they contain obvious formatting garbage.
+3. Do not change unit_title, unit_number, unit_title, unit_number, topic_title, question_text, option1-4 unless they contain obvious formatting garbage.
 
 Return ONLY a valid JSON array, same length and order as input, with fields: topic_title, question_text, option1, option2, option3, option4, correct_answer_index (integer), explanation, _fixed (true if you changed anything, false otherwise).
 

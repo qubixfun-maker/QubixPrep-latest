@@ -186,23 +186,15 @@ export default function AdminDashboard() {
       const mindmapsSnap = await getDocs(collection(db, 'subjects', subjectId, 'mindmaps'))
       const mindmaps = mindmapsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
       
-      // Old questions live in Supabase, new ones go to Neon - merge both for the admin view
-      let questions: any[] = []
-      try {
-        const res = await fetch('/api/questions?subject_id=' + subjectId)
-        const json = await res.json()
-        if (json.data) questions = json.data
-      } catch (e) {
-        console.warn('Combined question fetch failed, falling back to Supabase only:', e)
-        const { data: sbData, error } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('subject_id', subjectId)
-          .order('unit_number', { ascending: true })
-          .range(0, 9999)
-        if (error) throw error
-        questions = sbData || []
-      }
+      const { data: questions, error } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('unit_number', { ascending: true })
+        .range(0, 9999)
+        .range(0, 9999)
+      
+      if (error) throw error
 
       setSubjectContent({ topics, mindmaps, questions: questions || [] })
     } catch (e: any) {
@@ -678,47 +670,15 @@ export default function AdminDashboard() {
         .sort((a, b) => a.order - b.order)
         .flatMap(t => t.questions.map((q: any) => ({ ...q, subject_id: subjectId, topic_title: t.topicName, unit_title: t.unitName || csvUnitName || null })))
       if (allQuestions.length === 0) throw new Error("No questions to import.")
-
-      const CHUNK_SIZE = 50
-      const MAX_RETRIES = 3
+      const CHUNK_SIZE = 200
       let inserted = 0
-
       for (let i = 0; i < allQuestions.length; i += CHUNK_SIZE) {
         const chunk = allQuestions.slice(i, i + CHUNK_SIZE)
-        let attempt = 0
-        let lastError: any = null
-
-        while (attempt < MAX_RETRIES) {
-          try {
-            const res = await fetch('/api/questions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ questions: chunk }),
-            })
-            const json = await res.json()
-            if (!res.ok || json.error) throw new Error(json.error || ("HTTP " + res.status))
-            lastError = null
-            break
-          } catch (err: any) {
-            lastError = err
-            attempt++
-            if (attempt < MAX_RETRIES) {
-              toast({ title: "Retrying...", description: "Row " + (i + 1) + ": " + err.message + ", retry " + attempt + "/" + (MAX_RETRIES - 1) })
-              await new Promise(r => setTimeout(r, 1000 * attempt))
-              continue
-            }
-            break
-          }
-        }
-
-        if (lastError) {
-          throw new Error("Failed at row " + (i + 1) + ": " + (lastError.message || lastError))
-        }
-
+        const { error } = await supabase.from("questions").insert(chunk)
+        if (error) throw new Error("Failed at row " + (i + 1) + ": " + error.message)
         inserted += chunk.length
         toast({ title: "Importing...", description: inserted + " of " + allQuestions.length + " questions saved." })
       }
-
       toast({ title: "Import Successful", description: "Added " + allQuestions.length + " questions across " + csvParsedTopics.length + " topics." })
       setShowCsvOrganizer(false)
       setCsvParsedTopics([])
@@ -1292,7 +1252,7 @@ export default function AdminDashboard() {
                                                       setQbankForm({
                                                         id: q.id,
                                                         subjectId: q.subject_id,
-                                                        unit_title: q.unit_title || q["Unit Name"] || q["unit_name"] || q["Unit"] || "",
+                                                        unit_title: q.unit_title || "",
                                                         topic_title: q.topic_title || "",
                                                         question_text: q.question_text,
                                                         option1: q.option1,
