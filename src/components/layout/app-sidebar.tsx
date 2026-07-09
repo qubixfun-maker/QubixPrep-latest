@@ -1,8 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import {
-  BookOpen,
+import { BookOpen,
   LayoutDashboard,
   BrainCircuit,
   Video,
@@ -12,8 +11,7 @@ import {
   Trophy,
   User,
   Zap,
-  ShoppingBag
-} from "lucide-react"
+  ShoppingBag, Gift } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useDoc, useFirestore } from "@/firebase"
@@ -56,6 +54,7 @@ export function AppSidebar() {
     { title: "AI Tools", url: "/ai-tools", icon: BrainCircuit },
     { title: "Store", url: "/products", icon: ShoppingBag },
     { title: "Pricing", url: "/pricing", icon: Zap },
+    { title: "Affiliate", url: "/affiliate", icon: Gift },
   ]
 
   return (
