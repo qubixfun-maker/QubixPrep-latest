@@ -307,7 +307,7 @@ export default function AdminDashboard() {
     setSubjectContent(prev => ({ ...prev, questions: prev.questions.filter(q => q.id !== qId) }))
 
     try {
-      const { error } = await supabase.from('questions').delete().eq('id', qId)
+      const { error } = await fetch("/api/questions", { method: "DELETE", body: JSON.stringify({ subject_id: subject.id }) }).eq('id', qId)
       if (error) {
         setSubjectContent(prev => ({ ...prev, questions: originalQuestions }))
         throw error
@@ -323,9 +323,7 @@ export default function AdminDashboard() {
     
     setLoadingContent(true)
     try {
-      const { error } = await supabase
-        .from('questions')
-        .delete()
+      const { error } = await fetch("/api/questions", { method: "DELETE", body: JSON.stringify({ subject_id: subject.id }) })
         .eq('subject_id', activeSubject?.toLowerCase().replace(/\s+/g, '-'))
         .eq('topic_title', topicName)
       
@@ -366,9 +364,7 @@ export default function AdminDashboard() {
 
     setLoadingContent(true)
     try {
-      const { error } = await supabase
-        .from('questions')
-        .delete()
+      const { error } = await fetch("/api/questions", { method: "DELETE", body: JSON.stringify({ subject_id: subject.id }) })
         .eq('subject_id', activeSubject?.toLowerCase().replace(/\s+/g, '-'))
         .eq('unit_title', unitName)
 
@@ -914,7 +910,7 @@ export default function AdminDashboard() {
       exam_type: q.exam_type,
       year: q.year.toString(),
       subject: q.subject || "",
-      question_text: q.question_text || q.question,
+      question_text: q.question_text || q.question || q.Question || q.question,
       option1: q.option1,
       option2: q.option2,
       option3: q.option3 || "",
@@ -1292,9 +1288,9 @@ export default function AdminDashboard() {
                                                       setQbankForm({
                                                         id: q.id,
                                                         subjectId: q.subject_id,
-                                                        unit_title: q.unit_title || q["unit_title"] || q["Unit Name"] || q["Unit Name"] || q["unit_name"] || q["Unit"] || "",
+                                                        unit_title: q.unit_title || q["unit_title"] || q["Unit Name"] || q["unit_title"] || q["Unit Name"] || q["Unit Name"] || q["unit_name"] || q["Unit"] || "",
                                                         topic_title: q.topic_title || "",
-                                                        question_text: q.question_text || q.question,
+                                                        question_text: q.question_text || q.question || q.Question || q.question,
                                                         option1: q.option1,
                                                         option2: q.option2,
                                                         option3: q.option3,
