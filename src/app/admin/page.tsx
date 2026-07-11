@@ -81,6 +81,8 @@ export default function AdminDashboard() {
   const [pyqExamFilter, setPyqExamFilter] = useState("All")
   const [pyqYearFilter, setPyqYearFilter] = useState("All")
   const [editingPYQId, setEditingPYQId] = useState<number | null>(null)
+  const [pyqBulkExam, setPyqBulkExam] = useState("NEET PG")
+  const [pyqBulkYear, setPyqBulkYear] = useState(new Date().getFullYear().toString())
   const [pyqForm, setPyqForm] = useState({
     exam_type: "NEET PG",
     year: new Date().getFullYear().toString(),
@@ -809,6 +811,11 @@ export default function AdminDashboard() {
   async function handleImportPYQ(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!pyqBulkExam || !pyqBulkYear) {
+      toast({ variant: "destructive", title: "Set Exam Type and Year first" })
+      e.target.value = ""
+      return
+    }
     setUploading(true)
 
     Papa.parse(file, {
@@ -818,18 +825,18 @@ export default function AdminDashboard() {
         try {
           const rows = (results.data as string[][]).slice(1)
           const questions = rows.map(parts => {
-            if (!parts || parts.length < 8 || !parts[3]) return null
+            if (!parts || parts.length < 6 || !parts[1]) return null
             return {
-              exam_type: parts[0]?.trim(),
-              year: parseInt(parts[1]),
-              subject: parts[2]?.trim() || null,
-              question_text: parts[3]?.trim(),
-              option1: parts[4]?.trim(),
-              option2: parts[5]?.trim(),
-              option3: parts[6]?.trim() || null,
-              option4: parts[7]?.trim() || null,
-              correct_answer_index: parseInt(parts[8]) || 0,
-              explanation: parts[9]?.trim() || null
+              exam_type: pyqBulkExam,
+              year: parseInt(pyqBulkYear),
+              subject: parts[0]?.trim() || null,
+              question_text: parts[1]?.trim(),
+              option1: parts[2]?.trim(),
+              option2: parts[3]?.trim(),
+              option3: parts[4]?.trim() || null,
+              option4: parts[5]?.trim() || null,
+              correct_answer_index: parseInt(parts[6]) || 0,
+              explanation: parts[7]?.trim() || null
             }
           }).filter((q): q is NonNullable<typeof q> => q !== null)
 
@@ -890,7 +897,7 @@ export default function AdminDashboard() {
         explanation: pyqForm.explanation || null
       }
       if (editingPYQId) {
-        const { error } = await supabase.from("pyq_questions").update(payload)
+        const { error } = await supabase.from("pyq_questions").update(payload).eq('id', editingPYQId)
         if (error) throw error
         toast({ title: "PYQ Updated" })
       } else {
@@ -924,7 +931,7 @@ export default function AdminDashboard() {
     const original = [...pyqQuestions]
     setPyqQuestions(prev => prev.filter(q => q.id !== id))
     try {
-      const { error } = await supabase.from("pyq_questions").delete()
+      const { error } = await supabase.from("pyq_questions").delete().eq('id', id)
       if (error) {
         setPyqQuestions(original)
         throw error
@@ -1495,11 +1502,33 @@ export default function AdminDashboard() {
 
             <TabsContent value="bulk" className="space-y-4">
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+                <p className="text-[10px] font-bold uppercase text-primary">Upload a Full Year's Paper</p>
+                <p className="text-[9px] text-muted-foreground">Set the exam and year once below - every question in the CSV will be tagged with these.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">Exam Type</Label>
+                  <Select value={pyqBulkExam} onValueChange={setPyqBulkExam}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      <SelectItem value="NEET PG">NEET PG</SelectItem>
+                      <SelectItem value="INICET">INICET</SelectItem>
+                      <SelectItem value="USMLE Step 1">USMLE Step 1</SelectItem>
+                      <SelectItem value="USMLE Step 2">USMLE Step 2</SelectItem>
+                      <SelectItem value="FMGE">FMGE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Year</Label>
+                  <Input type="number" className="glass border-white/10" value={pyqBulkYear} onChange={(e) => setPyqBulkYear(e.target.value)} />
+                </div>
+              </div>
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
                 <p className="text-[10px] font-bold uppercase text-primary">Required CSV Headers</p>
                 <p className="text-[9px] text-muted-foreground font-mono leading-tight">
-                  exam_type, year, subject, question_text, option1, option2, option3, option4, correct_answer_index, explanation
+                  subject, question_text, option1, option2, option3, option4, correct_answer_index, explanation
                 </p>
-                <p className="text-[9px] text-muted-foreground">exam_type: NEET PG / INICET / USMLE Step 1 / USMLE Step 2 / FMGE</p>
               </div>
               <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={handleImportPYQ} disabled={uploading} />
               {uploading && <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 animate-pulse"><Loader2 className="h-4 w-4 animate-spin text-primary" /><span className="text-[10px] font-bold uppercase">Importing...</span></div>}
