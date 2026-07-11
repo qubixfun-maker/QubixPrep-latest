@@ -192,12 +192,12 @@ export default function AdminDashboard() {
         const res = await fetch('/api/questions?subject_id=' + subjectId)
         const json = await res.json()
         if (json.data) questions = json.data
-      } catch (e) {
+      } catch (e: any) {
         console.warn('Combined question fetch failed, falling back to Supabase only:', e)
         const { data: sbData, error } = await supabase
           .from('questions')
           .select('*')
-          .eq('subject_id', subjectId)
+          
           .order('unit_number', { ascending: true })
           .range(0, 9999)
         if (error) throw error
@@ -241,7 +241,7 @@ export default function AdminDashboard() {
       const { count, error } = await supabase
         .from('questions')
         .select('*', { count: 'exact', head: true })
-        .eq('subject_id', subjectId)
+        
       
       if (error) throw error
 
@@ -257,41 +257,21 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleDeleteTopic(topic: any) {
-    if (!db || !confirm(`Delete \"${topic.title}\"?`)) return
-    
-    const sId = topic.subjectId
-    const topicRef = doc(db, 'subjects', sId, 'topics', topic.id)
-    
-    try {
-      await deleteDoc(topicRef)
-      await updateDoc(doc(db, 'subjects', sId), { topicCount: increment(-1) })
-      
-      if (topic.storagePath) {
-        await supabase.storage.from('notes-pdf').remove([topic.storagePath])
-      }
-      
-      setSubjectContent(prev => ({ ...prev, topics: prev.topics.filter(t => t.id !== topic.id) }))
-      toast({ title: "Content Removed" })
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
-    }
-  }
-
+  
   async function handleDeleteMindmap(mm: any) {
-    if (!db || !confirm(`Delete mindmap \"${mm.title}\"?`)) return
-    
+    if (!db || !confirm(`Delete mindmap "${mm.title}"?`)) return
+
     const subjectId = mm.subjectId
     const mmRef = doc(db, 'subjects', subjectId, 'mindmaps', mm.id)
-    
+
     try {
       await deleteDoc(mmRef)
       await updateDoc(doc(db, 'subjects', subjectId), { mindmapCount: increment(-1) })
-      
+
       if (mm.storagePath) {
         await supabase.storage.from('mindmaps').remove([mm.storagePath])
       }
-      
+
       setSubjectContent(prev => ({ ...prev, mindmaps: prev.mindmaps.filter(m => m.id !== mm.id) }))
       toast({ title: "Mindmap Removed" })
     } catch (e: any) {
@@ -300,42 +280,51 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteQuestion(qId: number) {
-    if (!confirm("Are you sure you want to delete this clinical case?")) return
-    
-    // Optimistic Update
-    const originalQuestions = [...subjectContent.questions]
-    setSubjectContent(prev => ({ ...prev, questions: prev.questions.filter(q => q.id !== qId) }))
-
+    if (!confirm("Delete this question?")) return
+    setLoadingContent(true)
     try {
-      const { error } = await fetch("/api/questions", { method: "DELETE", body: JSON.stringify({ subject_id: subject.id }) }).eq('id', qId)
-      if (error) {
-        setSubjectContent(prev => ({ ...prev, questions: originalQuestions }))
-        throw error
-      }
+      const res = await fetch("/api/questions", {
+        method: "DELETE",
+        body: JSON.stringify({ question_id: qId }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) throw new Error(result.error || "Failed to delete question")
+
+      setSubjectContent(prev => ({
+        ...prev,
+        questions: prev.questions.filter(q => q.id !== qId)
+      }))
       toast({ title: "Question Deleted" })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
-    }
-  }
-
-  async function handleDeleteTopicGroup(topicName: string) {
-    if (!confirm(`DANGER: Delete ALL clinical cases in topic \"${topicName}\"?`)) return
-    
-    setLoadingContent(true)
-    try {
-      const { error } = await fetch("/api/questions", { method: "DELETE", body: JSON.stringify({ subject_id: subject.id }) })
-        .eq('subject_id', activeSubject?.toLowerCase().replace(/\s+/g, '-'))
-        .eq('topic_title', topicName)
-      
-      if (error) throw error
-      toast({ title: "Topic Cleared" })
-      fetchSubjectDetails()
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Batch Error", description: e.message })
     } finally {
       setLoadingContent(false)
     }
   }
+
+  async function handleDeleteTopic(topicName: string) {
+    if (!confirm("Delete all questions in " + topicName + "?")) return
+    setLoadingContent(true)
+    try {
+      const res = await fetch("/api/questions", { 
+        method: "DELETE", 
+        body: JSON.stringify({ subject_id: activeSubject, topic_title: topicName }) 
+      })
+      if (!res.ok) throw new Error("Failed to delete topic")
+      
+      setSubjectContent(prev => ({
+        ...prev,
+        topics: prev.topics.filter(t => t.name !== topicName),
+        questions: prev.questions.filter(q => q.topic_title !== topicName)
+      }))
+      toast({ title: "Success", description: "Topic deleted" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
 
   async function handleReassignTopicUnit(topicName: string, newUnit: string) {
     if (!activeSubject || !newUnit.trim()) return
@@ -345,8 +334,8 @@ export default function AdminDashboard() {
       const { error } = await supabase
         .from('questions')
         .update({ unit_title: newUnit.trim() })
-        .eq('subject_id', subjectId)
-        .eq('topic_title', topicName)
+        
+        
       if (error) throw error
       toast({ title: 'Unit Updated', description: topicName + ' moved to ' + newUnit })
       setReassignTopic(null)
@@ -360,15 +349,16 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteUnit(unitName: string) {
-    if (!confirm(`DANGER: Delete ALL clinical cases in unit \"${unitName}\"?`)) return
-
+    if (!confirm(`DANGER: Delete ALL clinical cases in unit "${unitName}"?`)) return
     setLoadingContent(true)
     try {
-      const { error } = await fetch("/api/questions", { method: "DELETE", body: JSON.stringify({ subject_id: subject.id }) })
-        .eq('subject_id', activeSubject?.toLowerCase().replace(/\s+/g, '-'))
-        .eq('unit_title', unitName)
-
-      if (error) throw error
+      const subjectId = activeSubject?.toLowerCase().replace(/\s+/g, '-')
+      const res = await fetch("/api/questions", {
+        method: "DELETE",
+        body: JSON.stringify({ subject_id: subjectId, unit_title: unitName }),
+      })
+      const result = await res.json()
+      if (!res.ok || result.error) throw new Error(result.error || 'Delete failed')
       toast({ title: "Unit Cleared" })
       fetchSubjectDetails()
     } catch (e: any) {
@@ -544,7 +534,7 @@ export default function AdminDashboard() {
       }
 
       if (qbankForm.id) {
-        const { error } = await supabase.from('questions').update(payload).eq('id', qbankForm.id)
+        const { error } = await supabase.from('questions').update(payload)
         if (error) throw error
         toast({ title: "Question Updated" })
       } else {
@@ -615,18 +605,19 @@ export default function AdminDashboard() {
         const rows = (results.data as string[][]).slice(1)
         const allQuestions: any[] = []
         rows.forEach((parts: any[]) => {
-          if (!parts || parts.length < 7) return
-          const topic = parts[0]?.trim() || "General"
-          const question = parts[1]?.trim()
-          const o1 = parts[2]?.trim()
-          const o2 = parts[3]?.trim()
-          const o3 = parts[4]?.trim() || ""
-          const o4 = parts[5]?.trim() || ""
-          const correctRaw = parseInt(parts[6])
+          if (!parts || parts.length < 8) return
+          const unit = parts[0]?.trim() || ""
+          const topic = parts[1]?.trim() || "General"
+          const question = parts[2]?.trim()
+          const o1 = parts[3]?.trim()
+          const o2 = parts[4]?.trim()
+          const o3 = parts[5]?.trim() || ""
+          const o4 = parts[6]?.trim() || ""
+          const correctRaw = parseInt(parts[7])
           const correct = (!isNaN(correctRaw) && correctRaw >= 0 && correctRaw <= 3) ? correctRaw : 0
-          const explanation = parts[7]?.trim() || ""
+          const explanation = parts[8]?.trim() || ""
           if (!question || !o1 || !o2) return
-          allQuestions.push({ topic_title: topic, question_text: question, option1: o1, option2: o2, option3: o3, option4: o4, correct_answer_index: correct, explanation })
+          allQuestions.push({ unit_title: unit, topic_title: topic, question_text: question, option1: o1, option2: o2, option3: o3, option4: o4, correct_answer_index: correct, explanation })
         })
         if (allQuestions.length === 0) {
           toast({ variant: "destructive", title: "No valid rows found", description: "Check your CSV format." })
@@ -642,13 +633,13 @@ export default function AdminDashboard() {
         })
         setAiFixLog(log)
         setAiFixing(false)
-        const topicMap: Record<string, any[]> = {}
+        const topicMap: Record<string, { unit: string, questions: any[] }> = {}
         fixed.forEach((q: any) => {
           const t = q.topic_title || 'General'
-          if (!topicMap[t]) topicMap[t] = []
-          topicMap[t].push(q)
+          if (!topicMap[t]) topicMap[t] = { unit: q.unit_title || '', questions: [] }
+          topicMap[t].questions.push(q)
         })
-        const parsed = Object.entries(topicMap).map(([name, qs], i) => ({ topicName: name, unitName: '', questions: qs, order: i }))
+        const parsed = Object.entries(topicMap).map(([name, data], i) => ({ topicName: name, unitName: data.unit, questions: data.questions, order: i }))
         setCsvParsedTopics(parsed)
         setCsvUnitName('')
         setShowCsvOrganizer(true)
@@ -739,13 +730,13 @@ export default function AdminDashboard() {
         const neonRes = await fetch('/api/questions?subject_id=' + subjectId)
         const neonJson = await neonRes.json()
         if (neonJson.data?.length) data = neonJson.data
-      } catch (e) { console.warn('Neon export fetch failed:', e) }
+      } catch (e: any) { console.warn('Neon export fetch failed:', e) }
 
       if (data.length === 0) {
         const { data: sbData, error } = await supabase
           .from("questions")
           .select("unit_title,topic_title,question_text,option1,option2,option3,option4,correct_answer_index,explanation")
-          .eq("subject_id", subjectId)
+          
           .order("unit_title", { ascending: true })
         if (!error && sbData?.length) data = sbData
       }
@@ -859,7 +850,7 @@ export default function AdminDashboard() {
         explanation: pyqForm.explanation || null
       }
       if (editingPYQId) {
-        const { error } = await supabase.from("pyq_questions").update(payload).eq("id", editingPYQId)
+        const { error } = await supabase.from("pyq_questions").update(payload)
         if (error) throw error
         toast({ title: "PYQ Updated" })
       } else {
@@ -893,7 +884,7 @@ export default function AdminDashboard() {
     const original = [...pyqQuestions]
     setPyqQuestions(prev => prev.filter(q => q.id !== id))
     try {
-      const { error } = await supabase.from("pyq_questions").delete().eq("id", id)
+      const { error } = await supabase.from("pyq_questions").delete()
       if (error) {
         setPyqQuestions(original)
         throw error
@@ -1263,7 +1254,7 @@ export default function AdminDashboard() {
                                                 variant="ghost" 
                                                 size="sm" 
                                                 className="h-6 px-2 rounded-lg text-[9px] font-bold uppercase hover:bg-destructive/10 hover:text-destructive gap-1"
-                                                onClick={() => handleDeleteTopicGroup(topicGroup.topic)}>
+                                                onClick={() => handleDeleteTopic(topicGroup.topic)}>
                                                 <Trash2 className="h-2.5 w-2.5" /> Clear Topic
                                               </Button>
                                             </div>
