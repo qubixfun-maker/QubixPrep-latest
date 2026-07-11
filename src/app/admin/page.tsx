@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
 import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, setDoc, writeBatch } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
+import { groupByUnit } from "@/lib/unit-sort"
 import Papa from "papaparse"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -158,6 +159,7 @@ export default function AdminDashboard() {
 
   const pdfTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'pdf'), [subjectContent.topics])
   const videoTopics = useMemo(() => subjectContent.topics.filter(t => t.contentType === 'video'), [subjectContent.topics])
+  const groupedMindmaps = useMemo(() => groupByUnit(subjectContent.mindmaps), [subjectContent.mindmaps])
 
   const groupedQuestions = useMemo(() => {
     const groups: Record<string, Record<string, any[]>> = {}
@@ -276,6 +278,34 @@ export default function AdminDashboard() {
       toast({ title: "Mindmap Removed" })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+    }
+  }
+
+  async function handleMoveMindmap(unitMindmaps: any[], index: number, direction: "up" | "down") {
+    if (!db) return
+    const targetIndex = direction === "up" ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= unitMindmaps.length) return
+    const reordered = [...unitMindmaps]
+    const [moved] = reordered.splice(index, 1)
+    reordered.splice(targetIndex, 0, moved)
+    try {
+      await Promise.all(reordered.map((mm, i) =>
+        updateDoc(doc(db, 'subjects', mm.subjectId, 'mindmaps', mm.id), { order: i * 10 })
+      ))
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Reorder Failed", description: e.message })
+    }
+  }
+
+  async function handleReassignMindmapUnit(mm: any, newUnit: string) {
+    if (!db || !newUnit.trim()) return
+    try {
+      await updateDoc(doc(db, 'subjects', mm.subjectId, 'mindmaps', mm.id), { unitName: newUnit.trim() })
+      toast({ title: "Mindmap Moved", description: `Moved to ${newUnit.trim()}` })
+      fetchSubjectDetails()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Move Failed", description: e.message })
     }
   }
 
@@ -495,6 +525,7 @@ export default function AdminDashboard() {
         id: mmId,
         subjectId: subjectId,
         unitName: mindmapForm.unitName,
+        order: Date.now(),
         title: mindmapForm.title,
         imageUrl: publicUrl,
         storagePath: storagePath,
@@ -1107,19 +1138,29 @@ export default function AdminDashboard() {
                       {videoTopics.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No video lectures found for this subject.</div>}
                     </TabsContent>
 
-                    <TabsContent value="mindmaps" className="grid md:grid-cols-2 gap-4">
-                       {subjectContent.mindmaps.map((mm) => (
-                        <Card key={mm.id} className="glass border-none overflow-hidden group">
-                          <div className="aspect-video relative">
-                            <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity" />
-                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Button variant="destructive" size="sm" onClick={() => handleDeleteMindmap(mm)} className="rounded-xl"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
-                            </div>
+                    <TabsContent value="mindmaps" className="space-y-6">
+                      {groupedMindmaps.map((group: any) => (
+                        <div key={group.unitName} className="space-y-3">
+                          <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">{group.unitName}</h3>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            {group.items.map((mm: any, index: number) => (
+                              <Card key={mm.id} className="glass border-none overflow-hidden group">
+                                <div className="aspect-video relative">
+                                  <img src={mm.imageUrl} alt={mm.title} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-opacity" />
+                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <Button variant="secondary" size="icon" className="h-8 w-8 rounded-xl" disabled={index === 0} onClick={() => handleMoveMindmap(group.items, index, "up")}><ChevronUp className="h-4 w-4" /></Button>
+                                    <Button variant="secondary" size="icon" className="h-8 w-8 rounded-xl" disabled={index === group.items.length - 1} onClick={() => handleMoveMindmap(group.items, index, "down")}><ChevronDown className="h-4 w-4" /></Button>
+                                    <Button variant="secondary" size="icon" className="h-8 w-8 rounded-xl" onClick={() => { const nu = window.prompt("Move to unit:", mm.unitName || ""); if (nu !== null) handleReassignMindmapUnit(mm, nu) }}><Layers className="h-4 w-4" /></Button>
+                                    <Button variant="destructive" size="sm" onClick={() => handleDeleteMindmap(mm)} className="rounded-xl"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
+                                  </div>
+                                </div>
+                                <div className="p-3 bg-card"><p className="text-sm font-bold truncate">{mm.title}</p></div>
+                              </Card>
+                            ))}
                           </div>
-                          <div className="p-3 bg-card"><p className="text-sm font-bold truncate">{mm.title}</p></div>
-                        </Card>
+                        </div>
                       ))}
-                      {subjectContent.mindmaps.length === 0 && <div className="col-span-full text-center py-24 glass rounded-3xl text-muted-foreground">No mindmaps found.</div>}
+                      {subjectContent.mindmaps.length === 0 && <div className="text-center py-24 glass rounded-3xl text-muted-foreground">No mindmaps found.</div>}
                     </TabsContent>
 
                     <TabsContent value="qbank" className="space-y-4">
@@ -2004,6 +2045,10 @@ export default function AdminDashboard() {
                   {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Unit Name</Label>
+              <Input placeholder="e.g., Unit I" className="glass border-white/10" value={mindmapForm.unitName} onChange={(e) => setMindmapForm({ ...mindmapForm, unitName: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Mindmap Title</Label>
