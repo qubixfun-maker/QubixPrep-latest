@@ -808,6 +808,36 @@ export default function AdminDashboard() {
       toast({ variant: "destructive", title: "Export Failed", description: e.message })
     }
   }
+  const SUBJECT_ALIASES: Record<string, string> = {
+    "fmt": "Forensic Medicine",
+    "forensic medicine": "Forensic Medicine",
+    "obg": "Obstetrics & Gynaecology",
+    "obs & gyn": "Obstetrics & Gynaecology",
+    "obstetrics": "Obstetrics & Gynaecology",
+    "obstetrics & gynaecology": "Obstetrics & Gynaecology",
+    "obstetrics and gynaecology": "Obstetrics & Gynaecology",
+    "ortho": "Orthopaedics",
+    "orthopedics": "Orthopaedics",
+    "orthopaedics": "Orthopaedics",
+    "psm": "Community Medicine",
+    "community medicine": "Community Medicine",
+    "preventive and social medicine": "Community Medicine",
+    "pediatrics": "Paediatrics",
+    "paediatrics": "Paediatrics",
+    "peds": "Paediatrics",
+    "anaesthesia": "Anaesthesia",
+    "anesthesia": "Anaesthesia",
+    "ent": "ENT",
+    "obgy": "Obstetrics & Gynaecology"
+  }
+  function normalizeSubject(raw: string | null | undefined): string | null {
+    if (!raw) return null
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    const key = trimmed.toLowerCase()
+    return SUBJECT_ALIASES[key] || trimmed
+  }
+
   async function handleImportPYQ(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -834,7 +864,7 @@ export default function AdminDashboard() {
               return {
                 exam_type: parts[0]?.trim(),
                 year: parseInt(parts[1]),
-                subject: parts[2]?.trim() || null,
+                subject: normalizeSubject(parts[2]),
                 question_text: parts[3]?.trim(),
                 option1: parts[4]?.trim(),
                 option2: parts[5]?.trim(),
@@ -848,7 +878,7 @@ export default function AdminDashboard() {
             return {
               exam_type: pyqBulkExam,
               year: parseInt(pyqBulkYear),
-              subject: parts[0]?.trim() || null,
+              subject: normalizeSubject(parts[0]),
               question_text: parts[1]?.trim(),
               option1: parts[2]?.trim(),
               option2: parts[3]?.trim(),
@@ -905,7 +935,7 @@ export default function AdminDashboard() {
       const payload = {
         exam_type: pyqForm.exam_type,
         year: parseInt(pyqForm.year),
-        subject: pyqForm.subject || null,
+        subject: normalizeSubject(pyqForm.subject),
         question_text: pyqForm.question_text,
         option1: pyqForm.option1,
         option2: pyqForm.option2,
