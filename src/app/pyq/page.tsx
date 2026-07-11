@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trophy, BookOpen, Timer, Eye, Loader2, Check } from "lucide-react"
@@ -29,11 +28,11 @@ export default function PYQPage() {
   useEffect(() => {
     if (!selectedExam) return
     async function fetchYears() {
-      const { data } = await supabase
-        .from('pyq_questions')
-        .select('year')
-        .eq('exam_type', selectedExam)
-      const uniqueYears = [...new Set(data?.map(d => d.year ?? 0))].sort((a, b) => {
+      const res = await fetch('/api/pyq?exam_type=' + encodeURIComponent(selectedExam as string))
+      const json = await res.json()
+      const data = json.data || []
+      const uniqueYears = [...new Set(data.map((d: any) => d.year ?? 0))] as number[]
+      uniqueYears.sort((a: number, b: number) => {
         if (a === 0) return 1
         if (b === 0) return -1
         return b - a
@@ -54,28 +53,15 @@ export default function PYQPage() {
     if (!selectedExam || selectedYears.length === 0) return
     async function fetchCount() {
       setLoadingCount(true)
-      let query = supabase
-        .from('pyq_questions')
-        .select('id', { count: 'exact' })
-        .eq('exam_type', selectedExam)
-
-      const realYears = selectedYears.filter(y => y !== 0)
-      const includesRandom = selectedYears.includes(0)
-
-      if (includesRandom && realYears.length > 0) {
-        query = query.or(`year.in.(${realYears.join(',')}),year.is.null`)
-      } else if (includesRandom) {
-        query = query.is('year', null)
-      } else {
-        query = query.in('year', realYears)
-      }
-
-      if (subjectFilter) {
-        query = query.in('subject', subjectFilter)
-      }
-
-      const { count } = await query
-      setQuestionCount(count || 0)
+      const params = new URLSearchParams({
+        exam_type: selectedExam as string,
+        years: selectedYears.join(','),
+        count_only: 'true'
+      })
+      if (subjectFilter) params.set('subjects', subjectFilter.join(','))
+      const res = await fetch('/api/pyq?' + params.toString())
+      const json = await res.json()
+      setQuestionCount(json.count || 0)
       setLoadingCount(false)
     }
     fetchCount()

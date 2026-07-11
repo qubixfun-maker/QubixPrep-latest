@@ -80,7 +80,7 @@ export default function AdminDashboard() {
   const [pyqSearch, setPyqSearch] = useState("")
   const [pyqExamFilter, setPyqExamFilter] = useState("All")
   const [pyqYearFilter, setPyqYearFilter] = useState("All")
-  const [editingPYQId, setEditingPYQId] = useState<number | null>(null)
+  const [editingPYQId, setEditingPYQId] = useState<string | null>(null)
   const [pyqBulkExam, setPyqBulkExam] = useState("NEET PG")
   const [pyqBulkYear, setPyqBulkYear] = useState(new Date().getFullYear().toString())
   const [pyqForm, setPyqForm] = useState({
@@ -823,8 +823,27 @@ export default function AdminDashboard() {
       skipEmptyLines: true,
       complete: async (results) => {
         try {
-          const rows = (results.data as string[][]).slice(1)
+          const allRows = results.data as string[][]
+          const headerRow = (allRows[0] || []).map(h => (h || '').trim().toLowerCase())
+          const isOldFormat = headerRow.includes('exam_type') && headerRow.includes('year')
+          const rows = allRows.slice(1)
+
           const questions = rows.map(parts => {
+            if (isOldFormat) {
+              if (!parts || parts.length < 9 || !parts[3]) return null
+              return {
+                exam_type: parts[0]?.trim(),
+                year: parseInt(parts[1]),
+                subject: parts[2]?.trim() || null,
+                question_text: parts[3]?.trim(),
+                option1: parts[4]?.trim(),
+                option2: parts[5]?.trim(),
+                option3: parts[6]?.trim() || null,
+                option4: parts[7]?.trim() || null,
+                correct_answer_index: parseInt(parts[8]) || 0,
+                explanation: parts[9]?.trim() || null
+              }
+            }
             if (!parts || parts.length < 6 || !parts[1]) return null
             return {
               exam_type: pyqBulkExam,
@@ -842,8 +861,9 @@ export default function AdminDashboard() {
 
           if (questions.length === 0) throw new Error("No valid question rows found in file.")
 
-          const { error } = await supabase.from('pyq_questions').insert(questions)
-          if (error) throw error
+          const res = await fetch('/api/pyq', { method: 'POST', body: JSON.stringify({ questions }) })
+          const json = await res.json()
+          if (json.error) throw new Error(json.error)
 
           toast({ title: "PYQ Imported", description: `${questions.length} questions added.` })
           setIsUploadingPYQ(false)
@@ -864,12 +884,10 @@ export default function AdminDashboard() {
   async function fetchPYQQuestions() {
     setLoadingPYQ(true)
     try {
-      const { data, error } = await supabase
-        .from("pyq_questions")
-        .select("*")
-        .order("year", { ascending: false })
-      if (error) throw error
-      setPyqQuestions(data || [])
+      const res = await fetch('/api/pyq')
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setPyqQuestions(json.data || [])
     } catch (e: any) {
       toast({ variant: "destructive", title: "Fetch Failed", description: e.message })
     } finally {
@@ -897,12 +915,14 @@ export default function AdminDashboard() {
         explanation: pyqForm.explanation || null
       }
       if (editingPYQId) {
-        const { error } = await supabase.from("pyq_questions").update(payload).eq('id', editingPYQId)
-        if (error) throw error
+        const res = await fetch('/api/pyq', { method: 'PUT', body: JSON.stringify({ id: editingPYQId, ...payload }) })
+        const json = await res.json()
+        if (json.error) throw new Error(json.error)
         toast({ title: "PYQ Updated" })
       } else {
-        const { error } = await supabase.from("pyq_questions").insert([payload])
-        if (error) throw error
+        const res = await fetch('/api/pyq', { method: 'POST', body: JSON.stringify({ questions: [payload] }) })
+        const json = await res.json()
+        if (json.error) throw new Error(json.error)
         toast({ title: "PYQ Added" })
       }
       setEditingPYQId(null)
@@ -926,15 +946,16 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleDeletePYQ(id: number) {
+  async function handleDeletePYQ(id: string) {
     if (!confirm("Delete this PYQ question?")) return
     const original = [...pyqQuestions]
     setPyqQuestions(prev => prev.filter(q => q.id !== id))
     try {
-      const { error } = await supabase.from("pyq_questions").delete().eq('id', id)
-      if (error) {
+      const res = await fetch('/api/pyq', { method: 'DELETE', body: JSON.stringify({ id }) })
+      const json = await res.json()
+      if (json.error) {
         setPyqQuestions(original)
-        throw error
+        throw new Error(json.error)
       }
       toast({ title: "PYQ Deleted" })
     } catch (e: any) {

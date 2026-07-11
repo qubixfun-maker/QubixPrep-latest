@@ -2,7 +2,6 @@
 
 import { useSearchParams, useRouter } from "next/navigation"
 import { useState, useEffect, Suspense } from "react"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -43,25 +42,14 @@ function PYQSessionContent() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      let query = supabase.from('pyq_questions').select('*').eq('exam_type', exam).range(0, 9999)
+      const params = new URLSearchParams({ exam_type: exam, years: years.join(',') })
+      if (subjects) params.set('subjects', subjects.join(','))
 
-      const realYears = years.filter(y => y !== 0)
-      const includesRandom = years.includes(0)
+      const res = await fetch('/api/pyq?' + params.toString())
+      const json = await res.json()
+      if (json.error) { toast({ variant: "destructive", title: "Error", description: json.error }); setLoading(false); return }
 
-      if (includesRandom && realYears.length > 0) {
-        query = query.or(`year.in.(${realYears.join(',')}),year.is.null`)
-      } else if (includesRandom) {
-        query = query.is('year', null)
-      } else if (realYears.length > 0) {
-        query = query.in('year', realYears)
-      }
-
-      if (subjects) query = query.in('subject', subjects)
-
-      const { data, error } = await query
-      if (error) { toast({ variant: "destructive", title: "Error", description: error.message }); setLoading(false); return }
-
-      let pool = data || []
+      let pool = json.data || []
       pool = pool.sort(() => 0.5 - Math.random())
       if (desiredCount > 0 && pool.length > desiredCount) {
         pool = pool.slice(0, desiredCount)
