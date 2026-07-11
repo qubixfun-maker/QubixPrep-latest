@@ -197,7 +197,7 @@ export default function AdminDashboard() {
         const { data: sbData, error } = await supabase
           .from('questions')
           .select('*')
-          
+          .or(`subject_id.eq.${subjectId},subject_id.eq.${subjectId.toLowerCase()}`)
           .order('unit_number', { ascending: true })
           .range(0, 9999)
         if (error) throw error
@@ -241,8 +241,8 @@ export default function AdminDashboard() {
       const { count, error } = await supabase
         .from('questions')
         .select('*', { count: 'exact', head: true })
-        
-      
+        .or(`subject_id.eq.${subjectId},subject_id.eq.${subjectId.toLowerCase()}`)
+
       if (error) throw error
 
       await updateDoc(doc(db, 'subjects', subjectId), { 
@@ -329,13 +329,14 @@ export default function AdminDashboard() {
   async function handleReassignTopicUnit(topicName: string, newUnit: string) {
     if (!activeSubject || !newUnit.trim()) return
     setReassigning(true)
-    const subjectId = activeSubject.toLowerCase().replace(/s+/g, '-')
+    const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
     try {
       const { error } = await supabase
         .from('questions')
         .update({ unit_title: newUnit.trim() })
-        
-        
+        .or(`subject_id.eq.${subjectId},subject_id.eq.${subjectId.toLowerCase()}`)
+        .eq('topic_title', topicName)
+
       if (error) throw error
       toast({ title: 'Unit Updated', description: topicName + ' moved to ' + newUnit })
       setReassignTopic(null)
@@ -534,7 +535,7 @@ export default function AdminDashboard() {
       }
 
       if (qbankForm.id) {
-        const { error } = await supabase.from('questions').update(payload)
+        const { error } = await supabase.from('questions').update(payload).eq('id', qbankForm.id)
         if (error) throw error
         toast({ title: "Question Updated" })
       } else {

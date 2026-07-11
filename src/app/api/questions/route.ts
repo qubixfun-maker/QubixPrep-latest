@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { neon } from '@neondatabase/serverless'
+import { supabase } from '@/lib/supabase'
 
 function getNeon() {
   const url = process.env.NEON_DATABASE_URL
@@ -10,10 +11,36 @@ function getNeon() {
 export async function GET(req: NextRequest) {
   try {
     const subjectId = req.nextUrl.searchParams.get('subject_id')
+    if (!subjectId) return NextResponse.json({ data: [] })
+
+    let neonData: any[] = []
     const sql = getNeon()
-    if (!sql || !subjectId) return NextResponse.json({ data: [] })
-    const data = await sql`SELECT * FROM questions WHERE (subject_id = ${subjectId} OR subject_id = ${subjectId.toLowerCase()}) ORDER BY unit_number ASC NULLS LAST, created_at ASC`
-    return NextResponse.json({ data })
+    if (sql) {
+      neonData = await sql`SELECT * FROM questions WHERE (subject_id = ${subjectId} OR subject_id = ${subjectId.toLowerCase()}) ORDER BY unit_number ASC NULLS LAST, created_at ASC`
+    }
+
+    let sbData: any[] = []
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*')
+        .or(`subject_id.eq.${subjectId},subject_id.eq.${subjectId.toLowerCase()}`)
+        .order('unit_number', { ascending: true })
+        .range(0, 9999)
+      if (!error && data) sbData = data
+    } catch (e) { /* Supabase optional here, Neon data still returned */ }
+
+    const seen = new Set<string>()
+    const merged: any[] = []
+    ;[...neonData, ...sbData].forEach((q: any) => {
+      const key = (q.topic_title || '') + '|' + (q.question_text || '')
+      if (!seen.has(key)) {
+        seen.add(key)
+        merged.push(q)
+      }
+    })
+
+    return NextResponse.json({ data: merged })
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }) }
 }
 
