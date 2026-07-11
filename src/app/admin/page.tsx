@@ -724,23 +724,31 @@ export default function AdminDashboard() {
     const subjectId = activeSubject.toLowerCase().replace(/\s+/g, "-")
     try {
       toast({ title: "Exporting...", description: "Fetching all questions for " + activeSubject })
-      // Try Neon first, fallback to Supabase
-      let data: any[] = []
+      // Fetch from BOTH Neon and Supabase, then merge (Neon is overflow storage, Supabase holds older data)
+      let neonData: any[] = []
       try {
         const neonRes = await fetch('/api/questions?subject_id=' + subjectId)
         const neonJson = await neonRes.json()
-        if (neonJson.data?.length) data = neonJson.data
+        if (neonJson.data?.length) neonData = neonJson.data
       } catch (e: any) { console.warn('Neon export fetch failed:', e) }
-
-      if (data.length === 0) {
-        const { data: sbData, error } = await supabase
+      let sbData: any[] = []
+      try {
+        const { data: sbRows, error } = await supabase
           .from("questions")
           .select("unit_title,topic_title,question_text,option1,option2,option3,option4,correct_answer_index,explanation")
-          
+          .eq("subject_id", subjectId)
           .order("unit_title", { ascending: true })
-        if (!error && sbData?.length) data = sbData
-      }
-
+        if (!error && sbRows?.length) sbData = sbRows
+      } catch (e: any) { console.warn('Supabase export fetch failed:', e) }
+      const seen = new Set<string>()
+      const data: any[] = []
+      ;[...neonData, ...sbData].forEach((q: any) => {
+        const key = (q.topic_title || '') + '|' + (q.question_text || '')
+        if (!seen.has(key)) {
+          seen.add(key)
+          data.push(q)
+        }
+      })
       if (!data || data.length === 0) {
         toast({ variant: "destructive", title: "No questions found" })
         return
