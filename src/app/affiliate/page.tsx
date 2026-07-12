@@ -25,6 +25,8 @@ export default function AffiliatePage() {
   const [upiId, setUpiId] = useState("")
   const [payoutAmount, setPayoutAmount] = useState("")
   const [submittingPayout, setSubmittingPayout] = useState(false)
+  const [savedUpiInput, setSavedUpiInput] = useState("")
+  const [savingUpi, setSavingUpi] = useState(false)
 
   useEffect(() => {
     if (!user || planLoading) return
@@ -41,6 +43,7 @@ export default function AffiliatePage() {
         setAffiliate(data.affiliate)
         setReferrals(data.referrals || [])
         setPayouts(data.payouts || [])
+        setSavedUpiInput(data.affiliate.upiId || "")
       }
     } catch (e) { console.error(e) }
     setPageLoading(false)
@@ -63,6 +66,30 @@ export default function AffiliatePage() {
       toast({ variant: 'destructive', title: 'Error', description: e.message })
     }
     setJoining(false)
+  }
+
+  async function handleSaveUpi() {
+    if (!user || !savedUpiInput.trim()) return
+    setSavingUpi(true)
+    try {
+      const res = await fetch('/api/affiliate/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid, upiId: savedUpiInput.trim() })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      toast({ title: 'UPI ID Saved', description: 'This will be used for future payouts.' })
+      fetchStatus()
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Error', description: e.message })
+    }
+    setSavingUpi(false)
+  }
+
+  function openPayoutForm() {
+    setUpiId(affiliate?.upiId || "")
+    setShowPayoutForm(true)
   }
 
   async function handlePayoutRequest() {
@@ -104,23 +131,23 @@ export default function AffiliatePage() {
   if (isFree) {
     return (
       <div className="max-w-lg mx-auto p-6 md:p-12 flex items-center justify-center min-h-[70vh]">
-        <div className="glass rounded-3xl p-8 text-center space-y-4 border border-white/10 w-full">
+        <div className="glass rounded-3xl p-8 text-center space-y-4 border border-primary/20 w-full">
           <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
             <Gift className="h-7 w-7 text-primary" />
           </div>
-          <h2 className="text-xl font-bold">Affiliate Program</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">You need an active Scholar or Clinician plan to join the affiliate program and start earning.</p>
+          <h2 className="text-xl font-bold">Turn Your Network Into Income</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">Every MBBS student you know is a potential subscriber. Upgrade to Scholar or Clinician to unlock your referral link and start getting paid for every friend who joins.</p>
           <div className="glass rounded-2xl p-4 border border-white/10 text-left space-y-2">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">How it works</p>
             <div className="space-y-1.5 text-xs text-muted-foreground">
-              <p>• Share your unique referral link</p>
-              <p>• Friend signs up and subscribes</p>
-              <p>• They stay subscribed for 2 months</p>
-              <p>• You earn 100% of their first month (₹29 or ₹59)</p>
-              <p>• Withdraw when balance reaches ₹500</p>
+              <p>• Share your unique referral link with classmates</p>
+              <p>• They sign up and subscribe to any plan</p>
+              <p>• Once they've paid for 2 months, you get paid too</p>
+              <p>• Earn ₹29 or ₹59 per referral (whatever plan they choose)</p>
+              <p>• Withdraw straight to your UPI once you hit ₹500</p>
             </div>
           </div>
-          <Link href="/pricing"><Button className="w-full rounded-xl bg-primary gap-2"><Crown className="h-4 w-4" /> Upgrade to Join</Button></Link>
+          <Link href="/pricing"><Button className="w-full rounded-xl bg-primary gap-2"><Crown className="h-4 w-4" /> Upgrade & Start Earning</Button></Link>
         </div>
       </div>
     )
@@ -130,20 +157,20 @@ export default function AffiliatePage() {
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Gift className="h-6 w-6 text-primary" /> Affiliate Program</h1>
-        <p className="text-muted-foreground text-sm mt-1">Earn by referring friends to QubixPrep</p>
+        <p className="text-muted-foreground text-sm mt-1">Get paid for every friend who joins QubixPrep through you</p>
       </div>
 
       {!affiliate ? (
         <div className="glass rounded-3xl p-8 border border-primary/20 space-y-6">
           <div>
-            <h2 className="text-lg font-bold">Join the Affiliate Program</h2>
-            <p className="text-sm text-muted-foreground mt-1">You are eligible as a {isBasic ? 'Scholar' : 'Clinician'} member.</p>
+            <h2 className="text-lg font-bold">You're Eligible — Start Earning Today</h2>
+            <p className="text-sm text-muted-foreground mt-1">Your classmates are already searching for something like QubixPrep. Be the one who tells them, and get paid for it.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { icon: Link2, label: 'Share your link', desc: 'Get a unique referral link' },
-              { icon: Users, label: 'Friend subscribes', desc: 'They pay for 2 months' },
-              { icon: IndianRupee, label: 'You get paid', desc: `Earn ₹${isBasic ? 29 : 59} per referral` },
+              { icon: Link2, label: 'Share your link', desc: 'One link, unlimited referrals' },
+              { icon: Users, label: 'Friend subscribes', desc: 'Any plan, ₹29 or ₹59/month' },
+              { icon: IndianRupee, label: 'You get paid', desc: 'Earn on every single referral' },
             ].map((s, i) => (
               <div key={i} className="glass rounded-2xl p-4 border border-white/5 space-y-2">
                 <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center"><s.icon className="h-4 w-4 text-primary" /></div>
@@ -154,7 +181,7 @@ export default function AffiliatePage() {
           </div>
           <Button onClick={handleJoin} disabled={joining} className="rounded-xl bg-primary gap-2 shadow-lg shadow-primary/30">
             {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gift className="h-4 w-4" />}
-            {joining ? 'Setting up...' : 'Join & Get My Referral Code'}
+            {joining ? 'Setting up...' : 'Get My Referral Link'}
           </Button>
         </div>
       ) : (
@@ -187,7 +214,19 @@ export default function AffiliatePage() {
                 {copied ? 'Copied' : 'Copy'}
               </Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">When your friend signs up and stays subscribed for 2 months, you earn ₹{isBasic ? 29 : 59}.</p>
+            <p className="text-[11px] text-muted-foreground">When your friend signs up and stays subscribed for 2 months, you earn ₹29 (Scholar) or ₹59 (Clinician) — whichever plan they pick.</p>
+          </div>
+
+          <div className="glass rounded-2xl p-5 border border-white/10 space-y-3">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Your UPI ID</p>
+            <p className="text-[11px] text-muted-foreground -mt-2">Save this once and we'll use it automatically for every payout.</p>
+            <div className="flex gap-2">
+              <Input placeholder="yourname@upi" value={savedUpiInput} onChange={e => setSavedUpiInput(e.target.value)} className="glass border-white/10" />
+              <Button onClick={handleSaveUpi} disabled={savingUpi || !savedUpiInput.trim()} size="sm" className="rounded-xl gap-2 shrink-0">
+                {savingUpi ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {savingUpi ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
           </div>
 
           <div className="glass rounded-2xl p-5 border border-white/10 space-y-4">
@@ -197,7 +236,7 @@ export default function AffiliatePage() {
                 <p className="text-xs text-muted-foreground mt-0.5">Available: ₹{affiliate.pendingAmount || 0} · Minimum: ₹500</p>
               </div>
               {(affiliate.pendingAmount || 0) >= 500 && !showPayoutForm && (
-                <Button size="sm" onClick={() => setShowPayoutForm(true)} className="rounded-xl gap-2">
+                <Button size="sm" onClick={openPayoutForm} className="rounded-xl gap-2">
                   <Wallet className="h-4 w-4" /> Request Payout
                 </Button>
               )}
@@ -236,15 +275,28 @@ export default function AffiliatePage() {
                 {referrals.map((r: any) => (
                   <div key={r.id} className="p-4 flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium">{r.referredUserEmail}</p>
+                      <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-green-400">₹{r.amount}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${r.status === 'completed' ? 'bg-green-500/10 text-green-400' : r.status === 'cancelled' ? 'bg-red-500/10 text-red-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                        {r.status === 'completed' ? 'Earned' : r.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                      </span>
-                    </div>
+                    {r.status === 'completed' ? (
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-bold text-green-400">₹{r.amount}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned</span>
+                      </div>
+                    ) : r.status === 'cancelled' ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Cancelled</span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[0, 1].map(i => (
+                            <div key={i} className={`w-2 h-2 rounded-full ${(r.chargeCount || 0) > i ? 'bg-primary' : 'bg-white/10'}`} />
+                          ))}
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400">
+                          {r.chargeCount || 0}/2 payments
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
