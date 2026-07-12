@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { useCollection, useFirestore } from "@/firebase"
 import { usePlan } from "@/hooks/use-plan"
 import { UpgradeGate } from "@/components/upgrade-gate"
+import { useRequireAuth } from "@/hooks/use-require-auth"
 import { collection } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -38,6 +39,7 @@ export default function TestSeriesPage() {
   const db = useFirestore()
   const { canAccessContent, loading: planLoading } = usePlan()
   const router = useRouter()
+  const { checkingAuth } = useRequireAuth()
   const subjectsQuery = useMemo(() => (!db ? null : collection(db, 'subjects')), [db])
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
@@ -136,6 +138,8 @@ export default function TestSeriesPage() {
   }
 
   if (planLoading) return null
+
+  if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
 
   if (!canAccessContent) {
     return (

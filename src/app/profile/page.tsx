@@ -36,6 +36,7 @@ import { errorEmitter } from '@/firebase/error-emitter'
 import { FirestorePermissionError } from '@/firebase/errors'
 import { usePlan } from '@/hooks/use-plan'
 import Link from 'next/link'
+import { useRequireAuth } from '@/hooks/use-require-auth'
 
 export default function ProfilePage() {
   const { user, loading: authLoading } = useUser()
@@ -45,6 +46,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { plan, isFree, isBasic, isPro } = usePlan()
+  const { checkingAuth } = useRequireAuth()
 
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
@@ -232,7 +234,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (authLoading || profileLoading) {
+  if (checkingAuth || authLoading || profileLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />

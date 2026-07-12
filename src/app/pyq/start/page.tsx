@@ -8,13 +8,17 @@ import { Progress } from "@/components/ui/progress"
 import { CheckCircle2, XCircle, Loader2, ArrowLeft, ChevronRight, Trophy, Timer, BrainCircuit, AlertTriangle, MessageSquare, ListChecks, Info } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@/firebase"
+import { usePlan } from "@/hooks/use-plan"
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
+import { useRequireAuth } from "@/hooks/use-require-auth"
 
 function PYQSessionContent() {
   const { user } = useUser()
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
+  const { checkingAuth } = useRequireAuth()
+  const { canAccessAI } = usePlan()
 
   const exam = searchParams.get('exam') || ''
   const yearsParam = searchParams.get('years') || ''
@@ -118,6 +122,8 @@ function PYQSessionContent() {
   }
 
   async function handleAskAi() {
+    if (!user) { router.push('/signup'); return }
+    if (!canAccessAI) { router.push('/pricing'); return }
     const q = questions[currentIndex]
     const options = [q.option1, q.option2, q.option3, q.option4].filter(Boolean)
     setIsAiLoading(true)
@@ -130,7 +136,7 @@ function PYQSessionContent() {
 
   const formatTime = (s: number) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
+  if (checkingAuth || loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
   if (questions.length === 0) return (
     <div className="h-screen flex flex-col items-center justify-center space-y-4 px-4 text-center">
       <AlertTriangle className="h-12 w-12 text-yellow-500" />

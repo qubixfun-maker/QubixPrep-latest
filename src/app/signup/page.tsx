@@ -68,6 +68,18 @@ function SignUpPageContent() {
       }
       const userRef = doc(db, 'users', userCredential.user.uid)
       await setDoc(userRef, profileData, { merge: true })
+      if (profileData.referredBy) {
+        fetch('/api/affiliate/track-referral', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: profileData.referredBy,
+            referredUserId: userCredential.user.uid,
+            referredUserEmail: formData.email,
+            referredUserName: formData.name
+          })
+        }).catch(() => {})
+      }
       toast({ title: "Account Created!", description: `Welcome as ${userRole}.` })
       router.push(userRole === 'admin' ? "/admin" : "/")
     } catch (error: any) {
@@ -93,8 +105,21 @@ function SignUpPageContent() {
           displayName: result.user.displayName || "Medical Student",
           email: result.user.email || "",
           role: userRole,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          referredBy: formData.referralCode.trim().toUpperCase() || null
         })
+        if (formData.referralCode.trim()) {
+          fetch('/api/affiliate/track-referral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: formData.referralCode.trim().toUpperCase(),
+              referredUserId: result.user.uid,
+              referredUserEmail: result.user.email,
+              referredUserName: result.user.displayName
+            })
+          }).catch(() => {})
+        }
       } else {
         userRole = (docSnap.data() as any).role || "student"
       }

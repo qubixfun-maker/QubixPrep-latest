@@ -9,6 +9,7 @@ import Link from "next/link"
 import { useFirestore, useCollection } from "@/firebase"
 import { collection, getDocs } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
+import { useRequireAuth } from "@/hooks/use-require-auth"
 
 type SearchResult = {
   id: string
@@ -139,6 +140,9 @@ export default function SearchPage() {
       case "QBank": return "text-orange-400"
     }
   }
+
+  const { checkingAuth } = useRequireAuth()
+  if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">

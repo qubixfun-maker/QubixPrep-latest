@@ -2,7 +2,37 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { neon } from '@neondatabase/serverless'
 import { setUserPlanFromSubscription } from '@/lib/firestore-rest'
+
+const PLAN_COMMISSION: Record<string, number> = { basic: 29, pro: 59 }
+
+async function creditReferralIfApplicable(userId: string, planId: string, paymentId: string) {
+  try {
+    const sql = neon(process.env.NEON_DATABASE_URL || "")
+    const refs = await sql`SELECT id, affiliate_id, charge_count, charge_history, status FROM referrals WHERE referred_user_id = ${userId} AND status = 'pending'`
+    if (refs.length === 0) return
+
+    const ref = refs[0]
+    const amount = PLAN_COMMISSION[planId] || 0
+    if (amount === 0) return
+
+    const history = Array.isArray(ref.charge_history) ? ref.charge_history : []
+    history.push({ amount, planId, paymentId, chargedAt: new Date().toISOString() })
+    const newCount = (ref.charge_count || 0) + 1
+
+    if (newCount >= 2) {
+      await sql`UPDATE referrals SET charge_count = ${newCount}, charge_history = ${JSON.stringify(history)}::jsonb, plan = ${planId}, amount = ${amount}, status = 'completed' WHERE id = ${ref.id}`
+      await sql`UPDATE affiliates SET pending_amount = pending_amount + ${amount}, total_earned = total_earned + ${amount} WHERE id = ${ref.affiliate_id}`
+      console.log('[WEBHOOK] Referral completed, credited', amount, 'to affiliate', ref.affiliate_id)
+    } else {
+      await sql`UPDATE referrals SET charge_count = ${newCount}, charge_history = ${JSON.stringify(history)}::jsonb, plan = ${planId}, amount = ${amount} WHERE id = ${ref.id}`
+      console.log('[WEBHOOK] Referral charge', newCount, 'of 2 recorded for referral', ref.id)
+    }
+  } catch (e: any) {
+    console.error('[WEBHOOK] Referral crediting failed:', e.message)
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,6 +53,7 @@ export async function POST(req: NextRequest) {
     console.log('[WEBHOOK] Event received:', event.event)
 
     const subscriptionEntity = event.payload?.subscription?.entity
+    const paymentEntity = event.payload?.payment?.entity
     const userId = subscriptionEntity?.notes?.userId
     const planId = subscriptionEntity?.notes?.planId
 
@@ -32,6 +63,9 @@ export async function POST(req: NextRequest) {
         if (userId && planId) {
           await setUserPlanFromSubscription(userId, planId, subscriptionEntity.id, 'active')
           console.log('[WEBHOOK] Activated plan', planId, 'for user', userId)
+        }
+        if (event.event === 'subscription.charged' && userId && planId) {
+          await creditReferralIfApplicable(userId, planId, paymentEntity?.id || subscriptionEntity.id)
         }
         break
 

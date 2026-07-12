@@ -7,6 +7,7 @@ import { ChevronRight, ChevronLeft, Loader2, PlayCircle, Video, Lock } from "luc
 import Link from "next/link"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
+import { useRequireAuth } from '@/hooks/use-require-auth'
 
 const FREE_LIMIT = 3
 
@@ -15,6 +16,7 @@ export default function SubjectVideoCurriculumPage({ params }: { params: Promise
 
   const db = useFirestore()
   const { canAccessContent } = usePlan()
+  const { checkingAuth } = useRequireAuth()
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
@@ -23,7 +25,7 @@ export default function SubjectVideoCurriculumPage({ params }: { params: Promise
   const videoQuery = useMemo(() => (!topicsRef ? null : query(topicsRef, where('contentType', '==', 'video'), orderBy('createdAt', 'desc'))), [topicsRef])
   const { data: videoTopics, loading: topicsLoading } = useCollection(videoQuery)
 
-  if (subjectLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+  if (checkingAuth || subjectLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
 
   const hasLocked = !canAccessContent && videoTopics && videoTopics.length > FREE_LIMIT
 

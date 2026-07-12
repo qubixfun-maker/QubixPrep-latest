@@ -9,6 +9,7 @@ import { ChevronRight, ChevronLeft, LayoutList, Loader2, FileText, CheckCircle2,
 import Link from "next/link"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
+import { useRequireAuth } from '@/hooks/use-require-auth'
 
 const FREE_LIMIT = 3
 
@@ -18,6 +19,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
   const { user } = useUser()
   const db = useFirestore()
   const { canAccessContent } = usePlan()
+  const { checkingAuth } = useRequireAuth()
 
   const [completedTopics, setCompletedTopics] = useState<Set<string>>(new Set())
 
@@ -55,7 +57,7 @@ export default function SubjectDetailPage({ params }: { params: Promise<{ id: st
     return Math.round((completedInSubject / pdfTopics.length) * 100)
   }, [pdfTopics, completedTopics])
 
-  if (subjectLoading) {
+  if (checkingAuth || subjectLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />

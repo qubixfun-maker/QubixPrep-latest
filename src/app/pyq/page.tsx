@@ -7,6 +7,7 @@ import { Trophy, BookOpen, Timer, Eye, Loader2, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePlan } from "@/hooks/use-plan"
 import { UpgradeGate } from "@/components/upgrade-gate"
+import { useRequireAuth } from "@/hooks/use-require-auth"
 
 const EXAMS = ["NEET PG", "INICET", "USMLE Step 1", "USMLE Step 2", "FMGE"]
 const SUBJECTS = ["All Subjects", "Anatomy", "Physiology", "Biochemistry", "Pathology", "Pharmacology", "Microbiology", "Community Medicine", "Forensic Medicine", "Medicine", "Surgery", "Obstetrics & Gynaecology", "Paediatrics", "Psychiatry", "Ophthalmology", "ENT", "Orthopaedics", "Radiology", "Anaesthesia", "Dermatology"]
@@ -15,6 +16,7 @@ const QUESTION_COUNT_OPTIONS = [10, 25, 50, 100, 0]
 export default function PYQPage() {
   const router = useRouter()
   const { isPro, loading: planLoading } = usePlan()
+  const { checkingAuth } = useRequireAuth()
 
   const [selectedExam, setSelectedExam] = useState<string | null>(null)
   const [selectedYears, setSelectedYears] = useState<number[]>([])
@@ -100,7 +102,7 @@ export default function PYQPage() {
     router.push(`/pyq/start?${params.toString()}`)
   }
 
-  if (planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
+  if (checkingAuth || planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
 
   if (!isPro) {
     return (

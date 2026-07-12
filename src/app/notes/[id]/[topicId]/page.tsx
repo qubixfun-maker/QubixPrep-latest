@@ -40,6 +40,7 @@ import { generateMindMap, type MindMapGeneratorOutput } from "@/ai/flows/ai-mind
 import { visionAnalyzerFlow } from "@/ai/flows/ai-vision-analyzer"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
+import { useRequireAuth } from '@/hooks/use-require-auth'
 
 export default function NoteViewerPage({ params }: { params: Promise<{ id: string, topicId: string }> }) {
   const { id, topicId } = use(params)
@@ -48,6 +49,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   const db = useFirestore()
   const { toast } = useToast()
   const { canAccessContent, canAccessAI } = usePlan()
+  const { checkingAuth } = useRequireAuth()
   
   const [isFullView, setIsFullView] = useState(false)
   
@@ -93,7 +95,7 @@ export default function NoteViewerPage({ params }: { params: Promise<{ id: strin
   const topicRef = useMemo(() => (!db) ? null : doc(db, 'subjects', id, 'topics', topicId), [db, id, topicId])
   const { data: topic, loading } = useDoc(topicRef)
 
-  if (loading || progressLoading) {
+  if (checkingAuth || loading || progressLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#0a0a0c]">
         <div className="flex flex-col items-center gap-4">

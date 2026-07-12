@@ -7,6 +7,7 @@ import { ChevronRight, ChevronLeft, Loader2, Network, Lock } from "lucide-react"
 import Link from "next/link"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
+import { useRequireAuth } from '@/hooks/use-require-auth'
 import { groupByUnit } from "@/lib/unit-sort"
 
 const FREE_LIMIT = 2
@@ -16,6 +17,7 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
 
   const db = useFirestore()
   const { canAccessContent, loading: planLoading } = usePlan()
+  const { checkingAuth } = useRequireAuth()
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
@@ -26,7 +28,7 @@ export default function MindmapSubjectDetailPage({ params }: { params: Promise<{
   const groupedMindmaps = useMemo(() => groupByUnit((mindmaps as any[]) || []), [mindmaps])
   const flatOrdered = useMemo(() => groupedMindmaps.flatMap(g => g.items), [groupedMindmaps])
 
-  if (subjectLoading || planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+  if (checkingAuth || subjectLoading || planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
 
   const hasLocked = !canAccessContent && flatOrdered.length > FREE_LIMIT
 

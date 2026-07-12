@@ -25,14 +25,18 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@/firebase"
+import { usePlan } from "@/hooks/use-plan"
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { analyzeTestPerformance } from "@/ai/flows/ai-performance-analyzer"
+import { useRequireAuth } from "@/hooks/use-require-auth"
 
 function QuizSessionContent() {
   const { user } = useUser()
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
+  const { checkingAuth } = useRequireAuth()
+  const { canAccessAI } = usePlan()
 
   const subjects = searchParams.get('subjects')?.split(',') || []
   const units = searchParams.get('units')?.split(',').filter(Boolean) || []
@@ -116,6 +120,8 @@ function QuizSessionContent() {
   }
 
   async function handleAskAi() {
+    if (!user) { router.push('/signup'); return }
+    if (!canAccessAI) { router.push('/pricing'); return }
     const currentQ = questions[currentIndex]
     const options = [currentQ.option1, currentQ.option2, currentQ.option3, currentQ.option4]
     setIsAiLoading(true)
@@ -146,7 +152,7 @@ function QuizSessionContent() {
     }
   }
 
-  if (loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4 px-4 text-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-bold uppercase tracking-widest animate-pulse">Filtering Clinical Pool...</p></div>
+  if (checkingAuth || loading) return <div className="h-screen flex flex-col items-center justify-center space-y-4 px-4 text-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-bold uppercase tracking-widest animate-pulse">Filtering Clinical Pool...</p></div>
 
   if (questions.length === 0) return <div className="h-screen flex flex-col items-center justify-center p-6 text-center space-y-6"><AlertTriangle className="h-12 w-12 text-yellow-500" /><h2 className="text-2xl font-bold">No Cases Found</h2><p className="text-muted-foreground">The filter criteria was too narrow. Try expanding your subject or unit selection.</p><Button onClick={() => router.push('/test-series')}>Adjust Filters</Button></div>
 

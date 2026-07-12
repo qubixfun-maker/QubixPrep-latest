@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2, Copy, CheckCircle2, Users, Wallet, Brain, IndianRupee, AlertCircle, Gift, Link2, Crown, Star, Zap } from "lucide-react"
 import Link from "next/link"
+import { useRequireAuth } from "@/hooks/use-require-auth"
 
 export default function AffiliatePage() {
   const { user, loading } = useUser()
   const { isFree, isBasic, isPro, plan, loading: planLoading } = usePlan()
+  const { checkingAuth } = useRequireAuth()
   const { toast } = useToast()
   const [affiliate, setAffiliate] = useState<any>(null)
   const [referrals, setReferrals] = useState<any[]>([])
@@ -95,7 +97,7 @@ export default function AffiliatePage() {
     })
   }
 
-  if (loading || planLoading || pageLoading) {
+  if (checkingAuth || loading || planLoading || pageLoading) {
     return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
   }
 

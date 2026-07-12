@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2, ShieldCheck, ZoomIn, ZoomOut, RotateCcw, Maximize }
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch"
+import { useRequireAuth } from '@/hooks/use-require-auth'
 
 export default function MindmapViewerPage({ params }: { params: Promise<{ id: string, mindmapId: string }> }) {
   const { id, mindmapId } = use(params)
@@ -14,6 +15,7 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
   const db = useFirestore()
   const transformRef = useRef<ReactZoomPanPinchRef>(null)
   const [imageLoaded, setImageLoaded] = useState(false)
+  const { checkingAuth } = useRequireAuth()
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => e.preventDefault();
@@ -33,7 +35,7 @@ export default function MindmapViewerPage({ params }: { params: Promise<{ id: st
   const mmRef = useMemo(() => (!db) ? null : doc(db, 'subjects', id, 'mindmaps', mindmapId), [db, id, mindmapId])
   const { data: mm, loading } = useDoc(mmRef)
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary" /></div>
+  if (checkingAuth || loading) return <div className="h-screen flex items-center justify-center bg-black"><Loader2 className="animate-spin text-primary" /></div>
   if (!mm) return <div className="h-screen flex items-center justify-center bg-black text-white">Mindmap not found.</div>
 
   const mmData = mm as any

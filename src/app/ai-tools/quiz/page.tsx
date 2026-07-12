@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePlan } from "@/hooks/use-plan";
 import { useUser } from "@/firebase";
 import { UpgradeGate } from "@/components/upgrade-gate";
+import { useRequireAuth } from "@/hooks/use-require-auth";
 
 const QUESTION_COUNT_OPTIONS = [5, 10, 15, 20, 25];
 type Mode = "practice" | "exam";
@@ -24,6 +25,7 @@ export default function QuizGeneratorPage() {
   const { toast } = useToast();
   const { canAccessAI, loading: planLoading } = usePlan();
   const { user } = useUser();
+  const { checkingAuth } = useRequireAuth();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -96,7 +98,7 @@ export default function QuizGeneratorPage() {
     setShowResult(false);
   }
 
-  if (planLoading) {
+  if (checkingAuth || planLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 

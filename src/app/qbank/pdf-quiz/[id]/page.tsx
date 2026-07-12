@@ -1,8 +1,10 @@
 "use client"
 
 import { use, useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useUser } from "@/firebase"
+import { usePlan } from "@/hooks/use-plan"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
@@ -23,11 +25,15 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
+import { useRequireAuth } from "@/hooks/use-require-auth"
 
 export default function PdfQuizPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: qbankId } = use(params)
   const { user } = useUser()
   const { toast } = useToast()
+  const { checkingAuth } = useRequireAuth()
+  const router = useRouter()
+  const { canAccessAI } = usePlan()
 
   const [questions, setQuestions] = useState<any[]>([])
   const [qbank, setQbank] = useState<any>(null)
@@ -122,6 +128,8 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
   }
 
   async function handleAskAi() {
+    if (!user) { router.push('/signup'); return }
+    if (!canAccessAI) { router.push('/pricing'); return }
     const currentQ = questions[currentIndex]
     const optsArr = [currentQ.option_a, currentQ.option_b, currentQ.option_c, currentQ.option_d]
     const correctIdx = ['a', 'b', 'c', 'd'].indexOf(currentQ.correct_answer?.toLowerCase() || 'a')
@@ -137,7 +145,7 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  if (loading) return <div className="h-screen flex flex-col items-center justify-center gap-4 bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground animate-pulse">Initializing Simulation Hub...</p></div>
+  if (checkingAuth || loading) return <div className="h-screen flex flex-col items-center justify-center gap-4 bg-background"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground animate-pulse">Initializing Simulation Hub...</p></div>
 
   if (questions.length === 0) return (
     <div className="h-screen flex flex-col items-center justify-center p-6 text-center space-y-6">

@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePlan } from "@/hooks/use-plan";
 import { useUser } from "@/firebase";
 import { UpgradeGate } from "@/components/upgrade-gate";
+import { useRequireAuth } from "@/hooks/use-require-auth";
 
 function SummarizerPageContent() {
   const [content, setContent] = useState("");
@@ -18,6 +19,7 @@ function SummarizerPageContent() {
   const { toast } = useToast();
   const { canAccessAI, loading: planLoading } = usePlan();
   const { user } = useUser();
+  const { checkingAuth } = useRequireAuth();
 
   async function handleSummarize() {
     if (!content.trim()) return;
@@ -44,7 +46,7 @@ function SummarizerPageContent() {
     });
   };
 
-  if (planLoading) {
+  if (checkingAuth || planLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 

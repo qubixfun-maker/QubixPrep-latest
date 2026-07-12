@@ -60,7 +60,7 @@ export default function Dashboard() {
     let isMounted = true
     async function checkUserRole() {
       if (loading) return
-      if (!user) { router.push("/signup"); return }
+      if (!user) { setCheckingRole(false); return }
       if (!db) return
       try {
         const userRef = doc(db, 'users', user.uid)
@@ -89,9 +89,7 @@ export default function Dashboard() {
     )
   }
 
-  if (!user) return null
-
-  const firstName = user.displayName?.split(' ')[0] || 'Doctor'
+  const firstName = user?.displayName?.split(' ')[0] || 'Doctor'
   const totalQuestions = subjects.reduce((sum, s) => sum + (s.questionCount || 0), 0)
   const totalMindmaps = subjects.reduce((sum, s) => sum + (s.mindmapCount || 0), 0)
   const topQBankSubjects = [...subjects].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0)).slice(0, 6)
@@ -200,10 +198,10 @@ export default function Dashboard() {
           </p>
           <div className="flex gap-3 pt-1">
             <Button asChild size="sm" className="rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30 gap-2">
-              <Link href="/qbank"><Database className="h-3.5 w-3.5" /> Open QBank</Link>
+              <Link href={user ? "/qbank" : "/signup"}><Database className="h-3.5 w-3.5" /> Open QBank</Link>
             </Button>
             <Button asChild size="sm" variant="outline" className="rounded-xl glass border-white/10 hover:bg-white/5 gap-2">
-              <Link href="/mindmaps"><Network className="h-3.5 w-3.5" /> Mindmaps</Link>
+              <Link href={user ? "/mindmaps" : "/signup"}><Network className="h-3.5 w-3.5" /> Mindmaps</Link>
             </Button>
           </div>
         </div>
@@ -235,7 +233,7 @@ export default function Dashboard() {
         <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Features</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {features.map((f) => (
-            <Link key={f.label} href={f.locked ? '/pricing' : f.href}>
+            <Link key={f.label} href={!user ? '/signup' : f.locked ? '/pricing' : f.href}>
               <div className={`group glass rounded-2xl p-4 border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all h-full relative ${f.locked ? 'opacity-60' : ''}`}>
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-xl ${f.bg} ${f.color} shrink-0`}>
@@ -281,7 +279,7 @@ export default function Dashboard() {
           >
             Mindmaps
           </button>
-          <Link href={activeTab === 'qbank' ? '/qbank' : '/mindmaps'} className="ml-auto text-xs text-muted-foreground hover:text-white flex items-center gap-1 transition-colors">
+          <Link href={!user ? '/signup' : (activeTab === 'qbank' ? '/qbank' : '/mindmaps')} className="ml-auto text-xs text-muted-foreground hover:text-white flex items-center gap-1 transition-colors">
             All <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
@@ -297,7 +295,8 @@ export default function Dashboard() {
               const count = activeTab === 'qbank'
                 ? `${subject.questionCount || 0} Qs`
                 : `${subject.mindmapCount || 0} maps`
-              const href = activeTab === 'qbank' ? `/qbank/${subject.id}` : `/mindmaps/${subject.id}`
+              const contentHref = activeTab === 'qbank' ? `/qbank/${subject.id}` : `/mindmaps/${subject.id}`
+              const href = !user ? '/signup' : contentHref
               return (
                 <Link key={subject.id} href={href}>
                   <div className="glass rounded-2xl p-3 flex flex-col items-center text-center gap-2 border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all group cursor-pointer">

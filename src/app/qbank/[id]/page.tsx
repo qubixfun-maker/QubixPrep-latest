@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, use, useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import ReactMarkdown from "react-markdown"
 import { useDoc, useFirestore, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
@@ -35,6 +36,7 @@ import {
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
+import { useRequireAuth } from '@/hooks/use-require-auth'
 
 export default function QuizSubjectCurriculumPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
@@ -42,7 +44,9 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   const db = useFirestore()
   const { user } = useUser()
   const { toast } = useToast()
+  const router = useRouter()
   const { isFree, canAccessAI } = usePlan()
+  const { checkingAuth } = useRequireAuth()
 
   const [questions, setQuestions] = useState<any[]>([])
   const [qLoading, setQLoading] = useState(true)
@@ -92,7 +96,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
     return Object.values(units)
   }, [questions])
 
-  if (subjectLoading || qLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
+  if (checkingAuth || subjectLoading || qLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
 
   // Quiz Interaction Logic
   const startTopicQuiz = (topicQs: any[]) => {
@@ -108,6 +112,8 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   }
 
   async function handleAskAi() {
+    if (!user) { router.push('/signup'); return }
+    if (!canAccessAI) { router.push('/pricing'); return }
     if (!selectedTopicQuestions) return
     const currentQ = selectedTopicQuestions[currentIndex]
     setIsAiLoading(true)

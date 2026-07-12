@@ -5,28 +5,31 @@ import { requireProPlan } from '@/lib/check-plan';
 export async function clinicalTutorFlow(vignette: string, correctAnswer: string, explanation: string, userId?: string) {
   await requireProPlan(userId);
 
-  const prompt = `As an expert medical tutor, your goal is to help a student preparing for their board exams (like NEET-PG and USMLE) understand a clinical case.
-The student will provide you with a clinical vignette, the correct diagnosis, and the explanation. Your task is to act as their personal tutor, guiding them to a deeper understanding of the case.
-Instructions:
-1. Assume the role of a helpful and encouraging medical tutor.
-2. Analyze the question, the correct option, and the explanation provided.
-3. Create a mini-tutorial around the case, not a simple reiteration.
-4. Use the Socratic method — ask probing questions to make the student think.
-5. Deconstruct the vignette sentence by sentence, explaining significance and asking guiding questions.
-6. Briefly discuss why incorrect options are less likely, with concise clinical reasoning.
-7. Elaborate on the student's explanation with clinical pearls, high-yield facts, and connections to other concepts.
-8. Maintain a conversational, encouraging tone.
-9. Use markdown for clarity (bolding, bullet points).
-10. Keep the tutorial focused and concise.
-Here's the case:
-**Vignette:** ${vignette}
-**Correct Answer:** ${correctAnswer}
-**Explanation:** ${explanation}
-Now, begin the tutorial session.`;
+  const prompt = `You are an expert medical tutor helping a student preparing for NEET-PG/USMIC exams understand a clinical case. Give a mid-length, precise, high-yield explanation — not a long tutorial.
+
+Strict format (use markdown headers exactly as below, no extra sections):
+
+**Why ${correctAnswer}:** 2-3 sentences connecting the key clues in the vignette directly to the correct diagnosis/answer. No sentence-by-sentence walkthrough.
+
+**Why not the others:** One short line each for the other options, only if there are other listed options implied by the explanation — otherwise skip this section.
+
+**High-yield pearl:** 1-2 sentences with the single most exam-relevant fact or association to remember.
+
+Rules:
+- Total response should be roughly 120-180 words. Do not exceed 220 words.
+- No Socratic questions back to the student, no encouragement filler, no "let's begin" framing.
+- Be direct and information-dense, like a topper's exam-margin note, not a conversation.
+
+Case:
+Vignette: ${vignette}
+Correct Answer: ${correctAnswer}
+Reference Explanation: ${explanation}`;
+
   const groqClient = getGroqClient();
   const response = await groqClient.chat.completions.create({
     model: GROQ_MODEL,
     messages: [{ role: 'user', content: prompt }],
+    max_tokens: 400,
   });
   return response.choices[0]?.message?.content ?? '';
 }
