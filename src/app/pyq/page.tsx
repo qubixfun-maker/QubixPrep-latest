@@ -15,7 +15,7 @@ const QUESTION_COUNT_OPTIONS = [10, 25, 50, 100, 0]
 
 export default function PYQPage() {
   const router = useRouter()
-  const { isPro, loading: planLoading } = usePlan()
+  const { isPro, isBasic, loading: planLoading } = usePlan()
   const { checkingAuth } = useRequireAuth()
 
   const [selectedExam, setSelectedExam] = useState<string | null>(null)
@@ -92,6 +92,10 @@ export default function PYQPage() {
 
   function handleStart() {
     if (!selectedExam || selectedYears.length === 0 || questionCount === 0) return
+    if (!isBasic) {
+      router.push('/pricing')
+      return
+    }
     const params = new URLSearchParams({
       exam: selectedExam,
       years: selectedYears.join(','),

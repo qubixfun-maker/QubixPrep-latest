@@ -122,6 +122,14 @@ export default function TestSeriesPage() {
 
   const handleStart = () => {
     if (selectedSubjects.length === 0) return
+    if (!canAccessContent) {
+      router.push('/pricing')
+      return
+    }
+    if (!canAccessContent) {
+      router.push('/pricing')
+      return
+    }
     
     const unitTitles = selectedUnits.map(u => u.split('|')[1])
     const topicTitles = selectedTopics.map(t => t.split('|')[2])
