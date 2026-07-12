@@ -42,6 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -61,6 +62,7 @@ export default function AdminDashboard() {
   
   const [activeSubject, setActiveSubject] = useState<string | null>(null)
   const [isAssigningUnit, setIsAssigningUnit] = useState(false)
+  const [useAiFixer, setUseAiFixer] = useState(true)
   const [subjectContent, setSubjectContent] = useState<{
     topics: any[],
     mindmaps: any[],
@@ -657,16 +659,25 @@ export default function AdminDashboard() {
           toast({ variant: "destructive", title: "No valid rows found", description: "Check your CSV format." })
           return
         }
-        setAiFixing(true)
-        setIsUploadingQBank(false)
-        setIsUploadingQBank(false)
-        toast({ title: 'AI Fixing CSV...', description: 'Checking ' + allQuestions.length + ' questions for errors.' })
-        setAiFixProgress({ done: 0, total: allQuestions.length, message: 'Starting...' })
-        const { fixed, log } = await aiFixBatch(allQuestions, (done, message) => {
-          setAiFixProgress({ done, total: allQuestions.length, message: message || '' })
-        })
-        setAiFixLog(log)
-        setAiFixing(false)
+        let fixed = allQuestions
+        let log: any[] = []
+        if (useAiFixer) {
+          setAiFixing(true)
+          setIsUploadingQBank(false)
+          setIsUploadingQBank(false)
+          toast({ title: 'AI Fixing CSV...', description: 'Checking ' + allQuestions.length + ' questions for errors.' })
+          setAiFixProgress({ done: 0, total: allQuestions.length, message: 'Starting...' })
+          const result = await aiFixBatch(allQuestions, (done, message) => {
+            setAiFixProgress({ done, total: allQuestions.length, message: message || '' })
+          })
+          fixed = result.fixed
+          log = result.log
+          setAiFixLog(log)
+          setAiFixing(false)
+        } else {
+          setIsUploadingQBank(false)
+          setAiFixLog([])
+        }
         const topicMap: Record<string, { unit: string, questions: any[] }> = {}
         fixed.forEach((q: any) => {
           const t = q.topic_title || 'General'
@@ -677,7 +688,9 @@ export default function AdminDashboard() {
         setCsvParsedTopics(parsed)
         setCsvUnitName('')
         setShowCsvOrganizer(true)
-        if (log.length > 0) {
+        if (!useAiFixer) {
+          toast({ title: 'Imported without AI check', description: fixed.length + ' questions ready to import as-is.' })
+        } else if (log.length > 0) {
           toast({ title: 'AI fixed ' + log.length + ' issues', description: 'Review the fix log in the organizer.' })
         } else {
           toast({ title: 'CSV looks clean!', description: fixed.length + ' questions ready to import.' })
@@ -1726,6 +1739,13 @@ export default function AdminDashboard() {
                 <p className="text-[9px] text-muted-foreground font-mono leading-tight">
                   unit_title, topic_title, question_text, option1, option2, option3, option4, correct_answer_index, explanation
                 </p>
+             </div>
+             <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-bold">AI Auto-Fix</Label>
+                  <p className="text-[10px] text-muted-foreground">Checks for column shifts, wrong answers &amp; missing explanations before import.</p>
+                </div>
+                <Switch checked={useAiFixer} onCheckedChange={setUseAiFixer} />
              </div>
              <div className="space-y-2">
                 <Label>Clinical Data File (.csv)</Label>
