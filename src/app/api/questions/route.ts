@@ -61,17 +61,34 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const sql = getNeon()
-    if (!sql) throw new Error('NEON_DATABASE_URL not set')
     const { subject_id, question_id, topic_title, unit_title } = await req.json()
-    if (question_id) {
-      await sql`DELETE FROM questions WHERE id = ${parseInt(question_id)}`
-    } else if (subject_id && topic_title) {
-      await sql`DELETE FROM questions WHERE (subject_id = ${subject_id} OR subject_id = ${subject_id.toLowerCase()}) AND topic_title = ${topic_title}`
-    } else if (subject_id && unit_title) {
-      await sql`DELETE FROM questions WHERE (subject_id = ${subject_id} OR subject_id = ${subject_id.toLowerCase()}) AND unit_title = ${unit_title}`
-    } else if (subject_id) {
-      await sql`DELETE FROM questions WHERE (subject_id = ${subject_id} OR subject_id = ${subject_id.toLowerCase()})`
+
+    // Delete from Neon
+    if (sql) {
+      if (question_id) {
+        await sql`DELETE FROM questions WHERE id = ${parseInt(question_id)}`
+      } else if (subject_id && topic_title) {
+        await sql`DELETE FROM questions WHERE (subject_id = ${subject_id} OR subject_id = ${subject_id.toLowerCase()}) AND topic_title = ${topic_title}`
+      } else if (subject_id && unit_title) {
+        await sql`DELETE FROM questions WHERE (subject_id = ${subject_id} OR subject_id = ${subject_id.toLowerCase()}) AND unit_title = ${unit_title}`
+      } else if (subject_id) {
+        await sql`DELETE FROM questions WHERE (subject_id = ${subject_id} OR subject_id = ${subject_id.toLowerCase()})`
+      }
     }
+
+    // Also delete from Supabase (legacy questions still live here for many subjects)
+    try {
+      if (question_id) {
+        await supabase.from('questions').delete().eq('id', question_id)
+      } else if (subject_id && topic_title) {
+        await supabase.from('questions').delete().or(`subject_id.eq.${subject_id},subject_id.eq.${subject_id.toLowerCase()}`).eq('topic_title', topic_title)
+      } else if (subject_id && unit_title) {
+        await supabase.from('questions').delete().or(`subject_id.eq.${subject_id},subject_id.eq.${subject_id.toLowerCase()}`).eq('unit_title', unit_title)
+      } else if (subject_id) {
+        await supabase.from('questions').delete().or(`subject_id.eq.${subject_id},subject_id.eq.${subject_id.toLowerCase()}`)
+      }
+    } catch (e) { /* Supabase optional, Neon delete still applies */ }
+
     return NextResponse.json({ success: true })
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }) }
 }
