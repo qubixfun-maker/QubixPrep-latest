@@ -86,6 +86,7 @@ export default function AdminDashboard() {
   const [editingPYQId, setEditingPYQId] = useState<string | null>(null)
   const [pyqBulkExam, setPyqBulkExam] = useState("NEET PG")
   const [pyqBulkYear, setPyqBulkYear] = useState(new Date().getFullYear().toString())
+  const [pyqAiSubjectFix, setPyqAiSubjectFix] = useState(true)
   const [pyqForm, setPyqForm] = useState({
     exam_type: "NEET PG",
     year: new Date().getFullYear().toString(),
@@ -905,6 +906,21 @@ export default function AdminDashboard() {
 
           if (questions.length === 0) throw new Error("No valid question rows found in file.")
 
+          if (pyqAiSubjectFix) {
+            try {
+              const subjectList = questions.map(q => q.subject).filter(Boolean)
+              if (subjectList.length > 0) {
+                const fixRes = await fetch('/api/pyq-subject-fix', { method: 'POST', body: JSON.stringify({ subjects: subjectList }) })
+                const fixJson = await fixRes.json()
+                if (fixJson.mapping) {
+                  questions.forEach(q => {
+                    if (q.subject && fixJson.mapping[q.subject]) q.subject = fixJson.mapping[q.subject]
+                  })
+                }
+              }
+            } catch (e) { console.warn("AI subject-fix failed, continuing with original subjects", e) }
+          }
+
           const res = await fetch('/api/pyq', { method: 'POST', body: JSON.stringify({ questions }) })
           const json = await res.json()
           if (json.error) throw new Error(json.error)
@@ -1600,6 +1616,13 @@ export default function AdminDashboard() {
                   subject, question_text, option1, option2, option3, option4, correct_answer_index, explanation
                 </p>
               </div>
+              <label className="flex items-center gap-3 p-3 rounded-xl bg-white/5 cursor-pointer">
+                <input type="checkbox" checked={pyqAiSubjectFix} onChange={(e) => setPyqAiSubjectFix(e.target.checked)} className="h-4 w-4 rounded accent-primary" />
+                <div>
+                  <p className="text-xs font-bold">Use AI to fix subject names</p>
+                  <p className="text-[10px] text-muted-foreground">Corrects typos and variants like "OBG", "obstetrics and gynaecolu", "FMT" to the proper subject name. Turn off if your CSV subjects are already exact.</p>
+                </div>
+              </label>
               <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={handleImportPYQ} disabled={uploading} />
               {uploading && <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 animate-pulse"><Loader2 className="h-4 w-4 animate-spin text-primary" /><span className="text-[10px] font-bold uppercase">Importing...</span></div>}
             </TabsContent>
