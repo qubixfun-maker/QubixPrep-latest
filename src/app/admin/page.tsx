@@ -36,7 +36,8 @@ import {
   ChevronUp,
   ChevronDown,
   CheckCircle2,
-  Wand2
+  Wand2,
+  Gift
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -1071,6 +1072,11 @@ export default function AdminDashboard() {
           <Button onClick={() => setIsAddingProduct(true)} variant="outline" className="rounded-xl gap-2 glass">
             <ShoppingBag className="h-4 w-4" /> Add Product
           </Button>
+          <Link href="/admin/affiliates">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
+              <Gift className="h-4 w-4" /> Manage Affiliates
+            </Button>
+          </Link>
           <Button 
             onClick={() => {
               setQbankForm({
