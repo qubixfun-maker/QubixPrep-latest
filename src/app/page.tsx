@@ -7,53 +7,37 @@ import { doc, getDoc, collection } from "firebase/firestore"
 import { usePlan } from "@/hooks/use-plan"
 import { Button } from "@/components/ui/button"
 import {
-  ArrowRight, BrainCircuit, Loader2, Database, Network,
-  Trophy, Brain, HeartPulse, TestTube, Stethoscope,
-  Microscope, BookOpen, Target, Flame, Lock, Sparkles,
-  Search, Star, CheckCircle2, Zap, Crown,
+  BrainCircuit, Loader2, Database, Network,
+  Trophy, Search, Crown, Star, Zap, CheckCircle2,
+  ShoppingBag, ArrowRight, Users,
 } from "lucide-react"
 import Link from "next/link"
 
-const ICON_MAP: Record<string, any> = {
-  "Anatomy": Brain,
-  "Physiology": HeartPulse,
-  "Biochemistry": TestTube,
-  "Pathology": Stethoscope,
-  "Microbiology": Microscope,
-  "Pharmacology": BookOpen,
+type DailyQuestion = {
+  id: number
+  topic_title: string
+  question_text: string
+  option1: string
+  option2: string | null
+  option3: string | null
+  option4: string | null
+  correct_answer_index: number
+  explanation: string
 }
-
-const SUBJECT_ORDER = [
-  "Anatomy", "Physiology", "Biochemistry", "Pathology", "Pharmacology",
-  "Microbiology", "Forensic Medicine", "Community Medicine", "Ophthalmology",
-  "ENT", "Medicine", "Surgery", "Obstetrics & Gynaecology", "Paediatrics",
-  "Psychiatry", "Orthopaedics", "Radiology", "Anaesthesia", "Dermatology", "Anesthesiology"
-]
 
 export default function Dashboard() {
   const { user, loading } = useUser()
   const db = useFirestore()
   const router = useRouter()
-  const { isFree, isBasic, isPro, loading: planLoading } = usePlan()
+  const { isFree, isBasic, isPro, canAccessContent, canAccessAI, loading: planLoading } = usePlan()
   const [checkingRole, setCheckingRole] = useState(true)
   const [subjects, setSubjects] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'qbank' | 'mindmaps'>('qbank')
 
   const subjectsQuery = useMemo(() => db ? collection(db, 'subjects') : null, [db])
   const { data: rawSubjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
   useEffect(() => {
-    if (rawSubjects) {
-      const sorted = [...rawSubjects].sort((a, b) => {
-        const ai = SUBJECT_ORDER.indexOf(a.name)
-        const bi = SUBJECT_ORDER.indexOf(b.name)
-        if (ai === -1 && bi === -1) return a.name.localeCompare(b.name)
-        if (ai === -1) return 1
-        if (bi === -1) return -1
-        return ai - bi
-      })
-      setSubjects(sorted)
-    }
+    if (rawSubjects) setSubjects(rawSubjects)
   }, [rawSubjects])
 
   useEffect(() => {
@@ -81,6 +65,54 @@ export default function Dashboard() {
     return () => { isMounted = false }
   }, [user, loading, router, db])
 
+  const [clock, setClock] = useState("--:--:--")
+  useEffect(() => {
+    function tick() {
+      setClock(new Date().toLocaleTimeString('en-IN', { hour12: false }))
+    }
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  const [countdown, setCountdown] = useState("--:--:--")
+  useEffect(() => {
+    function tick() {
+      const now = new Date()
+      const midnight = new Date(now)
+      midnight.setHours(24, 0, 0, 0)
+      const diff = Math.floor((midnight.getTime() - now.getTime()) / 1000)
+      const h = String(Math.floor(diff / 3600)).padStart(2, '0')
+      const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0')
+      const s = String(diff % 60).padStart(2, '0')
+      setCountdown(`${h}:${m}:${s}`)
+    }
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  const [dq, setDq] = useState<DailyQuestion | null>(null)
+  const [dqLoading, setDqLoading] = useState(true)
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    async function fetchDaily() {
+      try {
+        const res = await fetch('/api/daily-question')
+        const data = await res.json()
+        if (isMounted) setDq(data.question || null)
+      } catch (e) {
+        if (isMounted) setDq(null)
+      } finally {
+        if (isMounted) setDqLoading(false)
+      }
+    }
+    fetchDaily()
+    return () => { isMounted = false }
+  }, [])
+
   if (loading || checkingRole || planLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -92,242 +124,202 @@ export default function Dashboard() {
   const firstName = user?.displayName?.split(' ')[0] || 'Doctor'
   const totalQuestions = subjects.reduce((sum, s) => sum + (s.questionCount || 0), 0)
   const totalMindmaps = subjects.reduce((sum, s) => sum + (s.mindmapCount || 0), 0)
-  const topQBankSubjects = [...subjects].sort((a, b) => (b.questionCount || 0) - (a.questionCount || 0)).slice(0, 6)
-  const topMindmapSubjects = [...subjects].sort((a, b) => (b.mindmapCount || 0) - (a.mindmapCount || 0)).slice(0, 6)
 
   const planLabel = isFree ? 'Explorer' : isBasic ? 'Scholar' : 'Clinician'
-  const planColor = isFree ? 'text-muted-foreground' : isBasic ? 'text-accent' : 'text-yellow-400'
-  const planBg = isFree ? 'bg-white/5' : isBasic ? 'bg-accent/10' : 'bg-yellow-400/10'
   const PlanIcon = isPro ? Crown : isBasic ? Star : Zap
 
-  const features = [
+  const tools = [
     {
+      title: "QBank",
+      desc: subjectsLoading ? "Subject-wise case vignettes with instant explanations." : `${totalQuestions.toLocaleString()} MCQs across ${subjects.length} subjects.`,
+      href: "/qbank",
       icon: Database,
-      label: 'Question Bank',
-      desc: `${totalQuestions.toLocaleString()} MCQs · ${subjects.length} subjects`,
-      href: '/qbank',
-      color: 'text-blue-400',
-      bg: 'bg-blue-400/10',
+      tone: "violet" as const,
       locked: false,
-      badge: 'Free',
+      badge: "Free",
     },
     {
-      icon: Network,
-      label: 'Mindmaps',
-      desc: `${totalMindmaps} visual mindmaps for revision`,
-      href: '/mindmaps',
-      color: 'text-accent',
-      bg: 'bg-accent/10',
-      locked: false,
-      badge: 'Free',
-    },
-    {
+      title: "PYQ Series",
+      desc: "Real exam questions sorted by year and subject.",
+      href: "/pyq",
       icon: Trophy,
-      label: 'PYQ Series',
-      desc: 'NEET PG · INICET · USMLE',
-      href: '/pyq',
-      color: 'text-yellow-400',
-      bg: 'bg-yellow-400/10',
+      tone: "blue" as const,
       locked: false,
-      badge: 'Free',
+      badge: "Free",
     },
     {
-      icon: Target,
-      label: 'Custom Quiz',
-      desc: 'Build tests by topic and difficulty',
-      href: '/test-series',
-      color: 'text-purple-400',
-      bg: 'bg-purple-400/10',
-      locked: isFree,
-      badge: 'Scholar',
-    },
-    {
-      icon: Search,
-      label: 'Smart Search',
-      desc: 'Search across all subjects',
-      href: '/search',
-      color: 'text-cyan-400',
-      bg: 'bg-cyan-400/10',
-      locked: false,
-      badge: 'Free',
-    },
-    {
+      title: "Custom Quiz",
+      desc: "Pick topics, set a timer, simulate real exam pressure.",
+      href: "/test-series",
       icon: BrainCircuit,
-      label: 'AI Tutor',
-      desc: 'Clinical reasoning powered by AI',
-      href: '/ai-tools',
-      color: 'text-primary',
-      bg: 'bg-primary/10',
-      locked: !isPro,
-      badge: 'Clinician',
+      tone: "coral" as const,
+      locked: !canAccessContent,
+      badge: "Scholar",
     },
     {
-      icon: Sparkles,
-      label: 'AI Quiz Generator',
-      desc: 'Generate MCQs on any topic instantly',
-      href: '/ai-tools/quiz',
-      color: 'text-primary',
-      bg: 'bg-primary/10',
-      locked: !isPro,
-      badge: 'Clinician',
+      title: "AI Tutor",
+      desc: "Ask about any case — concise, exam-focused answers.",
+      href: "/ai-tools",
+      icon: BrainCircuit,
+      tone: "violet" as const,
+      locked: !canAccessAI,
+      badge: "Clinician",
+    },
+    {
+      title: "Mindmaps",
+      desc: subjectsLoading ? "Visual subject trees for quick revision." : `${totalMindmaps} visual mindmaps across all subjects.`,
+      href: "/mindmaps",
+      icon: Network,
+      tone: "blue" as const,
+      locked: false,
+      badge: "Free",
+    },
+    {
+      title: "Smart Search",
+      desc: "Search across every subject, note, and mindmap.",
+      href: "/search",
+      icon: Search,
+      tone: "coral" as const,
+      locked: false,
+      badge: "Free",
+    },
+    {
+      title: "Affiliate Program",
+      desc: `Earn ₹${isBasic ? 29 : 59} for every friend who subscribes.`,
+      href: "/affiliate",
+      icon: Users,
+      tone: "gold" as const,
+      locked: isFree,
+      badge: "Scholar",
     },
   ]
 
-  return (
-    <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8 animate-in fade-in duration-700">
+  const toneClasses: Record<string, string> = {
+    violet: "bg-primary/15 text-primary",
+    blue: "bg-accent/15 text-accent",
+    coral: "bg-orange-400/15 text-orange-400",
+    gold: "bg-yellow-400/15 text-yellow-400",
+  }
 
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl glass p-7 md:p-10">
-        <div className="relative z-10 space-y-4 max-w-xl">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 text-accent text-xs font-bold tracking-widest uppercase">
-              <Flame className="h-3 w-3" /> Welcome back, {firstName}
-            </div>
-            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${planBg} ${planColor}`}>
-              <PlanIcon className="h-3 w-3" /> {planLabel} Plan
-            </div>
+  const rawOptions = dq ? [
+    { text: dq.option1, idx: 0 },
+    { text: dq.option2, idx: 1 },
+    { text: dq.option3, idx: 2 },
+    { text: dq.option4, idx: 3 },
+  ].filter(o => !!o.text) : []
+
+  function selectOption(idx: number) {
+    if (selectedIdx !== null) return
+    setSelectedIdx(idx)
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
+
+      <div className="flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-500">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Good to see you, {firstName}</h1>
+          <p className="text-xs text-muted-foreground mt-1">Ready to pick up where the syllabus left off?</p>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+          {clock}
+        </div>
+      </div>
+
+      <div className="glass rounded-3xl p-5 md:p-6 border border-white/10 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-orange-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />
+            Case of the day
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-            Practice smarter,{" "}
-            <span className="text-gradient italic">score higher</span>
-          </h1>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            {totalQuestions > 0
-              ? `${totalQuestions.toLocaleString()} questions and ${totalMindmaps} mindmaps ready for your NEET PG prep.`
-              : "Your complete NEET PG prep platform."}
-          </p>
-          <div className="flex gap-3 pt-1">
-            <Button asChild size="sm" className="rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30 gap-2">
-              <Link href={user ? "/qbank" : "/signup"}><Database className="h-3.5 w-3.5" /> Open QBank</Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="rounded-xl glass border-white/10 hover:bg-white/5 gap-2">
-              <Link href={user ? "/mindmaps" : "/signup"}><Network className="h-3.5 w-3.5" /> Mindmaps</Link>
-            </Button>
+          <div className="text-[11px] font-mono text-muted-foreground">
+            Next case in <span className="text-foreground font-semibold">{countdown}</span>
           </div>
         </div>
-        <div className="absolute top-0 right-0 w-2/5 h-full bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: "Questions", value: subjectsLoading ? "—" : totalQuestions.toLocaleString(), icon: Database, color: "text-blue-400", bg: "bg-blue-400/10" },
-          { label: "Mindmaps", value: subjectsLoading ? "—" : String(totalMindmaps), icon: Network, color: "text-accent", bg: "bg-accent/10" },
-          { label: "Subjects", value: subjectsLoading ? "—" : String(subjects.length), icon: BookOpen, color: "text-purple-400", bg: "bg-purple-400/10" },
-          { label: "Plan", value: planLabel, icon: PlanIcon, color: planColor, bg: planBg },
-        ].map((s) => (
-          <div key={s.label} className="glass rounded-2xl p-4 flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${s.bg} ${s.color} shrink-0`}>
-              <s.icon className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{s.label}</p>
-              <p className="text-base font-bold">{s.value}</p>
-            </div>
+        {dqLoading ? (
+          <div className="h-32 flex items-center justify-center">
+            <Loader2 className="h-5 w-5 text-primary animate-spin" />
           </div>
-        ))}
+        ) : !dq ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">No question available right now — check back once QBank has content for today.</p>
+        ) : (
+          <>
+            <div className="inline-block text-[10px] uppercase tracking-wider font-bold text-accent bg-accent/10 px-2.5 py-1 rounded-md mb-3">
+              {dq.topic_title}
+            </div>
+            <p className="text-sm md:text-[15px] leading-relaxed font-medium mb-4">{dq.question_text}</p>
+            <div className="flex flex-col gap-2">
+              {rawOptions.map((opt) => {
+                const isSelected = selectedIdx !== null
+                const isCorrect = opt.idx === dq.correct_answer_index
+                const isChosenWrong = isSelected && selectedIdx === opt.idx && !isCorrect
+                let stateClasses = "border-white/10 hover:border-white/20 hover:bg-white/5"
+                if (isSelected && isCorrect) stateClasses = "border-green-400/60 bg-green-400/10"
+                else if (isChosenWrong) stateClasses = "border-red-400/60 bg-red-400/10"
+                else if (isSelected) stateClasses = "border-white/5 opacity-50"
+                return (
+                  <button
+                    key={opt.idx}
+                    onClick={() => selectOption(opt.idx)}
+                    disabled={isSelected}
+                    className={`flex items-center gap-3 text-left px-4 py-3 rounded-xl border text-[13px] transition-all ${stateClasses}`}
+                  >
+                    <span className={`h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 ${isSelected && isCorrect ? 'bg-green-400 text-green-950' : isChosenWrong ? 'bg-red-400 text-red-950' : 'bg-white/5 text-muted-foreground'}`}>
+                      {String.fromCharCode(65 + opt.idx)}
+                    </span>
+                    {opt.text}
+                  </button>
+                )
+              })}
+            </div>
+            {selectedIdx !== null && (
+              <div className="mt-4 p-4 rounded-xl bg-primary/8 border border-primary/20 text-[12.5px] leading-relaxed text-muted-foreground animate-in fade-in slide-in-from-top-1 duration-300">
+                {dq.explanation}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Features */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Features</h2>
+      <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500 delay-200">
+        <h2 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Study tools</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {features.map((f) => (
-            <Link key={f.label} href={!user ? '/signup' : f.locked ? '/pricing' : f.href}>
-              <div className={`group glass rounded-2xl p-4 border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all h-full relative ${f.locked ? 'opacity-60' : ''}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-xl ${f.bg} ${f.color} shrink-0`}>
-                    <f.icon className="h-4 w-4" />
+          {tools.map((t) => (
+            <Link key={t.title} href={!user ? '/signup' : t.locked ? '/pricing' : t.href}>
+              <div className={`group glass rounded-2xl p-4 border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all h-full ${t.locked ? 'opacity-70' : ''}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`p-2.5 rounded-xl ${toneClasses[t.tone]} transition-transform group-hover:scale-110`}>
+                    <t.icon className="h-4 w-4" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm">{f.label}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{f.desc}</p>
-                  </div>
-                  <div className="shrink-0">
-                    {f.locked ? (
-                      <div className="flex items-center gap-1 bg-white/5 rounded-full px-2 py-0.5 text-[9px] font-bold text-muted-foreground">
-                        <Lock className="h-2.5 w-2.5" /> {f.badge}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 bg-green-500/10 rounded-full px-2 py-0.5 text-[9px] font-bold text-green-400">
-                        <CheckCircle2 className="h-2.5 w-2.5" /> {f.badge}
-                      </div>
-                    )}
-                  </div>
+                  {t.locked ? (
+                    <span className="text-[9px] font-bold text-muted-foreground bg-white/5 rounded-full px-2 py-0.5">{t.badge}</span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 rounded-full px-2 py-0.5">
+                      <CheckCircle2 className="h-2.5 w-2.5" /> {t.badge}
+                    </span>
+                  )}
                 </div>
-                {f.locked && (
-                  <p className="text-[10px] text-primary font-medium mt-3 ml-11">Upgrade to {f.badge} to unlock →</p>
-                )}
+                <p className="font-semibold text-sm">{t.title}</p>
+                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{t.desc}</p>
               </div>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* Tabbed subjects */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setActiveTab('qbank')}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'qbank' ? 'bg-primary text-white' : 'glass text-muted-foreground hover:text-white'}`}
-          >
-            QBank
-          </button>
-          <button
-            onClick={() => setActiveTab('mindmaps')}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${activeTab === 'mindmaps' ? 'bg-accent text-white' : 'glass text-muted-foreground hover:text-white'}`}
-          >
-            Mindmaps
-          </button>
-          <Link href={!user ? '/signup' : (activeTab === 'qbank' ? '/qbank' : '/mindmaps')} className="ml-auto text-xs text-muted-foreground hover:text-white flex items-center gap-1 transition-colors">
-            All <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-
-        {subjectsLoading ? (
-          <div className="h-32 flex items-center justify-center">
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-            {(activeTab === 'qbank' ? topQBankSubjects : topMindmapSubjects).map((subject: any) => {
-              const Icon = ICON_MAP[subject.name] || (activeTab === 'qbank' ? Database : Network)
-              const count = activeTab === 'qbank'
-                ? `${subject.questionCount || 0} Qs`
-                : `${subject.mindmapCount || 0} maps`
-              const contentHref = activeTab === 'qbank' ? `/qbank/${subject.id}` : `/mindmaps/${subject.id}`
-              const href = !user ? '/signup' : contentHref
-              return (
-                <Link key={subject.id} href={href}>
-                  <div className="glass rounded-2xl p-3 flex flex-col items-center text-center gap-2 border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all group cursor-pointer">
-                    <div className={`p-2 rounded-xl ${activeTab === 'qbank' ? 'bg-blue-400/10 text-blue-400' : 'bg-accent/10 text-accent'}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-semibold leading-tight">{subject.name}</p>
-                      <p className="text-[9px] text-muted-foreground mt-0.5">{count}</p>
-                    </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Upgrade banner — free users only */}
       {isFree && (
-        <div className="relative overflow-hidden rounded-2xl glass border border-primary/15 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="relative overflow-hidden rounded-2xl glass border border-dashed border-primary/20 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-500 delay-300">
           <div>
-            <p className="font-bold text-sm">Unlock the full platform</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Custom Quiz, AI Tutor, and more with Scholar or Clinician plan.</p>
+            <p className="font-bold text-sm">Explorer plan</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Upgrade to Scholar or Clinician to unlock Custom Quiz and AI Tutor.</p>
           </div>
           <Link href="/pricing" className="shrink-0">
             <Button size="sm" className="bg-primary hover:bg-primary/90 rounded-xl gap-2 shadow-lg shadow-primary/20">
-              <Crown className="h-3.5 w-3.5" /> View Plans
+              <ArrowRight className="h-3.5 w-3.5" /> View plans
             </Button>
           </Link>
-          <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-primary/8 to-transparent pointer-events-none" />
         </div>
       )}
 

@@ -10,3 +10,4 @@ node_modules
 *.bak
 fix_admin*.js
 total_admin*.js
+tsconfig.tsbuildinfo
