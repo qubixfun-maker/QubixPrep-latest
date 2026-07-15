@@ -155,6 +155,7 @@ function SignUpPageContent() {
                 <SelectItem value="Internship">Internship</SelectItem>
               </SelectContent>
             </Select>
+            <Input placeholder="Referral Code (optional)" value={formData.referralCode} onChange={(e) => setFormData({ ...formData, referralCode: e.target.value.toUpperCase() })} />
             <Input type={showPassword ? "text" : "password"} placeholder="Password" required value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign Up"}
