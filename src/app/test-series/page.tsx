@@ -206,7 +206,6 @@ export default function TestSeriesPage() {
                         <Label htmlFor={`subject-${subject.id}`} className="font-bold cursor-pointer" onClick={(e) => e.stopPropagation()}>
                           {subject.name}
                         </Label>
-                        <p className="text-[10px] text-muted-foreground uppercase">{subject.questionCount || 0} Questions</p>
                       </div>
                     </div>
                   ))}

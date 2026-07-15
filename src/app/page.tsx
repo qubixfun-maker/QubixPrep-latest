@@ -122,7 +122,6 @@ export default function Dashboard() {
   }
 
   const firstName = user?.displayName?.split(' ')[0] || 'Doctor'
-  const totalQuestions = subjects.reduce((sum, s) => sum + (s.questionCount || 0), 0)
   const totalMindmaps = subjects.reduce((sum, s) => sum + (s.mindmapCount || 0), 0)
 
   const planLabel = isFree ? 'Explorer' : isBasic ? 'Scholar' : 'Clinician'
@@ -131,7 +130,7 @@ export default function Dashboard() {
   const tools = [
     {
       title: "QBank",
-      desc: subjectsLoading ? "Subject-wise case vignettes with instant explanations." : `${totalQuestions.toLocaleString()} MCQs across ${subjects.length} subjects.`,
+      desc: "Subject-wise case vignettes with instant explanations.",
       href: "/qbank",
       icon: Database,
       tone: "violet" as const,

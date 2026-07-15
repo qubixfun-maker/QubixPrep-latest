@@ -240,6 +240,31 @@ export default function AdminDashboard() {
     }
   }
 
+  async function handleSyncCounters(subjectOverride?: string) {
+    const targetSubject = subjectOverride || activeSubject
+    if (!db || !targetSubject) return
+    setLoadingContent(true)
+    try {
+      const subjectId = targetSubject.toLowerCase().replace(/\s+/g, '-')
+
+      const res = await fetch('/api/questions?subject_id=' + subjectId)
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      const count = (json.data || []).length
+
+      await updateDoc(doc(db, 'subjects', subjectId), { 
+        questionCount: count 
+      })
+
+      toast({ title: "Counters Synced", description: `Updated MCQ count to ${count} for ${targetSubject}.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Sync Failed", description: e.message })
+    } finally {
+      setLoadingContent(false)
+    }
+  }
+
+  
   async function handleDeleteMindmap(mm: any) {
     if (!db || !confirm(`Delete mindmap "${mm.title}"?`)) return
 
@@ -305,6 +330,7 @@ export default function AdminDashboard() {
         questions: prev.questions.filter(q => q.id !== qId)
       }))
       toast({ title: "Question Deleted" })
+      await handleSyncCounters(activeSubject || undefined)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
@@ -328,6 +354,7 @@ export default function AdminDashboard() {
         questions: prev.questions.filter(q => q.topic_title !== topicName)
       }))
       toast({ title: "Success", description: "Topic deleted" })
+      await handleSyncCounters(activeSubject || undefined)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
@@ -371,6 +398,7 @@ export default function AdminDashboard() {
       const result = await res.json()
       if (!res.ok || result.error) throw new Error(result.error || 'Delete failed')
       toast({ title: "Unit Cleared" })
+      await handleSyncCounters(activeSubject || undefined)
       fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Batch Error", description: e.message })
@@ -555,6 +583,7 @@ export default function AdminDashboard() {
         toast({ title: "Question Added" })
       }
       setIsEditingQuestion(false)
+      await handleSyncCounters(qbankForm.subjectId)
       fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
@@ -733,6 +762,7 @@ export default function AdminDashboard() {
       setShowCsvOrganizer(false)
       setCsvParsedTopics([])
       setAiFixLog([])
+      await handleSyncCounters(activeSubject || undefined)
       fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Import Failed", description: e.message })
@@ -1111,6 +1141,7 @@ export default function AdminDashboard() {
                     <p className="font-bold text-sm group-hover:text-primary transition-colors truncate">{s.name}</p>
                     <div className="flex gap-2 mt-1">
                       <span className="text-[9px] text-muted-foreground uppercase">{s.topicCount || 0} Content</span>
+                      <span className="text-[9px] text-muted-foreground uppercase">{s.questionCount || 0} MCQs</span>
                     </div>
                   </div>
                   <ChevronRight className={`h-4 w-4 transition-transform ${activeSubject === s.name ? 'rotate-90 text-primary' : 'opacity-10 group-hover:opacity-100'}`} />
@@ -1136,6 +1167,9 @@ export default function AdminDashboard() {
                   <h2 className="text-2xl font-bold flex items-center gap-3">
                     <BookOpen className="h-6 w-6 text-primary" /> {activeSubject}
                   </h2>
+                  <Button variant="ghost" size="sm" onClick={() => handleSyncCounters()} className="h-8 px-3 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter hover:bg-primary/10 hover:text-primary">
+                    <RefreshCw className="h-3 w-3" /> Sync Counters
+                  </Button>
                 </div>
               </div>
 

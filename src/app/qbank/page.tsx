@@ -92,9 +92,6 @@ export default function QBankPage() {
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
                         Master clinical concepts with board-standard MCQs for {subject.name}.
                       </p>
-                      <div className="px-3 py-1 w-fit rounded-lg bg-white/5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        {subject.questionCount || 0} Questions
-                      </div>
                     </CardContent>
                   </Card>
                 </Link>
