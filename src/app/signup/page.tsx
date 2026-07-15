@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth"
+import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, User as FirebaseUser } from "firebase/auth"
 import { doc, setDoc, getDoc } from "firebase/firestore"
 import { useAuth, useFirestore } from "@/firebase"
 import { Button } from "@/components/ui/button"
@@ -33,9 +33,20 @@ function SignUpPageContent() {
     referralCode: ""
   })
 
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<FirebaseUser | null>(null)
+  const [googleProfile, setGoogleProfile] = useState({
+    mobile: "",
+    college: "",
+    year: "",
+    referralCode: ""
+  })
+
   useEffect(() => {
     const ref = searchParams.get('ref')
-    if (ref) setFormData(prev => ({ ...prev, referralCode: ref }))
+    if (ref) {
+      setFormData(prev => ({ ...prev, referralCode: ref }))
+      setGoogleProfile(prev => ({ ...prev, referralCode: ref }))
+    }
   }, [searchParams])
 
   async function handleSignUp(e: React.FormEvent) {
@@ -97,38 +108,101 @@ function SignUpPageContent() {
       const result = await signInWithPopup(auth, provider)
       const userRef = doc(db, 'users', result.user.uid)
       const docSnap = await getDoc(userRef)
-      let userRole = "student"
+
       if (!docSnap.exists()) {
-        userRole = result.user.email?.toLowerCase().includes('admin') ? "admin" : "student"
-        await setDoc(userRef, {
-          uid: result.user.uid,
-          displayName: result.user.displayName || "Medical Student",
-          email: result.user.email || "",
-          role: userRole,
-          createdAt: new Date().toISOString(),
-          referredBy: formData.referralCode.trim().toUpperCase() || null
-        })
-        if (formData.referralCode.trim()) {
-          fetch('/api/affiliate/track-referral', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              code: formData.referralCode.trim().toUpperCase(),
-              referredUserId: result.user.uid,
-              referredUserEmail: result.user.email,
-              referredUserName: result.user.displayName
-            })
-          }).catch(() => {})
-        }
-      } else {
-        userRole = (docSnap.data() as any).role || "student"
+        setPendingGoogleUser(result.user)
+        setIsLoading(false)
+        return
       }
+
+      const userRole = (docSnap.data() as any).role || "student"
       router.push(userRole === 'admin' ? "/admin" : "/")
     } catch (error: any) {
       toast({ variant: "destructive", title: "Google Error", description: error.message })
+      setIsLoading(false)
+    }
+  }
+
+  async function handleCompleteGoogleProfile(e: React.FormEvent) {
+    e.preventDefault()
+    if (!db || !pendingGoogleUser) return
+    if (!googleProfile.year) {
+      toast({ variant: "destructive", title: "Selection Required", description: "Please select your year." })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const userRole = pendingGoogleUser.email?.toLowerCase().includes('admin') ? "admin" : "student"
+      const profileData = {
+        uid: pendingGoogleUser.uid,
+        displayName: pendingGoogleUser.displayName || "Medical Student",
+        email: pendingGoogleUser.email || "",
+        mobileNumber: googleProfile.mobile,
+        collegeName: googleProfile.college,
+        currentYear: googleProfile.year,
+        role: userRole,
+        createdAt: new Date().toISOString(),
+        photoURL: pendingGoogleUser.photoURL || "",
+        referredBy: googleProfile.referralCode.trim().toUpperCase() || null
+      }
+      const userRef = doc(db, 'users', pendingGoogleUser.uid)
+      await setDoc(userRef, profileData, { merge: true })
+
+      if (profileData.referredBy) {
+        fetch('/api/affiliate/track-referral', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: profileData.referredBy,
+            referredUserId: pendingGoogleUser.uid,
+            referredUserEmail: pendingGoogleUser.email,
+            referredUserName: pendingGoogleUser.displayName
+          })
+        }).catch(() => {})
+      }
+
+      toast({ title: "Account Created!", description: `Welcome as ${userRole}.` })
+      router.push(userRole === 'admin' ? "/admin" : "/")
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Registration Failed", description: error.message })
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (pendingGoogleUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+        <Card className="w-full max-w-md border-none shadow-2xl">
+          <CardHeader className="text-center">
+            <BrainCircuit className="mx-auto h-12 w-12 text-primary" />
+            <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
+            <CardDescription>Just a few more details, {pendingGoogleUser.displayName?.split(' ')[0] || 'there'}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleCompleteGoogleProfile} className="space-y-4">
+              <Input type="tel" placeholder="Mobile Number" required value={googleProfile.mobile} onChange={(e) => setGoogleProfile({ ...googleProfile, mobile: e.target.value })} />
+              <Input placeholder="College Name" required value={googleProfile.college} onChange={(e) => setGoogleProfile({ ...googleProfile, college: e.target.value })} />
+              <Select onValueChange={(v) => setGoogleProfile({ ...googleProfile, year: v })}>
+                <SelectTrigger><SelectValue placeholder="Study Year" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1st Year">1st Year</SelectItem>
+                  <SelectItem value="2nd Year">2nd Year</SelectItem>
+                  <SelectItem value="3rd Year (Part 1)">3rd Year (Part 1)</SelectItem>
+                  <SelectItem value="4th Year (Part 2)">4th Year (Part 2)</SelectItem>
+                  <SelectItem value="Internship">Internship</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input placeholder="Referral Code (optional)" value={googleProfile.referralCode} onChange={(e) => setGoogleProfile({ ...googleProfile, referralCode: e.target.value.toUpperCase() })} />
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Finish Sign Up"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -161,7 +235,9 @@ function SignUpPageContent() {
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign Up"}
             </Button>
           </form>
-          <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>Sign up with Google</Button>
+          <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign up with Google"}
+          </Button>
         </CardContent>
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">Already have an account? <Link href="/login" className="text-primary hover:underline">Log In</Link></p>
