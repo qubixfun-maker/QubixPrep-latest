@@ -240,24 +240,23 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleSyncCounters() {
-    if (!db || !activeSubject) return
+  async function handleSyncCounters(subjectOverride?: string) {
+    const targetSubject = subjectOverride || activeSubject
+    if (!db || !targetSubject) return
     setLoadingContent(true)
     try {
-      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
-      
-      const { count, error } = await supabase
-        .from('questions')
-        .select('*', { count: 'exact', head: true })
-        .or(`subject_id.eq.${subjectId},subject_id.eq.${subjectId.toLowerCase()}`)
+      const subjectId = targetSubject.toLowerCase().replace(/\s+/g, '-')
 
-      if (error) throw error
+      const res = await fetch('/api/questions?subject_id=' + subjectId)
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      const count = (json.data || []).length
 
       await updateDoc(doc(db, 'subjects', subjectId), { 
-        questionCount: count || 0 
+        questionCount: count 
       })
 
-      toast({ title: "Counters Synced", description: `Updated MCQ count to ${count || 0} for ${activeSubject}.` })
+      toast({ title: "Counters Synced", description: `Updated MCQ count to ${count} for ${targetSubject}.` })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Failed", description: e.message })
     } finally {
@@ -331,6 +330,7 @@ export default function AdminDashboard() {
         questions: prev.questions.filter(q => q.id !== qId)
       }))
       toast({ title: "Question Deleted" })
+      await handleSyncCounters(activeSubject || undefined)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
@@ -354,6 +354,7 @@ export default function AdminDashboard() {
         questions: prev.questions.filter(q => q.topic_title !== topicName)
       }))
       toast({ title: "Success", description: "Topic deleted" })
+      await handleSyncCounters(activeSubject || undefined)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
@@ -397,6 +398,7 @@ export default function AdminDashboard() {
       const result = await res.json()
       if (!res.ok || result.error) throw new Error(result.error || 'Delete failed')
       toast({ title: "Unit Cleared" })
+      await handleSyncCounters(activeSubject || undefined)
       fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Batch Error", description: e.message })
@@ -581,6 +583,7 @@ export default function AdminDashboard() {
         toast({ title: "Question Added" })
       }
       setIsEditingQuestion(false)
+      await handleSyncCounters(qbankForm.subjectId)
       fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
@@ -759,6 +762,7 @@ export default function AdminDashboard() {
       setShowCsvOrganizer(false)
       setCsvParsedTopics([])
       setAiFixLog([])
+      await handleSyncCounters(activeSubject || undefined)
       fetchSubjectDetails()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Import Failed", description: e.message })
@@ -1163,7 +1167,7 @@ export default function AdminDashboard() {
                   <h2 className="text-2xl font-bold flex items-center gap-3">
                     <BookOpen className="h-6 w-6 text-primary" /> {activeSubject}
                   </h2>
-                  <Button variant="ghost" size="sm" onClick={handleSyncCounters} className="h-8 px-3 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter hover:bg-primary/10 hover:text-primary">
+                  <Button variant="ghost" size="sm" onClick={() => handleSyncCounters()} className="h-8 px-3 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter hover:bg-primary/10 hover:text-primary">
                     <RefreshCw className="h-3 w-3" /> Sync Counters
                   </Button>
                 </div>

@@ -128,31 +128,6 @@ export default function AffiliatePage() {
     return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
   }
 
-  if (isFree) {
-    return (
-      <div className="max-w-lg mx-auto p-6 md:p-12 flex items-center justify-center min-h-[70vh]">
-        <div className="glass rounded-3xl p-8 text-center space-y-4 border border-primary/20 w-full">
-          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-            <Gift className="h-7 w-7 text-primary" />
-          </div>
-          <h2 className="text-xl font-bold">Turn Your Network Into Income</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">Every MBBS student you know is a potential subscriber. Upgrade to Scholar or Clinician to unlock your referral link and start getting paid for every friend who joins.</p>
-          <div className="glass rounded-2xl p-4 border border-white/10 text-left space-y-2">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">How it works</p>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <p>• Share your unique referral link with classmates</p>
-              <p>• They sign up and subscribe to any plan</p>
-              <p>• Once they've paid for 2 months, you get paid too</p>
-              <p>• Earn ₹29 or ₹59 per referral (whatever plan they choose)</p>
-              <p>• Withdraw straight to your UPI once you hit ₹500</p>
-            </div>
-          </div>
-          <Link href="/pricing"><Button className="w-full rounded-xl bg-primary gap-2"><Crown className="h-4 w-4" /> Upgrade & Start Earning</Button></Link>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
       <div>
