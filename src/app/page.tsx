@@ -184,12 +184,12 @@ export default function Dashboard() {
     },
     {
       title: "Affiliate Program",
-      desc: `Earn ₹${isBasic ? 29 : 59} for every friend who subscribes.`,
+      desc: "Refer friends and earn ₹29-59 for every subscription.",
       href: "/affiliate",
       icon: Users,
       tone: "gold" as const,
-      locked: isFree,
-      badge: "Scholar",
+      locked: false,
+      badge: "Free",
     },
   ]
 
