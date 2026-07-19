@@ -82,6 +82,7 @@ Rules:
 - Exactly 5 stages in the order: history, examination, investigation, diagnosis, management
 - Each stage: 3-4 options, ids unique within the case (stage-1..stage-5, opt-1..opt-N)
 - Points must be integers matching the outcome ranges above
+- CRITICAL - NO SPOILERS: the "title" and "stem" must describe only the patient's age, sex, presenting complaint, and basic context. They must NEVER name, hint at, or imply the diagnosis or topic. A player reading only the title and stem should have no way to guess the diagnosis in advance - that is the whole point of the case.
 - Output must be complete, valid JSON - do not truncate`;
 }
 
