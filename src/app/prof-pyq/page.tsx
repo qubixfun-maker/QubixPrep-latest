@@ -1,13 +1,16 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { useCollection, useFirestore } from "@/firebase"
+import { useCollection, useFirestore, useUser, useDoc } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GraduationCap, Brain, HeartPulse, TestTube, Stethoscope, Microscope, BookOpen, ChevronRight, Search, Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
+import { doc } from "firebase/firestore"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 const ICON_MAP: Record<string, any> = {
   "Anatomy": Brain,
@@ -28,6 +31,16 @@ const SUBJECT_ORDER = [
 
 export default function ProfPyqHubPage() {
   const db = useFirestore()
+  const { user } = useUser()
+  const router = useRouter()
+  const profileRef = useMemo(() => (!db || !user) ? null : doc(db, "users", user.uid), [db, user])
+  const { data: profile, loading: profileLoading } = useDoc(profileRef)
+  const isAdmin = profile && (profile as any).role === "admin"
+
+  useEffect(() => {
+    if (!profileLoading && !isAdmin) router.replace("/")
+  }, [profileLoading, isAdmin, router])
+
   const [search, setSearch] = useState("")
 
   const ref = useMemo(() => (!db ? null : collection(db, 'profpyq')), [db])
@@ -55,7 +68,7 @@ export default function ProfPyqHubPage() {
   }, [subjectCounts, search])
 
   const { checkingAuth } = useRequireAuth()
-  if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  if (checkingAuth || profileLoading || !isAdmin) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-bottom-4 duration-700">

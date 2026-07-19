@@ -8,6 +8,10 @@ import Link from "next/link"
 import { Input } from "@/components/ui/input"
 import { usePlan } from "@/hooks/use-plan"
 import { UpgradeGate } from "@/components/upgrade-gate"
+import { useUser, useDoc } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 const TYPE_LABEL: Record<string, string> = {
   short_answer: "Short Answer",
@@ -21,6 +25,16 @@ export default function ProfPyqSubjectPage({ params }: { params: Promise<{ subje
 
   const db = useFirestore()
   const { canAccessContent, loading: planLoading } = usePlan()
+  const { user } = useUser()
+  const router = useRouter()
+  const profileRef = useMemo(() => (!db || !user) ? null : doc(db, "users", user.uid), [db, user])
+  const { data: profile, loading: profileLoading } = useDoc(profileRef)
+  const isAdmin = profile && (profile as any).role === "admin"
+
+  useEffect(() => {
+    if (!profileLoading && !isAdmin) router.replace("/")
+  }, [profileLoading, isAdmin, router])
+
   const [search, setSearch] = useState("")
   const [openId, setOpenId] = useState<string | null>(null)
 
@@ -41,7 +55,7 @@ export default function ProfPyqSubjectPage({ params }: { params: Promise<{ subje
     return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]))
   }, [data, search])
 
-  if (planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+  if (planLoading || profileLoading || !isAdmin) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">

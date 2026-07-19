@@ -56,7 +56,6 @@ export function AppSidebar() {
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Clinical Cases", url: "/cases", icon: BrainCircuit },
-    { title: "Prof PYQ", url: "/prof-pyq", icon: GraduationCap },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit },
     // { title: "Video Lectures", url: "/videos", icon: Video },
     { title: "AI Tools", url: "/ai-tools", icon: BrainCircuit },
@@ -88,6 +87,16 @@ export function AppSidebar() {
                     <Link href="/admin" onClick={closeOnMobile}>
                       <CloudUpload className="h-5 w-5" />
                       <span className="font-bold">Content Manager</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/prof-pyq")} tooltip="Prof PYQ (hidden from users)" className="mx-2 px-4 h-12 rounded-xl transition-all border border-dashed border-yellow-500/20 hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary">
+                    <Link href="/prof-pyq" onClick={closeOnMobile}>
+                      <GraduationCap className="h-5 w-5" />
+                      <span className="font-medium">Prof PYQ (admin only)</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
