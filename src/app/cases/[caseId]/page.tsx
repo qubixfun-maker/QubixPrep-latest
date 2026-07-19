@@ -18,11 +18,11 @@ const OUTCOME_STYLE: Record<string, { icon: any; color: string }> = {
   wrong: { icon: XCircle, color: "text-muted-foreground" },
 }
 
-export default function CasePlayerPage({ params }: { params: Promise<{ id: string; caseId: string }> }) {
-  const { id: subjectId, caseId } = use(params)
+export default function CasePlayerPage({ params }: { params: Promise<{ caseId: string }> }) {
+  const { caseId } = use(params)
   const db = useFirestore()
 
-  const caseRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId, 'cases', caseId)), [db, subjectId, caseId])
+  const caseRef = useMemo(() => (!db ? null : doc(db, 'cases', caseId)), [db, caseId])
   const { data: caseData, loading } = useDoc(caseRef)
 
   const [stageIndex, setStageIndex] = useState(0)
@@ -70,7 +70,7 @@ export default function CasePlayerPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-12 space-y-6 animate-in slide-in-from-right-4 duration-700">
-      <Link href={`/cases/${subjectId}`} className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-1 w-fit hover:underline">
+      <Link href="/cases" className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-1 w-fit hover:underline">
         <ChevronLeft className="h-3 w-3" /> Back to Cases
       </Link>
 
@@ -186,7 +186,7 @@ export default function CasePlayerPage({ params }: { params: Promise<{ id: strin
             <Button variant="outline" className="flex-1 rounded-xl gap-2" onClick={restart}>
               <RotateCcw className="h-4 w-4" /> Retry Case
             </Button>
-            <Link href={`/cases/${subjectId}`} className="flex-1">
+            <Link href="/cases" className="flex-1">
               <Button className="w-full rounded-xl">More Cases</Button>
             </Link>
           </div>

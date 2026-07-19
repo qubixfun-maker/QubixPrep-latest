@@ -55,6 +55,7 @@ export function AppSidebar() {
     { title: "Mindmaps", url: "/mindmaps", icon: Network },
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
+    { title: "Clinical Cases", url: "/cases", icon: BrainCircuit },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit },
     // { title: "Video Lectures", url: "/videos", icon: Video },
     { title: "AI Tools", url: "/ai-tools", icon: BrainCircuit },

@@ -68,9 +68,8 @@ export default function AdminDashboard() {
   const [subjectContent, setSubjectContent] = useState<{
     topics: any[],
     mindmaps: any[],
-    questions: any[],
-    cases: any[]
-  }>({ topics: [], mindmaps: [], questions: [], cases: [] })
+    questions: any[]
+  }>({ topics: [], mindmaps: [], questions: [] })
   
   const [isAddingTopic, setIsAddingTopic] = useState(false)
   const [isAddingVideo, setIsAddingVideo] = useState(false)
@@ -145,12 +144,29 @@ export default function AdminDashboard() {
     file: null as File | null
   })
 
+  const [isManagingCases, setIsManagingCases] = useState(false)
+  const [allCases, setAllCases] = useState<any[]>([])
+  const [loadingCases, setLoadingCases] = useState(false)
+  const [caseGenSpecialty, setCaseGenSpecialty] = useState("")
   const [caseGenTopic, setCaseGenTopic] = useState("")
   const [caseGenDifficulty, setCaseGenDifficulty] = useState<"easy" | "medium" | "hard">("medium")
   const [caseGenTier, setCaseGenTier] = useState<"free" | "paid">("free")
   const [generatingCase, setGeneratingCase] = useState(false)
   const [draftCase, setDraftCase] = useState<ClinicalCase | null>(null)
   const [savingCase, setSavingCase] = useState(false)
+
+  async function fetchAllCases() {
+    if (!db) return
+    setLoadingCases(true)
+    try {
+      const snap = await getDocs(collection(db, 'cases'))
+      setAllCases(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Failed to load cases", description: e.message })
+    } finally {
+      setLoadingCases(false)
+    }
+  }
 
   const [qbankForm, setQbankForm] = useState({
     id: null as number | null,
@@ -203,9 +219,6 @@ export default function AdminDashboard() {
       const mindmapsSnap = await getDocs(collection(db, 'subjects', subjectId, 'mindmaps'))
       const mindmaps = mindmapsSnap.docs.map(d => ({ ...d.data(), id: d.id }))
 
-      const casesSnap = await getDocs(collection(db, 'subjects', subjectId, 'cases'))
-      const cases = casesSnap.docs.map(d => ({ ...d.data(), id: d.id }))
-      
       // Old questions live in Supabase, new ones go to Neon - merge both for the admin view
       let questions: any[] = []
       try {
@@ -224,7 +237,7 @@ export default function AdminDashboard() {
         questions = sbData || []
       }
 
-      setSubjectContent({ topics, mindmaps, questions: questions || [], cases })
+      setSubjectContent({ topics, mindmaps, questions: questions || [] })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Sync Error", description: e.message })
     } finally {
@@ -302,14 +315,14 @@ export default function AdminDashboard() {
   }
 
   async function handleGenerateCase() {
-    if (!activeSubject || !caseGenTopic.trim()) {
-      toast({ variant: "destructive", title: "Enter a topic first" })
+    if (!caseGenSpecialty.trim() || !caseGenTopic.trim()) {
+      toast({ variant: "destructive", title: "Enter a specialty and topic first" })
       return
     }
     setGeneratingCase(true)
     setDraftCase(null)
     try {
-      const result = await generateClinicalCase({ subject: activeSubject, topic: caseGenTopic.trim(), difficulty: caseGenDifficulty })
+      const result = await generateClinicalCase({ subject: caseGenSpecialty.trim(), topic: caseGenTopic.trim(), difficulty: caseGenDifficulty })
       if (result.error || !result.case) throw new Error(result.error || "No case returned")
       setDraftCase(result.case)
     } catch (e: any) {
@@ -320,15 +333,14 @@ export default function AdminDashboard() {
   }
 
   async function handleSaveCase() {
-    if (!db || !activeSubject || !draftCase) return
+    if (!db || !draftCase) return
     setSavingCase(true)
     try {
-      const subjectId = activeSubject.toLowerCase().replace(/\s+/g, '-')
       const caseId = `case-${Date.now()}`
-      await setDoc(doc(db, 'subjects', subjectId, 'cases', caseId), {
+      await setDoc(doc(db, 'cases', caseId), {
         ...draftCase,
         id: caseId,
-        subjectId,
+        specialty: caseGenSpecialty.trim(),
         tier: caseGenTier,
         order: Date.now(),
         createdAt: new Date().toISOString()
@@ -336,7 +348,7 @@ export default function AdminDashboard() {
       toast({ title: "Case Saved" })
       setDraftCase(null)
       setCaseGenTopic("")
-      fetchSubjectDetails()
+      fetchAllCases()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Save Failed", description: e.message })
     } finally {
@@ -347,9 +359,9 @@ export default function AdminDashboard() {
   async function handleDeleteCase(c: any) {
     if (!db || !confirm(`Delete case "${c.title}"?`)) return
     try {
-      await deleteDoc(doc(db, 'subjects', c.subjectId, 'cases', c.id))
+      await deleteDoc(doc(db, 'cases', c.id))
       toast({ title: "Case Deleted" })
-      fetchSubjectDetails()
+      fetchAllCases()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Delete Failed", description: e.message })
     }
@@ -1125,6 +1137,9 @@ export default function AdminDashboard() {
           <Button onClick={() => setIsUploadingPYQ(true)} variant="outline" className="rounded-xl gap-2 glass">
             <Trophy className="h-4 w-4" /> Upload PYQ
           </Button>
+          <Button onClick={() => { setIsManagingCases(true); fetchAllCases(); }} variant="outline" className="rounded-xl gap-2 glass">
+            <HelpCircle className="h-4 w-4" /> Manage Cases
+          </Button>
           <Button onClick={() => setIsAddingProduct(true)} variant="outline" className="rounded-xl gap-2 glass">
             <ShoppingBag className="h-4 w-4" /> Add Product
           </Button>
@@ -1211,7 +1226,6 @@ export default function AdminDashboard() {
                   <TabsTrigger value="videos" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Video className="h-4 w-4" /> Video Curriculum</TabsTrigger>
                   <TabsTrigger value="mindmaps" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Network className="h-4 w-4" /> Mindmaps</TabsTrigger>
                   <TabsTrigger value="qbank" className="rounded-lg gap-2 data-[state=active]:bg-primary"><Database className="h-4 w-4" /> QBank</TabsTrigger>
-                  <TabsTrigger value="cases" className="rounded-lg gap-2 data-[state=active]:bg-primary"><HelpCircle className="h-4 w-4" /> Clinical Cases</TabsTrigger>
                 </TabsList>
 
                 {loadingContent ? (
@@ -1500,98 +1514,6 @@ export default function AdminDashboard() {
                       </div>
                     </TabsContent>
 
-                    <TabsContent value="cases" className="space-y-6">
-                      <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-4">
-                        <h4 className="font-bold flex items-center gap-2 text-primary text-sm"><HelpCircle className="h-4 w-4" /> Generate a Clinical Case</h4>
-                        <div className="grid md:grid-cols-3 gap-3">
-                          <Input placeholder="Topic, e.g. Acute MI" className="glass border-white/10 md:col-span-2" value={caseGenTopic} onChange={(e) => setCaseGenTopic(e.target.value)} />
-                          <Select value={caseGenDifficulty} onValueChange={(v: any) => setCaseGenDifficulty(v)}>
-                            <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
-                            <SelectContent className="glass border-white/10">
-                              <SelectItem value="easy">Easy</SelectItem>
-                              <SelectItem value="medium">Medium</SelectItem>
-                              <SelectItem value="hard">Hard</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Select value={caseGenTier} onValueChange={(v: any) => setCaseGenTier(v)}>
-                            <SelectTrigger className="glass border-white/10 w-32"><SelectValue /></SelectTrigger>
-                            <SelectContent className="glass border-white/10">
-                              <SelectItem value="free">Free</SelectItem>
-                              <SelectItem value="paid">Paid</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button onClick={handleGenerateCase} disabled={generatingCase} className="rounded-lg gap-2">
-                            {generatingCase ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Generate Case
-                          </Button>
-                        </div>
-                      </div>
-
-                      {draftCase && (
-                        <Card className="glass border-primary/30 border">
-                          <CardContent className="p-6 space-y-4">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-bold text-sm uppercase tracking-widest text-primary">Draft Preview</h4>
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setDraftCase(null)}>Discard</Button>
-                                <Button size="sm" className="rounded-lg" onClick={handleSaveCase} disabled={savingCase}>
-                                  {savingCase ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Save Case
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Title</Label>
-                              <Input className="glass border-white/10" value={draftCase.title} onChange={(e) => setDraftCase({ ...draftCase, title: e.target.value })} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Opening Scenario</Label>
-                              <Textarea className="glass border-white/10" rows={3} value={draftCase.stem} onChange={(e) => setDraftCase({ ...draftCase, stem: e.target.value })} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Stages ({draftCase.stages.length})</Label>
-                              <div className="space-y-2">
-                                {draftCase.stages.map((s) => (
-                                  <div key={s.id} className="p-3 rounded-lg bg-white/5 text-xs">
-                                    <p className="font-bold uppercase text-primary mb-1">{s.type}</p>
-                                    <p className="text-muted-foreground mb-2">{s.prompt}</p>
-                                    <ul className="space-y-1">
-                                      {s.options.map((o) => (
-                                        <li key={o.id} className={o.outcome === 'optimal' ? 'text-green-400' : o.outcome === 'unsafe' ? 'text-red-400' : 'text-muted-foreground'}>
-                                          {o.label} <span className="opacity-60">({o.points} pts)</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Final Diagnosis</Label>
-                              <Input className="glass border-white/10" value={draftCase.finalDiagnosis} onChange={(e) => setDraftCase({ ...draftCase, finalDiagnosis: e.target.value })} />
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                      <div className="space-y-3">
-                        <h4 className="font-bold text-sm text-muted-foreground uppercase tracking-widest">Existing Cases</h4>
-                        <div className="grid md:grid-cols-2 gap-4">
-                          {subjectContent.cases.map((c: any) => (
-                            <Card key={c.id} className="glass border-none">
-                              <CardContent className="p-4 flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="font-bold text-sm truncate">{c.title}</p>
-                                  <p className="text-[10px] text-muted-foreground uppercase">{c.difficulty} - {c.tier}</p>
-                                </div>
-                                <Button variant="destructive" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => handleDeleteCase(c)}><Trash2 className="h-4 w-4" /></Button>
-                              </CardContent>
-                            </Card>
-                          ))}
-                          {subjectContent.cases.length === 0 && <div className="col-span-full text-center py-12 glass rounded-2xl text-muted-foreground text-sm">No cases yet. Generate one above.</div>}
-                        </div>
-                      </div>
-                    </TabsContent>
                   </>
                 )}
               </Tabs>
@@ -1758,6 +1680,112 @@ export default function AdminDashboard() {
             </TabsContent>
           </Tabs>
           <DialogFooter><Button variant="ghost" onClick={() => setIsUploadingPYQ(false)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isManagingCases} onOpenChange={setIsManagingCases}>
+        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Clinical Cases</DialogTitle>
+          </DialogHeader>
+
+          <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-4">
+            <h4 className="font-bold flex items-center gap-2 text-primary text-sm"><HelpCircle className="h-4 w-4" /> Generate a Clinical Case</h4>
+            <div className="grid md:grid-cols-2 gap-3">
+              <Input placeholder="Specialty, e.g. Cardiology" className="glass border-white/10" value={caseGenSpecialty} onChange={(e) => setCaseGenSpecialty(e.target.value)} />
+              <Input placeholder="Topic, e.g. Acute MI" className="glass border-white/10" value={caseGenTopic} onChange={(e) => setCaseGenTopic(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-3">
+              <Select value={caseGenDifficulty} onValueChange={(v: any) => setCaseGenDifficulty(v)}>
+                <SelectTrigger className="glass border-white/10 w-32"><SelectValue /></SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  <SelectItem value="easy">Easy</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="hard">Hard</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={caseGenTier} onValueChange={(v: any) => setCaseGenTier(v)}>
+                <SelectTrigger className="glass border-white/10 w-32"><SelectValue /></SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  <SelectItem value="free">Free</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={handleGenerateCase} disabled={generatingCase} className="rounded-lg gap-2">
+                {generatingCase ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Generate
+              </Button>
+            </div>
+          </div>
+
+          {draftCase && (
+            <Card className="glass border-primary/30 border">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-sm uppercase tracking-widest text-primary">Draft Preview</h4>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setDraftCase(null)}>Discard</Button>
+                    <Button size="sm" className="rounded-lg" onClick={handleSaveCase} disabled={savingCase}>
+                      {savingCase ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Save Case
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Title</Label>
+                  <Input className="glass border-white/10" value={draftCase.title} onChange={(e) => setDraftCase({ ...draftCase, title: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Opening Scenario</Label>
+                  <Textarea className="glass border-white/10" rows={3} value={draftCase.stem} onChange={(e) => setDraftCase({ ...draftCase, stem: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Stages ({draftCase.stages.length})</Label>
+                  <div className="space-y-2">
+                    {draftCase.stages.map((s) => (
+                      <div key={s.id} className="p-3 rounded-lg bg-white/5 text-xs">
+                        <p className="font-bold uppercase text-primary mb-1">{s.type}</p>
+                        <p className="text-muted-foreground mb-2">{s.prompt}</p>
+                        <ul className="space-y-1">
+                          {s.options.map((o) => (
+                            <li key={o.id} className={o.outcome === 'optimal' ? 'text-green-400' : o.outcome === 'unsafe' ? 'text-red-400' : 'text-muted-foreground'}>
+                              {o.label} <span className="opacity-60">({o.points} pts)</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Final Diagnosis</Label>
+                  <Input className="glass border-white/10" value={draftCase.finalDiagnosis} onChange={(e) => setDraftCase({ ...draftCase, finalDiagnosis: e.target.value })} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="space-y-3">
+            <h4 className="font-bold text-sm text-muted-foreground uppercase tracking-widest">Existing Cases</h4>
+            {loadingCases ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-4">
+                {allCases.map((c: any) => (
+                  <Card key={c.id} className="glass border-none">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{c.title}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{c.specialty} - {c.difficulty} - {c.tier}</p>
+                      </div>
+                      <Button variant="destructive" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => handleDeleteCase(c)}><Trash2 className="h-4 w-4" /></Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                {allCases.length === 0 && <div className="col-span-full text-center py-12 glass rounded-2xl text-muted-foreground text-sm">No cases yet. Generate one above.</div>}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter><Button variant="ghost" onClick={() => setIsManagingCases(false)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
