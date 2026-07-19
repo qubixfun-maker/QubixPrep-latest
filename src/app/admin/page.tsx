@@ -7,6 +7,7 @@ import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDo
 import { supabase } from "@/lib/supabase"
 import { groupByUnit } from "@/lib/unit-sort"
 import { generateClinicalCase, ClinicalCase } from "@/ai/flows/ai-case-generator"
+import { generateProfPyqAnswer } from "@/ai/flows/ai-profpyq-answer-generator"
 import Papa from "papaparse"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -166,6 +167,151 @@ export default function AdminDashboard() {
     } finally {
       setLoadingCases(false)
     }
+  }
+
+  const [isManagingProfPyq, setIsManagingProfPyq] = useState(false)
+  const [allProfPyq, setAllProfPyq] = useState<any[]>([])
+  const [loadingProfPyq, setLoadingProfPyq] = useState(false)
+  const [generatingProfAnswer, setGeneratingProfAnswer] = useState(false)
+  const [savingProfPyq, setSavingProfPyq] = useState(false)
+  const [uploadingProfPyqCsv, setUploadingProfPyqCsv] = useState(false)
+  const [profPyqForm, setProfPyqForm] = useState({
+    id: null as string | null,
+    subject: "",
+    chapter: "",
+    type: "short_answer" as "short_answer" | "short_essay" | "long_answer",
+    question: "",
+    answer: "",
+    tier: "free" as "free" | "paid"
+  })
+
+  async function fetchAllProfPyq() {
+    if (!db) return
+    setLoadingProfPyq(true)
+    try {
+      const snap = await getDocs(collection(db, 'profpyq'))
+      setAllProfPyq(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Failed to load Prof PYQ", description: e.message })
+    } finally {
+      setLoadingProfPyq(false)
+    }
+  }
+
+  async function handleGenerateProfAnswer() {
+    if (!profPyqForm.subject.trim() || !profPyqForm.chapter.trim() || !profPyqForm.question.trim()) {
+      toast({ variant: "destructive", title: "Enter subject, chapter and question first" })
+      return
+    }
+    setGeneratingProfAnswer(true)
+    try {
+      const result = await generateProfPyqAnswer({
+        subject: profPyqForm.subject.trim(),
+        chapter: profPyqForm.chapter.trim(),
+        type: profPyqForm.type,
+        question: profPyqForm.question.trim()
+      })
+      if (result.error || !result.answer) throw new Error(result.error || "No answer returned")
+      setProfPyqForm((f) => ({ ...f, answer: result.answer! }))
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI Assist Failed", description: e.message })
+    } finally {
+      setGeneratingProfAnswer(false)
+    }
+  }
+
+  async function handleSaveProfPyq() {
+    if (!db || !profPyqForm.subject.trim() || !profPyqForm.chapter.trim() || !profPyqForm.question.trim() || !profPyqForm.answer.trim()) {
+      toast({ variant: "destructive", title: "Fill in subject, chapter, question and answer" })
+      return
+    }
+    setSavingProfPyq(true)
+    try {
+      const id = profPyqForm.id || `profpyq-${Date.now()}`
+      await setDoc(doc(db, 'profpyq', id), {
+        id,
+        subject: profPyqForm.subject.trim(),
+        chapter: profPyqForm.chapter.trim(),
+        type: profPyqForm.type,
+        question: profPyqForm.question.trim(),
+        answer: profPyqForm.answer.trim(),
+        tier: profPyqForm.tier,
+        order: profPyqForm.id ? undefined : Date.now(),
+        createdAt: new Date().toISOString()
+      }, { merge: true })
+      toast({ title: profPyqForm.id ? "Question Updated" : "Question Added" })
+      setProfPyqForm({ id: null, subject: profPyqForm.subject, chapter: profPyqForm.chapter, type: profPyqForm.type, question: "", answer: "", tier: "free" })
+      fetchAllProfPyq()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Save Failed", description: e.message })
+    } finally {
+      setSavingProfPyq(false)
+    }
+  }
+
+  function handleEditProfPyq(item: any) {
+    setProfPyqForm({
+      id: item.id,
+      subject: item.subject || "",
+      chapter: item.chapter || "",
+      type: item.type || "short_answer",
+      question: item.question || "",
+      answer: item.answer || "",
+      tier: item.tier || "free"
+    })
+  }
+
+  async function handleDeleteProfPyq(item: any) {
+    if (!db || !confirm("Delete this question?")) return
+    try {
+      await deleteDoc(doc(db, 'profpyq', item.id))
+      toast({ title: "Question Deleted" })
+      fetchAllProfPyq()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+    }
+  }
+
+  async function handleBulkImportProfPyq(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !db) return
+    setUploadingProfPyqCsv(true)
+    Papa.parse(file, {
+      header: false,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const rows = (results.data as string[][]).slice(1)
+          const batch = writeBatch(db)
+          let count = 0
+          rows.forEach((parts) => {
+            if (!parts || parts.length < 5 || !parts[3] || !parts[4]) return
+            const id = `profpyq-${Date.now()}-${count}`
+            const ref = doc(db, 'profpyq', id)
+            batch.set(ref, {
+              id,
+              subject: parts[0]?.trim() || "",
+              chapter: parts[1]?.trim() || "",
+              type: (parts[2]?.trim() as any) || "short_answer",
+              question: parts[3]?.trim(),
+              answer: parts[4]?.trim(),
+              tier: (parts[5]?.trim() as any) || "free",
+              order: Date.now() + count,
+              createdAt: new Date().toISOString()
+            })
+            count++
+          })
+          await batch.commit()
+          toast({ title: "Import Complete", description: count + " questions imported." })
+          fetchAllProfPyq()
+        } catch (err: any) {
+          toast({ variant: "destructive", title: "Import Failed", description: err.message })
+        } finally {
+          setUploadingProfPyqCsv(false)
+          e.target.value = ""
+        }
+      }
+    })
   }
 
   const [qbankForm, setQbankForm] = useState({
@@ -1140,6 +1286,9 @@ export default function AdminDashboard() {
           <Button onClick={() => { setIsManagingCases(true); fetchAllCases(); }} variant="outline" className="rounded-xl gap-2 glass">
             <HelpCircle className="h-4 w-4" /> Manage Cases
           </Button>
+          <Button onClick={() => { setIsManagingProfPyq(true); fetchAllProfPyq(); }} variant="outline" className="rounded-xl gap-2 glass">
+            <BookOpen className="h-4 w-4" /> Manage Prof PYQ
+          </Button>
           <Button onClick={() => setIsAddingProduct(true)} variant="outline" className="rounded-xl gap-2 glass">
             <ShoppingBag className="h-4 w-4" /> Add Product
           </Button>
@@ -1786,6 +1935,103 @@ export default function AdminDashboard() {
           </div>
 
           <DialogFooter><Button variant="ghost" onClick={() => setIsManagingCases(false)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isManagingProfPyq} onOpenChange={setIsManagingProfPyq}>
+        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Prof PYQ Answers</DialogTitle>
+            <DialogDescription>University Prof exam questions with model answers - organized by subject and chapter.</DialogDescription>
+          </DialogHeader>
+
+          <Tabs defaultValue="add">
+            <TabsList className="glass border-none h-11 p-1 rounded-xl mb-4">
+              <TabsTrigger value="add" className="rounded-lg">Add / Edit</TabsTrigger>
+              <TabsTrigger value="bulk" className="rounded-lg">Bulk Import</TabsTrigger>
+              <TabsTrigger value="manage" className="rounded-lg">Manage</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="add" className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-3">
+                <Input placeholder="Subject, e.g. Anatomy" className="glass border-white/10" value={profPyqForm.subject} onChange={(e) => setProfPyqForm({ ...profPyqForm, subject: e.target.value })} />
+                <Input placeholder="Chapter, e.g. Upper Limb" className="glass border-white/10" value={profPyqForm.chapter} onChange={(e) => setProfPyqForm({ ...profPyqForm, chapter: e.target.value })} />
+              </div>
+              <div className="grid md:grid-cols-2 gap-3">
+                <Select value={profPyqForm.type} onValueChange={(v: any) => setProfPyqForm({ ...profPyqForm, type: v })}>
+                  <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                  <SelectContent className="glass border-white/10">
+                    <SelectItem value="short_answer">Short Answer</SelectItem>
+                    <SelectItem value="short_essay">Short Essay</SelectItem>
+                    <SelectItem value="long_answer">Long Answer</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={profPyqForm.tier} onValueChange={(v: any) => setProfPyqForm({ ...profPyqForm, tier: v })}>
+                  <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                  <SelectContent className="glass border-white/10">
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Textarea placeholder="Question" className="glass border-white/10" rows={2} value={profPyqForm.question} onChange={(e) => setProfPyqForm({ ...profPyqForm, question: e.target.value })} />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Answer</Label>
+                  <Button size="sm" variant="outline" className="rounded-lg gap-2" onClick={handleGenerateProfAnswer} disabled={generatingProfAnswer}>
+                    {generatingProfAnswer ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />} AI Assist
+                  </Button>
+                </div>
+                <Textarea placeholder="Model answer" className="glass border-white/10" rows={8} value={profPyqForm.answer} onChange={(e) => setProfPyqForm({ ...profPyqForm, answer: e.target.value })} />
+              </div>
+              <div className="flex gap-2">
+                {profPyqForm.id && (
+                  <Button variant="outline" className="rounded-lg" onClick={() => setProfPyqForm({ id: null, subject: profPyqForm.subject, chapter: profPyqForm.chapter, type: profPyqForm.type, question: "", answer: "", tier: "free" })}>Cancel Edit</Button>
+                )}
+                <Button className="flex-1 rounded-lg" onClick={handleSaveProfPyq} disabled={savingProfPyq}>
+                  {savingProfPyq ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} {profPyqForm.id ? "Update Question" : "Save Question"}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="bulk" className="space-y-4">
+              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+                <p className="text-[10px] font-bold uppercase text-primary">Required CSV Headers (no header row needed, just data in this column order)</p>
+                <p className="text-[9px] text-muted-foreground font-mono leading-tight">
+                  subject, chapter, type, question, answer, tier
+                </p>
+                <p className="text-[9px] text-muted-foreground">type: short_answer / short_essay / long_answer. tier: free / paid (optional, defaults to free)</p>
+              </div>
+              <Input type="file" accept=".csv" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={handleBulkImportProfPyq} disabled={uploadingProfPyqCsv} />
+              {uploadingProfPyqCsv && <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 animate-pulse"><Loader2 className="h-4 w-4 animate-spin text-primary" /><span className="text-[10px] font-bold uppercase">Importing...</span></div>}
+            </TabsContent>
+
+            <TabsContent value="manage" className="space-y-3">
+              {loadingProfPyq ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {allProfPyq.map((item: any) => (
+                    <Card key={item.id} className="glass border-none">
+                      <CardContent className="p-4 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{item.question}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">{item.subject} - {item.chapter} - {item.type} - {item.tier}</p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleEditProfPyq(item)}><Edit2 className="h-4 w-4" /></Button>
+                          <Button variant="destructive" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDeleteProfPyq(item)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {allProfPyq.length === 0 && <div className="text-center py-12 glass rounded-2xl text-muted-foreground text-sm">No questions yet.</div>}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter><Button variant="ghost" onClick={() => setIsManagingProfPyq(false)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

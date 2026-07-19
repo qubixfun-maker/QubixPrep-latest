@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { BookOpen,
+import { GraduationCap, BookOpen,
   LayoutDashboard,
   BrainCircuit,
   Video,
@@ -56,6 +56,7 @@ export function AppSidebar() {
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Clinical Cases", url: "/cases", icon: BrainCircuit },
+    { title: "Prof PYQ", url: "/prof-pyq", icon: GraduationCap },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit },
     // { title: "Video Lectures", url: "/videos", icon: Video },
     { title: "AI Tools", url: "/ai-tools", icon: BrainCircuit },
