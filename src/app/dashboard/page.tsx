@@ -7,6 +7,7 @@ import { doc, getDoc, collection } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
+  Stethoscope,
   Play, 
   ArrowRight, 
   Zap, 
@@ -177,6 +178,7 @@ export default function Dashboard() {
               { label: "Custom Quiz", desc: "AI-powered test", href: "/test-series", icon: BrainCircuit, color: "text-purple-400" },
               // { label: "Video Lectures", desc: videoCount + " videos available", href: "/videos", icon: Video, color: "text-green-400" },
               { label: "Mindmaps", desc: mindmapCount + " mindmaps", href: "/mindmaps", icon: Network, color: "text-accent" },
+              { label: "Clinical Cases", desc: "Solve real patient scenarios", href: "/cases", icon: Stethoscope, color: "text-red-400" },
             ].map((item) => (
               <Link key={item.label} href={item.href}>
                 <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all group cursor-pointer">

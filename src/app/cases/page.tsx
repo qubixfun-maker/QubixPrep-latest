@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
+import { UpgradeGate } from "@/components/upgrade-gate"
 
 const DIFFICULTY_COLOR: Record<string, string> = {
   easy: "text-green-400",
@@ -63,7 +64,7 @@ export default function CasesHubPage() {
               <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">{specialty}</h2>
               <div className="rounded-2xl glass border-none divide-y divide-white/5 overflow-hidden">
                 {list.map((c: any) => {
-                  const isLocked = !canAccessContent && c.tier === 'paid'
+                  const isLocked = !canAccessContent
                   const content = (
                     <div className={`flex items-center gap-4 px-6 py-4 transition-colors group ${isLocked ? 'opacity-50' : 'hover:bg-white/5'}`}>
                       <div className={`p-2 rounded-lg shrink-0 ${isLocked ? 'bg-white/5 text-muted-foreground' : 'bg-accent/10 text-accent'}`}>
@@ -77,7 +78,7 @@ export default function CasesHubPage() {
                     </div>
                   )
                   return isLocked ? (
-                    <div key={c.id} className="cursor-not-allowed">{content}</div>
+                    <Link key={c.id} href="/pricing">{content}</Link>
                   ) : (
                     <Link key={c.id} href={`/cases/${c.id}`}>{content}</Link>
                   )
@@ -90,6 +91,10 @@ export default function CasesHubPage() {
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">
           No cases available yet.
         </div>
+      )}
+
+      {!canAccessContent && grouped.length > 0 && (
+        <UpgradeGate type="content" />
       )}
     </div>
   )

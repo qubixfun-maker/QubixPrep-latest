@@ -7,6 +7,8 @@ import { ChevronLeft, Loader2, Trophy, AlertTriangle, Lightbulb, RotateCcw, Chec
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { usePlan } from "@/hooks/use-plan"
+import { UpgradeGate } from "@/components/upgrade-gate"
 
 type CaseOption = { id: string; label: string; outcome: string; points: number; feedback: string }
 type CaseStage = { id: string; type: string; prompt: string; options: CaseOption[] }
@@ -24,6 +26,7 @@ export default function CasePlayerPage({ params }: { params: Promise<{ caseId: s
 
   const caseRef = useMemo(() => (!db ? null : doc(db, 'cases', caseId)), [db, caseId])
   const { data: caseData, loading } = useDoc(caseRef)
+  const { canAccessContent, loading: planLoading } = usePlan()
 
   const [stageIndex, setStageIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<CaseOption | null>(null)
@@ -32,8 +35,15 @@ export default function CasePlayerPage({ params }: { params: Promise<{ caseId: s
   const [finished, setFinished] = useState(false)
   const [flipped, setFlipped] = useState<Record<number, boolean>>({})
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
+  if (loading || planLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!caseData) return <div className="h-screen flex items-center justify-center text-muted-foreground">Case not found.</div>
+  if (!canAccessContent) {
+    return (
+      <div className="max-w-2xl mx-auto p-4 md:p-12">
+        <UpgradeGate type="content" />
+      </div>
+    )
+  }
 
   const c = caseData as any
   const stages: CaseStage[] = c.stages || []
