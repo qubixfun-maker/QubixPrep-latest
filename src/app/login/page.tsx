@@ -19,6 +19,7 @@ function LoginPageContent() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({ email: "", password: "" })
+  const [isResetting, setIsResetting] = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -35,6 +36,23 @@ function LoginPageContent() {
       toast({ variant: "destructive", title: "Login Failed", description: "Invalid email or password." })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function handlePasswordReset() {
+    if (!auth) return
+    if (!formData.email) {
+      toast({ variant: "destructive", title: "Enter your email first", description: "Type your email above, then tap \"Forgot password?\" again." })
+      return
+    }
+    setIsResetting(true)
+    try {
+      await sendPasswordResetEmail(auth, formData.email)
+      toast({ title: "Reset Email Sent", description: `Check ${formData.email} for a link to reset your password.` })
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Could Not Send Reset Email", description: error.message })
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -79,6 +97,11 @@ function LoginPageContent() {
           <form onSubmit={handleLogin} className="space-y-4">
             <Input type="email" placeholder="Email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
             <Input type={showPassword ? "text" : "password"} placeholder="Password" required value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
+            <div className="text-right -mt-2">
+              <button type="button" onClick={handlePasswordReset} disabled={isResetting} className="text-xs text-primary hover:underline">
+                {isResetting ? "Sending..." : "Forgot password?"}
+              </button>
+            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sign In"}
             </Button>

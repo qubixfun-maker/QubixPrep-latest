@@ -85,6 +85,13 @@ export async function POST(req: NextRequest) {
         }
         break
 
+      case 'subscription.paused':
+        if (userId) {
+          await setUserPlanFromSubscription(userId, 'free', subscriptionEntity?.id, 'paused')
+          console.log('[WEBHOOK] Subscription paused for user', userId)
+        }
+        break
+
       default:
         console.log('[WEBHOOK] Unhandled event type:', event.event)
     }
