@@ -2,7 +2,8 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
+import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
+import { ref as storageRef, uploadBytes, deleteObject } from "firebase/storage"
 import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, setDoc, writeBatch } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { groupByUnit } from "@/lib/unit-sort"
@@ -61,6 +62,7 @@ import {
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useUser()
   const db = useFirestore()
+  const storage = useStorage()
   const { toast } = useToast()
   
   const [activeSubject, setActiveSubject] = useState<string | null>(null)
@@ -166,6 +168,100 @@ export default function AdminDashboard() {
       toast({ variant: "destructive", title: "Failed to load cases", description: e.message })
     } finally {
       setLoadingCases(false)
+    }
+  }
+
+  const [isManagingNotePacks, setIsManagingNotePacks] = useState(false)
+  const [allNotePacks, setAllNotePacks] = useState<any[]>([])
+  const [loadingNotePacks, setLoadingNotePacks] = useState(false)
+  const [uploadingNotePack, setUploadingNotePack] = useState(false)
+  const [notePackForm, setNotePackForm] = useState({
+    id: null as string | null,
+    year: "1st" as "1st" | "2nd" | "3rd",
+    title: "",
+    description: "",
+    price: "149",
+    file: null as File | null
+  })
+
+  async function fetchAllNotePacks() {
+    if (!db) return
+    setLoadingNotePacks(true)
+    try {
+      const snap = await getDocs(collection(db, "notePacks"))
+      setAllNotePacks(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Failed to load Notes Packs", description: e.message })
+    } finally {
+      setLoadingNotePacks(false)
+    }
+  }
+
+  async function handleSaveNotePack() {
+    if (!db || !storage || !notePackForm.title.trim()) {
+      toast({ variant: "destructive", title: "Enter a title first" })
+      return
+    }
+    if (!notePackForm.id && !notePackForm.file) {
+      toast({ variant: "destructive", title: "Select a PDF file to upload" })
+      return
+    }
+    setUploadingNotePack(true)
+    try {
+      const id = notePackForm.id || `notepack-${Date.now()}`
+      let storagePath = (notePackForm as any).existingStoragePath || null
+
+      if (notePackForm.file) {
+        storagePath = `notepacks-private/${id}.pdf`
+        const fileRef = storageRef(storage, storagePath)
+        await uploadBytes(fileRef, notePackForm.file)
+      }
+
+      await setDoc(doc(db, "notePacks", id), {
+        id,
+        year: notePackForm.year,
+        title: notePackForm.title.trim(),
+        description: notePackForm.description.trim(),
+        price: Number(notePackForm.price) || 149,
+        storagePath,
+        active: true,
+        order: notePackForm.id ? undefined : Date.now(),
+        createdAt: new Date().toISOString()
+      }, { merge: true })
+
+      toast({ title: notePackForm.id ? "Notes Pack Updated" : "Notes Pack Created" })
+      setNotePackForm({ id: null, year: "1st", title: "", description: "", price: "149", file: null })
+      fetchAllNotePacks()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Save Failed", description: e.message })
+    } finally {
+      setUploadingNotePack(false)
+    }
+  }
+
+  function handleEditNotePack(item: any) {
+    setNotePackForm({
+      id: item.id,
+      year: item.year || "1st",
+      title: item.title || "",
+      description: item.description || "",
+      price: String(item.price || 149),
+      file: null,
+      ...( { existingStoragePath: item.storagePath } as any )
+    })
+  }
+
+  async function handleDeleteNotePack(item: any) {
+    if (!db || !confirm(`Delete "${item.title}"? Students who already bought it will lose access.`)) return
+    try {
+      await deleteDoc(doc(db, "notePacks", item.id))
+      if (storage && item.storagePath) {
+        try { await deleteObject(storageRef(storage, item.storagePath)) } catch (e) { /* file may already be gone, ignore */ }
+      }
+      toast({ title: "Notes Pack Deleted" })
+      fetchAllNotePacks()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
     }
   }
 
@@ -1289,6 +1385,9 @@ export default function AdminDashboard() {
           <Button onClick={() => { setIsManagingProfPyq(true); fetchAllProfPyq(); }} variant="outline" className="rounded-xl gap-2 glass">
             <BookOpen className="h-4 w-4" /> Manage Prof PYQ
           </Button>
+          <Button onClick={() => { setIsManagingNotePacks(true); fetchAllNotePacks(); }} variant="outline" className="rounded-xl gap-2 glass">
+            <FileDown className="h-4 w-4" /> Manage Notes Packs
+          </Button>
           <Button onClick={() => setIsAddingProduct(true)} variant="outline" className="rounded-xl gap-2 glass">
             <ShoppingBag className="h-4 w-4" /> Add Product
           </Button>
@@ -2032,6 +2131,70 @@ export default function AdminDashboard() {
           </Tabs>
 
           <DialogFooter><Button variant="ghost" onClick={() => setIsManagingProfPyq(false)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isManagingNotePacks} onOpenChange={setIsManagingNotePacks}>
+        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Notes Packs</DialogTitle>
+            <DialogDescription>Sell complete year-wise notes as a one-time purchase. PDFs are stored privately and only viewable inside the app by buyers.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-3">
+              <Select value={notePackForm.year} onValueChange={(v: any) => setNotePackForm({ ...notePackForm, year: v })}>
+                <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                <SelectContent className="glass border-white/10">
+                  <SelectItem value="1st">1st Year</SelectItem>
+                  <SelectItem value="2nd">2nd Year</SelectItem>
+                  <SelectItem value="3rd">3rd Year</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input type="number" placeholder="Price (Rs)" className="glass border-white/10" value={notePackForm.price} onChange={(e) => setNotePackForm({ ...notePackForm, price: e.target.value })} />
+            </div>
+            <Input placeholder="Title, e.g. 1st Year Complete Notes" className="glass border-white/10" value={notePackForm.title} onChange={(e) => setNotePackForm({ ...notePackForm, title: e.target.value })} />
+            <Textarea placeholder="Description shown in the Store" className="glass border-white/10" rows={2} value={notePackForm.description} onChange={(e) => setNotePackForm({ ...notePackForm, description: e.target.value })} />
+            <div className="space-y-2">
+              <Label className="text-xs">{notePackForm.id ? "Replace PDF (optional)" : "PDF File"}</Label>
+              <Input type="file" accept=".pdf" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={(e) => setNotePackForm({ ...notePackForm, file: e.target.files?.[0] || null })} />
+            </div>
+            <div className="flex gap-2">
+              {notePackForm.id && (
+                <Button variant="outline" className="rounded-lg" onClick={() => setNotePackForm({ id: null, year: "1st", title: "", description: "", price: "149", file: null })}>Cancel Edit</Button>
+              )}
+              <Button className="flex-1 rounded-lg" onClick={handleSaveNotePack} disabled={uploadingNotePack}>
+                {uploadingNotePack ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} {notePackForm.id ? "Update Notes Pack" : "Create Notes Pack"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <h4 className="font-bold text-sm text-muted-foreground uppercase tracking-widest">Existing Packs</h4>
+            {loadingNotePacks ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            ) : (
+              <div className="space-y-2">
+                {allNotePacks.map((item: any) => (
+                  <Card key={item.id} className="glass border-none">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{item.title}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">{item.year} Year - Rs {item.price}</p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleEditNotePack(item)}><Edit2 className="h-4 w-4" /></Button>
+                        <Button variant="destructive" size="icon" className="h-8 w-8 rounded-lg" onClick={() => handleDeleteNotePack(item)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {allNotePacks.length === 0 && <div className="text-center py-12 glass rounded-2xl text-muted-foreground text-sm">No Notes Packs yet.</div>}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter><Button variant="ghost" onClick={() => setIsManagingNotePacks(false)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
