@@ -36,6 +36,22 @@ export default function Dashboard() {
   const subjectsQuery = useMemo(() => db ? collection(db, 'subjects') : null, [db])
   const { data: rawSubjects, loading: subjectsLoading } = useCollection(subjectsQuery)
 
+  const bannersQuery = useMemo(() => db ? collection(db, 'dashboardBanners') : null, [db])
+  const { data: rawBanners } = useCollection(bannersQuery)
+  const activeBanners = useMemo(() => {
+    const list = ((rawBanners as any[]) || []).filter((b) => b.enabled !== false)
+    return list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  }, [rawBanners])
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
+
+  useEffect(() => {
+    if (activeBanners.length <= 1) return
+    const interval = setInterval(() => {
+      setCurrentBannerIndex((i) => (i + 1) % activeBanners.length)
+    }, 7000)
+    return () => clearInterval(interval)
+  }, [activeBanners.length])
+
   useEffect(() => {
     if (rawSubjects) setSubjects(rawSubjects)
   }, [rawSubjects])
@@ -282,41 +298,59 @@ export default function Dashboard() {
         )}
       </div>
 
-      <Link href="/products" className="block animate-in fade-in slide-in-from-top-2 duration-500 delay-150">
-        <div className="relative overflow-hidden rounded-3xl border border-primary/30 p-6 md:p-8 group transition-all hover:border-primary/50" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.18), rgba(168,85,247,0.08) 40%, rgba(0,0,0,0) 70%)" }}>
-          <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-10 left-1/3 h-40 w-40 rounded-full bg-purple-400/10 blur-3xl pointer-events-none" />
+      {activeBanners.length > 0 && (() => {
+        const banner = activeBanners[currentBannerIndex % activeBanners.length]
+        const headlineStart = (banner.headline || "").replace(banner.headlineHighlight || "", "").trim()
+        return (
+          <div key={banner.id} className="space-y-2 animate-in fade-in duration-500">
+            <Link href={banner.buttonLink || "/products"} className="block">
+              <div className="relative overflow-hidden rounded-3xl border border-primary/30 p-6 md:p-8 group transition-all hover:border-primary/50" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.18), rgba(168,85,247,0.08) 40%, rgba(0,0,0,0) 70%)" }}>
+                <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-10 left-1/3 h-40 w-40 rounded-full bg-purple-400/10 blur-3xl pointer-events-none" />
 
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-3 max-w-xl">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-widest">
-                <Sparkles className="h-3 w-3" /> New - Complete Year Notes
-              </span>
+                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="space-y-3 max-w-xl">
+                    {banner.badgeText && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-widest">
+                        <Sparkles className="h-3 w-3" /> {banner.badgeText}
+                      </span>
+                    )}
 
-              <h3 className="text-xl md:text-2xl font-bold leading-tight">
-                Everything you need for your exams, starting at{" "}
-                <span className="text-primary">just Rs 149</span>
-              </h3>
+                    <h3 className="text-xl md:text-2xl font-bold leading-tight">
+                      {headlineStart}{" "}
+                      <span className="text-primary">{banner.headlineHighlight}</span>
+                    </h3>
 
-              <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                <span className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" /> Complete syllabus, subject-wise
-                </span>
-                <span className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" /> One-time payment, yours to keep
-                </span>
-                <span className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" /> Study anytime, right in the app
-                </span>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                      {(banner.bullets || []).map((b: string, i: number) => (
+                        <span key={i} className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
+                          <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" /> {b}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button className="rounded-xl gap-2 font-bold shrink-0 shadow-lg shadow-primary/30 hover:shadow-primary/50 transition-all group-hover:scale-[1.03]">
+                    {banner.buttonText || "Learn More"} <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </div>
               </div>
-            </div>
+            </Link>
 
-            <Button className="rounded-xl gap-2 font-bold shrink-0 shadow-lg shadow-primary/30 hover:shadow-primary/50 transition-all group-hover:scale-[1.03]">
-              Browse Year Notes <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-            </Button>
+            {activeBanners.length > 1 && (
+              <div className="flex justify-center gap-1.5">
+                {activeBanners.map((_: any, i: number) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentBannerIndex(i)}
+                    className={`h-1.5 rounded-full transition-all ${i === currentBannerIndex % activeBanners.length ? "w-6 bg-primary" : "w-1.5 bg-white/20"}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      </Link>
+        )
+      })()}
 
       <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500 delay-200">
         <h2 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Study tools</h2>

@@ -4,11 +4,12 @@
 import { useMemo, useState, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { ref as storageRef, uploadBytes, deleteObject } from "firebase/storage"
-import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, setDoc, writeBatch } from "firebase/firestore"
+import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, getDoc, setDoc, writeBatch } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { groupByUnit } from "@/lib/unit-sort"
 import { generateClinicalCase, ClinicalCase } from "@/ai/flows/ai-case-generator"
 import { generateProfPyqAnswer } from "@/ai/flows/ai-profpyq-answer-generator"
+import { generateBannerCopy } from "@/ai/flows/ai-banner-generator"
 import Papa from "papaparse"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -40,6 +41,8 @@ import {
   ChevronDown,
   CheckCircle2,
   Wand2,
+  Sparkles,
+  ArrowRight,
   Gift
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -171,7 +174,129 @@ export default function AdminDashboard() {
     }
   }
 
-  const [isManagingNotePacks, setIsManagingNotePacks] = useState(false)
+  const [isManagingBanner, setIsManagingBanner] = useState(false)
+  const [loadingBanner, setLoadingBanner] = useState(false)
+  const [savingBanner, setSavingBanner] = useState(false)
+  const [generatingBanner, setGeneratingBanner] = useState(false)
+  const [bannerGenPrompt, setBannerGenPrompt] = useState("")
+  const [allBanners, setAllBanners] = useState<any[]>([])
+  const emptyBannerForm = {
+    id: null as string | null,
+    enabled: true,
+    badgeText: "",
+    headline: "",
+    headlineHighlight: "",
+    bullets: ["", "", ""] as string[],
+    buttonText: "",
+    buttonLink: "/products"
+  }
+  const [bannerForm, setBannerForm] = useState(emptyBannerForm)
+
+  async function fetchBanners() {
+    if (!db) return
+    setLoadingBanner(true)
+    try {
+      const snap = await getDocs(collection(db, "dashboardBanners"))
+      const list = snap.docs.map(d => ({ ...d.data(), id: d.id }))
+      list.sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+      setAllBanners(list)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Failed to load ads", description: e.message })
+    } finally {
+      setLoadingBanner(false)
+    }
+  }
+
+  async function handleGenerateBannerAI() {
+    if (!bannerGenPrompt.trim()) {
+      toast({ variant: "destructive", title: "Describe what to advertise first" })
+      return
+    }
+    setGeneratingBanner(true)
+    try {
+      const result = await generateBannerCopy({ prompt: bannerGenPrompt.trim() })
+      if (result.error || !result.draft) throw new Error(result.error || "No draft returned")
+      setBannerForm((f) => ({
+        ...f,
+        badgeText: result.draft!.badgeText,
+        headline: result.draft!.headline,
+        headlineHighlight: result.draft!.headlineHighlight,
+        bullets: result.draft!.bullets,
+        buttonText: result.draft!.buttonText
+      }))
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "AI Draft Failed", description: e.message })
+    } finally {
+      setGeneratingBanner(false)
+    }
+  }
+
+  async function handleSaveBanner() {
+    if (!db) return
+    if (!bannerForm.headline.trim()) {
+      toast({ variant: "destructive", title: "Enter a headline first" })
+      return
+    }
+    setSavingBanner(true)
+    try {
+      const id = bannerForm.id || `banner-${Date.now()}`
+      await setDoc(doc(db, "dashboardBanners", id), {
+        id,
+        enabled: bannerForm.enabled,
+        badgeText: bannerForm.badgeText,
+        headline: bannerForm.headline,
+        headlineHighlight: bannerForm.headlineHighlight,
+        bullets: bannerForm.bullets,
+        buttonText: bannerForm.buttonText,
+        buttonLink: bannerForm.buttonLink,
+        order: bannerForm.id ? undefined : Date.now(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true })
+      toast({ title: bannerForm.id ? "Ad Updated" : "Ad Created" })
+      setBannerForm(emptyBannerForm)
+      fetchBanners()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Save Failed", description: e.message })
+    } finally {
+      setSavingBanner(false)
+    }
+  }
+
+  function handleEditBanner(item: any) {
+    setBannerForm({
+      id: item.id,
+      enabled: item.enabled !== false,
+      badgeText: item.badgeText || "",
+      headline: item.headline || "",
+      headlineHighlight: item.headlineHighlight || "",
+      bullets: item.bullets && item.bullets.length === 3 ? item.bullets : ["", "", ""],
+      buttonText: item.buttonText || "",
+      buttonLink: item.buttonLink || "/products"
+    })
+  }
+
+  async function handleDeleteBanner(item: any) {
+    if (!db || !confirm(`Delete ad "${item.headline}"?`)) return
+    try {
+      await deleteDoc(doc(db, "dashboardBanners", item.id))
+      toast({ title: "Ad Deleted" })
+      fetchBanners()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+    }
+  }
+
+  async function handleToggleBannerEnabled(item: any) {
+    if (!db) return
+    try {
+      await updateDoc(doc(db, "dashboardBanners", item.id), { enabled: !item.enabled })
+      fetchBanners()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: e.message })
+    }
+  }
+
+    const [isManagingNotePacks, setIsManagingNotePacks] = useState(false)
   const [allNotePacks, setAllNotePacks] = useState<any[]>([])
   const [loadingNotePacks, setLoadingNotePacks] = useState(false)
   const [uploadingNotePack, setUploadingNotePack] = useState(false)
@@ -1408,6 +1533,9 @@ export default function AdminDashboard() {
           <Button onClick={() => { setIsManagingNotePacks(true); fetchAllNotePacks(); }} variant="outline" className="rounded-xl gap-2 glass">
             <FileDown className="h-4 w-4" /> Manage Notes Packs
           </Button>
+          <Button onClick={() => { setIsManagingBanner(true); fetchBanners(); }} variant="outline" className="rounded-xl gap-2 glass">
+            <Sparkles className="h-4 w-4" /> Manage Dashboard Ads
+          </Button>
           <Button onClick={() => setIsAddingProduct(true)} variant="outline" className="rounded-xl gap-2 glass">
             <ShoppingBag className="h-4 w-4" /> Add Product
           </Button>
@@ -2253,6 +2381,138 @@ export default function AdminDashboard() {
           </div>
 
           <DialogFooter><Button variant="ghost" onClick={() => setIsManagingNotePacks(false)}>Close</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isManagingBanner} onOpenChange={setIsManagingBanner}>
+        <DialogContent aria-describedby={undefined} className="glass border-white/10 max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Dashboard Ads</DialogTitle>
+            <DialogDescription>Promo banners shown at the top of the dashboard. Multiple active ads rotate automatically like a carousel.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Label className="text-xs text-muted-foreground uppercase tracking-widest">Existing Ads</Label>
+            {loadingBanner ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            ) : (
+              <div className="space-y-2">
+                {allBanners.map((item: any) => (
+                  <Card key={item.id} className="glass border-none">
+                    <CardContent className="p-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">{item.headline}</p>
+                        <p className="text-[10px] text-muted-foreground">{item.enabled ? "Active" : "Disabled"}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleBannerEnabled(item)}
+                        className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${item.enabled ? "bg-primary" : "bg-white/10"}`}
+                      >
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${item.enabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                      </button>
+                      <Button variant="outline" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => handleEditBanner(item)}><Edit2 className="h-4 w-4" /></Button>
+                      <Button variant="destructive" size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => handleDeleteBanner(item)}><Trash2 className="h-4 w-4" /></Button>
+                    </CardContent>
+                  </Card>
+                ))}
+                {allBanners.length === 0 && <div className="text-center py-8 glass rounded-2xl text-muted-foreground text-sm">No ads yet. Create one below.</div>}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4 pt-2 border-t border-white/5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-widest">{bannerForm.id ? "Edit Ad" : "New Ad"}</Label>
+
+            <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
+              <p className="text-[10px] font-bold uppercase text-primary flex items-center gap-1.5"><Sparkles className="h-3 w-3" /> Draft with AI (optional)</p>
+              <div className="flex gap-2">
+                <Input placeholder="What do you want to advertise? e.g. '2nd year notes combo, 50% off this week'" className="glass border-white/10" value={bannerGenPrompt} onChange={(e) => setBannerGenPrompt(e.target.value)} />
+                <Button onClick={handleGenerateBannerAI} disabled={generatingBanner} className="rounded-lg gap-2 shrink-0">
+                  {generatingBanner ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Draft
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl bg-white/5">
+              <Label className="text-sm">Active</Label>
+              <button
+                type="button"
+                onClick={() => setBannerForm({ ...bannerForm, enabled: !bannerForm.enabled })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${bannerForm.enabled ? "bg-primary" : "bg-white/10"}`}
+              >
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${bannerForm.enabled ? "translate-x-5" : "translate-x-0.5"}`} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs">Badge Text</Label>
+              <Input className="glass border-white/10" value={bannerForm.badgeText} onChange={(e) => setBannerForm({ ...bannerForm, badgeText: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Headline</Label>
+              <Input className="glass border-white/10" value={bannerForm.headline} onChange={(e) => setBannerForm({ ...bannerForm, headline: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Highlighted portion (must match the end of the headline exactly)</Label>
+              <Input className="glass border-white/10" value={bannerForm.headlineHighlight} onChange={(e) => setBannerForm({ ...bannerForm, headlineHighlight: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Bullet Points</Label>
+              {bannerForm.bullets.map((b: string, i: number) => (
+                <Input key={i} className="glass border-white/10 mb-2" value={b} onChange={(e) => {
+                  const next = [...bannerForm.bullets]
+                  next[i] = e.target.value
+                  setBannerForm({ ...bannerForm, bullets: next })
+                }} />
+              ))}
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">Button Text</Label>
+                <Input className="glass border-white/10" value={bannerForm.buttonText} onChange={(e) => setBannerForm({ ...bannerForm, buttonText: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Button Link</Label>
+                <Input className="glass border-white/10" value={bannerForm.buttonLink} onChange={(e) => setBannerForm({ ...bannerForm, buttonLink: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Live Preview</Label>
+              <div className="relative overflow-hidden rounded-2xl border border-primary/30 p-5" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.18), rgba(168,85,247,0.08) 40%, rgba(0,0,0,0) 70%)" }}>
+                <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+                <div className="relative space-y-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-widest">
+                    <Sparkles className="h-3 w-3" /> {bannerForm.badgeText}
+                  </span>
+                  <h3 className="text-lg font-bold leading-tight">
+                    {bannerForm.headline.replace(bannerForm.headlineHighlight, "").trim()}{" "}
+                    <span className="text-primary">{bannerForm.headlineHighlight}</span>
+                  </h3>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {bannerForm.bullets.map((b: string, i: number) => (
+                      <span key={i} className="flex items-center gap-1 text-xs text-muted-foreground"><CheckCircle2 className="h-3 w-3 text-green-400" /> {b}</span>
+                    ))}
+                  </div>
+                  <Button size="sm" className="rounded-lg gap-2 font-bold mt-2">{bannerForm.buttonText} <ArrowRight className="h-3 w-3" /></Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              {bannerForm.id && (
+                <Button variant="outline" className="rounded-lg" onClick={() => setBannerForm(emptyBannerForm)}>Cancel Edit</Button>
+              )}
+              <Button className="flex-1 rounded-lg" onClick={handleSaveBanner} disabled={savingBanner}>
+                {savingBanner ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} {bannerForm.id ? "Update Ad" : "Create Ad"}
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsManagingBanner(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
