@@ -150,9 +150,13 @@ export default function ProductsPage() {
                     <div className="flex items-center justify-between pt-2">
                       <span className="text-2xl font-bold text-primary">₹{pack.price}</span>
                       {owned ? (
-                        <Link href={`/notes-packs/${pack.id}`}>
-                          <Button size="sm" className="rounded-xl gap-1.5 text-xs font-bold">View Notes</Button>
-                        </Link>
+                        pack.packType === "combo" ? (
+                          <span className="text-[10px] text-muted-foreground">See below to view</span>
+                        ) : (
+                          <Link href={`/notes-packs/${pack.id}`}>
+                            <Button size="sm" className="rounded-xl gap-1.5 text-xs font-bold">View Notes</Button>
+                          </Link>
+                        )
                       ) : (
                         <Button
                           size="sm"
@@ -164,6 +168,22 @@ export default function ProductsPage() {
                         </Button>
                       )}
                     </div>
+                    {owned && pack.packType === "combo" && (
+                      <div className="space-y-1.5 pt-1 border-t border-white/5">
+                        {(pack.includedPackIds || []).map((includedId: string) => {
+                          const includedPack = notePacks.find((p: any) => p.id === includedId)
+                          if (!includedPack) {
+                            return <p key={includedId} className="text-[11px] text-muted-foreground italic">A pack in this bundle is no longer available</p>
+                          }
+                          return (
+                            <Link key={includedId} href={`/notes-packs/${includedId}`} className="flex items-center justify-between text-xs hover:text-primary transition-colors">
+                              <span>{includedPack.title}</span>
+                              <span className="text-primary font-bold">View →</span>
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )

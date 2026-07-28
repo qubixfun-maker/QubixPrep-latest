@@ -263,7 +263,16 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteNotePack(item: any) {
-    if (!db || !confirm(`Delete "${item.title}"? Students who already bought it will lose access.`)) return
+    if (!db) return
+
+    const usedInCombos = allNotePacks.filter((p: any) => p.packType === "combo" && Array.isArray(p.includedPackIds) && p.includedPackIds.includes(item.id))
+    if (usedInCombos.length > 0) {
+      const comboNames = usedInCombos.map((c: any) => c.title).join(", ")
+      if (!confirm(`WARNING: "${item.title}" is used inside these combo(s): ${comboNames}. Deleting it will break those combos for anyone who bought them. Delete anyway?`)) return
+    } else {
+      if (!confirm(`Delete "${item.title}"? Students who already bought it will lose access.`)) return
+    }
+
     try {
       await deleteDoc(doc(db, "notePacks", item.id))
       if (storage && item.storagePath) {
