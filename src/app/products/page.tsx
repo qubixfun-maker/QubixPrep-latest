@@ -138,7 +138,9 @@ export default function ProductsPage() {
                 <Card key={pack.id} className="glass border-none overflow-hidden">
                   <CardContent className="p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest">{YEAR_LABEL[pack.year] || pack.year}</span>
+                      <span className="px-2 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest">
+                        {pack.packType === "combo" ? `${(pack.includedPackIds || []).length}-Pack Bundle` : (YEAR_LABEL[pack.year] || pack.year)}
+                      </span>
                       {owned && <CheckCircle2 className="h-5 w-5 text-green-400" />}
                     </div>
                     <div>

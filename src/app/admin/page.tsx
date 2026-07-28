@@ -177,12 +177,15 @@ export default function AdminDashboard() {
   const [uploadingNotePack, setUploadingNotePack] = useState(false)
   const [notePackForm, setNotePackForm] = useState({
     id: null as string | null,
+    packType: "single" as "single" | "combo",
     year: "1st" as "1st" | "2nd" | "3rd",
     title: "",
     description: "",
     price: "149",
-    file: null as File | null
+    file: null as File | null,
+    includedPackIds: [] as string[]
   })
+  const emptyNotePackForm = { id: null as string | null, packType: "single" as "single" | "combo", year: "1st" as "1st" | "2nd" | "3rd", title: "", description: "", price: "149", file: null as File | null, includedPackIds: [] as string[] }
 
   async function fetchAllNotePacks() {
     if (!db) return
@@ -202,8 +205,12 @@ export default function AdminDashboard() {
       toast({ variant: "destructive", title: "Enter a title first" })
       return
     }
-    if (!notePackForm.id && !notePackForm.file) {
+    if (notePackForm.packType === "single" && !notePackForm.id && !notePackForm.file) {
       toast({ variant: "destructive", title: "Select a PDF file to upload" })
+      return
+    }
+    if (notePackForm.packType === "combo" && notePackForm.includedPackIds.length < 2) {
+      toast({ variant: "destructive", title: "Select at least 2 packs to bundle" })
       return
     }
     setUploadingNotePack(true)
@@ -211,7 +218,7 @@ export default function AdminDashboard() {
       const id = notePackForm.id || `notepack-${Date.now()}`
       let storagePath = (notePackForm as any).existingStoragePath || null
 
-      if (notePackForm.file) {
+      if (notePackForm.packType === "single" && notePackForm.file) {
         storagePath = `notepacks-private/${id}.pdf`
         const fileRef = storageRef(storage, storagePath)
         await uploadBytes(fileRef, notePackForm.file)
@@ -219,18 +226,20 @@ export default function AdminDashboard() {
 
       await setDoc(doc(db, "notePacks", id), {
         id,
-        year: notePackForm.year,
+        packType: notePackForm.packType,
+        year: notePackForm.packType === "single" ? notePackForm.year : null,
         title: notePackForm.title.trim(),
         description: notePackForm.description.trim(),
         price: Number(notePackForm.price) || 149,
-        storagePath,
+        storagePath: notePackForm.packType === "single" ? storagePath : null,
+        includedPackIds: notePackForm.packType === "combo" ? notePackForm.includedPackIds : [],
         active: true,
         order: notePackForm.id ? undefined : Date.now(),
         createdAt: new Date().toISOString()
       }, { merge: true })
 
       toast({ title: notePackForm.id ? "Notes Pack Updated" : "Notes Pack Created" })
-      setNotePackForm({ id: null, year: "1st", title: "", description: "", price: "149", file: null })
+      setNotePackForm(emptyNotePackForm)
       fetchAllNotePacks()
     } catch (e: any) {
       toast({ variant: "destructive", title: "Save Failed", description: e.message })
@@ -242,11 +251,13 @@ export default function AdminDashboard() {
   function handleEditNotePack(item: any) {
     setNotePackForm({
       id: item.id,
+      packType: item.packType || "single",
       year: item.year || "1st",
       title: item.title || "",
       description: item.description || "",
       price: String(item.price || 149),
       file: null,
+      includedPackIds: item.includedPackIds || [],
       ...( { existingStoragePath: item.storagePath } as any )
     })
   }
@@ -2142,26 +2153,64 @@ export default function AdminDashboard() {
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="flex gap-2 p-1 rounded-xl bg-white/5 w-fit">
+              <button type="button" onClick={() => setNotePackForm({ ...notePackForm, packType: "single" })} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${notePackForm.packType === "single" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Single Year</button>
+              <button type="button" onClick={() => setNotePackForm({ ...notePackForm, packType: "combo" })} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${notePackForm.packType === "combo" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Combo</button>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-3">
-              <Select value={notePackForm.year} onValueChange={(v: any) => setNotePackForm({ ...notePackForm, year: v })}>
-                <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
-                <SelectContent className="glass border-white/10">
-                  <SelectItem value="1st">1st Year</SelectItem>
-                  <SelectItem value="2nd">2nd Year</SelectItem>
-                  <SelectItem value="3rd">3rd Year</SelectItem>
-                </SelectContent>
-              </Select>
+              {notePackForm.packType === "single" ? (
+                <Select value={notePackForm.year} onValueChange={(v: any) => setNotePackForm({ ...notePackForm, year: v })}>
+                  <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                  <SelectContent className="glass border-white/10">
+                    <SelectItem value="1st">1st Year</SelectItem>
+                    <SelectItem value="2nd">2nd Year</SelectItem>
+                    <SelectItem value="3rd">3rd Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : <div />}
               <Input type="number" placeholder="Price (Rs)" className="glass border-white/10" value={notePackForm.price} onChange={(e) => setNotePackForm({ ...notePackForm, price: e.target.value })} />
             </div>
-            <Input placeholder="Title, e.g. 1st Year Complete Notes" className="glass border-white/10" value={notePackForm.title} onChange={(e) => setNotePackForm({ ...notePackForm, title: e.target.value })} />
+            <Input placeholder={notePackForm.packType === "combo" ? "Title, e.g. All 3 Years Bundle" : "Title, e.g. 1st Year Complete Notes"} className="glass border-white/10" value={notePackForm.title} onChange={(e) => setNotePackForm({ ...notePackForm, title: e.target.value })} />
             <Textarea placeholder="Description shown in the Store" className="glass border-white/10" rows={2} value={notePackForm.description} onChange={(e) => setNotePackForm({ ...notePackForm, description: e.target.value })} />
-            <div className="space-y-2">
-              <Label className="text-xs">{notePackForm.id ? "Replace PDF (optional)" : "PDF File"}</Label>
-              <Input type="file" accept=".pdf" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={(e) => setNotePackForm({ ...notePackForm, file: e.target.files?.[0] || null })} />
-            </div>
+
+            {notePackForm.packType === "single" ? (
+              <div className="space-y-2">
+                <Label className="text-xs">{notePackForm.id ? "Replace PDF (optional)" : "PDF File"}</Label>
+                <Input type="file" accept=".pdf" className="glass border-white/10 cursor-pointer h-14 pt-4" onChange={(e) => setNotePackForm({ ...notePackForm, file: e.target.files?.[0] || null })} />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-xs">Select packs to include (2 or more)</Label>
+                <div className="space-y-1 max-h-48 overflow-y-auto p-2 rounded-xl bg-white/5">
+                  {allNotePacks.filter((p: any) => p.packType !== "combo").map((p: any) => {
+                    const checked = notePackForm.includedPackIds.includes(p.id)
+                    return (
+                      <label key={p.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 cursor-pointer text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...notePackForm.includedPackIds, p.id]
+                              : notePackForm.includedPackIds.filter((id) => id !== p.id)
+                            setNotePackForm({ ...notePackForm, includedPackIds: next })
+                          }}
+                        />
+                        {p.title} <span className="text-muted-foreground text-xs">({p.year} Year)</span>
+                      </label>
+                    )
+                  })}
+                  {allNotePacks.filter((p: any) => p.packType !== "combo").length === 0 && (
+                    <p className="text-xs text-muted-foreground p-2">Create some Single Year packs first.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2">
               {notePackForm.id && (
-                <Button variant="outline" className="rounded-lg" onClick={() => setNotePackForm({ id: null, year: "1st", title: "", description: "", price: "149", file: null })}>Cancel Edit</Button>
+                <Button variant="outline" className="rounded-lg" onClick={() => setNotePackForm(emptyNotePackForm)}>Cancel Edit</Button>
               )}
               <Button className="flex-1 rounded-lg" onClick={handleSaveNotePack} disabled={uploadingNotePack}>
                 {uploadingNotePack ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} {notePackForm.id ? "Update Notes Pack" : "Create Notes Pack"}

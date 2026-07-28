@@ -25,8 +25,15 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminFirestore()
 
+    // If this is a combo pack, unlock every pack bundled inside it too
+    const packDoc = await db.collection('notePacks').doc(packId).get()
+    const packData = packDoc.data()
+    const idsToUnlock = packData?.packType === 'combo' && Array.isArray(packData.includedPackIds)
+      ? [packId, ...packData.includedPackIds]
+      : [packId]
+
     await db.collection('users').doc(userId).set({
-      purchasedNotePacks: FieldValue.arrayUnion(packId)
+      purchasedNotePacks: FieldValue.arrayUnion(...idsToUnlock)
     }, { merge: true })
 
     await db.collection('notePackPurchases').doc(razorpay_payment_id).set({
