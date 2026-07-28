@@ -7,6 +7,7 @@ import { doc, getDoc, collection } from "firebase/firestore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { 
+  FileDown,
   Stethoscope,
   Play, 
   ArrowRight, 
@@ -128,6 +129,22 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Year Notes Promo */}
+      <Link href="/products">
+        <div className="relative overflow-hidden rounded-2xl glass border border-primary/20 p-6 flex items-center justify-between gap-4 hover:border-primary/40 transition-all group">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-primary/10 text-primary shrink-0">
+              <FileDown className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-bold text-sm md:text-base">Get Complete Year Notes for just Rs 149</p>
+              <p className="text-xs md:text-sm text-muted-foreground">1st, 2nd &amp; 3rd Year bundles available - one-time purchase, yours to keep</p>
+            </div>
+          </div>
+          <ArrowRight className="h-5 w-5 text-primary shrink-0 group-hover:translate-x-1 transition-transform" />
+        </div>
+      </Link>
 
       {/* Subjects + Quick Access */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
