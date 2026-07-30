@@ -31,7 +31,6 @@ export default function ProductsPage() {
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, "users", user.uid), [db, user])
   const { data: profile } = useDoc(profileRef)
   const purchasedNotePacks: string[] = (profile as any)?.purchasedNotePacks || []
-  const isAdmin = (profile as any)?.role === "admin"
 
   const notePacksRef = useMemo(() => (!db ? null : collection(db, "notePacks")), [db])
   const { data: notePacksRaw, loading: notePacksLoading } = useCollection(notePacksRef)
@@ -149,7 +148,7 @@ export default function ProductsPage() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {displayedPacks.map((pack: any) => {
-              const owned = isAdmin || purchasedNotePacks.includes(pack.id)
+              const owned = purchasedNotePacks.includes(pack.id)
               return (
                 <Card key={pack.id} className="glass border-none overflow-hidden">
                   <CardContent className="p-6 space-y-4">
@@ -218,7 +217,7 @@ export default function ProductsPage() {
       <div className="space-y-4">
         <h2 className="text-2xl font-bold">Curated Products</h2>
 
-        {!isPro && !isAdmin ? (
+        {!isPro ? (
           <UpgradeGate type="ai" title="Clinician Plan Required" description="Upgrade to Clinician (₹59/mo) to access and purchase premium study products." />
         ) : (
           <>
