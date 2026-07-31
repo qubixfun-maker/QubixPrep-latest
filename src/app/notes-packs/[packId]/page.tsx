@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, use } from "react"
 import { useUser } from "@/firebase"
-import { ChevronLeft, ChevronRight, Loader2, ShieldAlert } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, ShieldAlert, ZoomIn, ZoomOut, Maximize } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch"
 
 export default function NotePackViewerPage({ params }: { params: Promise<{ packId: string }> }) {
   const { packId } = use(params)
@@ -18,6 +19,11 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
   const [pageNum, setPageNum] = useState(1)
   const [rendering, setRendering] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const transformRef = useRef<ReactZoomPanPinchRef>(null)
+
+  const fitToScreen = () => {
+    transformRef.current?.resetTransform()
+  }
 
   useEffect(() => {
     if (userLoading) return
@@ -72,12 +78,62 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
       setRendering(true)
       const page = await pdfDoc.getPage(pageNum)
       if (cancelled) return
-      const viewport = page.getViewport({ scale: 1.5 })
+      const viewport = page.getViewport({ scale: 2 })
+
+      // Render at full page size to an offscreen canvas first
+      const rawCanvas = document.createElement("canvas")
+      rawCanvas.width = viewport.width
+      rawCanvas.height = viewport.height
+      const rawCtx = rawCanvas.getContext("2d")!
+      await page.render({ canvasContext: rawCtx, viewport }).promise
+      if (cancelled) return
+
+      // Auto-crop surrounding whitespace so blank PDF margins do not show
+      const { data, width, height } = rawCtx.getImageData(0, 0, rawCanvas.width, rawCanvas.height)
+      const THRESHOLD = 250
+      const hasContentAt = (i: number) => data[i] < THRESHOLD || data[i + 1] < THRESHOLD || data[i + 2] < THRESHOLD
+
+      let top = 0, bottom = height - 1, left = 0, right = width - 1
+
+      const rowHasContent = (y: number) => {
+        const rowStart = y * width * 4
+        for (let x = 0; x < width; x++) {
+          if (hasContentAt(rowStart + x * 4)) return true
+        }
+        return false
+      }
+      const colHasContent = (x: number) => {
+        for (let y = 0; y < height; y++) {
+          if (hasContentAt((y * width + x) * 4)) return true
+        }
+        return false
+      }
+
+      while (top < bottom && !rowHasContent(top)) top++
+      while (bottom > top && !rowHasContent(bottom)) bottom--
+      while (left < right && !colHasContent(left)) left++
+      while (right > left && !colHasContent(right)) right--
+
+      const PAD = 24
+      const cropX = Math.max(0, left - PAD)
+      const cropY = Math.max(0, top - PAD)
+      const cropW = Math.min(width, right + PAD) - cropX
+      const cropH = Math.min(height, bottom + PAD) - cropY
+
       const canvas = canvasRef.current!
       const context = canvas.getContext("2d")!
-      canvas.height = viewport.height
-      canvas.width = viewport.width
-      await page.render({ canvasContext: context, viewport }).promise
+
+      if (cropW <= 0 || cropH <= 0 || (cropW >= width * 0.98 && cropH >= height * 0.98)) {
+        // Nothing meaningful to crop (page is already tight, or fully blank) - show as-is
+        canvas.width = width
+        canvas.height = height
+        context.drawImage(rawCanvas, 0, 0)
+      } else {
+        canvas.width = cropW
+        canvas.height = cropH
+        context.drawImage(rawCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
+      }
+
       if (!cancelled) setRendering(false)
     }
     renderPage()
@@ -111,10 +167,10 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
 
   return (
     <div
-      className="max-w-4xl mx-auto p-4 md:p-8 space-y-4 select-none"
+      className="max-w-4xl mx-auto p-4 md:p-8 space-y-4 select-none flex flex-col h-screen"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <Link href="/products" className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-1 hover:underline">
           <ChevronLeft className="h-3 w-3" /> Back to Store
         </Link>
@@ -122,16 +178,51 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
         <span className="text-xs text-muted-foreground">Page {pageNum} / {numPages}</span>
       </div>
 
-      <div className="flex justify-center overflow-auto rounded-2xl glass border-none p-4 relative">
+      <div className="flex-1 relative overflow-hidden rounded-2xl glass border-none">
         {rendering && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20">
             <Loader2 className="h-8 w-8 text-primary animate-spin" />
           </div>
         )}
-        <canvas ref={canvasRef} className="max-w-full h-auto rounded-lg pointer-events-none" />
+        <TransformWrapper
+          ref={transformRef}
+          initialScale={1}
+          minScale={1}
+          maxScale={6}
+          centerOnInit
+          limitToBounds={true}
+          wheel={{ step: 0.15 }}
+          pinch={{ step: 5 }}
+          doubleClick={{ mode: "zoomIn", step: 0.7 }}
+        >
+          {({ zoomIn, zoomOut }) => (
+            <>
+              <TransformComponent
+                wrapperStyle={{ width: "100%", height: "100%" }}
+                contentStyle={{ width: "100%", height: "100%" }}
+              >
+                <div className="relative w-full h-full flex items-center justify-center p-4">
+                  <canvas ref={canvasRef} className="max-w-full max-h-full w-auto h-auto rounded-lg pointer-events-none" />
+                </div>
+              </TransformComponent>
+
+              <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
+                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => zoomIn()}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => zoomOut()}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={fitToScreen}>
+                  <Maximize className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
+          )}
+        </TransformWrapper>
       </div>
 
-      <div className="flex items-center justify-center gap-4">
+      <div className="flex items-center justify-center gap-4 shrink-0">
         <Button variant="outline" className="rounded-xl gap-2" disabled={pageNum <= 1} onClick={() => setPageNum((p) => p - 1)}>
           <ChevronLeft className="h-4 w-4" /> Previous
         </Button>
