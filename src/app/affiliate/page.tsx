@@ -17,6 +17,7 @@ export default function AffiliatePage() {
   const { toast } = useToast()
   const [affiliate, setAffiliate] = useState<any>(null)
   const [referrals, setReferrals] = useState<any[]>([])
+  const [productReferrals, setProductReferrals] = useState<any[]>([])
   const [payouts, setPayouts] = useState<any[]>([])
   const [pageLoading, setPageLoading] = useState(true)
   const [joining, setJoining] = useState(false)
@@ -42,6 +43,7 @@ export default function AffiliatePage() {
       if (data.affiliate) {
         setAffiliate(data.affiliate)
         setReferrals(data.referrals || [])
+        setProductReferrals(data.productReferrals || [])
         setPayouts(data.payouts || [])
         setSavedUpiInput(data.affiliate.upiId || "")
       }
@@ -245,7 +247,7 @@ export default function AffiliatePage() {
 
           {referrals.length > 0 && (
             <div className="glass rounded-2xl border border-white/10 overflow-hidden">
-              <div className="p-4 border-b border-white/10"><p className="font-semibold text-sm">Referral History</p></div>
+              <div className="p-4 border-b border-white/10"><p className="font-semibold text-sm">Subscription Referrals</p></div>
               <div className="divide-y divide-white/5">
                 {referrals.map((r: any) => (
                   <div key={r.id} className="p-4 flex items-center justify-between gap-4">
@@ -272,6 +274,26 @@ export default function AffiliatePage() {
                         </span>
                       </div>
                     )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {productReferrals.length > 0 && (
+            <div className="glass rounded-2xl border border-white/10 overflow-hidden">
+              <div className="p-4 border-b border-white/10"><p className="font-semibold text-sm">Product Referrals (Notes Packs)</p></div>
+              <div className="divide-y divide-white/5">
+                {productReferrals.map((r: any) => (
+                  <div key={r.id} className="p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{r.packTitle} - {new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-green-400">₹{r.amount}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned</span>
+                    </div>
                   </div>
                 ))}
               </div>

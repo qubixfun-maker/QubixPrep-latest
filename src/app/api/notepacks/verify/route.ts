@@ -4,6 +4,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { getAdminFirestore } from '@/lib/firebase-admin'
 import { FieldValue } from 'firebase-admin/firestore'
+import { neon } from '@neondatabase/serverless'
+import { PRODUCT_REFERRAL_COMMISSION } from '@/lib/affiliate'
+
+async function creditProductReferralIfApplicable(userId: string, packId: string, packTitle: string, paymentId: string) {
+  try {
+    const sql = neon(process.env.NEON_DATABASE_URL || "")
+    const refs = await sql`SELECT affiliate_id FROM referrals WHERE referred_user_id = ${userId} LIMIT 1`
+    if (refs.length === 0) return
+
+    const affiliateId = refs[0].affiliate_id
+
+    await sql`INSERT INTO product_referrals (affiliate_id, referred_user_id, pack_id, pack_title, amount, payment_id)
+      VALUES (${affiliateId}, ${userId}, ${packId}, ${packTitle}, ${PRODUCT_REFERRAL_COMMISSION}, ${paymentId})
+      ON CONFLICT (payment_id) DO NOTHING`
+
+    await sql`UPDATE affiliates SET pending_amount = pending_amount + ${PRODUCT_REFERRAL_COMMISSION}, total_earned = total_earned + ${PRODUCT_REFERRAL_COMMISSION} WHERE id = ${affiliateId}`
+  } catch (e: any) {
+    console.error('[NOTEPACK-VERIFY] Product referral crediting failed:', e.message)
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +63,8 @@ export async function POST(req: NextRequest) {
       paymentId: razorpay_payment_id,
       createdAt: new Date().toISOString()
     })
+
+    await creditProductReferralIfApplicable(userId, packId, packData?.title || '', razorpay_payment_id)
 
     return NextResponse.json({ success: true })
   } catch (e: any) {

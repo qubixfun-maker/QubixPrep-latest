@@ -14,9 +14,10 @@ export async function GET(req: NextRequest) {
     if (affs.length === 0) return NextResponse.json({ affiliate: null });
 
     const refs = await sql`SELECT id, referred_user_email as "referredUserEmail", referred_user_name as "referredUserName", plan, amount, status, charge_count as "chargeCount", charge_history as "chargeHistory", created_at as "createdAt" FROM referrals WHERE affiliate_id = ${affs[0].id} ORDER BY created_at DESC`;
+    const productRefs = await sql`SELECT id, referred_user_email as "referredUserEmail", referred_user_name as "referredUserName", pack_title as "packTitle", amount, created_at as "createdAt" FROM product_referrals WHERE affiliate_id = ${affs[0].id} ORDER BY created_at DESC`;
     const payouts = await sql`SELECT id, amount, upi_id as "upiId", status, created_at as "createdAt" FROM payouts WHERE affiliate_id = ${affs[0].id} ORDER BY created_at DESC`;
 
-    return NextResponse.json({ affiliate: affs[0], referrals: refs, payouts });
+    return NextResponse.json({ affiliate: affs[0], referrals: refs, productReferrals: productRefs, payouts });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

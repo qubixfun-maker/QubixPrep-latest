@@ -12,4 +12,6 @@ export const AFFILIATE_COMMISSION = {
   pro: 59,
 }
 
+export const PRODUCT_REFERRAL_COMMISSION = 50
+
 export const MIN_PAYOUT = 500

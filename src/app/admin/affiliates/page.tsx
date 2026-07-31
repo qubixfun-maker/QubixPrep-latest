@@ -14,7 +14,7 @@ export default function AdminAffiliatesPage() {
   const [allPayouts, setAllPayouts] = useState<any[]>([])
   const [pageLoading, setPageLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'payouts' | 'affiliates' | 'referrals'>('payouts')
+  const [activeTab, setActiveTab] = useState<'payouts' | 'affiliates' | 'referrals' | 'product-referrals'>('payouts')
   const [processing, setProcessing] = useState<number | null>(null)
   const [selectedAffiliate, setSelectedAffiliate] = useState<any>(null)
 
@@ -52,6 +52,7 @@ export default function AdminAffiliatesPage() {
   const pendingPayouts = allPayouts.filter(p => p.status === 'processing')
   const readyForPayout = affiliates.filter(a => (a.pendingAmount || 0) >= 500)
   const allReferrals = affiliates.flatMap(a => (a.referrals || []).map((r: any) => ({ ...r, affiliateName: a.name, affiliateCode: a.code })))
+  const allProductReferrals = affiliates.flatMap(a => (a.productReferrals || []).map((r: any) => ({ ...r, affiliateName: a.name, affiliateCode: a.code })))
   const filtered = affiliates.filter(a =>
     a.name?.toLowerCase().includes(search.toLowerCase()) ||
     a.email?.toLowerCase().includes(search.toLowerCase()) ||
@@ -102,7 +103,7 @@ export default function AdminAffiliatesPage() {
       </div>
 
       <div className="flex gap-2">
-        {(['payouts', 'affiliates', 'referrals'] as const).map(tab => (
+        {(['payouts', 'affiliates', 'referrals', 'product-referrals'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${activeTab === tab ? 'bg-primary text-white' : 'glass text-muted-foreground hover:text-white'}`}>
             {tab}{tab === 'payouts' && pendingPayouts.length > 0 && <span className="ml-1.5 bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[9px]">{pendingPayouts.length}</span>}
           </button>
@@ -210,6 +211,28 @@ export default function AdminAffiliatesPage() {
         </div>
       )}
 
+      {activeTab === 'product-referrals' && (
+        <div className="glass rounded-2xl border border-white/10 overflow-hidden">
+          {allProductReferrals.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">No product referrals yet.</div> : (
+            <div className="divide-y divide-white/5">
+              {allProductReferrals.map((r: any) => (
+                <div key={r.id} className="p-4 flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
+                    <p className="text-xs text-muted-foreground">Referred by: {r.affiliateName} ({r.affiliateCode})</p>
+                    <p className="text-xs text-muted-foreground">{r.packTitle} - {new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-green-400">₹{r.amount}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <Dialog open={!!selectedAffiliate} onOpenChange={(open) => !open && setSelectedAffiliate(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedAffiliate && (
@@ -259,6 +282,25 @@ export default function AdminAffiliatesPage() {
                             ))}
                           </div>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Product Referrals ({(selectedAffiliate.productReferrals || []).length})</p>
+                {(selectedAffiliate.productReferrals || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No product referrals yet.</p>
+                ) : (
+                  <div className="glass rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
+                    {selectedAffiliate.productReferrals.map((r: any) => (
+                      <div key={r.id} className="p-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
+                          <p className="text-xs text-muted-foreground">{r.packTitle} - {new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned ₹{r.amount}</span>
                       </div>
                     ))}
                   </div>

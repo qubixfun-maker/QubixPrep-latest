@@ -8,12 +8,18 @@ export async function GET() {
 
     const affiliates = await sql`SELECT id, user_id as "userId", email, name, plan, code, status, upi_id as "upiId", total_earned as "totalEarned", pending_amount as "pendingAmount", paid_out as "paidOut", created_at as "createdAt" FROM affiliates ORDER BY created_at DESC`;
     const referrals = await sql`SELECT id, affiliate_id as "affiliateId", referred_user_email as "referredUserEmail", referred_user_name as "referredUserName", plan, amount, status, charge_count as "chargeCount", charge_history as "chargeHistory", created_at as "createdAt" FROM referrals ORDER BY created_at DESC`;
+    const productReferrals = await sql`SELECT id, affiliate_id as "affiliateId", referred_user_email as "referredUserEmail", referred_user_name as "referredUserName", pack_title as "packTitle", amount, created_at as "createdAt" FROM product_referrals ORDER BY created_at DESC`;
     const payouts = await sql`SELECT id, affiliate_id as "affiliateId", amount, upi_id as "upiId", status, created_at as "createdAt" FROM payouts ORDER BY created_at DESC`;
 
     const referralsByAffiliate: Record<number, any[]> = {};
     referrals.forEach((r: any) => {
       if (!referralsByAffiliate[r.affiliateId]) referralsByAffiliate[r.affiliateId] = [];
       referralsByAffiliate[r.affiliateId].push(r);
+    });
+    const productReferralsByAffiliate: Record<number, any[]> = {};
+    productReferrals.forEach((r: any) => {
+      if (!productReferralsByAffiliate[r.affiliateId]) productReferralsByAffiliate[r.affiliateId] = [];
+      productReferralsByAffiliate[r.affiliateId].push(r);
     });
     const payoutsByAffiliate: Record<number, any[]> = {};
     payouts.forEach((p: any) => {
@@ -24,10 +30,11 @@ export async function GET() {
     const enriched = affiliates.map((a: any) => ({
       ...a,
       referrals: referralsByAffiliate[a.id] || [],
+      productReferrals: productReferralsByAffiliate[a.id] || [],
       payouts: payoutsByAffiliate[a.id] || [],
     }));
 
-    return NextResponse.json({ affiliates: enriched, allPayouts: payouts });
+    return NextResponse.json({ affiliates: enriched, allPayouts: payouts, allProductReferrals: productReferrals });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
