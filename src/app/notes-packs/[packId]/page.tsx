@@ -74,37 +74,39 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current) return
     let cancelled = false
+
     async function renderPage() {
       setRendering(true)
       const page = await pdfDoc.getPage(pageNum)
       if (cancelled) return
-      const viewport = page.getViewport({ scale: 2 })
 
-      // Render at full page size to an offscreen canvas first
-      const rawCanvas = document.createElement("canvas")
-      rawCanvas.width = viewport.width
-      rawCanvas.height = viewport.height
-      const rawCtx = rawCanvas.getContext("2d")!
-      await page.render({ canvasContext: rawCtx, viewport }).promise
+      // Step 1: render a small, cheap probe copy just to detect the content boundary.
+      // Scanning pixels on a tiny image is fast; scanning a full-res render is what was slow.
+      const PROBE_SCALE = 0.3
+      const probeViewport = page.getViewport({ scale: PROBE_SCALE })
+      const probeCanvas = document.createElement("canvas")
+      probeCanvas.width = probeViewport.width
+      probeCanvas.height = probeViewport.height
+      const probeCtx = probeCanvas.getContext("2d")!
+      await page.render({ canvasContext: probeCtx, viewport: probeViewport }).promise
       if (cancelled) return
 
-      // Auto-crop surrounding whitespace so blank PDF margins do not show
-      const { data, width, height } = rawCtx.getImageData(0, 0, rawCanvas.width, rawCanvas.height)
+      const { data, width: pw, height: ph } = probeCtx.getImageData(0, 0, probeCanvas.width, probeCanvas.height)
       const THRESHOLD = 250
       const hasContentAt = (i: number) => data[i] < THRESHOLD || data[i + 1] < THRESHOLD || data[i + 2] < THRESHOLD
 
-      let top = 0, bottom = height - 1, left = 0, right = width - 1
+      let top = 0, bottom = ph - 1, left = 0, right = pw - 1
 
       const rowHasContent = (y: number) => {
-        const rowStart = y * width * 4
-        for (let x = 0; x < width; x++) {
+        const rowStart = y * pw * 4
+        for (let x = 0; x < pw; x++) {
           if (hasContentAt(rowStart + x * 4)) return true
         }
         return false
       }
       const colHasContent = (x: number) => {
-        for (let y = 0; y < height; y++) {
-          if (hasContentAt((y * width + x) * 4)) return true
+        for (let y = 0; y < ph; y++) {
+          if (hasContentAt((y * pw + x) * 4)) return true
         }
         return false
       }
@@ -114,17 +116,36 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
       while (left < right && !colHasContent(left)) left++
       while (right > left && !colHasContent(right)) right--
 
+      // Convert the probe's bounding box into fractions of the page, then apply to the full-res render
+      const fracTop = top / ph
+      const fracBottom = bottom / ph
+      const fracLeft = left / pw
+      const fracRight = right / pw
+      const isFullyBlankOrUncropped = fracLeft >= 0.01 * 0 && (right - left) >= pw * 0.98 && (bottom - top) >= ph * 0.98
+
+      // Step 2: render the real, full-quality page
+      const viewport = page.getViewport({ scale: 2 })
+      const rawCanvas = document.createElement("canvas")
+      rawCanvas.width = viewport.width
+      rawCanvas.height = viewport.height
+      const rawCtx = rawCanvas.getContext("2d")!
+      await page.render({ canvasContext: rawCtx, viewport }).promise
+      if (cancelled) return
+
+      const width = viewport.width
+      const height = viewport.height
       const PAD = 24
-      const cropX = Math.max(0, left - PAD)
-      const cropY = Math.max(0, top - PAD)
-      const cropW = Math.min(width, right + PAD) - cropX
-      const cropH = Math.min(height, bottom + PAD) - cropY
+      const cropX = Math.max(0, fracLeft * width - PAD)
+      const cropY = Math.max(0, fracTop * height - PAD)
+      const cropRight = Math.min(width, fracRight * width + PAD)
+      const cropBottom = Math.min(height, fracBottom * height + PAD)
+      const cropW = cropRight - cropX
+      const cropH = cropBottom - cropY
 
       const canvas = canvasRef.current!
       const context = canvas.getContext("2d")!
 
-      if (cropW <= 0 || cropH <= 0 || (cropW >= width * 0.98 && cropH >= height * 0.98)) {
-        // Nothing meaningful to crop (page is already tight, or fully blank) - show as-is
+      if (cropW <= 0 || cropH <= 0 || isFullyBlankOrUncropped) {
         canvas.width = width
         canvas.height = height
         context.drawImage(rawCanvas, 0, 0)
@@ -167,10 +188,10 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
 
   return (
     <div
-      className="max-w-4xl mx-auto p-4 md:p-8 space-y-4 select-none flex flex-col h-screen"
+      className="max-w-4xl mx-auto flex flex-col h-[calc(100dvh-3.5rem)] md:h-screen select-none"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <div className="flex items-center justify-between shrink-0">
+      <div className="flex items-center justify-between shrink-0 px-4 py-3">
         <Link href="/products" className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-1 hover:underline">
           <ChevronLeft className="h-3 w-3" /> Back to Store
         </Link>
@@ -178,7 +199,7 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
         <span className="text-xs text-muted-foreground">Page {pageNum} / {numPages}</span>
       </div>
 
-      <div className="flex-1 relative overflow-hidden rounded-2xl glass border-none">
+      <div className="flex-1 relative overflow-hidden">
         {rendering && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20">
             <Loader2 className="h-8 w-8 text-primary animate-spin" />
@@ -201,7 +222,7 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
                 wrapperStyle={{ width: "100%", height: "100%" }}
                 contentStyle={{ width: "100%", height: "100%" }}
               >
-                <div className="relative w-full h-full flex items-center justify-center p-4">
+                <div className="relative w-full h-full flex items-center justify-center">
                   <canvas ref={canvasRef} className="max-w-full max-h-full w-auto h-auto rounded-lg pointer-events-none" />
                 </div>
               </TransformComponent>
@@ -222,7 +243,7 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
         </TransformWrapper>
       </div>
 
-      <div className="flex items-center justify-center gap-4 shrink-0">
+      <div className="flex items-center justify-center gap-4 shrink-0 py-3">
         <Button variant="outline" className="rounded-xl gap-2" disabled={pageNum <= 1} onClick={() => setPageNum((p) => p - 1)}>
           <ChevronLeft className="h-4 w-4" /> Previous
         </Button>
