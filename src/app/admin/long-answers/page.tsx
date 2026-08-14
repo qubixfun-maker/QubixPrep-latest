@@ -27,7 +27,7 @@ export default function LongAnswersAdminPage() {
 
   const [subject, setSubject] = useState("")
   const [chapter, setChapter] = useState("")
-  const [sectionType, setSectionType] = useState<"long-essays" | "short-essays">("long-essays")
+  const [sectionType, setSectionType] = useState<"long-essays" | "short-essays" | "short-answers">("long-essays")
   const [rawText, setRawText] = useState("")
   const [generatedHtml, setGeneratedHtml] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
@@ -83,7 +83,8 @@ export default function LongAnswersAdminPage() {
         updatedAt: serverTimestamp()
       }, { merge: true })
 
-      toast({ title: "Saved", description: `${sectionType === 'long-essays' ? 'Long Essays' : 'Short Essays'} saved to ${chapter.trim()}.` })
+      const sectionLabel = sectionType === 'long-essays' ? 'Long Essays' : sectionType === 'short-essays' ? 'Short Essays' : 'Short Answers'
+      toast({ title: "Saved", description: `${sectionLabel} saved to ${chapter.trim()}.` })
       setRawText("")
       setGeneratedHtml("")
     } catch (e: any) {
@@ -129,6 +130,7 @@ export default function LongAnswersAdminPage() {
                 <SelectContent className="glass border-white/10">
                   <SelectItem value="long-essays">Long Essays</SelectItem>
                   <SelectItem value="short-essays">Short Essays</SelectItem>
+                  <SelectItem value="short-answers">Short Answers</SelectItem>
                 </SelectContent>
               </Select>
             </div>

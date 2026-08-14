@@ -5,7 +5,7 @@ export type FormatLongAnswersInput = {
   rawText: string;
   subject: string;
   chapter: string;
-  sectionType: 'long-essays' | 'short-essays';
+  sectionType: 'long-essays' | 'short-essays' | 'short-answers';
 };
 
 export type FormatLongAnswersOutput = {
@@ -14,7 +14,7 @@ export type FormatLongAnswersOutput = {
 };
 
 function buildPrompt(input: FormatLongAnswersInput): string {
-  const sectionLabel = input.sectionType === 'long-essays' ? 'Long Essay' : 'Short Essay'
+  const sectionLabel = input.sectionType === 'long-essays' ? 'Long Essay' : input.sectionType === 'short-essays' ? 'Short Essay' : 'Short Answer'
 
   return `You are a formatting assistant for an MBBS exam-prep platform. You are given a student's own rough notes containing exam questions and his own rough answers already written out. Your ONLY job is to clean up formatting and structure - you must NOT invent, add, or embellish any medical content that is not already present in the student's own answer text.
 
