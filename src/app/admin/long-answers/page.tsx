@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
+import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { doc, collection, query, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 import { formatLongAnswers } from "@/ai/flows/ai-long-answers-formatter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Sparkles, Lock, ArrowLeft, Save, FileText, FolderOpen, Trash2, X } from "lucide-react"
+import { Loader2, Sparkles, Lock, ArrowLeft, Save, FileText, FolderOpen, Trash2, X, ImagePlus, Wand2, Check } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 
@@ -31,6 +32,10 @@ function parseQaItems(html: string): QAItem[] {
       answerHtml: (aEl?.innerHTML || "").trim(),
     }
   })
+}
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, "").trim()
 }
 
 function rebuildHtml(items: QAItem[]): string {
@@ -75,6 +80,15 @@ export default function LongAnswersAdminPage() {
   const [manageItems, setManageItems] = useState<QAItem[] | null>(null)
   const [isSavingManage, setIsSavingManage] = useState(false)
 
+  // --- Batch image matching state ---
+  const storage = useStorage()
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const [matchMatrix, setMatchMatrix] = useState<Record<number, Set<number>>>({})
+  const [hasMatched, setHasMatched] = useState(false)
+  const [isMatching, setIsMatching] = useState(false)
+  const [isEmbedding, setIsEmbedding] = useState(false)
+
   useEffect(() => {
     setManageChapterId("")
     setManageItems(null)
@@ -82,6 +96,10 @@ export default function LongAnswersAdminPage() {
 
   useEffect(() => {
     setManageItems(null)
+    setImageFiles([])
+    setImagePreviews([])
+    setMatchMatrix({})
+    setHasMatched(false)
   }, [manageChapterId, manageSectionType])
 
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
@@ -205,6 +223,120 @@ export default function LongAnswersAdminPage() {
       toast({ variant: "destructive", title: "Save Failed", description: e.message })
     } finally {
       setIsSavingManage(false)
+    }
+  }
+
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result as string
+        resolve(result.split(",")[1])
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  function handleImageFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    setImageFiles(files)
+    setImagePreviews(files.map(f => URL.createObjectURL(f)))
+    setMatchMatrix({})
+    setHasMatched(false)
+  }
+
+  async function handleRunMatching() {
+    if (!manageItems || manageItems.length === 0 || imageFiles.length === 0) return
+    setIsMatching(true)
+    try {
+      const images = await Promise.all(imageFiles.map(async (file) => ({
+        filename: file.name,
+        mimeType: file.type || "image/jpeg",
+        base64: await fileToBase64(file),
+      })))
+      const questions = manageItems.map((item, i) => ({ index: i, text: stripHtml(item.questionHtml) }))
+
+      const res = await fetch("/api/long-answers/match-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images, questions }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      const matrix: Record<number, Set<number>> = {}
+      for (const result of data.results) {
+        matrix[result.imageIndex] = new Set(result.matchedQuestionIndices)
+      }
+      setMatchMatrix(matrix)
+      setHasMatched(true)
+      toast({ title: "Matching Complete", description: "Review the suggested matches below before confirming." })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Matching Failed", description: e.message })
+    } finally {
+      setIsMatching(false)
+    }
+  }
+
+  function toggleMatch(imageIndex: number, questionIndex: number) {
+    setMatchMatrix((prev) => {
+      const next = { ...prev }
+      const current = new Set(next[imageIndex] || [])
+      if (current.has(questionIndex)) current.delete(questionIndex)
+      else current.add(questionIndex)
+      next[imageIndex] = current
+      return next
+    })
+  }
+
+  async function handleConfirmEmbed() {
+    if (!storage || !manageItems || !manageSubjectId || !manageChapterId) return
+    setIsEmbedding(true)
+    try {
+      const updatedItems = [...manageItems]
+      let embeddedCount = 0
+
+      for (let i = 0; i < imageFiles.length; i++) {
+        const questionIndices = Array.from(matchMatrix[i] || [])
+        if (questionIndices.length === 0) continue
+
+        const file = imageFiles[i]
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")
+        const filePath = `long-answers/${manageSubjectId}/${manageChapterId}/${manageSectionType}/${Date.now()}-${safeName}`
+        const fileRef = storageRef(storage, filePath)
+        await uploadBytes(fileRef, file)
+        const url = await getDownloadURL(fileRef)
+
+        for (const qIndex of questionIndices) {
+          const imgTag = "\n<img src=\"" + url + "\" alt=\"" + file.name + "\" />"
+          updatedItems[qIndex] = {
+            ...updatedItems[qIndex],
+            answerHtml: updatedItems[qIndex].answerHtml + imgTag
+          }
+          embeddedCount++
+        }
+      }
+
+      setManageItems(updatedItems)
+
+      const html = rebuildHtml(updatedItems)
+      const questionCount = updatedItems.length
+      const chapterRef = doc(db!, "subjects", manageSubjectId, "essayChapters", manageChapterId)
+      await updateDoc(chapterRef, { [`sectionCounts.${manageSectionType}`]: questionCount })
+      const sectionRef = doc(db!, "subjects", manageSubjectId, "essayChapters", manageChapterId, "sections", manageSectionType)
+      await setDoc(sectionRef, { sectionType: manageSectionType, html, questionCount, updatedAt: serverTimestamp() }, { merge: true })
+
+      toast({ title: "Images Embedded", description: embeddedCount + " image placement(s) saved." })
+      setImageFiles([])
+      setImagePreviews([])
+      setMatchMatrix({})
+      setHasMatched(false)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Embed Failed", description: e.message })
+    } finally {
+      setIsEmbedding(false)
     }
   }
 
@@ -388,6 +520,57 @@ Q2 Describe the brachial plexus.
                 </Card>
               ))}
             </div>
+          )}
+
+          {manageItems && manageItems.length > 0 && (
+            <Card className="glass border-none">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2"><ImagePlus className="h-4 w-4" /> Batch Image Matching</CardTitle>
+                <p className="text-xs text-muted-foreground">Upload images for this section - AI will suggest which question(s) each one illustrates. Nothing is saved until you confirm below.</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input type="file" accept="image/*" multiple onChange={handleImageFilesSelected} className="glass border-white/10 cursor-pointer h-14 pt-4" />
+
+                {imagePreviews.length > 0 && (
+                  <Button onClick={handleRunMatching} disabled={isMatching} className="w-full h-12 gap-2">
+                    {isMatching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                    {isMatching ? "Matching..." : `Match ${imagePreviews.length} Image${imagePreviews.length !== 1 ? "s" : ""} with AI`}
+                  </Button>
+                )}
+
+                {hasMatched && (
+                  <div className="space-y-4 pt-2">
+                    {imagePreviews.map((preview, imgIndex) => (
+                      <div key={imgIndex} className="p-4 rounded-xl glass border border-white/10 space-y-3">
+                        <div className="flex items-start gap-4">
+                          <img src={preview} alt={imageFiles[imgIndex]?.name} className="w-24 h-24 object-cover rounded-lg shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold truncate">{imageFiles[imgIndex]?.name}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">Tick the question(s) this image belongs to:</p>
+                            <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-2">
+                              {manageItems.map((item, qIndex) => {
+                                const checked = matchMatrix[imgIndex]?.has(qIndex) || false
+                                return (
+                                  <label key={qIndex} className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs transition-colors ${checked ? "bg-primary/10 text-primary" : "hover:bg-white/5"}`}>
+                                    <input type="checkbox" checked={checked} onChange={() => toggleMatch(imgIndex, qIndex)} className="mt-0.5" />
+                                    <span className="line-clamp-2">{stripHtml(item.questionHtml)}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    <Button onClick={handleConfirmEmbed} disabled={isEmbedding} className="w-full h-12 gap-2">
+                      {isEmbedding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      {isEmbedding ? "Uploading & Embedding..." : "Confirm & Embed Images"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
