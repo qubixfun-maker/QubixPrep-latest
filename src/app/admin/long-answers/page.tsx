@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, setDoc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { doc, collection, query, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
 import { formatLongAnswers } from "@/ai/flows/ai-long-answers-formatter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,9 +10,40 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Sparkles, Lock, ArrowLeft, Save, FileText } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Loader2, Sparkles, Lock, ArrowLeft, Save, FileText, FolderOpen, Trash2, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
+
+type QAItem = { questionHtml: string; answerHtml: string }
+
+function parseQaItems(html: string): QAItem[] {
+  if (typeof document === "undefined") return []
+  const container = document.createElement("div")
+  container.innerHTML = html
+  return Array.from(container.querySelectorAll(".qa-item")).map((el) => {
+    const qEl = el.querySelector(".qa-question")
+    const aEl = el.querySelector(".qa-answer")
+    const qClone = qEl ? qEl.cloneNode(true) as HTMLElement : null
+    qClone?.querySelector(".qa-number")?.remove()
+    return {
+      questionHtml: (qClone?.innerHTML || "").trim(),
+      answerHtml: (aEl?.innerHTML || "").trim(),
+    }
+  })
+}
+
+function rebuildHtml(items: QAItem[]): string {
+  return items.map((item, i) => `<div class="qa-item">
+  <div class="qa-question">
+    <span class="qa-number">${i + 1}.</span>
+    ${item.questionHtml}
+  </div>
+  <div class="qa-answer">
+    ${item.answerHtml}
+  </div>
+</div>`).join("\n")
+}
 
 export default function LongAnswersAdminPage() {
   const { user, loading: authLoading } = useUser()
@@ -32,6 +63,26 @@ export default function LongAnswersAdminPage() {
   const [generatedHtml, setGeneratedHtml] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  const [manageSubject, setManageSubject] = useState("")
+  const manageSubjectId = manageSubject ? manageSubject.toLowerCase().replace(/\s+/g, '-') : ""
+  const chaptersQuery = useMemo(() => (!db || !manageSubjectId) ? null : query(collection(db, 'subjects', manageSubjectId, 'essayChapters'), orderBy('title', 'asc')), [db, manageSubjectId])
+  const { data: manageChapters } = useCollection(chaptersQuery)
+
+  const [manageChapterId, setManageChapterId] = useState("")
+  const [manageSectionType, setManageSectionType] = useState<"long-essays" | "short-essays" | "short-answers">("long-essays")
+  const [isLoadingSection, setIsLoadingSection] = useState(false)
+  const [manageItems, setManageItems] = useState<QAItem[] | null>(null)
+  const [isSavingManage, setIsSavingManage] = useState(false)
+
+  useEffect(() => {
+    setManageChapterId("")
+    setManageItems(null)
+  }, [manageSubject])
+
+  useEffect(() => {
+    setManageItems(null)
+  }, [manageChapterId, manageSectionType])
 
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!user || (profile as any)?.role !== 'admin') {
@@ -72,7 +123,6 @@ export default function LongAnswersAdminPage() {
     try {
       const subjectId = subject.toLowerCase().replace(/\s+/g, '-')
       const chapterId = chapter.trim().toLowerCase().replace(/\s+/g, '-')
-
       const questionCount = (generatedHtml.match(/class="qa-item"/g) || []).length
 
       const chapterRef = doc(db, 'subjects', subjectId, 'essayChapters', chapterId)
@@ -98,6 +148,66 @@ export default function LongAnswersAdminPage() {
     }
   }
 
+  async function handleLoadSection() {
+    if (!db || !manageSubjectId || !manageChapterId) return
+    setIsLoadingSection(true)
+    setManageItems(null)
+    try {
+      const { getDoc } = await import("firebase/firestore")
+      const sectionRef = doc(db, 'subjects', manageSubjectId, 'essayChapters', manageChapterId, 'sections', manageSectionType)
+      const snap = await getDoc(sectionRef)
+      if (!snap.exists() || !(snap.data() as any).html) {
+        setManageItems([])
+        toast({ title: "No content found", description: "This section is empty for the selected chapter." })
+      } else {
+        setManageItems(parseQaItems((snap.data() as any).html))
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Load Failed", description: e.message })
+    } finally {
+      setIsLoadingSection(false)
+    }
+  }
+
+  function updateManageItem(index: number, field: "questionHtml" | "answerHtml", value: string) {
+    setManageItems((prev) => {
+      if (!prev) return prev
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  function deleteManageItem(index: number) {
+    if (!confirm("Delete this question? This cannot be undone until you save.")) return
+    setManageItems((prev) => (prev ? prev.filter((_, i) => i !== index) : prev))
+  }
+
+  async function handleSaveManageChanges() {
+    if (!db || !manageSubjectId || !manageChapterId || !manageItems) return
+    setIsSavingManage(true)
+    try {
+      const html = rebuildHtml(manageItems)
+      const questionCount = manageItems.length
+
+      const chapterRef = doc(db, 'subjects', manageSubjectId, 'essayChapters', manageChapterId)
+      await updateDoc(chapterRef, { [`sectionCounts.${manageSectionType}`]: questionCount })
+
+      const sectionRef = doc(db, 'subjects', manageSubjectId, 'essayChapters', manageChapterId, 'sections', manageSectionType)
+      if (questionCount === 0) {
+        await deleteDoc(sectionRef)
+      } else {
+        await setDoc(sectionRef, { sectionType: manageSectionType, html, questionCount, updatedAt: serverTimestamp() }, { merge: true })
+      }
+
+      toast({ title: "Changes Saved", description: `${questionCount} question${questionCount !== 1 ? 's' : ''} in this section now.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Save Failed", description: e.message })
+    } finally {
+      setIsSavingManage(false)
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center gap-3">
@@ -106,81 +216,181 @@ export default function LongAnswersAdminPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" /> Long Answers Builder
           </h1>
-          <p className="text-sm text-muted-foreground">Paste your questions and rough answers, let AI format them, review, and publish.</p>
+          <p className="text-sm text-muted-foreground">Create new content with AI, or manage what's already published.</p>
         </div>
       </div>
 
-      <Card className="glass border-none">
-        <CardHeader><CardTitle className="text-base">Content Settings</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Subject</Label>
-              <Select value={subject} onValueChange={setSubject}>
-                <SelectTrigger className="glass border-white/10"><SelectValue placeholder="Select Subject" /></SelectTrigger>
-                <SelectContent className="glass border-white/10">
-                  {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Chapter</Label>
-              <Input placeholder="e.g., Axilla and Brachial Plexus" value={chapter} onChange={(e) => setChapter(e.target.value)} className="glass border-white/10" />
-            </div>
-            <div className="space-y-2">
-              <Label>Section</Label>
-              <Select value={sectionType} onValueChange={(v: any) => setSectionType(v)}>
-                <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
-                <SelectContent className="glass border-white/10">
-                  <SelectItem value="long-essays">Long Essays</SelectItem>
-                  <SelectItem value="short-essays">Short Essays</SelectItem>
-                  <SelectItem value="short-answers">Short Answers</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+      <Tabs defaultValue="create">
+        <TabsList className="glass border-white/10">
+          <TabsTrigger value="create" className="gap-2"><Sparkles className="h-4 w-4" /> Create New</TabsTrigger>
+          <TabsTrigger value="manage" className="gap-2"><FolderOpen className="h-4 w-4" /> Manage Existing</TabsTrigger>
+        </TabsList>
 
-          <div className="space-y-2">
-            <Label>Paste Questions + Your Rough Answers</Label>
-            <p className="text-[10px] text-muted-foreground">
-              Use this format per question - repeat-frequency in brackets is optional:{" "}
-              <span className="font-mono">Q1 [asked 3x: 2015, 2018, 2022] Describe the boundaries and contents of the axilla. [your rough answer text...]</span>
-            </p>
-            <Textarea
-              placeholder="Q1 [asked 3x: 2015, 2018, 2022] Describe the boundaries and contents of the axilla.
+        <TabsContent value="create" className="space-y-8 mt-6">
+          <Card className="glass border-none">
+            <CardHeader><CardTitle className="text-base">Content Settings</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Subject</Label>
+                  <Select value={subject} onValueChange={setSubject}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Chapter</Label>
+                  <Input placeholder="e.g., Axilla and Brachial Plexus" value={chapter} onChange={(e) => setChapter(e.target.value)} className="glass border-white/10" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Section</Label>
+                  <Select value={sectionType} onValueChange={(v: any) => setSectionType(v)}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      <SelectItem value="long-essays">Long Essays</SelectItem>
+                      <SelectItem value="short-essays">Short Essays</SelectItem>
+                      <SelectItem value="short-answers">Short Answers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Paste Questions + Your Rough Answers</Label>
+                <p className="text-[10px] text-muted-foreground">
+                  Use this format per question - repeat-frequency in brackets is optional:{" "}
+                  <span className="font-mono">Q1 [asked 3x: 2015, 2018, 2022] Describe the boundaries and contents of the axilla. [your rough answer text...]</span>
+                </p>
+                <Textarea
+                  placeholder="Q1 [asked 3x: 2015, 2018, 2022] Describe the boundaries and contents of the axilla.
 The axilla is a pyramidal space...
 
 Q2 Describe the brachial plexus.
 ..."
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              className="glass border-white/10 min-h-[300px] font-mono text-sm"
-            />
-          </div>
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  className="glass border-white/10 min-h-[300px] font-mono text-sm"
+                />
+              </div>
 
-          <Button onClick={handleGenerate} disabled={isGenerating || !subject || !chapter.trim() || !rawText.trim()} className="w-full h-12 gap-2">
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {isGenerating ? "Formatting..." : "Format with AI"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {generatedHtml && (
-        <div className="space-y-4 animate-in slide-in-from-bottom-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Preview</h2>
-            <Button onClick={handleSave} disabled={isSaving} className="gap-2">
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {isSaving ? "Saving..." : "Save & Publish"}
-            </Button>
-          </div>
-          <Card className="glass border-none">
-            <CardContent className="p-6">
-              <div dangerouslySetInnerHTML={{ __html: generatedHtml }} />
+              <Button onClick={handleGenerate} disabled={isGenerating || !subject || !chapter.trim() || !rawText.trim()} className="w-full h-12 gap-2">
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {isGenerating ? "Formatting..." : "Format with AI"}
+              </Button>
             </CardContent>
           </Card>
-        </div>
-      )}
+
+          {generatedHtml && (
+            <div className="space-y-4 animate-in slide-in-from-bottom-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">Preview</h2>
+                <Button onClick={handleSave} disabled={isSaving} className="gap-2">
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {isSaving ? "Saving..." : "Save & Publish"}
+                </Button>
+              </div>
+              <Card className="glass border-none">
+                <CardContent className="p-6">
+                  <div dangerouslySetInnerHTML={{ __html: generatedHtml }} />
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="manage" className="space-y-8 mt-6">
+          <Card className="glass border-none">
+            <CardHeader><CardTitle className="text-base">Load a Section</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Subject</Label>
+                  <Select value={manageSubject} onValueChange={setManageSubject}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      {subjects?.map((s: any) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Chapter</Label>
+                  <Select value={manageChapterId} onValueChange={setManageChapterId} disabled={!manageSubject}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue placeholder={manageSubject ? "Select Chapter" : "Pick a subject first"} /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      {manageChapters?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                      {manageChapters?.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No chapters yet for this subject</div>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Section</Label>
+                  <Select value={manageSectionType} onValueChange={(v: any) => setManageSectionType(v)}>
+                    <SelectTrigger className="glass border-white/10"><SelectValue /></SelectTrigger>
+                    <SelectContent className="glass border-white/10">
+                      <SelectItem value="long-essays">Long Essays</SelectItem>
+                      <SelectItem value="short-essays">Short Essays</SelectItem>
+                      <SelectItem value="short-answers">Short Answers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={handleLoadSection} disabled={isLoadingSection || !manageSubject || !manageChapterId} className="w-full h-12 gap-2">
+                {isLoadingSection ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
+                {isLoadingSection ? "Loading..." : "Load Questions"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {manageItems !== null && (
+            <div className="space-y-4 animate-in slide-in-from-bottom-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">{manageItems.length} Question{manageItems.length !== 1 ? 's' : ''}</h2>
+                <Button onClick={handleSaveManageChanges} disabled={isSavingManage} className="gap-2">
+                  {isSavingManage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {isSavingManage ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+
+              {manageItems.length === 0 && (
+                <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">
+                  No questions in this section.
+                </div>
+              )}
+
+              {manageItems.map((item, i) => (
+                <Card key={i} className="glass border-none">
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Question {i + 1}</span>
+                      <button onClick={() => deleteManageItem(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Question (HTML)</Label>
+                      <Textarea
+                        value={item.questionHtml}
+                        onChange={(e) => updateManageItem(i, "questionHtml", e.target.value)}
+                        className="glass border-white/10 min-h-[70px] font-mono text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">Answer (HTML)</Label>
+                      <Textarea
+                        value={item.answerHtml}
+                        onChange={(e) => updateManageItem(i, "answerHtml", e.target.value)}
+                        className="glass border-white/10 min-h-[140px] font-mono text-xs"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
