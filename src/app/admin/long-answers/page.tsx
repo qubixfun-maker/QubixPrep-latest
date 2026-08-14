@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, setDoc, serverTimestamp } from "firebase/firestore"
+import { doc, collection, query, orderBy, setDoc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { formatLongAnswers } from "@/ai/flows/ai-long-answers-formatter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -73,13 +73,17 @@ export default function LongAnswersAdminPage() {
       const subjectId = subject.toLowerCase().replace(/\s+/g, '-')
       const chapterId = chapter.trim().toLowerCase().replace(/\s+/g, '-')
 
+      const questionCount = (generatedHtml.match(/class="qa-item"/g) || []).length
+
       const chapterRef = doc(db, 'subjects', subjectId, 'essayChapters', chapterId)
       await setDoc(chapterRef, { title: chapter.trim(), subjectId, updatedAt: serverTimestamp() }, { merge: true })
+      await updateDoc(chapterRef, { [`sectionCounts.${sectionType}`]: questionCount })
 
       const sectionRef = doc(db, 'subjects', subjectId, 'essayChapters', chapterId, 'sections', sectionType)
       await setDoc(sectionRef, {
         sectionType,
         html: generatedHtml,
+        questionCount,
         updatedAt: serverTimestamp()
       }, { merge: true })
 
