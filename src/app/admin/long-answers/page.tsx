@@ -254,22 +254,33 @@ export default function LongAnswersAdminPage() {
     try {
       const subjectId = subject.toLowerCase().replace(/\s+/g, '-')
       const chapterId = chapter.trim().toLowerCase().replace(/\s+/g, '-')
-      const questionCount = (generatedHtml.match(/class="qa-item"/g) || []).length
+
+      const { getDoc } = await import("firebase/firestore")
+      const sectionRef = doc(db, 'subjects', subjectId, 'essayChapters', chapterId, 'sections', sectionType)
+      const existingSnap = await getDoc(sectionRef)
+      const existingItems = existingSnap.exists() && (existingSnap.data() as any).html
+        ? parseQaItems((existingSnap.data() as any).html)
+        : []
+
+      const newItems = parseQaItems(generatedHtml)
+      const combinedItems = [...existingItems, ...newItems]
+      const finalHtml = rebuildHtml(combinedItems)
+      const questionCount = combinedItems.length
 
       const chapterRef = doc(db, 'subjects', subjectId, 'essayChapters', chapterId)
       await setDoc(chapterRef, { title: chapter.trim(), subjectId, updatedAt: serverTimestamp() }, { merge: true })
       await updateDoc(chapterRef, { [`sectionCounts.${sectionType}`]: questionCount })
 
-      const sectionRef = doc(db, 'subjects', subjectId, 'essayChapters', chapterId, 'sections', sectionType)
       await setDoc(sectionRef, {
         sectionType,
-        html: generatedHtml,
+        html: finalHtml,
         questionCount,
         updatedAt: serverTimestamp()
       }, { merge: true })
 
       const sectionLabel = sectionType === 'long-essays' ? 'Long Essays' : sectionType === 'short-essays' ? 'Short Essays' : 'Short Answers'
-      toast({ title: "Saved", description: `${sectionLabel} saved to ${chapter.trim()}.` })
+      const addedCount = newItems.length
+      toast({ title: "Saved", description: `Added ${addedCount} question${addedCount !== 1 ? "s" : ""} to ${sectionLabel} - ${chapter.trim()} now has ${questionCount} total.` })
       setRawText("")
       setGeneratedHtml("")
       resetCreateImages()
