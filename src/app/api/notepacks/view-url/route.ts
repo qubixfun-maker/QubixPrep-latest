@@ -11,10 +11,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing idToken or packId' }, { status: 400 })
     }
 
-    const decoded = await verifyIdToken(idToken)
+    const db = getAdminFirestore()
+
+    // Verify auth and fetch the pack doc concurrently - packId doesn't depend on auth
+    const [decoded, packDoc] = await Promise.all([
+      verifyIdToken(idToken),
+      db.collection('notePacks').doc(packId).get(),
+    ])
     const uid = decoded.uid
 
-    const db = getAdminFirestore()
+    if (!packDoc.exists) {
+      return NextResponse.json({ error: 'Notes Pack not found' }, { status: 404 })
+    }
+    const pack = packDoc.data()!
+    if (!pack.storagePath) {
+      return NextResponse.json({ error: 'No file uploaded for this pack yet' }, { status: 404 })
+    }
+
     const userDoc = await db.collection('users').doc(uid).get()
     const userData = userDoc.data()
 
@@ -25,21 +38,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'You have not purchased this Notes Pack' }, { status: 403 })
     }
 
-    const packDoc = await db.collection('notePacks').doc(packId).get()
-    if (!packDoc.exists) {
-      return NextResponse.json({ error: 'Notes Pack not found' }, { status: 404 })
-    }
-    const pack = packDoc.data()!
-    if (!pack.storagePath) {
-      return NextResponse.json({ error: 'No file uploaded for this pack yet' }, { status: 404 })
-    }
-
     const bucket = getAdminStorageBucket()
     const file = bucket.file(pack.storagePath)
-    const [exists] = await file.exists()
-    if (!exists) {
-      return NextResponse.json({ error: 'File not found in storage' }, { status: 404 })
-    }
 
     const [signedUrl] = await file.getSignedUrl({
       action: 'read',
