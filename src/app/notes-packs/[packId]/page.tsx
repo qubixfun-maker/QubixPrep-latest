@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState, use } from "react"
+import { useEffect, useState, use } from "react"
 import { useUser } from "@/firebase"
-import { Loader2, ShieldAlert, ZoomIn, ZoomOut, Maximize } from "lucide-react"
+import { Loader2, ShieldAlert, Clock } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch"
+
+const AUTO_CLOSE_MS = 10 * 60 * 1000 // 10 minutes
 
 export default function NotePackViewerPage({ params }: { params: Promise<{ packId: string }> }) {
   const { packId } = use(params)
@@ -14,38 +15,8 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
   const [status, setStatus] = useState<"loading" | "denied" | "ready" | "error">("loading")
   const [errorMsg, setErrorMsg] = useState("")
   const [title, setTitle] = useState("")
-  const [pdfDoc, setPdfDoc] = useState<any>(null)
-  const [numPages, setNumPages] = useState(0)
-  const [pageNum, setPageNum] = useState(1)
-  const [rendering, setRendering] = useState(false)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const transformRef = useRef<ReactZoomPanPinchRef>(null)
-  const currentScale = useRef(1)
-  const touchStartX = useRef<number | null>(null)
-  const touchStartY = useRef<number | null>(null)
-
-  const fitToScreen = () => {
-    transformRef.current?.resetTransform()
-  }
-
-  function onTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX
-    touchStartY.current = e.touches[0].clientY
-  }
-
-  function onTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null || currentScale.current > 1.05) {
-      touchStartX.current = null
-      return
-    }
-    const dx = e.changedTouches[0].clientX - touchStartX.current
-    const dy = e.changedTouches[0].clientY - (touchStartY.current || 0)
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx < 0) setPageNum((p) => Math.min(numPages, p + 1))
-      else setPageNum((p) => Math.max(1, p - 1))
-    }
-    touchStartX.current = null
-  }
+  const [pdfUrl, setPdfUrl] = useState("")
+  const [secondsLeft, setSecondsLeft] = useState(AUTO_CLOSE_MS / 1000)
 
   useEffect(() => {
     if (userLoading) return
@@ -73,15 +44,7 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
         }
         if (cancelled) return
         setTitle(data.title || "")
-
-        const pdfjsLib: any = await import("pdfjs-dist/build/pdf.mjs")
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
-
-        const loadingTask = pdfjsLib.getDocument({ url: data.url })
-        const doc = await loadingTask.promise
-        if (cancelled) return
-        setPdfDoc(doc)
-        setNumPages(doc.numPages)
+        setPdfUrl(data.url)
         setStatus("ready")
       } catch (e: any) {
         if (cancelled) return
@@ -94,166 +57,61 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
   }, [user, userLoading, packId])
 
   useEffect(() => {
-    if (!pdfDoc || !canvasRef.current) return
-    let cancelled = false
+    if (status !== "ready") return
 
-    async function renderPage() {
-      setRendering(true)
-      const page = await pdfDoc.getPage(pageNum)
-      if (cancelled) return
+    const closeTimer = setTimeout(() => {
+      window.close()
+    }, AUTO_CLOSE_MS)
 
-      const PROBE_SCALE = 0.3
-      const probeViewport = page.getViewport({ scale: PROBE_SCALE })
-      const probeCanvas = document.createElement("canvas")
-      probeCanvas.width = probeViewport.width
-      probeCanvas.height = probeViewport.height
-      const probeCtx = probeCanvas.getContext("2d")!
-      await page.render({ canvasContext: probeCtx, viewport: probeViewport }).promise
-      if (cancelled) return
+    const tickInterval = setInterval(() => {
+      setSecondsLeft((s) => Math.max(0, s - 1))
+    }, 1000)
 
-      const { data, width: pw, height: ph } = probeCtx.getImageData(0, 0, probeCanvas.width, probeCanvas.height)
-      const THRESHOLD = 250
-      const hasContentAt = (i: number) => data[i] < THRESHOLD || data[i + 1] < THRESHOLD || data[i + 2] < THRESHOLD
-
-      let top = 0, bottom = ph - 1, left = 0, right = pw - 1
-
-      const rowHasContent = (y: number) => {
-        const rowStart = y * pw * 4
-        for (let x = 0; x < pw; x++) {
-          if (hasContentAt(rowStart + x * 4)) return true
-        }
-        return false
-      }
-      const colHasContent = (x: number) => {
-        for (let y = 0; y < ph; y++) {
-          if (hasContentAt((y * pw + x) * 4)) return true
-        }
-        return false
-      }
-
-      while (top < bottom && !rowHasContent(top)) top++
-      while (bottom > top && !rowHasContent(bottom)) bottom--
-      while (left < right && !colHasContent(left)) left++
-      while (right > left && !colHasContent(right)) right--
-
-      const fracTop = top / ph
-      const fracBottom = bottom / ph
-      const fracLeft = left / pw
-      const fracRight = right / pw
-      const isFullyBlankOrUncropped = (right - left) >= pw * 0.98 && (bottom - top) >= ph * 0.98
-
-      const viewport = page.getViewport({ scale: 2 })
-      const rawCanvas = document.createElement("canvas")
-      rawCanvas.width = viewport.width
-      rawCanvas.height = viewport.height
-      const rawCtx = rawCanvas.getContext("2d")!
-      await page.render({ canvasContext: rawCtx, viewport }).promise
-      if (cancelled) return
-
-      const width = viewport.width
-      const height = viewport.height
-      const PAD = 24
-      const cropX = Math.max(0, fracLeft * width - PAD)
-      const cropY = Math.max(0, fracTop * height - PAD)
-      const cropRight = Math.min(width, fracRight * width + PAD)
-      const cropBottom = Math.min(height, fracBottom * height + PAD)
-      const cropW = cropRight - cropX
-      const cropH = cropBottom - cropY
-
-      const canvas = canvasRef.current!
-      const context = canvas.getContext("2d")!
-
-      if (cropW <= 0 || cropH <= 0 || isFullyBlankOrUncropped) {
-        canvas.width = width
-        canvas.height = height
-        context.drawImage(rawCanvas, 0, 0)
-      } else {
-        canvas.width = cropW
-        canvas.height = cropH
-        context.drawImage(rawCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH)
-      }
-
-      if (!cancelled) setRendering(false)
+    return () => {
+      clearTimeout(closeTimer)
+      clearInterval(tickInterval)
     }
-    renderPage()
-    return () => { cancelled = true }
-  }, [pdfDoc, pageNum])
-
-  useEffect(() => {
-    function blockKeys(e: KeyboardEvent) {
-      const key = e.key.toLowerCase()
-      if ((e.ctrlKey || e.metaKey) && (key === "s" || key === "p" || key === "u")) {
-        e.preventDefault()
-      }
-    }
-    window.addEventListener("keydown", blockKeys)
-    return () => window.removeEventListener("keydown", blockKeys)
-  }, [])
+  }, [status])
 
   if (status === "loading" || userLoading) {
-    return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
-  }
-
-  if (status === "denied" || status === "error") {
     return (
-      <div className="max-w-md mx-auto p-4 md:p-12 text-center space-y-4">
-        <ShieldAlert className="h-12 w-12 mx-auto text-muted-foreground opacity-40" />
-        <p className="text-muted-foreground">{errorMsg}</p>
-        <Link href="/products"><Button className="rounded-xl">Back to Store</Button></Link>
+      <div className="h-screen flex flex-col items-center justify-center gap-3 bg-black">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">Loading your notes...</p>
       </div>
     )
   }
 
-  return (
-    <div
-      className="relative w-full h-[calc(100dvh-3.5rem)] md:h-screen select-none overflow-hidden"
-      onContextMenu={(e) => e.preventDefault()}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-    >
-      {rendering && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20">
-          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+  if (status === "denied" || status === "error") {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-4 p-6 text-center bg-black">
+        <ShieldAlert className="h-12 w-12 text-destructive" />
+        <div>
+          <h1 className="text-xl font-bold">Can't open this</h1>
+          <p className="text-sm text-muted-foreground mt-1">{errorMsg}</p>
         </div>
-      )}
+        <Link href="/products"><Button>Back to Products</Button></Link>
+      </div>
+    )
+  }
 
-      <TransformWrapper
-        ref={transformRef}
-        initialScale={1}
-        minScale={1}
-        maxScale={6}
-        centerOnInit
-        limitToBounds={true}
-        wheel={{ step: 0.15 }}
-        pinch={{ step: 5 }}
-        doubleClick={{ mode: "zoomIn", step: 0.7 }}
-        onTransform={(_ref, state) => { currentScale.current = state.scale }}
-      >
-        {({ zoomIn, zoomOut }) => (
-          <>
-            <TransformComponent
-              wrapperStyle={{ width: "100%", height: "100%" }}
-              contentStyle={{ width: "100%", height: "100%" }}
-            >
-              <div className="relative w-full h-full flex items-center justify-center">
-                <canvas ref={canvasRef} className="max-w-full max-h-full w-auto h-auto rounded-lg pointer-events-none" />
-              </div>
-            </TransformComponent>
+  const minutes = Math.floor(secondsLeft / 60)
+  const seconds = secondsLeft % 60
 
-            <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-40">
-              <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => zoomIn()}>
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={() => zoomOut()}>
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button variant="secondary" size="icon" className="h-10 w-10 rounded-xl glass-darker border border-white/10" onClick={fitToScreen}>
-                <Maximize className="h-4 w-4" />
-              </Button>
-            </div>
-          </>
-        )}
-      </TransformWrapper>
+  return (
+    <div className="h-screen w-screen flex flex-col bg-black">
+      <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-white/10 shrink-0">
+        <p className="text-sm font-medium text-white truncate">{title}</p>
+        <div className="flex items-center gap-1.5 text-xs text-zinc-400 shrink-0 ml-3">
+          <Clock className="h-3.5 w-3.5" />
+          <span>Closes in {minutes}:{seconds.toString().padStart(2, "0")}</span>
+        </div>
+      </div>
+      <iframe
+        src={pdfUrl}
+        title={title || "Notes"}
+        className="flex-1 w-full border-none"
+      />
     </div>
   )
 }

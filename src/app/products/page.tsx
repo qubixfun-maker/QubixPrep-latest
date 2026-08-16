@@ -176,7 +176,7 @@ export default function ProductsPage() {
                             {expandedComboId === pack.id ? "Hide Notes" : "View Notes"}
                           </Button>
                         ) : (
-                          <Link href={`/notes-packs/${pack.id}`}>
+                          <Link href={`/notes-packs/${pack.id}`} target="_blank" rel="noopener noreferrer">
                             <Button size="sm" className="rounded-xl gap-1.5 text-xs font-bold">View Notes</Button>
                           </Link>
                         )
@@ -199,7 +199,7 @@ export default function ProductsPage() {
                             return <p key={includedId} className="text-[11px] text-muted-foreground italic">A pack in this bundle is no longer available</p>
                           }
                           return (
-                            <Link key={includedId} href={`/notes-packs/${includedId}`} className="flex items-center justify-between text-xs hover:text-primary transition-colors">
+                            <Link key={includedId} href={`/notes-packs/${includedId}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between text-xs hover:text-primary transition-colors">
                               <span>{includedPack.title}</span>
                               <span className="text-primary font-bold">View →</span>
                             </Link>
