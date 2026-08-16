@@ -346,7 +346,7 @@ export default function AdminDashboard() {
       if (notePackForm.packType === "single" && notePackForm.file) {
         storagePath = `notepacks-private/${id}.pdf`
         const fileRef = storageRef(storage, storagePath)
-        await uploadBytes(fileRef, notePackForm.file)
+        await uploadBytes(fileRef, notePackForm.file, { contentType: "application/pdf" })
       }
 
       await setDoc(doc(db, "notePacks", id), {

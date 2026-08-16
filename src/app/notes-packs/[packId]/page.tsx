@@ -108,7 +108,7 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
         </div>
       </div>
       <iframe
-        src={pdfUrl}
+        src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`}
         title={title || "Notes"}
         className="flex-1 w-full border-none"
       />
