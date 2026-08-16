@@ -41,6 +41,7 @@ import {
   ChevronDown,
   CheckCircle2,
   Wand2,
+  Users,
   Sparkles,
   ArrowRight,
   Gift
@@ -1557,6 +1558,11 @@ export default function AdminDashboard() {
           <Link href="/admin/long-answers">
             <Button variant="outline" className="rounded-xl gap-2 glass border-violet-500/30 text-violet-400 hover:bg-violet-500/10">
               <FileText className="h-4 w-4" /> Long Answers
+            </Button>
+          </Link>
+          <Link href="/admin/users">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-sky-500/30 text-sky-400 hover:bg-sky-500/10">
+              <Users className="h-4 w-4" /> Users
             </Button>
           </Link>
           <Button 
