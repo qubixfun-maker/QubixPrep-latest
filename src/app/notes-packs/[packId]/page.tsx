@@ -102,13 +102,18 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
     <div className="h-screen w-screen flex flex-col bg-black">
       <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-white/10 shrink-0">
         <p className="text-sm font-medium text-white truncate">{title}</p>
-        <div className="flex items-center gap-1.5 text-xs text-zinc-400 shrink-0 ml-3">
-          <Clock className="h-3.5 w-3.5" />
-          <span>Closes in {minutes}:{seconds.toString().padStart(2, "0")}</span>
+        <div className="flex items-center gap-3 shrink-0 ml-3">
+          <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
+            Open Directly
+          </a>
+          <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+            <Clock className="h-3.5 w-3.5" />
+            <span>Closes in {minutes}:{seconds.toString().padStart(2, "0")}</span>
+          </div>
         </div>
       </div>
       <iframe
-        src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`}
+        src={pdfUrl}
         title={title || "Notes"}
         className="flex-1 w-full border-none"
       />

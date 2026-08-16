@@ -9,7 +9,7 @@ const AppSidebar = dynamic(() => import('@/components/layout/app-sidebar').then(
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
-  const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname.startsWith('/notes-packs/')
+  const isAuthPage = pathname === '/login' || pathname === '/signup'
   if (isAuthPage) {
     return (
       <main className="min-h-screen w-full bg-background">
