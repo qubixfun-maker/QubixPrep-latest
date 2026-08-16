@@ -53,7 +53,6 @@ export function AppSidebar() {
   const mainItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     // { title: "Notes", url: "/notes", icon: BookOpen },
-    { title: "Mindmaps", url: "/mindmaps", icon: Network },
     { title: "Long Answers", url: "/long-answers", icon: GraduationCap },
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
