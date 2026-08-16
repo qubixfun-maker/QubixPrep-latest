@@ -45,6 +45,13 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
         }
         if (cancelled) return
         setTitle(data.title || "")
+
+        const isMobileOrTablet = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent) || window.innerWidth < 1024
+        if (isMobileOrTablet) {
+          window.location.replace(data.url)
+          return
+        }
+
         setPdfUrl(data.url)
         setStatus("ready")
       } catch (e: any) {

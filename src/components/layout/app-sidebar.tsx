@@ -28,6 +28,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 
@@ -67,15 +68,16 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-white/5 bg-card/50 backdrop-blur-xl">
-      <SidebarHeader className="p-6">
-        <Link href="/" className="flex items-center gap-3" onClick={closeOnMobile}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
+      <SidebarHeader className="p-6 flex flex-row items-center justify-between group-data-[collapsible=icon]:justify-center">
+        <Link href="/" className="flex items-center gap-3 min-w-0" onClick={closeOnMobile}>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 shrink-0">
             <span className="text-xl font-bold text-white">Q</span>
           </div>
-          <span className="text-xl font-bold tracking-tight text-white group-data-[collapsible=icon]:hidden">
+          <span className="text-xl font-bold tracking-tight text-white group-data-[collapsible=icon]:hidden truncate">
             Qubix<span className="text-accent">Prep</span>
           </span>
         </Link>
+        <SidebarTrigger className="shrink-0 group-data-[collapsible=icon]:hidden" />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
