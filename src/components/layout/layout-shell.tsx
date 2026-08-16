@@ -18,8 +18,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     )
   }
 
+  const startCollapsed = pathname.startsWith("/notes-packs/")
+
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={!startCollapsed}>
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
         <div className="flex-1 w-full flex flex-col min-w-0">
