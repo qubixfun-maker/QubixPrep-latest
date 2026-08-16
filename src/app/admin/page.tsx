@@ -663,7 +663,15 @@ export default function AdminDashboard() {
       await updateDoc(doc(db, 'subjects', subjectId), { mindmapCount: increment(-1) })
 
       if (mm.storagePath) {
-        await supabase.storage.from('mindmaps').remove([mm.storagePath])
+        if (mm.storageProvider === "firebase" && storage) {
+          try {
+            await deleteObject(storageRef(storage, mm.storagePath))
+          } catch (e) { console.warn("Firebase Storage delete failed (may already be gone):", e) }
+        } else {
+          try {
+            await supabase.storage.from('mindmaps').remove([mm.storagePath])
+          } catch (e) { console.warn("Supabase Storage delete failed (may already be gone):", e) }
+        }
       }
 
       setSubjectContent(prev => ({ ...prev, mindmaps: prev.mindmaps.filter(m => m.id !== mm.id) }))
@@ -946,14 +954,15 @@ export default function AdminDashboard() {
 
     setUploading(true)
     try {
+      if (!storage) throw new Error("Storage not initialized")
       const subjectId = mindmapForm.subjectId.toLowerCase().replace(/\s+/g, '-')
       const fileId = `${Date.now()}-${mindmapForm.file.name.replace(/\s+/g, '_')}`
       const storagePath = `mindmaps/${subjectId}/${fileId}`
-      
-      const { error: uploadError } = await supabase.storage.from('mindmaps').upload(storagePath, mindmapForm.file)
-      if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage.from('mindmaps').getPublicUrl(storagePath)
+      const fileRef = storageRef(storage, storagePath)
+      await uploadBytes(fileRef, mindmapForm.file)
+      const { getDownloadURL } = await import("firebase/storage")
+      const publicUrl = await getDownloadURL(fileRef)
 
       const mmId = fileId.replace(/\.[^/.]+$/, "").replace(/\s+/g, '-')
       const subjectRef = doc(db, 'subjects', subjectId)
@@ -974,6 +983,7 @@ export default function AdminDashboard() {
         title: mindmapForm.title,
         imageUrl: publicUrl,
         storagePath: storagePath,
+        storageProvider: "firebase",
         tier: mindmapForm.tier,
         createdAt: new Date().toISOString()
       })
