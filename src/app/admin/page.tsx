@@ -42,6 +42,7 @@ import {
   CheckCircle2,
   Wand2,
   Users,
+  BookMarked,
   Sparkles,
   ArrowRight,
   Gift
@@ -1563,6 +1564,11 @@ export default function AdminDashboard() {
           <Link href="/admin/users">
             <Button variant="outline" className="rounded-xl gap-2 glass border-sky-500/30 text-sky-400 hover:bg-sky-500/10">
               <Users className="h-4 w-4" /> Users
+            </Button>
+          </Link>
+          <Link href="/admin/textbook-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+              <BookMarked className="h-4 w-4" /> Generate from Textbook
             </Button>
           </Link>
           <Button 
