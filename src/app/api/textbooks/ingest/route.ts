@@ -4,6 +4,9 @@ export const maxDuration = 300
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore, getAdminStorageBucket } from '@/lib/firebase-admin'
 import { FieldValue } from 'firebase-admin/firestore'
+// Force Next.js bundler to include the pdf.js worker file in the deployed output -
+// pdfjs-dist looks this up dynamically at runtime, invisible to static bundling otherwise.
+import 'pdfjs-dist/legacy/build/pdf.worker.mjs'
 
 export async function POST(req: NextRequest) {
   try {
