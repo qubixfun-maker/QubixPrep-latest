@@ -4,7 +4,6 @@ export const maxDuration = 300
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore, getAdminStorageBucket } from '@/lib/firebase-admin'
 import { FieldValue } from 'firebase-admin/firestore'
-import { createRequire } from 'module'
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,8 +31,6 @@ export async function POST(req: NextRequest) {
     const [buffer] = await file.download()
 
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs' as any)
-    const require = createRequire(import.meta.url)
-    pdfjs.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')
 
     const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buffer) })
     const pdfDoc = await loadingTask.promise
