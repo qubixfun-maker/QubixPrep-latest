@@ -11,3 +11,4 @@ node_modules
 fix_admin*.js
 total_admin*.js
 tsconfig.tsbuildinfo
+.vercel
