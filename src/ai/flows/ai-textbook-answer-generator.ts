@@ -45,7 +45,7 @@ ${input.questionsRaw}
 
 TASK:
 1. For each question, write a complete answer using ONLY facts, mechanisms, and details present in the excerpt(s) above.
-2. Organize each answer into clean HTML using headings (h4), paragraphs (p), and lists (ul/ol) where the content naturally has structure.
+2. Organize each answer into clean HTML using headings (h4), paragraphs (p), lists (ul/ol), and TABLES where the content naturally has structure. If the excerpt presents information as a comparison, classification, or side-by-side listing (e.g. "Table 3.2: Classification of..."), reproduce it as a proper HTML table using <table><thead><tr><th>...</th></tr></thead><tbody><tr><td>...</td></tr></tbody></table> - preserve the actual rows and columns from the source, do not flatten a table into a plain list.
 3. FLOWCHART DETECTION: if the excerpt describes a sequential process or pathway (e.g. "Factor X -> Prothrombin -> Thrombin -> Fibrin", or numbered steps of a cascade or cycle), render that specific part as a flowchart instead of a plain list, using this structure:
 <div class="qa-flowchart">
   <div class="qa-flow-step">Step text here</div>

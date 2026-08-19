@@ -376,6 +376,133 @@ export default function TextbookGeneratorPage() {
     }
   }
 
+
+  // --- Extract diagrams from textbook pages ---
+  const [extractedPageImages, setExtractedPageImages] = useState<{ page: number; url: string; source: string }[]>([])
+  const [isExtractingImages, setIsExtractingImages] = useState(false)
+  const [textbookImgMatchMatrix, setTextbookImgMatchMatrix] = useState<Record<number, Set<number>>>({})
+  const [textbookImgHasMatched, setTextbookImgHasMatched] = useState(false)
+  const [textbookImgIsMatching, setTextbookImgIsMatching] = useState(false)
+  const [textbookImgIsEmbedding, setTextbookImgIsEmbedding] = useState(false)
+
+  async function handleExtractTextbookImages() {
+    if (!user) return
+    const matchedList = selectedTextbookIds.map(id => ({ id, chapter: matchedChapters[id] })).filter(x => x.chapter)
+    if (matchedList.length === 0) return
+    setIsExtractingImages(true)
+    setExtractedPageImages([])
+    setTextbookImgMatchMatrix({})
+    setTextbookImgHasMatched(false)
+    try {
+      const idToken = await user.getIdToken()
+      const allImages: { page: number; url: string; source: string }[] = []
+      for (const { id, chapter } of matchedList) {
+        const tb = textbooks?.find((t: any) => t.id === id)
+        const res = await fetch("/api/textbooks/extract-chapter-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken, textbookId: id, chapterId: chapter.chapterId }),
+        })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        for (const img of data.images) {
+          allImages.push({ page: img.page, url: img.url, source: tb?.title || id })
+        }
+      }
+      setExtractedPageImages(allImages)
+      toast({ title: "Pages Extracted", description: `${allImages.length} page image(s) ready to match against your questions.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Extraction Failed", description: e.message })
+    } finally {
+      setIsExtractingImages(false)
+    }
+  }
+
+  async function handleMatchTextbookImages() {
+    if (previewItems.length === 0 || extractedPageImages.length === 0) return
+    setTextbookImgIsMatching(true)
+    try {
+      const images = await Promise.all(extractedPageImages.map(async (img) => {
+        const res = await fetch(img.url)
+        const blob = await res.blob()
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve((reader.result as string).split(",")[1])
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+        return { filename: `${img.source} - page ${img.page}`, mimeType: "image/jpeg", base64 }
+      }))
+      const questions = previewItems.map((item, i) => ({ index: i, text: stripHtml(item.questionHtml) }))
+
+      const res = await fetch("/api/long-answers/match-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images, questions }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      const matrix: Record<number, Set<number>> = {}
+      for (const result of data.results) {
+        matrix[result.imageIndex] = new Set(result.matchedQuestionIndices)
+      }
+      setTextbookImgMatchMatrix(matrix)
+      setTextbookImgHasMatched(true)
+      toast({ title: "Matching Complete", description: "Review the suggested matches below, then embed." })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Matching Failed", description: e.message })
+    } finally {
+      setTextbookImgIsMatching(false)
+    }
+  }
+
+  function toggleTextbookImgMatch(imageIndex: number, questionIndex: number) {
+    setTextbookImgMatchMatrix((prev) => {
+      const next = { ...prev }
+      const current = new Set(next[imageIndex] || [])
+      if (current.has(questionIndex)) current.delete(questionIndex)
+      else current.add(questionIndex)
+      next[imageIndex] = current
+      return next
+    })
+  }
+
+  function handleEmbedTextbookImages() {
+    if (previewItems.length === 0) return
+    setTextbookImgIsEmbedding(true)
+    try {
+      const updatedItems = [...previewItems]
+      let embeddedCount = 0
+
+      for (let i = 0; i < extractedPageImages.length; i++) {
+        const questionIndices = Array.from(textbookImgMatchMatrix[i] || [])
+        if (questionIndices.length === 0) continue
+        const img = extractedPageImages[i]
+
+        for (const qIndex of questionIndices) {
+          const imgTag = "\n<img src=\"" + img.url + "\" alt=\"" + img.source + " page " + img.page + "\" />"
+          updatedItems[qIndex] = {
+            ...updatedItems[qIndex],
+            answerHtml: updatedItems[qIndex].answerHtml + imgTag
+          }
+          embeddedCount++
+        }
+      }
+
+      setGeneratedHtml(rebuildHtml(updatedItems))
+      toast({ title: "Images Embedded", description: embeddedCount + " image placement(s) added to the preview above." })
+      setExtractedPageImages([])
+      setTextbookImgMatchMatrix({})
+      setTextbookImgHasMatched(false)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Embed Failed", description: e.message })
+    } finally {
+      setTextbookImgIsEmbedding(false)
+    }
+  }
+
+
   if (authLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
   if (!user || (profile as any)?.role !== 'admin') {
     return (
@@ -575,6 +702,60 @@ Q2 Discuss morphological features of necrosis.
           </Card>
         </div>
       )}
+      {generatedHtml && previewItems.length > 0 && Object.values(matchedChapters).some(Boolean) && (
+        <Card className="glass border-none">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2"><ImagePlus className="h-4 w-4" /> Extract Diagrams from Textbook</CardTitle>
+            <p className="text-xs text-muted-foreground">Pull page images directly from the matched chapter(s) and let AI suggest which questions they illustrate.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={handleExtractTextbookImages} disabled={isExtractingImages} variant="secondary" className="w-full h-12 gap-2">
+              {isExtractingImages ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+              {isExtractingImages ? "Extracting pages (first time can take a minute)..." : "Extract Pages from Matched Chapter(s)"}
+            </Button>
+
+            {extractedPageImages.length > 0 && (
+              <Button onClick={handleMatchTextbookImages} disabled={textbookImgIsMatching} variant="secondary" className="w-full h-12 gap-2">
+                {textbookImgIsMatching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                {textbookImgIsMatching ? "Matching..." : `Match ${extractedPageImages.length} Page${extractedPageImages.length !== 1 ? "s" : ""} with AI`}
+              </Button>
+            )}
+
+            {textbookImgHasMatched && (
+              <div className="space-y-4 pt-2">
+                {extractedPageImages.map((img, imgIndex) => (
+                  <div key={imgIndex} className="p-4 rounded-xl glass border border-white/10 space-y-3">
+                    <div className="flex items-start gap-4">
+                      <img src={img.url} alt={`${img.source} page ${img.page}`} className="w-24 h-24 object-cover rounded-lg shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold truncate">{img.source} - page {img.page}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Tick the question(s) this page belongs to:</p>
+                        <div className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-2">
+                          {previewItems.map((item, qIndex) => {
+                            const checked = textbookImgMatchMatrix[imgIndex]?.has(qIndex) || false
+                            return (
+                              <label key={qIndex} className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer text-xs transition-colors ${checked ? "bg-primary/10 text-primary" : "hover:bg-white/5"}`}>
+                                <input type="checkbox" checked={checked} onChange={() => toggleTextbookImgMatch(imgIndex, qIndex)} className="mt-0.5" />
+                                <span className="line-clamp-2">{stripHtml(item.questionHtml)}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <Button onClick={handleEmbedTextbookImages} disabled={textbookImgIsEmbedding} variant="secondary" className="w-full h-12 gap-2">
+                  {textbookImgIsEmbedding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  {textbookImgIsEmbedding ? "Embedding..." : "Embed Into Preview"}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
 
       {generatedHtml && previewItems.length > 0 && (
         <Card className="glass border-none">
