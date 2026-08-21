@@ -396,6 +396,7 @@ export default function TextbookGeneratorPage() {
     try {
       const idToken = await user.getIdToken()
       const allImages: { page: number; url: string; source: string }[] = []
+      let debugErrors: string[] = []
       for (const { id, chapter } of matchedList) {
         const tb = textbooks?.find((t: any) => t.id === id)
         const res = await fetch("/api/textbooks/extract-chapter-images", {
@@ -405,12 +406,17 @@ export default function TextbookGeneratorPage() {
         })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
+        if (data.debugErrors?.length) debugErrors = debugErrors.concat(data.debugErrors)
         for (const img of data.images) {
           allImages.push({ page: img.page, url: img.url, source: tb?.title || id })
         }
       }
       setExtractedPageImages(allImages)
-      toast({ title: "Pages Extracted", description: `${allImages.length} page image(s) ready to match against your questions.` })
+      if (allImages.length === 0 && debugErrors.length > 0) {
+        toast({ variant: "destructive", title: "0 pages extracted", description: debugErrors.join(" | ") })
+      } else {
+        toast({ title: "Pages Extracted", description: `${allImages.length} page image(s) ready to match against your questions.` })
+      }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Extraction Failed", description: e.message })
     } finally {

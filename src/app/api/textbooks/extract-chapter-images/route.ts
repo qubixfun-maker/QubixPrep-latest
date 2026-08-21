@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     const endPage = Math.min(chapter.endPage, startPage + MAX_PAGES - 1)
 
     const images: { page: number; url: string; storagePath: string }[] = []
+    const pageErrors: string[] = []
 
     for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
       try {
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
         images.push({ page: pageNum, url, storagePath: destPath })
       } catch (e: any) {
         console.warn(`[extract-chapter-images] page ${pageNum} failed:`, e.message)
+        pageErrors.push(`page ${pageNum}: ${e.message}`)
       }
     }
 
@@ -83,7 +85,7 @@ export async function POST(req: NextRequest) {
       imagesExtracted: true,
     })
 
-    return NextResponse.json({ images, cached: false, truncated: chapter.endPage > endPage })
+    return NextResponse.json({ images, cached: false, truncated: chapter.endPage > endPage, debugErrors: pageErrors.slice(0, 3) })
   } catch (e: any) {
     console.error('[EXTRACT-CHAPTER-IMAGES] FAILED:', e)
     return NextResponse.json({ error: e.message || 'Image extraction failed' }, { status: 500 })
