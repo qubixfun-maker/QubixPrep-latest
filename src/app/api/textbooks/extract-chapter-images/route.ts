@@ -3,6 +3,8 @@ export const maxDuration = 300
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore, getAdminStorageBucket } from '@/lib/firebase-admin'
+// Force Next.js bundler to include the pdf.js worker file in the deployed output
+import 'pdfjs-dist/legacy/build/pdf.worker.mjs'
 
 const MAX_PAGES = 25 // safety cap so a huge chapter doesn't time out or produce excessive candidates
 
@@ -40,7 +42,6 @@ export async function POST(req: NextRequest) {
 
     const { createCanvas } = await import('@napi-rs/canvas')
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs' as any)
-    pdfjs.GlobalWorkerOptions.workerSrc = false
 
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(pdfBuffer),
