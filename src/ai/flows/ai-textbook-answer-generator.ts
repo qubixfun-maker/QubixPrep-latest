@@ -66,6 +66,8 @@ Only do this for a genuine short chain (2-6 linked steps) - if the excerpt descr
 </div>
 A qa-tree-child can itself contain a nested qa-tree-branch if the source describes a further level of sub-classification. Only use this for genuine is-a/type-of classification hierarchies explicitly stated in the source - do not invent categories not present in the excerpt.
 
+NO DUPLICATION: pick exactly ONE format for each piece of classification content - never restate the same categories twice (e.g. once as plain paragraphs AND again as a table, or once as a tree AND again as a table). If the source presents something as a table (has clear columns/rows, like "Mechanism | Nomenclature"), output ONLY the table for that content - do not also write it out as prose or a tree first. Use a tree only for classification content that is NOT already presented as a table in the source.
+
 5. SUMMARY CALLOUT: if the excerpt's discussion of a mechanism ends with (or the topic naturally supports) a single overall summary sentence tying the mechanism together, you may add ONE such sentence at the end wrapped as:
 <div class="qa-callout">Summary sentence here, using only what the excerpt already established - do not add new facts.</div>
 Only include this when it genuinely helps tie together a longer mechanism - skip it for short/simple answers.
