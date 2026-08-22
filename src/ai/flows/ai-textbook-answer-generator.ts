@@ -46,19 +46,32 @@ ${input.questionsRaw}
 TASK:
 1. For each question, write a complete answer using ONLY facts, mechanisms, and details present in the excerpt(s) above.
 2. Organize each answer into clean HTML using headings (h4), paragraphs (p), lists (ul/ol), and TABLES where the content naturally has structure. If the excerpt presents information as a comparison, classification, or side-by-side listing (e.g. "Table 3.2: Classification of..."), reproduce it as a proper HTML table using <table><thead><tr><th>...</th></tr></thead><tbody><tr><td>...</td></tr></tbody></table> - preserve the actual rows and columns from the source, do not flatten a table into a plain list.
-3. FLOWCHART DETECTION: textbook prose very often describes cause-and-effect chains WITHOUT using arrow characters - e.g. "Decreased ATP leads to a switch to anaerobic glycolysis, which causes lactic acid accumulation and a fall in intracellular pH" is just as sequential as "Factor X -> Prothrombin -> Thrombin". Treat plain-language causation ("leads to", "resulting in", "causing", "which in turn") as an equally valid trigger for flowchart rendering, not just literal arrows.
+3. MECHANISM CHAINS: when the excerpt describes a cause-and-effect sequence (e.g. "decreased ATP leads to pump failure, causing sodium accumulation"), write it as a single flowing sentence with the key terms in <strong> tags connected by plain arrow characters, e.g.:
+<p><strong>&darr;ATP</strong> &rarr; <strong>pump failure</strong> &rarr; intracellular Na+ accumulates, K+ is lost &rarr; <strong>cellular swelling</strong></p>
+Only do this for a genuine short chain (2-6 linked steps) - if the excerpt describes several independent/parallel effects branching from one cause rather than one strict line, present those as a normal list instead, each with its own bolded key term.
 
-IMPORTANT - only chart genuine SINGLE-FILE chains, do not force a whole topic into one long flowchart: a source often describes ONE shared starting point followed by SEVERAL PARALLEL, independent downstream effects (not one strict line). In that case, extract only the parts that form a true step-after-step chain into a SHORT flowchart (2-5 steps), and leave the remaining parallel/independent effects as normal list items alongside it - do not chain unrelated parallel effects into one artificial sequence, and do not skip rendering a chain just because the surrounding material has parallel branches too. A single answer can contain multiple short flowcharts if the source describes multiple distinct chains.
-
-Render a detected chain using this structure:
-<div class="qa-flowchart">
-  <div class="qa-flow-step">Step text here</div>
-  <div class="qa-flow-step">Next step text here</div>
+4. CLASSIFICATION TREES: when the excerpt classifies something into categories and sub-categories (e.g. "cell injury is either reversible or irreversible; irreversible injury includes necrosis and apoptosis"), render it as a tree instead of nested lists:
+<div class="qa-tree">
+  <div class="qa-tree-node">Top-level term</div>
+  <div class="qa-tree-branch">
+    <div class="qa-tree-child">
+      <div class="qa-tree-node">Category A</div>
+      <div class="qa-tree-desc">One-line description if the source gives one</div>
+    </div>
+    <div class="qa-tree-child">
+      <div class="qa-tree-node">Category B</div>
+      <div class="qa-tree-desc">One-line description if the source gives one</div>
+    </div>
+  </div>
 </div>
-Only include the step text itself in each qa-flow-step div - no arrows or numbers, those are added by styling. If the process is described as a CYCLE that repeats back to the start, add data-cycle="true" to the outer qa-flowchart div.
-4. If a question in the input has a repeat-frequency bracket like "[asked 3x: 2015, 2018, 2022]", extract it into a separate qa-repeat span and remove the bracket text from the visible question.
-5. Number the questions sequentially starting from 1.
-6. Output ONLY the following HTML structure, repeated for each question - no markdown fences, no commentary:
+A qa-tree-child can itself contain a nested qa-tree-branch if the source describes a further level of sub-classification. Only use this for genuine is-a/type-of classification hierarchies explicitly stated in the source - do not invent categories not present in the excerpt.
+
+5. SUMMARY CALLOUT: if the excerpt's discussion of a mechanism ends with (or the topic naturally supports) a single overall summary sentence tying the mechanism together, you may add ONE such sentence at the end wrapped as:
+<div class="qa-callout">Summary sentence here, using only what the excerpt already established - do not add new facts.</div>
+Only include this when it genuinely helps tie together a longer mechanism - skip it for short/simple answers.
+6. If a question in the input has a repeat-frequency bracket like "[asked 3x: 2015, 2018, 2022]", extract it into a separate qa-repeat span and remove the bracket text from the visible question.
+7. Number the questions sequentially starting from 1.
+8. Output ONLY the following HTML structure, repeated for each question - no markdown fences, no commentary:
 
 <div class="qa-item">
   <div class="qa-question">

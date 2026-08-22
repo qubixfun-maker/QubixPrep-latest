@@ -198,3 +198,80 @@
   border-radius: 0.5rem;
   margin: 0.5rem 0;
 }
+
+/* Classification tree (e.g. Cell Injury -> Reversible/Irreversible -> Necrosis/Apoptosis) */
+.qa-tree {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.qa-tree-node {
+  background: hsl(var(--accent) / 0.15);
+  color: hsl(var(--accent));
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+.qa-tree-connector {
+  width: 2px;
+  height: 1rem;
+  background: hsl(var(--accent) / 0.4);
+}
+.qa-tree-branch {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  position: relative;
+  padding-top: 1rem;
+}
+.qa-tree-branch::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 25%;
+  right: 25%;
+  height: 2px;
+  background: hsl(var(--accent) / 0.4);
+}
+.qa-tree-child {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 140px;
+  position: relative;
+}
+.qa-tree-child::before {
+  content: "";
+  position: absolute;
+  top: -1rem;
+  left: 50%;
+  width: 2px;
+  height: 1rem;
+  background: hsl(var(--accent) / 0.4);
+}
+.qa-tree-desc {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+  max-width: 200px;
+}
+
+/* Summary/conclusion callout box */
+.qa-callout {
+  background: hsl(var(--accent) / 0.08);
+  border: 1px dashed hsl(var(--accent) / 0.4);
+  border-radius: 0.75rem;
+  padding: 0.9rem 1.1rem;
+  margin: 1rem 0 0.5rem;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: hsl(var(--foreground) / 0.85);
+}
