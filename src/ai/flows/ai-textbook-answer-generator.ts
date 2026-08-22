@@ -46,12 +46,16 @@ ${input.questionsRaw}
 TASK:
 1. For each question, write a complete answer using ONLY facts, mechanisms, and details present in the excerpt(s) above.
 2. Organize each answer into clean HTML using headings (h4), paragraphs (p), lists (ul/ol), and TABLES where the content naturally has structure. If the excerpt presents information as a comparison, classification, or side-by-side listing (e.g. "Table 3.2: Classification of..."), reproduce it as a proper HTML table using <table><thead><tr><th>...</th></tr></thead><tbody><tr><td>...</td></tr></tbody></table> - preserve the actual rows and columns from the source, do not flatten a table into a plain list.
-3. FLOWCHART DETECTION: if the excerpt describes a sequential process or pathway (e.g. "Factor X -> Prothrombin -> Thrombin -> Fibrin", or numbered steps of a cascade or cycle), render that specific part as a flowchart instead of a plain list, using this structure:
+3. FLOWCHART DETECTION: textbook prose very often describes cause-and-effect chains WITHOUT using arrow characters - e.g. "Decreased ATP leads to a switch to anaerobic glycolysis, which causes lactic acid accumulation and a fall in intracellular pH" is just as sequential as "Factor X -> Prothrombin -> Thrombin". Treat plain-language causation ("leads to", "resulting in", "causing", "which in turn") as an equally valid trigger for flowchart rendering, not just literal arrows.
+
+IMPORTANT - only chart genuine SINGLE-FILE chains, do not force a whole topic into one long flowchart: a source often describes ONE shared starting point followed by SEVERAL PARALLEL, independent downstream effects (not one strict line). In that case, extract only the parts that form a true step-after-step chain into a SHORT flowchart (2-5 steps), and leave the remaining parallel/independent effects as normal list items alongside it - do not chain unrelated parallel effects into one artificial sequence, and do not skip rendering a chain just because the surrounding material has parallel branches too. A single answer can contain multiple short flowcharts if the source describes multiple distinct chains.
+
+Render a detected chain using this structure:
 <div class="qa-flowchart">
   <div class="qa-flow-step">Step text here</div>
   <div class="qa-flow-step">Next step text here</div>
 </div>
-Only include the step text itself in each qa-flow-step div - no arrows or numbers, those are added by styling. If the process is described as a CYCLE that repeats back to the start, add data-cycle="true" to the outer qa-flowchart div. Only use this for genuine sequential processes described with clear steps - not for normal lists.
+Only include the step text itself in each qa-flow-step div - no arrows or numbers, those are added by styling. If the process is described as a CYCLE that repeats back to the start, add data-cycle="true" to the outer qa-flowchart div.
 4. If a question in the input has a repeat-frequency bracket like "[asked 3x: 2015, 2018, 2022]", extract it into a separate qa-repeat span and remove the bracket text from the visible question.
 5. Number the questions sequentially starting from 1.
 6. Output ONLY the following HTML structure, repeated for each question - no markdown fences, no commentary:
