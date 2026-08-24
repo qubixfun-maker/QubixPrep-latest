@@ -1572,6 +1572,11 @@ export default function AdminDashboard() {
               <BookMarked className="h-4 w-4" /> Generate from Textbook
             </Button>
           </Link>
+          <Link href="/admin/flashcard-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
+              <Layers className="h-4 w-4" /> Flashcards
+            </Button>
+          </Link>
           <Link href="/admin/analytics">
             <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
               <BarChart3 className="h-4 w-4" /> Analytics
