@@ -44,11 +44,11 @@ QUESTIONS TO ANSWER (answer ALL of them, in order):
 ${input.questionsRaw}
 
 TASK:
-1. For each question, write a complete answer using ONLY facts, mechanisms, and details present in the excerpt(s) above.
+1. Write a THOROUGH, exam-topper-quality answer, not a brief summary - mine the excerpt for every mechanism, sub-type, named process, and example relevant to the question, using ONLY facts present in the excerpt(s) above. A real top-scoring student writes named, individually-explained points (e.g. explain WHY each step happens, not just that it happens), not a compressed one-line version of the same content. If the excerpt covers related sub-topics that a complete answer to this question should include (e.g. specific named mechanisms, subtypes, or examples), include all of them - do not stop at a minimal answer when the excerpt has more relevant material available.
 2. Organize each answer into clean HTML using headings (h4), paragraphs (p), lists (ul/ol), and TABLES where the content naturally has structure. If the excerpt presents information as a comparison, classification, or side-by-side listing (e.g. "Table 3.2: Classification of..."), reproduce it as a proper HTML table using <table><thead><tr><th>...</th></tr></thead><tbody><tr><td>...</td></tr></tbody></table> - preserve the actual rows and columns from the source, do not flatten a table into a plain list.
 3. MECHANISM CHAINS: when the excerpt describes a cause-and-effect sequence (e.g. "decreased ATP leads to pump failure, causing sodium accumulation"), write it as a single flowing sentence with the key terms in <strong> tags connected by plain arrow characters, e.g.:
 <p><strong>&darr;ATP</strong> &rarr; <strong>pump failure</strong> &rarr; intracellular Na+ accumulates, K+ is lost &rarr; <strong>cellular swelling</strong></p>
-Only do this for a genuine short chain (2-6 linked steps) - if the excerpt describes several independent/parallel effects branching from one cause rather than one strict line, present those as a normal list instead, each with its own bolded key term.
+Only do this for a genuine short chain (2-6 linked steps) - if the excerpt describes several independent/parallel effects branching from one cause rather than one strict line, present those as a normal list instead, each with its own bolded key term. After each arrow-chain or list item, if the excerpt explains WHY that step occurs or gives supporting detail (a mechanism, a reason, a specific example), include that explanation as following prose or as a sub-bullet - do not leave the chain as bare labels with no explanation when the excerpt provides more detail than that.
 
 4. CLASSIFICATION TREES: when the excerpt classifies something into categories and sub-categories (e.g. "cell injury is either reversible or irreversible; irreversible injury includes necrosis and apoptosis"), render it as a tree instead of nested lists:
 <div class="qa-tree">
@@ -100,7 +100,7 @@ export async function generateFromTextbook(input: GenerateFromTextbookInput): Pr
 
   try {
     const prompt = buildPrompt(input)
-    const raw = await callAI([{ role: 'user', content: prompt }], 7000)
+    const raw = await callAI([{ role: 'user', content: prompt }], 8000)
     if (!raw) return { html: '', error: 'Empty response from AI model' }
 
     let clean = raw.replace(/```html|```/g, '').trim()
