@@ -2,10 +2,12 @@
 import { usePathname } from "next/navigation"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { SidebarPillTrigger } from "@/components/layout/sidebar-pill-trigger"
+import { useTrackPageView } from "@/hooks/use-track-page-view"
 import dynamic from "next/dynamic"
 const AppSidebar = dynamic(() => import("@/components/layout/app-sidebar").then(mod => mod.AppSidebar), { ssr: false })
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  useTrackPageView()
   const isAuthPage = pathname === "/login" || pathname === "/signup"
   if (isAuthPage) {
     return (

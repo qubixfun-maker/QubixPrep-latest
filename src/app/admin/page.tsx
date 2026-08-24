@@ -43,6 +43,7 @@ import {
   Wand2,
   Users,
   BookMarked,
+  BarChart3,
   Sparkles,
   ArrowRight,
   Gift
@@ -1569,6 +1570,11 @@ export default function AdminDashboard() {
           <Link href="/admin/textbook-generator">
             <Button variant="outline" className="rounded-xl gap-2 glass border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
               <BookMarked className="h-4 w-4" /> Generate from Textbook
+            </Button>
+          </Link>
+          <Link href="/admin/analytics">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
+              <BarChart3 className="h-4 w-4" /> Analytics
             </Button>
           </Link>
           <Button 
