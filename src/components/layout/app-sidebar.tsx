@@ -11,7 +11,7 @@ import { GraduationCap, BookOpen,
   Trophy,
   User,
   Zap,
-  ShoppingBag, Gift } from "lucide-react"
+  ShoppingBag, Gift, Layers } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useDoc, useFirestore } from "@/firebase"
@@ -54,6 +54,7 @@ export function AppSidebar() {
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     // { title: "Notes", url: "/notes", icon: BookOpen },
     { title: "Long Answers", url: "/long-answers", icon: GraduationCap },
+    { title: "Flashcards", url: "/flashcards", icon: Layers },
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Clinical Cases", url: "/cases", icon: BrainCircuit },
