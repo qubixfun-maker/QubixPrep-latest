@@ -275,3 +275,19 @@
   font-style: italic;
   color: hsl(var(--foreground) / 0.85);
 }
+
+/* Mechanism chain paragraphs - bold terms become connected box/chip shapes */
+.qa-chain {
+  line-height: 2.6;
+  margin: 0.85rem 0;
+}
+.qa-chain strong {
+  background: hsl(var(--accent) / 0.15);
+  color: hsl(var(--accent));
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  display: inline-block;
+  margin: 0.15rem 0.1rem;
+  white-space: nowrap;
+}
