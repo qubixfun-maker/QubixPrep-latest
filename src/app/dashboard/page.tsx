@@ -21,7 +21,8 @@ import {
   Database,
   Video,
   Network,
-  Trophy
+  Trophy,
+  Layers
 } from "lucide-react"
 import Link from "next/link"
 
@@ -33,11 +34,9 @@ export default function Dashboard() {
 
   const subjectsQuery = useMemo(() => db ? collection(db, 'subjects') : null, [db])
   const videosQuery = useMemo(() => db ? collection(db, 'videos') : null, [db])
-  const mindmapsQuery = useMemo(() => db ? collection(db, 'mindmaps') : null, [db])
 
   const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
   const { data: videos } = useCollection(videosQuery)
-  const { data: mindmaps } = useCollection(mindmapsQuery)
 
   useEffect(() => {
     let isMounted = true
@@ -77,12 +76,10 @@ export default function Dashboard() {
   const firstName = user.displayName?.split(' ')[0] || 'Doctor'
   const subjectCount = subjects?.length ?? 0
   const videoCount = videos?.length ?? 0
-  const mindmapCount = mindmaps?.length ?? 0
 
   const stats = [
     { label: "Subjects", value: subjectsLoading ? "..." : String(subjectCount), icon: BookOpen, color: "text-blue-400" },
     // { label: "Video Lectures", value: String(videoCount), icon: Video, color: "text-purple-400" },
-    { label: "Mindmaps", value: String(mindmapCount), icon: Network, color: "text-green-400" },
     { label: "AI Tools", value: "3", icon: BrainCircuit, color: "text-accent" },
   ]
 
@@ -218,7 +215,7 @@ export default function Dashboard() {
               { label: "PYQ Series", desc: "Previous year questions", href: "/pyq", icon: Trophy, color: "text-yellow-400" },
               { label: "Custom Quiz", desc: "AI-powered test", href: "/test-series", icon: BrainCircuit, color: "text-purple-400" },
               // { label: "Video Lectures", desc: videoCount + " videos available", href: "/videos", icon: Video, color: "text-green-400" },
-              { label: "Mindmaps", desc: mindmapCount + " mindmaps", href: "/mindmaps", icon: Network, color: "text-accent" },
+              { label: "Flashcards", desc: "Quick recall practice", href: "/flashcards", icon: Layers, color: "text-accent" },
               { label: "Clinical Cases", desc: "Solve real patient scenarios", href: "/cases", icon: Stethoscope, color: "text-red-400" },
             ].map((item) => (
               <Link key={item.label} href={item.href}>

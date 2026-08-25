@@ -7,7 +7,7 @@ import { doc, getDoc, collection } from "firebase/firestore"
 import { usePlan } from "@/hooks/use-plan"
 import { Button } from "@/components/ui/button"
 import {
-  BrainCircuit, Loader2, Database, Network,
+  BrainCircuit, Loader2, Database, Layers,
   Trophy, Search, Crown, Star, Zap, CheckCircle2,
   ShoppingBag, ArrowRight, Users, Sparkles, FileDown,
 } from "lucide-react"
@@ -138,7 +138,6 @@ export default function Dashboard() {
   }
 
   const firstName = user?.displayName?.split(' ')[0] || 'Doctor'
-  const totalMindmaps = subjects.reduce((sum, s) => sum + (s.mindmapCount || 0), 0)
 
   const planLabel = isFree ? 'Explorer' : isBasic ? 'Scholar' : 'Clinician'
   const PlanIcon = isPro ? Crown : isBasic ? Star : Zap
@@ -181,17 +180,17 @@ export default function Dashboard() {
       badge: "Clinician",
     },
     {
-      title: "Mindmaps",
-      desc: subjectsLoading ? "Visual subject trees for quick revision." : `${totalMindmaps} visual mindmaps across all subjects.`,
-      href: "/mindmaps",
-      icon: Network,
+      title: "Flashcards",
+      desc: "Quick recall practice, by subject.",
+      href: "/flashcards",
+      icon: Layers,
       tone: "blue" as const,
       locked: false,
       badge: "Free",
     },
     {
       title: "Smart Search",
-      desc: "Search across every subject, note, and mindmap.",
+      desc: "Search across every subject and note.",
       href: "/search",
       icon: Search,
       tone: "coral" as const,
