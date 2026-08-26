@@ -1577,6 +1577,11 @@ export default function AdminDashboard() {
               <Layers className="h-4 w-4" /> Flashcards
             </Button>
           </Link>
+          <Link href="/admin/mindmap-prompt-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/10">
+              <Network className="h-4 w-4" /> Mind Map Prompts
+            </Button>
+          </Link>
           <Link href="/admin/analytics">
             <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
               <BarChart3 className="h-4 w-4" /> Analytics
