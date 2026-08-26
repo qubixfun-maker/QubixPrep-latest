@@ -145,6 +145,16 @@ export default function FlashcardGeneratorPage() {
     setTopicSelections((prev) => ({ ...prev, [topic]: count }))
   }
 
+  function toggleSelectAllTopics() {
+    setTopicSelections((prev) => {
+      const allSelected = extractedTopics.length > 0 && extractedTopics.every((t) => t in prev)
+      if (allSelected) return {}
+      const next: Record<string, number> = { ...prev }
+      extractedTopics.forEach((t) => { if (!(t in next)) next[t] = 5 })
+      return next
+    })
+  }
+
   // --- Organization + generation ---
   const [genSubject, setGenSubject] = useState("")
   const [genUnit, setGenUnit] = useState("")
@@ -324,10 +334,17 @@ export default function FlashcardGeneratorPage() {
         <CardHeader><CardTitle className="text-base flex items-center gap-2"><ListTree className="h-4 w-4" /> 2. Pick Topics (optional)</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">Extract the sub-topics inside the matched chapter, then choose which ones to make cards for and how many cards each gets. Skip this step to generate one mixed batch covering the whole chapter instead.</p>
-          <Button onClick={handleExtractTopics} disabled={isExtractingTopics || Object.values(matchedChapters).every(v => !v)} variant="secondary" className="gap-2">
-            {isExtractingTopics ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListTree className="h-4 w-4" />}
-            {isExtractingTopics ? "Extracting..." : "Extract Topics From Chapter"}
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={handleExtractTopics} disabled={isExtractingTopics || Object.values(matchedChapters).every(v => !v)} variant="secondary" className="gap-2">
+              {isExtractingTopics ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListTree className="h-4 w-4" />}
+              {isExtractingTopics ? "Extracting..." : "Extract Topics From Chapter"}
+            </Button>
+            {extractedTopics.length > 0 && (
+              <Button onClick={toggleSelectAllTopics} variant="outline" className="gap-2">
+                {selectedTopicList.length === extractedTopics.length ? "Deselect All" : "Select All"}
+              </Button>
+            )}
+          </div>
 
           {extractedTopics.length > 0 && (
             <div className="space-y-2">

@@ -54,6 +54,7 @@ Rules:
 - Keep the front concise (a question, term, or short prompt) and the back focused (the specific answer, not a restatement of the whole excerpt).
 - Do not create duplicate or near-duplicate cards.
 - Prioritize the most important, most testable facts if the excerpt has more material than ${input.cardCount} cards' worth.
+- Never reference the source itself inside a card - do not write phrases like "listed in the textbook", "mentioned in the excerpt", "according to the chapter", "as per the source", etc. Write each card as a standalone fact or question, exactly as it would appear on an exam, with no meta-reference to where the information came from.
 
 Output ONLY a valid JSON array, no markdown fences, no commentary, no explanation - just the array:
 [{"front": "...", "back": "..."}, {"front": "...", "back": "..."}]`
