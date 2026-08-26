@@ -4,12 +4,13 @@ import { useState, useMemo } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
 import { doc, collection, query, orderBy, getDocs, setDoc, serverTimestamp } from "firebase/firestore"
 import { generateFlashcards, type FlashcardPair } from "@/ai/flows/ai-flashcard-generator"
+import { extractChapterTopics } from "@/ai/flows/ai-chapter-topic-extractor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Lock, ArrowLeft, Layers, Sparkles, Save, Trash2 } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, Layers, Sparkles, Save, Trash2, ListTree } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -28,6 +29,8 @@ function fuzzyMatchChapter(query: string, chapters: any[]) {
   }
   return bestScore > 0 ? best : null
 }
+
+type GeneratedCard = FlashcardPair & { topic?: string }
 
 export default function FlashcardGeneratorPage() {
   const { user, loading: authLoading } = useUser()
@@ -53,6 +56,8 @@ export default function FlashcardGeneratorPage() {
   function toggleTextbookSelection(id: string) {
     setSelectedTextbookIds((prev) => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
     setMatchedChapters({})
+    setExtractedTopics([])
+    setTopicSelections({})
   }
 
   async function handleMatchChapters() {
@@ -69,7 +74,9 @@ export default function FlashcardGeneratorPage() {
       }
       setChapterOptionsByTextbook(optionsMap)
       setMatchedChapters(results)
-      toast({ title: "Chapters Matched", description: "Review below, then generate flashcards." })
+      setExtractedTopics([])
+      setTopicSelections({})
+      toast({ title: "Chapters Matched", description: "Review below, then extract topics or generate flashcards." })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Matching Failed", description: e.message })
     } finally {
@@ -81,6 +88,61 @@ export default function FlashcardGeneratorPage() {
     const options = chapterOptionsByTextbook[textbookId] || []
     const found = options.find(c => c.chapterId === chapterId)
     setMatchedChapters((prev) => ({ ...prev, [textbookId]: found || null }))
+    setExtractedTopics([])
+    setTopicSelections({})
+  }
+
+  function buildMatchedSources() {
+    return selectedTextbookIds.map(id => {
+      const tb = textbooks?.find((t: any) => t.id === id)
+      const ch = matchedChapters[id]
+      return ch ? { textbookTitle: tb?.title || id, chapterTitle: ch.title, text: ch.text } : null
+    }).filter(Boolean) as { textbookTitle: string; chapterTitle: string; text: string }[]
+  }
+
+  // --- Topic extraction ---
+  const [isExtractingTopics, setIsExtractingTopics] = useState(false)
+  const [extractedTopics, setExtractedTopics] = useState<string[]>([])
+  const [topicSelections, setTopicSelections] = useState<Record<string, number>>({})
+
+  async function handleExtractTopics() {
+    const sources = buildMatchedSources()
+    if (sources.length === 0) {
+      toast({ variant: "destructive", title: "Match a chapter first" })
+      return
+    }
+    setIsExtractingTopics(true)
+    setExtractedTopics([])
+    setTopicSelections({})
+    try {
+      const result = await extractChapterTopics({ sources })
+      if (result.error || result.topics.length === 0) {
+        toast({ variant: "destructive", title: "Topic Extraction Failed", description: result.error || "No topics returned." })
+      } else {
+        setExtractedTopics(result.topics)
+        toast({ title: "Topics Found", description: `${result.topics.length} topic(s) - select which ones you want cards for.` })
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setIsExtractingTopics(false)
+    }
+  }
+
+  function toggleTopicSelection(topic: string) {
+    setTopicSelections((prev) => {
+      const next = { ...prev }
+      if (topic in next) {
+        delete next[topic]
+      } else {
+        next[topic] = 5
+      }
+      return next
+    })
+  }
+
+  function setTopicCardCount(topic: string, count: number) {
+    setTopicSelections((prev) => ({ ...prev, [topic]: count }))
   }
 
   // --- Organization + generation ---
@@ -91,34 +153,54 @@ export default function FlashcardGeneratorPage() {
   const [topicFocus, setTopicFocus] = useState("")
   const [cardCount, setCardCount] = useState(15)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generatedCards, setGeneratedCards] = useState<FlashcardPair[]>([])
+  const [generationProgress, setGenerationProgress] = useState("")
+  const [generatedCards, setGeneratedCards] = useState<GeneratedCard[]>([])
   const [isSaving, setIsSaving] = useState(false)
 
+  const selectedTopicList = Object.keys(topicSelections)
+
   async function handleGenerate() {
-    const matchedList = selectedTextbookIds.map(id => matchedChapters[id]).filter(Boolean)
-    if (matchedList.length === 0 || !genSubject || !genChapterLabel.trim()) {
+    const sources = buildMatchedSources()
+    if (sources.length === 0 || !genSubject || !genChapterLabel.trim()) {
       toast({ variant: "destructive", title: "Missing info", description: "Match at least one chapter and fill Subject/Chapter." })
       return
     }
     setIsGenerating(true)
     setGeneratedCards([])
+
     try {
-      const sources = selectedTextbookIds.map(id => {
-        const tb = textbooks?.find((t: any) => t.id === id)
-        const ch = matchedChapters[id]
-        return { textbookTitle: tb?.title || id, chapterTitle: ch.title, text: ch.text }
-      })
-      const result = await generateFlashcards({ sources, topicFocus, cardCount })
-      if (result.error || result.cards.length === 0) {
-        toast({ variant: "destructive", title: "Generation Failed", description: result.error || "No cards returned." })
+      if (selectedTopicList.length > 0) {
+        // Per-topic generation: one batch per selected topic, run sequentially.
+        const allCards: GeneratedCard[] = []
+        for (const topic of selectedTopicList) {
+          const count = topicSelections[topic] || 5
+          setGenerationProgress(`Generating "${topic}" (${count} cards)...`)
+          const result = await generateFlashcards({ sources, topicFocus: topic, cardCount: count })
+          if (result.error || result.cards.length === 0) {
+            toast({ variant: "destructive", title: `Failed on "${topic}"`, description: result.error || "No cards returned." })
+            continue
+          }
+          allCards.push(...result.cards.map(c => ({ ...c, topic })))
+        }
+        setGeneratedCards(allCards)
+        if (allCards.length > 0) {
+          toast({ title: "Generated", description: `${allCards.length} card(s) across ${selectedTopicList.length} topic(s) ready to review.` })
+        }
       } else {
-        setGeneratedCards(result.cards)
-        toast({ title: "Generated", description: `${result.cards.length} card(s) ready to review.` })
+        // Fallback: single batch covering the whole chapter (or the manual Focus field).
+        const result = await generateFlashcards({ sources, topicFocus, cardCount })
+        if (result.error || result.cards.length === 0) {
+          toast({ variant: "destructive", title: "Generation Failed", description: result.error || "No cards returned." })
+        } else {
+          setGeneratedCards(result.cards.map(c => ({ ...c, topic: genTopic.trim() || undefined })))
+          toast({ title: "Generated", description: `${result.cards.length} card(s) ready to review.` })
+        }
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
       setIsGenerating(false)
+      setGenerationProgress("")
     }
   }
 
@@ -139,22 +221,34 @@ export default function FlashcardGeneratorPage() {
     setIsSaving(true)
     try {
       const subjectId = genSubject.toLowerCase().replace(/\s+/g, '-')
-      const deckSlugParts = [genUnit, genChapterLabel, genTopic].filter(Boolean).join(' ')
-      const deckId = deckSlugParts.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now()
 
-      const cardsWithIds = generatedCards.map((c, i) => ({ id: `c${i}`, front: c.front, back: c.back }))
+      // Group cards by topic (cards with no topic fall under the chapter-level label).
+      const groups = new Map<string, GeneratedCard[]>()
+      for (const c of generatedCards) {
+        const key = c.topic?.trim() || ""
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key)!.push(c)
+      }
 
-      await setDoc(doc(db, 'subjects', subjectId, 'flashcardDecks', deckId), {
-        unitName: genUnit.trim() || null,
-        chapterName: genChapterLabel.trim(),
-        topicName: genTopic.trim() || null,
-        title: genTopic.trim() || genChapterLabel.trim(),
-        cards: cardsWithIds,
-        cardCount: cardsWithIds.length,
-        createdAt: serverTimestamp(),
-      })
+      let totalSaved = 0
+      for (const [topicName, cards] of groups.entries()) {
+        const deckSlugParts = [genUnit, genChapterLabel, topicName].filter(Boolean).join(' ')
+        const deckId = deckSlugParts.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
+        const cardsWithIds = cards.map((c, i) => ({ id: `c${i}`, front: c.front, back: c.back }))
 
-      toast({ title: "Saved", description: `${cardsWithIds.length} card deck saved.` })
+        await setDoc(doc(db, 'subjects', subjectId, 'flashcardDecks', deckId), {
+          unitName: genUnit.trim() || null,
+          chapterName: genChapterLabel.trim(),
+          topicName: topicName || null,
+          title: topicName || genChapterLabel.trim(),
+          cards: cardsWithIds,
+          cardCount: cardsWithIds.length,
+          createdAt: serverTimestamp(),
+        })
+        totalSaved += cardsWithIds.length
+      }
+
+      toast({ title: "Saved", description: `${totalSaved} card(s) saved across ${groups.size} deck(s).` })
       setGeneratedCards([])
     } catch (e: any) {
       toast({ variant: "destructive", title: "Save Failed", description: e.message })
@@ -227,7 +321,50 @@ export default function FlashcardGeneratorPage() {
       </Card>
 
       <Card className="glass border-none">
-        <CardHeader><CardTitle className="text-base">2. Organize & Generate</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><ListTree className="h-4 w-4" /> 2. Pick Topics (optional)</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">Extract the sub-topics inside the matched chapter, then choose which ones to make cards for and how many cards each gets. Skip this step to generate one mixed batch covering the whole chapter instead.</p>
+          <Button onClick={handleExtractTopics} disabled={isExtractingTopics || Object.values(matchedChapters).every(v => !v)} variant="secondary" className="gap-2">
+            {isExtractingTopics ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListTree className="h-4 w-4" />}
+            {isExtractingTopics ? "Extracting..." : "Extract Topics From Chapter"}
+          </Button>
+
+          {extractedTopics.length > 0 && (
+            <div className="space-y-2">
+              {extractedTopics.map((topic) => {
+                const selected = topic in topicSelections
+                return (
+                  <div key={topic} className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${selected ? "bg-primary/10 border-primary/40" : "glass border-white/10"}`}>
+                    <input type="checkbox" checked={selected} onChange={() => toggleTopicSelection(topic)} />
+                    <span className="text-sm font-medium flex-1 truncate">{topic}</span>
+                    {selected && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Label className="text-xs text-muted-foreground">Cards:</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={50}
+                          value={topicSelections[topic]}
+                          onChange={(e) => setTopicCardCount(topic, parseInt(e.target.value) || 1)}
+                          className="glass border-white/10 w-20 h-8 text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {selectedTopicList.length > 0 && (
+                <p className="text-xs text-primary font-medium">
+                  {selectedTopicList.length} topic(s) selected - {selectedTopicList.reduce((sum, t) => sum + (topicSelections[t] || 0), 0)} cards total.
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="glass border-none">
+        <CardHeader><CardTitle className="text-base">3. Organize & Generate</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -248,21 +385,28 @@ export default function FlashcardGeneratorPage() {
               <Input placeholder="e.g., Cell Injury" value={genChapterLabel} onChange={(e) => setGenChapterLabel(e.target.value)} className="glass border-white/10" />
             </div>
             <div className="space-y-2">
-              <Label>Topic (optional)</Label>
-              <Input placeholder="e.g., ATP Depletion" value={genTopic} onChange={(e) => setGenTopic(e.target.value)} className="glass border-white/10" />
+              <Label>Topic (optional - used only if no topics selected above)</Label>
+              <Input placeholder="e.g., ATP Depletion" value={genTopic} onChange={(e) => setGenTopic(e.target.value)} className="glass border-white/10" disabled={selectedTopicList.length > 0} />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Focus (optional - leave blank to cover the whole matched chapter)</Label>
-            <Input placeholder="e.g., only the mechanisms of cell injury" value={topicFocus} onChange={(e) => setTopicFocus(e.target.value)} className="glass border-white/10" />
-          </div>
-          <div className="space-y-2">
-            <Label>Number of Cards</Label>
-            <Input type="number" min={1} max={50} value={cardCount} onChange={(e) => setCardCount(parseInt(e.target.value) || 15)} className="glass border-white/10 w-32" />
-          </div>
+          {selectedTopicList.length === 0 && (
+            <>
+              <div className="space-y-2">
+                <Label>Focus (optional - leave blank to cover the whole matched chapter)</Label>
+                <Input placeholder="e.g., only the mechanisms of cell injury" value={topicFocus} onChange={(e) => setTopicFocus(e.target.value)} className="glass border-white/10" />
+              </div>
+              <div className="space-y-2">
+                <Label>Number of Cards</Label>
+                <Input type="number" min={1} max={50} value={cardCount} onChange={(e) => setCardCount(parseInt(e.target.value) || 15)} className="glass border-white/10 w-32" />
+              </div>
+            </>
+          )}
+          {selectedTopicList.length > 0 && (
+            <p className="text-xs text-muted-foreground">Using your {selectedTopicList.length} selected topic(s) above - one batch will be generated per topic.</p>
+          )}
           <Button onClick={handleGenerate} disabled={isGenerating || Object.values(matchedChapters).every(v => !v) || !genSubject || !genChapterLabel.trim()} className="w-full h-12 gap-2">
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {isGenerating ? "Generating..." : "Generate Flashcards"}
+            {isGenerating ? (generationProgress || "Generating...") : "Generate Flashcards"}
           </Button>
         </CardContent>
       </Card>
@@ -280,7 +424,9 @@ export default function FlashcardGeneratorPage() {
             <Card key={i} className="glass border-none">
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Card {i + 1}</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Card {i + 1}{card.topic ? ` - ${card.topic}` : ""}
+                  </span>
                   <button onClick={() => deleteCard(i)} className="text-muted-foreground hover:text-destructive transition-colors">
                     <Trash2 className="h-4 w-4" />
                   </button>
