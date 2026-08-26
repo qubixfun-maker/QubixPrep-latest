@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
-import { doc, collection, query, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
+import { doc, collection, query, orderBy, setDoc, updateDoc, deleteDoc, getDocs, serverTimestamp } from "firebase/firestore"
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 import { formatLongAnswers } from "@/ai/flows/ai-long-answers-formatter"
 import { Button } from "@/components/ui/button"
@@ -326,6 +326,24 @@ export default function LongAnswersAdminPage() {
     setManageItems((prev) => (prev ? prev.filter((_, i) => i !== index) : prev))
   }
 
+  async function handleDeleteChapter() {
+    if (!db || !manageSubjectId || !manageChapterId) return
+    const chapterTitle = manageChapters?.find((c: any) => c.id === manageChapterId)?.title || manageChapterId
+    if (!confirm(`Delete the entire chapter "${chapterTitle}"? This removes all its sections (Long Essays, Short Essays, Short Answers) and cannot be undone.`)) return
+    try {
+      const chapterRef = doc(db, "subjects", manageSubjectId, "essayChapters", manageChapterId)
+      const sectionsSnap = await getDocs(collection(chapterRef, "sections"))
+      await Promise.all(sectionsSnap.docs.map((d) => deleteDoc(d.ref)))
+      await deleteDoc(chapterRef)
+
+      toast({ title: "Chapter Deleted", description: `"${chapterTitle}" and all its content were removed.` })
+      setManageChapterId("")
+      setManageItems(null)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+    }
+  }
+
   async function handleSaveManageChanges() {
     if (!db || !manageSubjectId || !manageChapterId || !manageItems) return
     setIsSavingManage(true)
@@ -511,13 +529,26 @@ Q2 Describe the brachial plexus.
                 </div>
                 <div className="space-y-2">
                   <Label>Chapter</Label>
-                  <Select value={manageChapterId} onValueChange={setManageChapterId} disabled={!manageSubject}>
-                    <SelectTrigger className="glass border-white/10"><SelectValue placeholder={manageSubject ? "Select Chapter" : "Pick a subject first"} /></SelectTrigger>
-                    <SelectContent className="glass border-white/10">
-                      {manageChapters?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
-                      {manageChapters?.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No chapters yet for this subject</div>}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select value={manageChapterId} onValueChange={setManageChapterId} disabled={!manageSubject}>
+                      <SelectTrigger className="glass border-white/10"><SelectValue placeholder={manageSubject ? "Select Chapter" : "Pick a subject first"} /></SelectTrigger>
+                      <SelectContent className="glass border-white/10">
+                        {manageChapters?.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                        {manageChapters?.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">No chapters yet for this subject</div>}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="shrink-0"
+                      disabled={!manageChapterId}
+                      onClick={handleDeleteChapter}
+                      title="Delete chapter"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Section</Label>
