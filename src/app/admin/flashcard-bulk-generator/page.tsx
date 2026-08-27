@@ -30,7 +30,7 @@ type ChapterMeta = {
   subjectId: string
   chapterId: string
   chapterTitle: string
-  unitName?: string
+  unitName?: string | null
 }
 
 type TopicItem = {
@@ -41,7 +41,7 @@ type TopicItem = {
   subjectId: string
   chapterId: string
   chapterTitle: string
-  unitName?: string
+  unitName?: string | null
   topic: string | null // null = whole-chapter fallback batch
   selected: boolean
   cardCount: number
@@ -53,7 +53,7 @@ type QueueItem = {
   subjectId: string
   chapterId: string
   chapterTitle: string
-  unitName?: string
+  unitName?: string | null
   topic: string | null
   cardCount: number
 }
@@ -136,7 +136,7 @@ export default function FlashcardBulkGeneratorPage() {
           subjectId: selectedPairs[textbookId],
           chapterId: ch.chapterId,
           chapterTitle: ch.title,
-          unitName: ch.unitName || undefined,
+          unitName: ch.unitName || null,
         })
       })
     }
@@ -238,7 +238,7 @@ export default function FlashcardBulkGeneratorPage() {
         subjectId: t.subjectId,
         chapterId: t.chapterId,
         chapterTitle: t.chapterTitle,
-        unitName: t.unitName || undefined,
+        unitName: t.unitName || null,
         topic: t.topic,
         cardCount: t.cardCount,
       }))
