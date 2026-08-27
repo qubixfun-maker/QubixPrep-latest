@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
-  serverExternalPackages: ['@napi-rs/canvas'],
+  serverExternalPackages: ['@napi-rs/canvas', 'google-auth-library'],
   images: {
     remotePatterns: [
       {

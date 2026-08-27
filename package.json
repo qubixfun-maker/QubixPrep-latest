@@ -49,6 +49,7 @@
     "firebase-admin": "^14.0.0",
     "genkit": "^1.28.0",
     "genkitx-groq": "^0.1.0",
+    "google-auth-library": "^11.0.2",
     "groq-sdk": "^1.2.1",
     "jose": "^6.2.3",
     "lucide-react": "^0.475.0",

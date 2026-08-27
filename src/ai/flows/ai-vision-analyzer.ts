@@ -1,3 +1,4 @@
+'use server';
 import { getGroqClient, GROQ_MODEL } from '@/ai/genkit';
 
 const TEMPLATE = `
