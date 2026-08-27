@@ -296,7 +296,7 @@ export default function FlashcardGeneratorPage() {
       let totalSaved = 0
       for (const [topicName, cards] of groups.entries()) {
         const deckSlugParts = [genUnit, genChapterLabel, topicName].filter(Boolean).join(' ')
-        const deckId = deckSlugParts.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
+        const deckId = deckSlugParts.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + Date.now() + '-' + Math.floor(Math.random() * 1000)
         const cardsWithIds = cards.map((c, i) => ({ id: `c${i}`, front: c.front, back: c.back }))
 
         await setDoc(doc(db, 'subjects', subjectId, 'flashcardDecks', deckId), {
