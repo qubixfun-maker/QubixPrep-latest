@@ -92,20 +92,45 @@ export async function POST(req: NextRequest) {
 
     const chapterSummaries: { chapterId: string; title: string; startPage: number; endPage: number; textLength: number }[] = []
 
+    function extractRealTitle(pageText: string, chapterNum: string): string | null {
+      const re = new RegExp('CHAPTER\\s+' + chapterNum + '\\b')
+      const idx = pageText.search(re)
+      if (idx === -1) return null
+      const before = pageText.slice(Math.max(0, idx - 150), idx).trim()
+      const words = before.split(/\s+/).filter(Boolean)
+      let tail = words.slice(-15).join(' ')
+      tail = tail.replace(/^.*?(SECTION|PART)\s*[-–—]?\s*\d+\s*[:.]?\s*/i, '')
+      tail = tail.replace(/^\d+\s*/, '')
+      return tail.trim() || null
+    }
+
     for (let i = 0; i < chapters.length; i++) {
       const ch = chapters[i]
       const chapterId = 'ch-' + (i + 1).toString().padStart(2, '0')
+      const genericMatch = ch.title.match(/^Chapter\s+(\d+)\s*$/i)
 
       let text = ''
+      let resolvedTitle = ch.title
+      let titleFound = !genericMatch
+
       for (let p = ch.startPage; p <= ch.endPage; p++) {
         const page = await pdfDoc.getPage(p)
         const content = await page.getTextContent()
         const pageText = content.items.map((it: any) => it.str).join(' ')
+
+        if (!titleFound && genericMatch && p <= ch.startPage + 3) {
+          const realTitle = extractRealTitle(pageText, genericMatch[1])
+          if (realTitle) {
+            resolvedTitle = realTitle
+            titleFound = true
+          }
+        }
+
         text += pageText + '\n\n'
       }
 
       await textbookRef.collection('chapters').doc(chapterId).set({
-        title: ch.title,
+        title: resolvedTitle,
         startPage: ch.startPage,
         endPage: ch.endPage,
         text,
@@ -114,7 +139,7 @@ export async function POST(req: NextRequest) {
         imagesExtracted: false,
       })
 
-      chapterSummaries.push({ chapterId, title: ch.title, startPage: ch.startPage, endPage: ch.endPage, textLength: text.length })
+      chapterSummaries.push({ chapterId, title: resolvedTitle, startPage: ch.startPage, endPage: ch.endPage, textLength: text.length })
     }
 
     await textbookRef.update({ status: 'ready' })
