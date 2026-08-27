@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     }
     await walk(outline)
 
-    const chapterEntries = flatEntries.filter(e => /^\d+\.\s/.test(e.title))
+    const chapterEntries = flatEntries.filter(e => /^\d+\.\s/.test(e.title) || /^Chapter\s+\d+\b/i.test(e.title))
     if (chapterEntries.length === 0) {
       return NextResponse.json({ error: 'No numbered chapters detected in the bookmarks (expected pattern like "3. Chapter Title"). This textbook\'s structure isn\'t supported yet.' }, { status: 400 })
     }
