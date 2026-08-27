@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, getDocs, setDoc, serverTimestamp } from "firebase/firestore"
+import { doc, collection, query, orderBy, getDocs, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
 import { generateFlashcards, type FlashcardPair } from "@/ai/flows/ai-flashcard-generator"
 import { extractChapterTopics } from "@/ai/flows/ai-chapter-topic-extractor"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Lock, ArrowLeft, Layers, Sparkles, Save, Trash2, ListTree } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, Layers, Sparkles, Save, Trash2, ListTree, ChevronDown, ChevronUp, FolderOpen } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -45,6 +45,59 @@ export default function FlashcardGeneratorPage() {
 
   const subjectsQuery = useMemo(() => (!db) ? null : query(collection(db, 'subjects'), orderBy('name', 'asc')), [db])
   const { data: subjects } = useCollection(subjectsQuery)
+
+  // --- Manage existing flashcards ---
+  const [manageSubjectId, setManageSubjectId] = useState("")
+  const [expandedChapter, setExpandedChapter] = useState<string | null>(null)
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
+
+  const manageDecksQuery = useMemo(
+    () => (!db || !manageSubjectId) ? null : collection(db, 'subjects', manageSubjectId, 'flashcardDecks'),
+    [db, manageSubjectId]
+  )
+  const { data: manageDecks, loading: manageDecksLoading } = useCollection(manageDecksQuery)
+
+  const manageChapters = useMemo(() => {
+    const groups: Record<string, any[]> = {}
+    ;(manageDecks || []).forEach((d: any) => {
+      const key = (d.chapterName || d.title || "Untitled").trim()
+      if (!groups[key]) groups[key] = []
+      groups[key].push(d)
+    })
+    return Object.entries(groups).map(([chapterName, decks]) => ({
+      chapterName,
+      decks,
+      cardCount: decks.reduce((sum, d) => sum + (d.cardCount ?? (d.cards?.length ?? 0)), 0),
+    }))
+  }, [manageDecks])
+
+  async function handleDeleteChapterDecks(chapterName: string, decks: any[]) {
+    if (!confirm(`Delete the entire chapter "${chapterName}"? This removes all ${decks.length} topic deck(s) and every card in them. This cannot be undone.`)) return
+    setDeletingKey(chapterName)
+    try {
+      await Promise.all(decks.map((d: any) => deleteDoc(doc(db!, 'subjects', manageSubjectId, 'flashcardDecks', d.id))))
+      toast({ title: "Chapter Deleted", description: `"${chapterName}" and its ${decks.length} deck(s) were removed.` })
+      if (expandedChapter === chapterName) setExpandedChapter(null)
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
+  async function handleDeleteSingleDeck(deckId: string, label: string) {
+    if (!confirm(`Delete the deck "${label}"? This cannot be undone.`)) return
+    setDeletingKey(deckId)
+    try {
+      await deleteDoc(doc(db!, 'subjects', manageSubjectId, 'flashcardDecks', deckId))
+      toast({ title: "Deck Deleted" })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: e.message })
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
 
   // --- Chapter matching ---
   const [selectedTextbookIds, setSelectedTextbookIds] = useState<string[]>([])
