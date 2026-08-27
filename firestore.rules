@@ -31,6 +31,11 @@ service cloud.firestore {
         allow write, delete: if request.auth != null && 
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
+      match /flashcardDecks/{deckId} {
+        allow read: if true;
+        allow write, delete: if request.auth != null && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
       match /essayChapters/{chapterId} {
         allow read: if true;
         allow write, delete: if request.auth != null && 

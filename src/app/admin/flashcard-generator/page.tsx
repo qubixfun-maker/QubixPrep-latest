@@ -344,6 +344,81 @@ export default function FlashcardGeneratorPage() {
       </div>
 
       <Card className="glass border-none">
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><FolderOpen className="h-4 w-4" /> Manage Existing Flashcards</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Select value={manageSubjectId} onValueChange={(v) => { setManageSubjectId(v); setExpandedChapter(null) }}>
+            <SelectTrigger className="glass border-white/10"><SelectValue placeholder="Select a subject to manage" /></SelectTrigger>
+            <SelectContent className="glass border-white/10">
+              {subjects?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          {manageSubjectId && manageDecksLoading && (
+            <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+          )}
+
+          {manageSubjectId && !manageDecksLoading && manageChapters.length === 0 && (
+            <p className="text-sm text-muted-foreground py-4 text-center">No flashcard decks saved for this subject yet.</p>
+          )}
+
+          {manageSubjectId && !manageDecksLoading && manageChapters.length > 0 && (
+            <div className="space-y-2">
+              {manageChapters.map((chapter) => {
+                const isExpanded = expandedChapter === chapter.chapterName
+                const isDeletingChapter = deletingKey === chapter.chapterName
+                return (
+                  <div key={chapter.chapterName} className="rounded-xl glass border border-white/10 overflow-hidden">
+                    <div className="flex items-center justify-between p-3">
+                      <button
+                        onClick={() => setExpandedChapter(isExpanded ? null : chapter.chapterName)}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                      >
+                        {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                        <span className="font-medium truncate">{chapter.chapterName}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">({chapter.cardCount} card{chapter.cardCount !== 1 ? "s" : ""}, {chapter.decks.length} deck{chapter.decks.length !== 1 ? "s" : ""})</span>
+                      </button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="gap-1.5 shrink-0"
+                        disabled={isDeletingChapter}
+                        onClick={() => handleDeleteChapterDecks(chapter.chapterName, chapter.decks)}
+                      >
+                        {isDeletingChapter ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        Delete Chapter
+                      </Button>
+                    </div>
+                    {isExpanded && (
+                      <div className="border-t border-white/10 divide-y divide-white/5">
+                        {chapter.decks.map((deck: any) => {
+                          const label = deck.topicName || deck.title || "Untitled deck"
+                          const count = deck.cardCount ?? (deck.cards?.length ?? 0)
+                          const isDeletingDeck = deletingKey === deck.id
+                          return (
+                            <div key={deck.id} className="flex items-center justify-between px-3 py-2 pl-9">
+                              <span className="text-sm truncate">{label} <span className="text-xs text-muted-foreground">({count} card{count !== 1 ? "s" : ""})</span></span>
+                              <button
+                                onClick={() => handleDeleteSingleDeck(deck.id, label)}
+                                disabled={isDeletingDeck}
+                                className="text-muted-foreground hover:text-destructive transition-colors p-1 shrink-0"
+                                title="Delete this deck"
+                              >
+                                {isDeletingDeck ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="glass border-none">
         <CardHeader><CardTitle className="text-base">1. Select Textbook(s) & Match Chapter</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-2">
