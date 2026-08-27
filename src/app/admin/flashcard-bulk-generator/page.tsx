@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
 import { doc, collection, query, orderBy, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore"
 import { generateFlashcards } from "@/ai/flows/ai-flashcard-generator"
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Lock, ArrowLeft, Layers, Play, Pause, RotateCcw, AlertTriangle } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, Layers, Play, Pause, RotateCcw, AlertTriangle, ListTree } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -19,9 +19,32 @@ const JOB_ID = "current"
 function sanitizeIdPart(s: string) {
   return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
 }
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+type ChapterMeta = {
+  key: string // textbookId__chapterId
+  textbookId: string
+  textbookTitle: string
+  subjectId: string
+  chapterId: string
+  chapterTitle: string
+  unitName?: string
+}
+
+type TopicItem = {
+  key: string // chapterKey + '__' + topicIndex
+  chapterKey: string
+  textbookId: string
+  textbookTitle: string
+  subjectId: string
+  chapterId: string
+  chapterTitle: string
+  unitName?: string
+  topic: string | null // null = whole-chapter fallback batch
+  selected: boolean
+  cardCount: number
 }
 
 type QueueItem = {
@@ -31,6 +54,8 @@ type QueueItem = {
   chapterId: string
   chapterTitle: string
   unitName?: string
+  topic: string | null
+  cardCount: number
 }
 
 export default function FlashcardBulkGeneratorPage() {
@@ -48,14 +73,10 @@ export default function FlashcardBulkGeneratorPage() {
   const { data: subjects } = useCollection(subjectsQuery)
 
   const jobRef = useMemo(() => (!db) ? null : doc(db, 'bulkFlashcardJobs', JOB_ID), [db])
-  const { data: job, loading: jobLoading } = useDoc(jobRef)
+  const { data: job } = useDoc(jobRef)
 
-  // --- Setup (only relevant before a job exists / when idle) ---
-  const [selectedPairs, setSelectedPairs] = useState<Record<string, string>>({}) // textbookId -> subjectId
-  const [cardsPerTopic, setCardsPerTopic] = useState(8)
-  const [pauseSeconds, setPauseSeconds] = useState(60)
-  const [isStarting, setIsStarting] = useState(false)
-
+  // --- Step 1: textbook selection + subject mapping ---
+  const [selectedPairs, setSelectedPairs] = useState<Record<string, string>>({})
   function toggleTextbook(id: string) {
     setSelectedPairs((prev) => {
       const next = { ...prev }
@@ -63,16 +84,141 @@ export default function FlashcardBulkGeneratorPage() {
       else next[id] = ""
       return next
     })
+    setChaptersByTextbook({})
+    setSelectedChapterKeys({})
+    setTopicItems([])
   }
   function setSubjectForTextbook(textbookId: string, subjectId: string) {
     setSelectedPairs((prev) => ({ ...prev, [textbookId]: subjectId }))
   }
-
   const readyTextbooks = textbooks?.filter((tb: any) => tb.status === "ready") || []
-  const selectedIds = Object.keys(selectedPairs)
-  const allMapped = selectedIds.length > 0 && selectedIds.every((id) => selectedPairs[id])
+  const selectedTextbookIds = Object.keys(selectedPairs)
+  const allMapped = selectedTextbookIds.length > 0 && selectedTextbookIds.every((id) => selectedPairs[id])
 
-  // --- Running loop control ---
+  // --- Step 2: load + select chapters across selected textbooks ---
+  const [chaptersByTextbook, setChaptersByTextbook] = useState<Record<string, any[]>>({})
+  const [selectedChapterKeys, setSelectedChapterKeys] = useState<Record<string, boolean>>({})
+  const [isLoadingChapters, setIsLoadingChapters] = useState(false)
+
+  async function handleLoadChapters() {
+    if (!db || !allMapped) return
+    setIsLoadingChapters(true)
+    try {
+      const map: Record<string, any[]> = {}
+      for (const textbookId of selectedTextbookIds) {
+        const snap = await getDocs(collection(db, 'textbooks', textbookId, 'chapters'))
+        map[textbookId] = snap.docs.map((d) => ({ chapterId: d.id, ...(d.data() as any) }))
+      }
+      setChaptersByTextbook(map)
+      setSelectedChapterKeys({})
+      setTopicItems([])
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Failed to load chapters", description: e.message })
+    } finally {
+      setIsLoadingChapters(false)
+    }
+  }
+
+  function toggleChapter(key: string) {
+    setSelectedChapterKeys((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const chapterList: ChapterMeta[] = useMemo(() => {
+    const list: ChapterMeta[] = []
+    for (const textbookId of selectedTextbookIds) {
+      const tb = textbooks?.find((t: any) => t.id === textbookId)
+      const chapters = chaptersByTextbook[textbookId] || []
+      chapters.forEach((ch: any) => {
+        list.push({
+          key: `${textbookId}__${ch.chapterId}`,
+          textbookId,
+          textbookTitle: tb?.title || textbookId,
+          subjectId: selectedPairs[textbookId],
+          chapterId: ch.chapterId,
+          chapterTitle: ch.title,
+          unitName: ch.unitName || undefined,
+        })
+      })
+    }
+    return list
+  }, [selectedTextbookIds, chaptersByTextbook, textbooks, selectedPairs])
+
+  const selectedChapters = chapterList.filter((c) => selectedChapterKeys[c.key])
+
+  // --- Step 3: extract topics across all selected chapters ---
+  const [topicItems, setTopicItems] = useState<TopicItem[]>([])
+  const [isExtracting, setIsExtracting] = useState(false)
+  const [extractProgress, setExtractProgress] = useState("")
+
+  async function handleExtractAll() {
+    if (!db || selectedChapters.length === 0) return
+    setIsExtracting(true)
+    setTopicItems([])
+    try {
+      const allItems: TopicItem[] = []
+      for (const ch of selectedChapters) {
+        setExtractProgress(`Extracting topics: ${ch.chapterTitle}...`)
+        const chapterDoc = await getDoc(doc(db, 'textbooks', ch.textbookId, 'chapters', ch.chapterId))
+        const data = chapterDoc.data() as any
+        const sources = [{ textbookTitle: ch.textbookTitle, chapterTitle: ch.chapterTitle, text: data?.text || "" }]
+        const result = await extractChapterTopics({ sources })
+        const topics = result.topics && result.topics.length > 0 ? result.topics : [null]
+        topics.forEach((topic, idx) => {
+          allItems.push({
+            key: `${ch.key}__${idx}`,
+            chapterKey: ch.key,
+            textbookId: ch.textbookId,
+            textbookTitle: ch.textbookTitle,
+            subjectId: ch.subjectId,
+            chapterId: ch.chapterId,
+            chapterTitle: ch.chapterTitle,
+            unitName: ch.unitName,
+            topic,
+            selected: true,
+            cardCount: topic === null ? 16 : 8,
+          })
+        })
+      }
+      setTopicItems(allItems)
+      toast({ title: "Topics Extracted", description: `${allItems.length} topic(s) across ${selectedChapters.length} chapter(s).` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Extraction Failed", description: e.message })
+    } finally {
+      setIsExtracting(false)
+      setExtractProgress("")
+    }
+  }
+
+  function toggleTopicItem(key: string) {
+    setTopicItems((prev) => prev.map((t) => t.key === key ? { ...t, selected: !t.selected } : t))
+  }
+  function setTopicCardCount(key: string, count: number) {
+    setTopicItems((prev) => prev.map((t) => t.key === key ? { ...t, cardCount: count } : t))
+  }
+  function toggleSelectAllTopics() {
+    setTopicItems((prev) => {
+      const allSelected = prev.every((t) => t.selected)
+      return prev.map((t) => ({ ...t, selected: !allSelected }))
+    })
+  }
+
+  const selectedTopicItems = topicItems.filter((t) => t.selected)
+  const totalCardsEstimate = selectedTopicItems.reduce((sum, t) => sum + t.cardCount, 0)
+
+  // group topicItems by chapterKey for display
+  const topicsByChapter = useMemo(() => {
+    const groups: Record<string, { chapterTitle: string; textbookTitle: string; items: TopicItem[] }> = {}
+    topicItems.forEach((t) => {
+      if (!groups[t.chapterKey]) groups[t.chapterKey] = { chapterTitle: t.chapterTitle, textbookTitle: t.textbookTitle, items: [] }
+      groups[t.chapterKey].items.push(t)
+    })
+    return Object.values(groups)
+  }, [topicItems])
+
+  // --- Step 4: settings + start ---
+  const [pauseSeconds, setPauseSeconds] = useState(60)
+  const [isStarting, setIsStarting] = useState(false)
+
   const isPausedRef = useRef(false)
   const isRunningLocallyRef = useRef(false)
   const [currentLabel, setCurrentLabel] = useState("")
@@ -83,37 +229,23 @@ export default function FlashcardBulkGeneratorPage() {
   }
 
   async function handleStart() {
-    if (!db || !allMapped) return
+    if (!db || selectedTopicItems.length === 0) return
     setIsStarting(true)
     try {
-      const queue: QueueItem[] = []
-      for (const textbookId of selectedIds) {
-        const subjectId = selectedPairs[textbookId]
-        const tb = textbooks?.find((t: any) => t.id === textbookId)
-        const chaptersSnap = await getDocs(collection(db, 'textbooks', textbookId, 'chapters'))
-        const chapters = chaptersSnap.docs.map((d) => ({ chapterId: d.id, ...(d.data() as any) }))
-        chapters.forEach((ch: any) => {
-          queue.push({
-            textbookId,
-            textbookTitle: tb?.title || textbookId,
-            subjectId,
-            chapterId: ch.chapterId,
-            chapterTitle: ch.title,
-            unitName: ch.unitName || undefined,
-          })
-        })
-      }
-
-      if (queue.length === 0) {
-        toast({ variant: "destructive", title: "No chapters found", description: "The selected textbooks have no ingested chapters." })
-        setIsStarting(false)
-        return
-      }
+      const queue: QueueItem[] = selectedTopicItems.map((t) => ({
+        textbookId: t.textbookId,
+        textbookTitle: t.textbookTitle,
+        subjectId: t.subjectId,
+        chapterId: t.chapterId,
+        chapterTitle: t.chapterTitle,
+        unitName: t.unitName,
+        topic: t.topic,
+        cardCount: t.cardCount,
+      }))
 
       await setDoc(doc(db, 'bulkFlashcardJobs', JOB_ID), {
         status: "running",
         queue,
-        cardsPerTopic,
         pauseSeconds,
         currentIndex: 0,
         completedCount: 0,
@@ -123,9 +255,9 @@ export default function FlashcardBulkGeneratorPage() {
         updatedAt: serverTimestamp(),
       })
 
-      toast({ title: "Job Started", description: `${queue.length} chapter(s) queued.` })
+      toast({ title: "Job Started", description: `${queue.length} topic(s) queued.` })
       isPausedRef.current = false
-      runLoop(queue, 0, cardsPerTopic, pauseSeconds)
+      runLoop(queue, 0, pauseSeconds)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Failed to start", description: e.message })
     } finally {
@@ -137,21 +269,19 @@ export default function FlashcardBulkGeneratorPage() {
     if (!job || job.status !== "paused") return
     isPausedRef.current = false
     await updateJob({ status: "running" })
-    runLoop(job.queue, job.currentIndex, job.cardsPerTopic, job.pauseSeconds)
+    runLoop(job.queue, job.currentIndex, job.pauseSeconds)
   }
-
   function handlePause() {
     isPausedRef.current = true
-    toast({ title: "Pausing...", description: "Will stop after the current chapter finishes." })
+    toast({ title: "Pausing...", description: "Will stop after the current topic finishes." })
   }
-
   async function handleReset() {
     if (!confirm("Reset the job? This clears progress tracking (already-saved decks are NOT deleted).")) return
     isPausedRef.current = true
     await updateJob({ status: "idle", queue: [], currentIndex: 0, completedCount: 0, totalCardsSaved: 0, failedChapters: [] })
   }
 
-  async function runLoop(queue: QueueItem[], startIndex: number, perTopic: number, pauseSecs: number) {
+  async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number) {
     if (isRunningLocallyRef.current) return
     isRunningLocallyRef.current = true
 
@@ -163,65 +293,49 @@ export default function FlashcardBulkGeneratorPage() {
       }
 
       const item = queue[i]
-      setCurrentLabel(`${item.textbookTitle} — ${item.chapterTitle}`)
+      setCurrentLabel(`${item.textbookTitle} — ${item.chapterTitle}${item.topic ? " — " + item.topic : ""}`)
 
       try {
         const chapterDoc = await getDoc(doc(db!, 'textbooks', item.textbookId, 'chapters', item.chapterId))
         const chapterData = chapterDoc.data() as any
         const sources = [{ textbookTitle: item.textbookTitle, chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
 
-        const topicsResult = await extractChapterTopics({ sources })
-        const topics = topicsResult.topics || []
-
-        const decksToSave: { topicName: string | null; cards: any[] }[] = []
-
-        if (topics.length > 0) {
-          for (const topic of topics) {
-            const result = await generateFlashcards({ sources, topicFocus: topic, cardCount: perTopic })
-            if (result.cards && result.cards.length > 0) {
-              decksToSave.push({ topicName: topic, cards: result.cards })
-            }
-          }
-        } else {
-          const result = await generateFlashcards({ sources, topicFocus: "", cardCount: perTopic * 2 })
-          if (result.cards && result.cards.length > 0) {
-            decksToSave.push({ topicName: null, cards: result.cards })
-          }
-        }
-
-        let cardsSavedThisChapter = 0
-        for (const deck of decksToSave) {
-          const parts = [item.unitName, item.chapterTitle, deck.topicName].filter(Boolean).join(" ")
+        const result = await generateFlashcards({ sources, topicFocus: item.topic || "", cardCount: item.cardCount })
+        let cardsSaved = 0
+        if (result.cards && result.cards.length > 0) {
+          const parts = [item.unitName, item.chapterTitle, item.topic].filter(Boolean).join(" ")
           const deckId = sanitizeIdPart(parts) + "-" + Date.now() + "-" + Math.floor(Math.random() * 1000)
-          const cardsWithIds = deck.cards.map((c: any, idx: number) => ({ id: `c${idx}`, front: c.front, back: c.back }))
+          const cardsWithIds = result.cards.map((c: any, idx: number) => ({ id: `c${idx}`, front: c.front, back: c.back }))
 
           await setDoc(doc(db!, 'subjects', item.subjectId, 'flashcardDecks', deckId), {
             unitName: item.unitName || null,
             chapterName: item.chapterTitle,
-            topicName: deck.topicName,
-            title: deck.topicName || item.chapterTitle,
+            topicName: item.topic,
+            title: item.topic || item.chapterTitle,
             cards: cardsWithIds,
             cardCount: cardsWithIds.length,
             createdAt: serverTimestamp(),
           })
-          cardsSavedThisChapter += cardsWithIds.length
+          cardsSaved = cardsWithIds.length
         }
 
         await updateJob({
           currentIndex: i + 1,
           completedCount: increment(1),
-          totalCardsSaved: increment(cardsSavedThisChapter),
+          totalCardsSaved: increment(cardsSaved),
           updatedAt: serverTimestamp(),
         })
       } catch (e: any) {
         await updateJob({
           currentIndex: i + 1,
-          failedChapters: arrayUnion({ chapterTitle: item.chapterTitle, textbookTitle: item.textbookTitle, error: e.message || "Unknown error" }),
+          failedChapters: arrayUnion({ chapterTitle: item.chapterTitle, topic: item.topic, textbookTitle: item.textbookTitle, error: e.message || "Unknown error" }),
           updatedAt: serverTimestamp(),
         })
       }
 
-      if (i < queue.length - 1 && !isPausedRef.current) {
+      const nextItem = queue[i + 1]
+      const movingToNewChapter = !nextItem || nextItem.chapterId !== item.chapterId || nextItem.textbookId !== item.textbookId
+      if (movingToNewChapter && i < queue.length - 1 && !isPausedRef.current) {
         await sleep(pauseSecs * 1000)
       }
     }
@@ -253,7 +367,7 @@ export default function FlashcardBulkGeneratorPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Layers className="h-6 w-6 text-primary" /> Bulk Flashcard Automation
           </h1>
-          <p className="text-sm text-muted-foreground">Runs while this tab stays open — processes one chapter at a time with a pause in between, and can be paused/resumed anytime.</p>
+          <p className="text-sm text-muted-foreground">Pick chapters across multiple textbooks, review all their topics together, then run automation with a rest period between chapters.</p>
         </div>
       </div>
 
@@ -279,30 +393,91 @@ export default function FlashcardBulkGeneratorPage() {
                   </div>
                 )
               })}
-              {selectedIds.length > 0 && !allMapped && (
-                <p className="text-xs text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Every selected textbook needs a Subject mapped before starting.</p>
+              {selectedTextbookIds.length > 0 && !allMapped && (
+                <p className="text-xs text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Every selected textbook needs a Subject mapped.</p>
+              )}
+              {allMapped && (
+                <Button onClick={handleLoadChapters} disabled={isLoadingChapters} variant="secondary" className="gap-2">
+                  {isLoadingChapters ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Load Chapters
+                </Button>
               )}
             </CardContent>
           </Card>
 
-          <Card className="glass border-none">
-            <CardHeader><CardTitle className="text-base">2. Settings</CardTitle></CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Cards per topic</Label>
-                <Input type="number" min={1} max={30} value={cardsPerTopic} onChange={(e) => setCardsPerTopic(parseInt(e.target.value) || 8)} className="glass border-white/10" />
-              </div>
-              <div className="space-y-2">
-                <Label>Pause between chapters (seconds)</Label>
-                <Input type="number" min={5} max={600} value={pauseSeconds} onChange={(e) => setPauseSeconds(parseInt(e.target.value) || 60)} className="glass border-white/10" />
-              </div>
-            </CardContent>
-          </Card>
+          {chapterList.length > 0 && (
+            <Card className="glass border-none">
+              <CardHeader><CardTitle className="text-base">2. Select Chapters</CardTitle></CardHeader>
+              <CardContent className="space-y-2 max-h-96 overflow-y-auto">
+                {chapterList.map((ch) => (
+                  <label key={ch.key} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${selectedChapterKeys[ch.key] ? "bg-primary/10 border-primary/40" : "glass border-white/10"}`}>
+                    <input type="checkbox" checked={!!selectedChapterKeys[ch.key]} onChange={() => toggleChapter(ch.key)} />
+                    <span className="text-sm flex-1 truncate">{ch.chapterTitle}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{ch.textbookTitle}</span>
+                  </label>
+                ))}
+                {selectedChapters.length > 0 && (
+                  <Button onClick={handleExtractAll} disabled={isExtracting} className="w-full gap-2 mt-3">
+                    {isExtracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListTree className="h-4 w-4" />}
+                    {isExtracting ? (extractProgress || "Extracting...") : `Extract Topics From ${selectedChapters.length} Chapter(s)`}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          <Button onClick={handleStart} disabled={isStarting || !allMapped} className="w-full h-12 gap-2">
-            {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {isStarting ? "Building queue..." : "Start Automation"}
-          </Button>
+          {topicsByChapter.length > 0 && (
+            <Card className="glass border-none">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">3. Review Topics & Card Counts</CardTitle>
+                <Button onClick={toggleSelectAllTopics} variant="outline" size="sm">
+                  {topicItems.every((t) => t.selected) ? "Deselect All" : "Select All"}
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4 max-h-[32rem] overflow-y-auto">
+                {topicsByChapter.map((group, gi) => (
+                  <div key={gi} className="space-y-1.5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{group.chapterTitle} <span className="normal-case font-normal">({group.textbookTitle})</span></p>
+                    {group.items.map((t) => (
+                      <div key={t.key} className={`flex items-center gap-3 p-2.5 rounded-lg border ${t.selected ? "bg-primary/10 border-primary/40" : "glass border-white/10"}`}>
+                        <input type="checkbox" checked={t.selected} onChange={() => toggleTopicItem(t.key)} />
+                        <span className="text-sm flex-1 truncate">{t.topic || "(Whole chapter — no distinct topics found)"}</span>
+                        {t.selected && (
+                          <Input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={t.cardCount}
+                            onChange={(e) => setTopicCardCount(t.key, parseInt(e.target.value) || 1)}
+                            className="glass border-white/10 w-20 h-8 text-sm shrink-0"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <p className="text-xs text-primary font-medium pt-1">{selectedTopicItems.length} topic(s) selected — {totalCardsEstimate} cards total.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {selectedTopicItems.length > 0 && (
+            <>
+              <Card className="glass border-none">
+                <CardHeader><CardTitle className="text-base">4. Settings</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-w-xs">
+                    <Label>Rest between chapters (seconds)</Label>
+                    <Input type="number" min={5} max={600} value={pauseSeconds} onChange={(e) => setPauseSeconds(parseInt(e.target.value) || 60)} className="glass border-white/10" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Button onClick={handleStart} disabled={isStarting} className="w-full h-12 gap-2">
+                {isStarting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                {isStarting ? "Starting..." : "Start Automation"}
+              </Button>
+            </>
+          )}
         </>
       ) : (
         <Card className="glass border-none">
@@ -318,7 +493,7 @@ export default function FlashcardBulkGeneratorPage() {
             <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden">
               <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progressPct}%` }} />
             </div>
-            <p className="text-xs text-muted-foreground text-center">{job.currentIndex || 0} / {job.queue.length} chapters processed ({progressPct}%)</p>
+            <p className="text-xs text-muted-foreground text-center">{job.currentIndex || 0} / {job.queue.length} topic(s) processed ({progressPct}%)</p>
 
             {job.status === "running" && currentLabel && (
               <p className="text-sm text-center flex items-center justify-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> {currentLabel}</p>
@@ -327,7 +502,7 @@ export default function FlashcardBulkGeneratorPage() {
             <div className="grid grid-cols-2 gap-4 text-center">
               <div className="p-3 rounded-xl glass border border-white/10">
                 <p className="text-2xl font-bold text-primary">{job.completedCount || 0}</p>
-                <p className="text-xs text-muted-foreground">Chapters done</p>
+                <p className="text-xs text-muted-foreground">Topics done</p>
               </div>
               <div className="p-3 rounded-xl glass border border-white/10">
                 <p className="text-2xl font-bold text-primary">{job.totalCardsSaved || 0}</p>
@@ -337,10 +512,10 @@ export default function FlashcardBulkGeneratorPage() {
 
             {job.failedChapters && job.failedChapters.length > 0 && (
               <div className="space-y-1">
-                <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> {job.failedChapters.length} chapter(s) failed</p>
+                <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> {job.failedChapters.length} item(s) failed</p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {job.failedChapters.map((f: any, i: number) => (
-                    <p key={i} className="text-xs text-muted-foreground truncate">• {f.chapterTitle} — {f.error}</p>
+                    <p key={i} className="text-xs text-muted-foreground truncate">• {f.chapterTitle}{f.topic ? " — " + f.topic : ""} — {f.error}</p>
                   ))}
                 </div>
               </div>
