@@ -175,7 +175,7 @@ export default function FlashcardBulkGeneratorPage() {
             unitName: ch.unitName,
             topic,
             selected: true,
-            cardCount: topic === null ? 16 : 8,
+            cardCount: topic === null ? 16 : 4,
           })
         })
       }
@@ -238,7 +238,7 @@ export default function FlashcardBulkGeneratorPage() {
         subjectId: t.subjectId,
         chapterId: t.chapterId,
         chapterTitle: t.chapterTitle,
-        unitName: t.unitName,
+        unitName: t.unitName || undefined,
         topic: t.topic,
         cardCount: t.cardCount,
       }))
