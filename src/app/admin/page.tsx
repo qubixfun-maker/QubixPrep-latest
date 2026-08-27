@@ -46,7 +46,8 @@ import {
   BarChart3,
   Sparkles,
   ArrowRight,
-  Gift
+  Gift,
+  Zap
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -1575,6 +1576,11 @@ export default function AdminDashboard() {
           <Link href="/admin/flashcard-generator">
             <Button variant="outline" className="rounded-xl gap-2 glass border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
               <Layers className="h-4 w-4" /> Flashcards
+            </Button>
+          </Link>
+          <Link href="/admin/flashcard-bulk-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+              <Zap className="h-4 w-4" /> Flashcard Bulk Generator
             </Button>
           </Link>
           <Link href="/admin/mindmap-prompt-generator">
