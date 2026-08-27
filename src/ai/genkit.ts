@@ -87,7 +87,7 @@ async function getVertexProvider(): Promise<Provider | null> {
   if (!token) return null
 
   const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
-  const model = process.env.GOOGLE_VERTEX_MODEL || 'google/gemini-2.0-flash-001'
+  const model = process.env.GOOGLE_VERTEX_MODEL || 'google/gemini-2.5-flash'
 
   return {
     name: 'Vertex AI',
