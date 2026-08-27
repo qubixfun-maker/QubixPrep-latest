@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Lock, ArrowLeft, BookMarked, UploadCloud, CheckCircle2, FileText, Sparkles, Save, ImagePlus, Wand2, Check } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, BookMarked, UploadCloud, CheckCircle2, FileText, Sparkles, Save, ImagePlus, Wand2, Check, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -99,6 +99,28 @@ export default function TextbookGeneratorPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadStage, setUploadStage] = useState("")
   const [lastResult, setLastResult] = useState<{ chapters: any[] } | null>(null)
+  const [deletingTextbookId, setDeletingTextbookId] = useState<string | null>(null)
+
+  const handleDeleteTextbook = async (tb: any) => {
+    if (!confirm(`Delete "${tb.title}"? This removes the textbook and all its extracted chapters permanently.`)) return
+    if (!user) return
+    setDeletingTextbookId(tb.id)
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch('/api/textbooks/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, textbookId: tb.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Delete failed')
+      toast({ title: 'Textbook deleted', description: `"${tb.title}" and its chapters were removed.` })
+    } catch (e: any) {
+      toast({ title: 'Delete failed', description: e.message, variant: 'destructive' })
+    } finally {
+      setDeletingTextbookId(null)
+    }
+  }
 
   async function handleUploadAndIngest() {
     if (!storage || !uploadFile || !uploadTitle.trim() || !user) return
@@ -589,9 +611,21 @@ export default function TextbookGeneratorPage() {
                       <p className="text-xs text-muted-foreground">{tb.author ? tb.author + " - " : ""}{tb.chapterCount} chapters - {tb.totalPages} pages</p>
                     </div>
                   </div>
-                  <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full shrink-0 ${tb.status === "ready" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
-                    {tb.status}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${tb.status === "ready" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+                      {tb.status}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      disabled={deletingTextbookId === tb.id}
+                      onClick={() => handleDeleteTextbook(tb)}
+                    >
+                      {deletingTextbookId === tb.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
