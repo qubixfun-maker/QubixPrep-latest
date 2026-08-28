@@ -10,17 +10,24 @@ import { getSubjectColor } from "@/lib/subject-colors"
 import { groupByUnit } from "@/lib/unit-sort"
 
 function groupDecksByChapter(decks: any[]) {
+  // decks arrives sorted oldest-created-first (see decksQuery below), so the
+  // order a chapter is first encountered here IS the order its first deck
+  // was generated in - exactly what determines display order.
   const groups: Record<string, any[]> = {}
+  const firstSeenOrder: Record<string, number> = {}
   decks.forEach((d) => {
     const key = (d.chapterName || d.title || "Untitled").trim()
-    if (!groups[key]) groups[key] = []
+    if (!groups[key]) {
+      groups[key] = []
+      firstSeenOrder[key] = Object.keys(firstSeenOrder).length
+    }
     groups[key].push(d)
   })
   return Object.entries(groups).map(([chapterName, chapterDecks]) => ({
     chapterName,
     cardCount: chapterDecks.reduce((sum, d) => sum + (d.cardCount ?? (d.cards?.length ?? 0)), 0),
     unitName: chapterDecks[0]?.unitName || undefined,
-    order: Math.min(...chapterDecks.map((d) => d.order ?? 0)),
+    order: firstSeenOrder[chapterName],
   }))
 }
 
@@ -31,7 +38,9 @@ export default function FlashcardDecksPage({ params }: { params: Promise<{ subje
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
 
-  const decksQuery = useMemo(() => (!db ? null : query(collection(db, 'subjects', subjectId, 'flashcardDecks'), orderBy('createdAt', 'desc'))), [db, subjectId])
+  // Ascending so the first-generated deck for each chapter is encountered
+  // first in groupDecksByChapter, putting the earliest chapters on top.
+  const decksQuery = useMemo(() => (!db ? null : query(collection(db, 'subjects', subjectId, 'flashcardDecks'), orderBy('createdAt', 'asc'))), [db, subjectId])
   const { data: decks, loading: decksLoading } = useCollection(decksQuery)
 
   const grouped = useMemo(() => {

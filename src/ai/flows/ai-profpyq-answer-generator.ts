@@ -39,3 +39,30 @@ Respond with ONLY the answer text, nothing else - no preamble, no "Here is the a
     return { error: err.message || 'Unknown error generating answer' };
   }
 }
+
+// Same as generateProfPyqAnswer, but also returns which provider answered - used
+// for bulk automation runs so weaker fallback-provider answers can be spot-checked.
+import { callAIWithProvider } from '@/ai/genkit';
+
+export type GenerateProfAnswerWithProviderOutput = {
+  answer?: string;
+  provider?: string;
+  error?: string;
+};
+
+export async function generateProfPyqAnswerWithProvider(input: GenerateProfAnswerInput): Promise<GenerateProfAnswerWithProviderOutput> {
+  const prompt = `You are an expert medical educator writing a model answer for an Indian MBBS university professional exam ("Prof exam").
+Subject: ${input.subject}
+Chapter: ${input.chapter}
+Question Type: ${input.type}
+Question: ${input.question}
+Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. Use plain text with simple line breaks and dashes for lists where helpful (no markdown headers, no asterisks for bold). Base the answer on standard textbook content (as relevant: K. Park for PSM, BD Chaurasia/Vishram Singh for Anatomy, Guyton for Physiology, Harsh Mohan for Pathology, etc.) and typical university exam expectations in India.
+Respond with ONLY the answer text, nothing else - no preamble, no "Here is the answer", no quotation marks around it.`;
+  try {
+    const { content, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 1500);
+    if (!content) return { error: 'Empty response from AI model' };
+    return { answer: content.trim(), provider };
+  } catch (err: any) {
+    return { error: err.message || 'Unknown error generating answer' };
+  }
+}

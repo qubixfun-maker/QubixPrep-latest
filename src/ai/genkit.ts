@@ -152,6 +152,40 @@ export async function callAI(
   throw new Error('All AI providers exhausted. Please try again later.')
 }
 
+// Same as callAI, but also returns which provider actually answered - used where
+// we want to track/tag output quality across a long automated run (e.g. bulk
+// long-answer generation), since the fallback chain can switch models mid-run.
+export async function callAIWithProvider(
+  messages: { role: "user" | "assistant" | "system"; content: string }[],
+  maxTokens: number = 2000
+): Promise<{ content: string; provider: string }> {
+  const providers = getStaticProviders()
+  const vertexProvider = await getVertexProvider()
+  if (vertexProvider) providers.push(vertexProvider)
+
+  if (providers.length === 0) {
+    throw new Error("No AI providers configured. Please set at least one API key in environment variables.")
+  }
+
+  for (const provider of providers) {
+    try {
+      const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
+      const response = await client.chat.completions.create({
+        model: provider.model,
+        messages,
+        max_tokens: maxTokens,
+      })
+      const content = response.choices[0]?.message?.content
+      if (content) {
+        return { content, provider: provider.name }
+      }
+    } catch (error: any) {
+      continue
+    }
+  }
+  throw new Error("All AI providers exhausted. Please try again later.")
+}
+
 export function getGroqClient() {
   return {
     chat: {
