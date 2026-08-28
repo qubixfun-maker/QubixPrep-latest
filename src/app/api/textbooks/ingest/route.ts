@@ -40,19 +40,23 @@ export async function POST(req: NextRequest) {
     const totalPages = pdfDoc.numPages
 
     const outline = await pdfDoc.getOutline()
-    if (!outline) {
-      return NextResponse.json({ error: 'This PDF has no bookmarks/outline - cannot auto-detect chapters. Try a different file.' }, { status: 400 })
-    }
 
     async function getPageNumber(dest: any): Promise<number | null> {
       if (!dest) return null
-      let explicitDest = dest
-      if (typeof dest === 'string') {
-        explicitDest = await pdfDoc.getDestination(dest)
+      try {
+        let explicitDest = dest
+        if (typeof dest === 'string') {
+          explicitDest = await pdfDoc.getDestination(dest)
+        }
+        if (!explicitDest) return null
+        const pageIndex = await pdfDoc.getPageIndex(explicitDest[0])
+        return pageIndex + 1
+      } catch (e) {
+        // A malformed/corrupted bookmark reference (e.g. "Kid reference not
+        // found in parent's kids") shouldn't crash the whole upload - skip
+        // just this one bookmark entry and keep processing the rest.
+        return null
       }
-      if (!explicitDest) return null
-      const pageIndex = await pdfDoc.getPageIndex(explicitDest[0])
-      return pageIndex + 1
     }
 
     const flatEntries: { title: string; page: number }[] = []
@@ -63,11 +67,47 @@ export async function POST(req: NextRequest) {
         if (item.items && item.items.length) await walk(item.items)
       }
     }
-    await walk(outline)
+    if (outline) await walk(outline)
 
-    const chapterEntries = flatEntries.filter(e => /^\d+\.\s/.test(e.title) || /^Chapter\s+\d+\b/i.test(e.title))
+    let chapterEntries = flatEntries.filter(e => /^\d+\.\s/.test(e.title) || /^Chapter\s+\d+\b/i.test(e.title))
+
+    // Fallback: bookmarks are missing or unusable (e.g. junk "Page N" reading
+    // bookmarks). Scan every page's text for a "CHAPTER <N> <TITLE IN CAPS>"
+    // running header - common in printed/scanned textbooks - and derive
+    // chapters from where the chapter number increments.
+    let contentPageTextCache: string[] | null = null
     if (chapterEntries.length === 0) {
-      return NextResponse.json({ error: 'No numbered chapters detected in the bookmarks (expected pattern like "3. Chapter Title"). This textbook\'s structure isn\'t supported yet.' }, { status: 400 })
+      contentPageTextCache = new Array(totalPages + 1).fill('')
+      const headerPattern = /CHAPTER\s+(\d+)\s+([A-Z][A-Z ,\-]{4,80})/
+      const detected: { title: string; page: number }[] = []
+      let lastNum = 0
+      for (let p = 1; p <= totalPages; p++) {
+        const page = await pdfDoc.getPage(p)
+        const content = await page.getTextContent()
+        const pageText = content.items.map((it: any) => it.str).join(' ')
+        contentPageTextCache[p] = pageText
+
+        const m = headerPattern.exec(pageText)
+        if (m) {
+          const num = parseInt(m[1], 10)
+          if (num === lastNum + 1) {
+            const rawTitle = m[2].trim().replace(/\s{2,}/g, ' ')
+            const titleCased = rawTitle
+              .toLowerCase()
+              .split(' ')
+              .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+              .join(' ')
+            detected.push({ title: titleCased, page: p })
+            lastNum = num
+          }
+        }
+      }
+
+      if (detected.length < 2) {
+        return NextResponse.json({ error: 'No chapters could be detected from bookmarks or page content. This textbook\'s structure isn\'t supported yet.' }, { status: 400 })
+      }
+
+      chapterEntries = detected
     }
 
     const chapters = chapterEntries.map((e, i) => ({
@@ -101,6 +141,34 @@ export async function POST(req: NextRequest) {
       let tail = words.slice(-15).join(' ')
       tail = tail.replace(/^.*?(SECTION|PART)\s*[-–—]?\s*\d+\s*[:.]?\s*/i, '')
       tail = tail.replace(/^\d+\s*/, '')
+
+      // Stage 1: strip a running-header glued to a page number (e.g.
+      // "Physiology28") that gets stuck onto the front of the real title
+      // when text extraction collapses the page's top margin into one line.
+      // Keep only whatever follows the last such glued token.
+      const gluedMatches = [...tail.matchAll(/[A-Za-z]{3,}\d{1,4}\s*/g)]
+      if (gluedMatches.length) {
+        const last = gluedMatches[gluedMatches.length - 1]
+        tail = tail.slice((last.index || 0) + last[0].length)
+      }
+
+      // Stage 2: some chapter-opener pages have an unrelated sidebar/pull-quote
+      // sentence bleeding in before the real title. The real title is always
+      // Title-Case text sitting right before "CHAPTER N" - so if there's a
+      // genuine sentence boundary (a period) anywhere in the tail, only the
+      // text after the LAST one is trustworthy as the title. A plain lowercase
+      // word followed by a capitalized word is NOT enough on its own to split
+      // on, since normal titles contain connector words like "of"/"in"/"and"
+      // followed by capitalized words too.
+      const sentenceEnds = [...tail.matchAll(/\.\s+([A-Z][a-zA-Z]*)/g)]
+      if (sentenceEnds.length) {
+        const last = sentenceEnds[sentenceEnds.length - 1]
+        if (typeof last.index === 'number' && last[1]) {
+          const captureStart = last.index + last[0].indexOf(last[1])
+          tail = tail.slice(captureStart)
+        }
+      }
+
       return tail.trim() || null
     }
 
@@ -114,9 +182,13 @@ export async function POST(req: NextRequest) {
       let titleFound = !genericMatch
 
       for (let p = ch.startPage; p <= ch.endPage; p++) {
-        const page = await pdfDoc.getPage(p)
-        const content = await page.getTextContent()
-        const pageText = content.items.map((it: any) => it.str).join(' ')
+        const pageText = (contentPageTextCache && contentPageTextCache[p])
+          ? contentPageTextCache[p]
+          : await (async () => {
+              const page = await pdfDoc.getPage(p)
+              const content = await page.getTextContent()
+              return content.items.map((it: any) => it.str).join(' ')
+            })()
 
         if (!titleFound && genericMatch && p <= ch.startPage + 3) {
           const realTitle = extractRealTitle(pageText, genericMatch[1])
