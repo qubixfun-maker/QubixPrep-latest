@@ -11,11 +11,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Lock, ArrowLeft, FileText, Play, Pause, RotateCcw, AlertTriangle, ListTree } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, FileText, Play, Pause, RotateCcw, AlertTriangle, ListTree, Plus, X } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
 const JOB_ID = "current"
+const MAX_PAIRS = 10
 
 type QAItem = { questionHtml: string; answerHtml: string }
 
@@ -48,8 +49,6 @@ function rebuildHtml(items: QAItem[]): string {
 }
 
 function answerTextToHtml(text: string): string {
-  // Plain-text answer (from generateProfPyqAnswerWithProvider) -> simple paragraph HTML,
-  // splitting on blank lines / dash-prefixed lines into paragraphs and a list where relevant.
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean)
   const htmlParts: string[] = []
   let listBuffer: string[] = []
@@ -74,12 +73,7 @@ function answerTextToHtml(text: string): string {
 function chapterIdFor(title: string) {
   return title.trim().toLowerCase().replace(/\s+/g, '-')
 }
-function subjectIdFor(name: string) {
-  return name.toLowerCase().replace(/\s+/g, '-')
-}
 
-// Coarse client-side split - no AI needed for this pass. Matches "Chapter N: Title" or
-// "Chapter N. Title" style headers, tolerant of the exact punctuation/casing varying.
 function splitIntoChapters(rawText: string): { title: string; text: string }[] {
   const pattern = /Chapter\s+\d+[:.]?\s*/gi
   const matches = [...rawText.matchAll(pattern)]
@@ -99,10 +93,21 @@ function splitIntoChapters(rawText: string): { title: string; text: string }[] {
   return chapters
 }
 
+type PdfPair = {
+  id: string
+  subjectId: string
+  pdfFile: File | null
+  isExtracting: boolean
+  stage: string
+  rawText: string
+  error: string
+}
+
 type ExtractedChapter = {
   key: string
+  subjectId: string
+  subjectName: string
   title: string
-  rawText: string
   longEssays: string[]
   shortEssays: string[]
   shortAnswers: string[]
@@ -110,6 +115,7 @@ type ExtractedChapter = {
 }
 
 type QueueItem = {
+  subjectId: string
   chapterTitle: string
   sectionType: "long-essays" | "short-essays" | "short-answers"
   questionType: "long_answer" | "short_essay" | "short_answer"
@@ -131,73 +137,92 @@ export default function LongAnswersBulkGeneratorPage() {
   const jobRef = useMemo(() => (!db) ? null : doc(db, 'bulkLongAnswerJobs', JOB_ID), [db])
   const { data: job } = useDoc(jobRef)
 
-  // --- Step 1: subject + PDF upload ---
-  const [subjectId, setSubjectId] = useState("")
-  const [pdfFile, setPdfFile] = useState<File | null>(null)
-  const [isExtractingPdf, setIsExtractingPdf] = useState(false)
-  const [pdfStage, setPdfStage] = useState("")
-  const [rawFullText, setRawFullText] = useState("")
+  // --- Step 1: multiple subject + PDF pairs ---
+  const [pairs, setPairs] = useState<PdfPair[]>([{ id: `p-${Date.now()}`, subjectId: "", pdfFile: null, isExtracting: false, stage: "", rawText: "", error: "" }])
+  const [isExtractingAll, setIsExtractingAll] = useState(false)
 
-  async function handleExtractPdf() {
-    if (!storage || !user || !pdfFile) return
-    setIsExtractingPdf(true)
-    setRawFullText("")
+  function addPair() {
+    if (pairs.length >= MAX_PAIRS) return
+    setPairs((prev) => [...prev, { id: `p-${Date.now()}`, subjectId: "", pdfFile: null, isExtracting: false, stage: "", rawText: "", error: "" }])
+  }
+  function removePair(id: string) {
+    setPairs((prev) => prev.filter((p) => p.id !== id))
+  }
+  function updatePair(id: string, fields: Partial<PdfPair>) {
+    setPairs((prev) => prev.map((p) => p.id === id ? { ...p, ...fields } : p))
+  }
+
+  const readyPairs = pairs.filter((p) => p.subjectId && p.pdfFile)
+
+  async function handleExtractAll() {
+    if (!storage || !user || readyPairs.length === 0) return
+    setIsExtractingAll(true)
     try {
-      setPdfStage("Uploading PDF...")
-      const safeId = "longanswers-" + Date.now()
-      const storagePath = `long-answers-source/${safeId}.pdf`
-      const fileRef = storageRef(storage, storagePath)
-      await uploadBytes(fileRef, pdfFile)
+      for (const pair of readyPairs) {
+        updatePair(pair.id, { isExtracting: true, error: "", stage: "Uploading PDF..." })
+        try {
+          const safeId = "longanswers-" + Date.now() + "-" + Math.floor(Math.random() * 1000)
+          const storagePath = `long-answers-source/${safeId}.pdf`
+          const fileRef = storageRef(storage, storagePath)
+          await uploadBytes(fileRef, pair.pdfFile!)
 
-      setPdfStage("Extracting text from PDF (can take a few minutes for large files)...")
-      const idToken = await user.getIdToken()
-      const res = await fetch("/api/long-answers/extract-pdf-text", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, storagePath }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Extraction failed")
+          updatePair(pair.id, { stage: "Extracting text (can take a few minutes for large files)..." })
+          const idToken = await user.getIdToken()
+          const res = await fetch("/api/long-answers/extract-pdf-text", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken, storagePath }),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error || "Extraction failed")
 
-      setRawFullText(data.text)
-      toast({ title: "PDF Extracted", description: `${data.pageCount} page(s) read. Now split into chapters below.` })
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Extraction Failed", description: e.message })
+          updatePair(pair.id, { rawText: data.text, isExtracting: false, stage: "" })
+        } catch (e: any) {
+          updatePair(pair.id, { isExtracting: false, stage: "", error: e.message })
+        }
+      }
+      toast({ title: "PDFs Extracted", description: "Now split into chapters below." })
     } finally {
-      setIsExtractingPdf(false)
-      setPdfStage("")
+      setIsExtractingAll(false)
     }
   }
 
-  // --- Step 2: split into chapters + extract questions per chapter ---
+  // --- Step 2: split + extract questions across all pairs ---
   const [extractedChapters, setExtractedChapters] = useState<ExtractedChapter[]>([])
   const [isExtractingQuestions, setIsExtractingQuestions] = useState(false)
   const [questionExtractProgress, setQuestionExtractProgress] = useState("")
 
+  const pairsWithText = pairs.filter((p) => p.rawText)
+
   async function handleSplitAndExtractQuestions() {
-    if (!rawFullText) return
+    if (pairsWithText.length === 0) return
     setIsExtractingQuestions(true)
     setExtractedChapters([])
     try {
-      const chapters = splitIntoChapters(rawFullText)
       const results: ExtractedChapter[] = []
-      for (let i = 0; i < chapters.length; i++) {
-        const ch = chapters[i]
-        setQuestionExtractProgress(`Extracting questions: ${ch.title} (${i + 1}/${chapters.length})...`)
-        const result = await extractLongAnswerQuestions({ chapterTitle: ch.title, rawText: ch.text })
-        results.push({
-          key: `${i}-${ch.title}`,
-          title: ch.title,
-          rawText: ch.text,
-          longEssays: result.longEssays,
-          shortEssays: result.shortEssays,
-          shortAnswers: result.shortAnswers,
-          selected: true,
-        })
+      for (const pair of pairsWithText) {
+        const subject = subjects?.find((s: any) => s.id === pair.subjectId)
+        const subjectName = subject?.name || pair.subjectId
+        const chapters = splitIntoChapters(pair.rawText)
+        for (let i = 0; i < chapters.length; i++) {
+          const ch = chapters[i]
+          setQuestionExtractProgress(`${subjectName}: ${ch.title} (${i + 1}/${chapters.length})...`)
+          const result = await extractLongAnswerQuestions({ chapterTitle: ch.title, rawText: ch.text })
+          results.push({
+            key: `${pair.id}-${i}-${ch.title}`,
+            subjectId: pair.subjectId,
+            subjectName,
+            title: ch.title,
+            longEssays: result.longEssays,
+            shortEssays: result.shortEssays,
+            shortAnswers: result.shortAnswers,
+            selected: true,
+          })
+        }
       }
       setExtractedChapters(results)
       const totalQ = results.reduce((sum, c) => sum + c.longEssays.length + c.shortEssays.length + c.shortAnswers.length, 0)
-      toast({ title: "Questions Extracted", description: `${results.length} chapter(s), ${totalQ} question(s) total.` })
+      toast({ title: "Questions Extracted", description: `${results.length} chapter(s) across ${pairsWithText.length} subject(s), ${totalQ} question(s) total.` })
     } catch (e: any) {
       toast({ variant: "destructive", title: "Extraction Failed", description: e.message })
     } finally {
@@ -215,17 +240,18 @@ export default function LongAnswersBulkGeneratorPage() {
       return prev.map((c) => ({ ...c, selected: !allSelected }))
     })
   }
-  function removeQuestion(chapterKey: string, section: "longEssays" | "shortEssays" | "shortAnswers", index: number) {
-    setExtractedChapters((prev) => prev.map((c) => {
-      if (c.key !== chapterKey) return c
-      const next = [...c[section]]
-      next.splice(index, 1)
-      return { ...c, [section]: next }
-    }))
-  }
 
   const selectedChapters = extractedChapters.filter((c) => c.selected)
   const totalSelectedQuestions = selectedChapters.reduce((sum, c) => sum + c.longEssays.length + c.shortEssays.length + c.shortAnswers.length, 0)
+
+  const chaptersBySubject = useMemo(() => {
+    const groups: Record<string, { subjectName: string; chapters: ExtractedChapter[] }> = {}
+    extractedChapters.forEach((c) => {
+      if (!groups[c.subjectId]) groups[c.subjectId] = { subjectName: c.subjectName, chapters: [] }
+      groups[c.subjectId].chapters.push(c)
+    })
+    return Object.values(groups)
+  }, [extractedChapters])
 
   // --- Step 3: settings + run ---
   const [pauseSeconds, setPauseSeconds] = useState(60)
@@ -242,14 +268,14 @@ export default function LongAnswersBulkGeneratorPage() {
   }
 
   async function handleStart() {
-    if (!db || !subjectId || selectedChapters.length === 0) return
+    if (!db || selectedChapters.length === 0) return
     setIsStarting(true)
     try {
       const queue: QueueItem[] = []
       for (const ch of selectedChapters) {
-        ch.longEssays.forEach((q) => queue.push({ chapterTitle: ch.title, sectionType: "long-essays", questionType: "long_answer", question: q }))
-        ch.shortEssays.forEach((q) => queue.push({ chapterTitle: ch.title, sectionType: "short-essays", questionType: "short_essay", question: q }))
-        ch.shortAnswers.forEach((q) => queue.push({ chapterTitle: ch.title, sectionType: "short-answers", questionType: "short_answer", question: q }))
+        ch.longEssays.forEach((q) => queue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "long-essays", questionType: "long_answer", question: q }))
+        ch.shortEssays.forEach((q) => queue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "short-essays", questionType: "short_essay", question: q }))
+        ch.shortAnswers.forEach((q) => queue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "short-answers", questionType: "short_answer", question: q }))
       }
 
       if (queue.length === 0) {
@@ -260,7 +286,6 @@ export default function LongAnswersBulkGeneratorPage() {
 
       await setDoc(doc(db, 'bulkLongAnswerJobs', JOB_ID), {
         status: "running",
-        subjectId,
         queue,
         pauseSeconds,
         questionPauseSeconds,
@@ -272,9 +297,9 @@ export default function LongAnswersBulkGeneratorPage() {
         updatedAt: serverTimestamp(),
       })
 
-      toast({ title: "Job Started", description: `${queue.length} question(s) queued.` })
+      toast({ title: "Job Started", description: `${queue.length} question(s) across ${new Set(queue.map(q => q.subjectId)).size} subject(s) queued.` })
       isPausedRef.current = false
-      runLoop(queue, 0, subjectId, pauseSeconds, questionPauseSeconds)
+      runLoop(queue, 0, pauseSeconds, questionPauseSeconds)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Failed to start", description: e.message })
     } finally {
@@ -286,7 +311,7 @@ export default function LongAnswersBulkGeneratorPage() {
     if (!job || job.status !== "paused") return
     isPausedRef.current = false
     await updateJob({ status: "running" })
-    runLoop(job.queue, job.currentIndex, job.subjectId, job.pauseSeconds, job.questionPauseSeconds || 3)
+    runLoop(job.queue, job.currentIndex, job.pauseSeconds, job.questionPauseSeconds || 3)
   }
   function handlePause() {
     isPausedRef.current = true
@@ -302,12 +327,9 @@ export default function LongAnswersBulkGeneratorPage() {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function runLoop(queue: QueueItem[], startIndex: number, subjId: string, pauseSecs: number, qPauseSecs: number) {
+  async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, qPauseSecs: number) {
     if (isRunningLocallyRef.current) return
     isRunningLocallyRef.current = true
-
-    const subject = subjects?.find((s: any) => s.id === subjId)
-    const subjectName = subject?.name || subjId
 
     for (let i = startIndex; i < queue.length; i++) {
       if (isPausedRef.current) {
@@ -317,7 +339,9 @@ export default function LongAnswersBulkGeneratorPage() {
       }
 
       const item = queue[i]
-      setCurrentLabel(`${item.chapterTitle} — ${item.question.slice(0, 60)}${item.question.length > 60 ? "..." : ""}`)
+      const subject = subjects?.find((s: any) => s.id === item.subjectId)
+      const subjectName = subject?.name || item.subjectId
+      setCurrentLabel(`${subjectName} — ${item.chapterTitle} — ${item.question.slice(0, 50)}${item.question.length > 50 ? "..." : ""}`)
 
       try {
         const result = await generateProfPyqAnswerWithProvider({
@@ -332,8 +356,8 @@ export default function LongAnswersBulkGeneratorPage() {
         }
 
         const chapterIdVal = chapterIdFor(item.chapterTitle)
-        const chapterRef = doc(db!, 'subjects', subjId, 'essayChapters', chapterIdVal)
-        const sectionRef = doc(db!, 'subjects', subjId, 'essayChapters', chapterIdVal, 'sections', item.sectionType)
+        const chapterRef = doc(db!, 'subjects', item.subjectId, 'essayChapters', chapterIdVal)
+        const sectionRef = doc(db!, 'subjects', item.subjectId, 'essayChapters', chapterIdVal, 'sections', item.sectionType)
 
         const existingSnap = await getDoc(sectionRef)
         const existingItems = existingSnap.exists() && (existingSnap.data() as any).html
@@ -343,7 +367,7 @@ export default function LongAnswersBulkGeneratorPage() {
         const combinedItems = [...existingItems, newItem]
         const finalHtml = rebuildHtml(combinedItems)
 
-        await setDoc(chapterRef, { title: item.chapterTitle, subjectId: subjId, updatedAt: serverTimestamp() }, { merge: true })
+        await setDoc(chapterRef, { title: item.chapterTitle, subjectId: item.subjectId, updatedAt: serverTimestamp() }, { merge: true })
         await setDoc(sectionRef, {
           sectionType: item.sectionType,
           html: finalHtml,
@@ -368,7 +392,7 @@ export default function LongAnswersBulkGeneratorPage() {
 
       if (i < queue.length - 1 && !isPausedRef.current) {
         const nextItem = queue[i + 1]
-        const movingToNewChapter = nextItem.chapterTitle !== item.chapterTitle
+        const movingToNewChapter = nextItem.chapterTitle !== item.chapterTitle || nextItem.subjectId !== item.subjectId
         await sleep((movingToNewChapter ? pauseSecs : qPauseSecs) * 1000)
       }
     }
@@ -400,49 +424,69 @@ export default function LongAnswersBulkGeneratorPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" /> Long Answers Bulk Automation
           </h1>
-          <p className="text-sm text-muted-foreground">Upload a question-bank PDF (one subject), review the parsed chapters/questions, then generate model answers automatically.</p>
+          <p className="text-sm text-muted-foreground">Add up to {MAX_PAIRS} subject + question-bank PDF pairs, review everything together, then generate model answers automatically.</p>
         </div>
       </div>
 
       {!hasJob || job.status === "idle" ? (
         <>
           <Card className="glass border-none">
-            <CardHeader><CardTitle className="text-base">1. Subject & PDF</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">1. Subjects & PDFs</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Subject</Label>
-                <Select value={subjectId} onValueChange={setSubjectId}>
-                  <SelectTrigger className="glass border-white/10"><SelectValue placeholder="Select Subject" /></SelectTrigger>
-                  <SelectContent className="glass border-white/10">
-                    {subjects?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              {pairs.map((pair, idx) => (
+                <div key={pair.id} className="p-3 rounded-xl glass border border-white/10 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Select value={pair.subjectId} onValueChange={(v) => updatePair(pair.id, { subjectId: v })}>
+                      <SelectTrigger className="glass border-white/10 flex-1"><SelectValue placeholder="Select Subject" /></SelectTrigger>
+                      <SelectContent className="glass border-white/10">
+                        {subjects?.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {pairs.length > 1 && (
+                      <button onClick={() => removePair(pair.id)} className="text-muted-foreground hover:text-destructive p-2" title="Remove">
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => updatePair(pair.id, { pdfFile: e.target.files?.[0] || null })}
+                    className="text-sm w-full"
+                  />
+                  {pair.isExtracting && <p className="text-xs text-primary flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> {pair.stage}</p>}
+                  {pair.rawText && !pair.isExtracting && <p className="text-xs text-green-400">Text extracted ({pair.rawText.length.toLocaleString()} characters)</p>}
+                  {pair.error && <p className="text-xs text-destructive">{pair.error}</p>}
+                </div>
+              ))}
+
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={addPair} disabled={pairs.length >= MAX_PAIRS} variant="outline" size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" /> Add Subject + PDF {pairs.length >= MAX_PAIRS ? `(max ${MAX_PAIRS})` : ""}
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label>Question Bank PDF</Label>
-                <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} className="text-sm" />
-              </div>
-              <Button onClick={handleExtractPdf} disabled={isExtractingPdf || !pdfFile || !subjectId} className="gap-2">
-                {isExtractingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {isExtractingPdf ? (pdfStage || "Extracting...") : "Extract Text From PDF"}
+
+              <Button onClick={handleExtractAll} disabled={isExtractingAll || readyPairs.length === 0} className="gap-2">
+                {isExtractingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {isExtractingAll ? "Extracting..." : `Extract Text From ${readyPairs.length} PDF(s)`}
               </Button>
             </CardContent>
           </Card>
 
-          {rawFullText && (
+          {pairsWithText.length > 0 && (
             <Card className="glass border-none">
               <CardHeader><CardTitle className="text-base">2. Split Into Chapters & Extract Questions</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-xs text-muted-foreground">MCQs are automatically ignored - only Long Essays, Short Essays, and Short Answers are extracted.</p>
                 <Button onClick={handleSplitAndExtractQuestions} disabled={isExtractingQuestions} variant="secondary" className="gap-2">
                   {isExtractingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListTree className="h-4 w-4" />}
-                  {isExtractingQuestions ? (questionExtractProgress || "Extracting...") : "Split & Extract Questions"}
+                  {isExtractingQuestions ? (questionExtractProgress || "Extracting...") : `Split & Extract Questions From ${pairsWithText.length} PDF(s)`}
                 </Button>
               </CardContent>
             </Card>
           )}
 
-          {extractedChapters.length > 0 && (
+          {chaptersBySubject.length > 0 && (
             <Card className="glass border-none">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">3. Review Chapters & Questions</CardTitle>
@@ -450,19 +494,22 @@ export default function LongAnswersBulkGeneratorPage() {
                   {extractedChapters.every((c) => c.selected) ? "Deselect All" : "Select All"}
                 </Button>
               </CardHeader>
-              <CardContent className="space-y-3 max-h-[36rem] overflow-y-auto">
-                {extractedChapters.map((c) => {
-                  const total = c.longEssays.length + c.shortEssays.length + c.shortAnswers.length
-                  return (
-                    <div key={c.key} className={`rounded-xl border p-3 space-y-2 ${c.selected ? "bg-primary/10 border-primary/40" : "glass border-white/10"}`}>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" checked={c.selected} onChange={() => toggleChapterSelected(c.key)} />
-                        <span className="text-sm font-medium flex-1 truncate">{c.title}</span>
-                        <span className="text-xs text-muted-foreground shrink-0">{total} question(s) — {c.longEssays.length}L / {c.shortEssays.length}SE / {c.shortAnswers.length}SA</span>
-                      </label>
-                    </div>
-                  )
-                })}
+              <CardContent className="space-y-4 max-h-[36rem] overflow-y-auto">
+                {chaptersBySubject.map((group, gi) => (
+                  <div key={gi} className="space-y-1.5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{group.subjectName}</p>
+                    {group.chapters.map((c) => {
+                      const total = c.longEssays.length + c.shortEssays.length + c.shortAnswers.length
+                      return (
+                        <label key={c.key} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${c.selected ? "bg-primary/10 border-primary/40" : "glass border-white/10"}`}>
+                          <input type="checkbox" checked={c.selected} onChange={() => toggleChapterSelected(c.key)} />
+                          <span className="text-sm flex-1 truncate">{c.title}</span>
+                          <span className="text-xs text-muted-foreground shrink-0">{total} question(s) — {c.longEssays.length}L / {c.shortEssays.length}SE / {c.shortAnswers.length}SA</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ))}
                 <p className="text-xs text-primary font-medium pt-1">{selectedChapters.length} chapter(s) selected — {totalSelectedQuestions} question(s) total.</p>
               </CardContent>
             </Card>

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore"
+import { doc, collection, query, orderBy, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, increment, arrayUnion, writeBatch } from "firebase/firestore"
 import { generateFlashcards } from "@/ai/flows/ai-flashcard-generator"
 import { extractChapterTopics } from "@/ai/flows/ai-chapter-topic-extractor"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,43 @@ function sanitizeIdPart(s: string) {
 }
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// The full queue is stored as one doc per item in a subcollection instead of
+// a single array field, since Firestore caps a document at 1MB and a large
+// bulk selection (many textbooks x many chapters x topics) easily exceeds
+// that if crammed into one doc. Writes/deletes are chunked at 450 per batch
+// to stay under Firestore's 500-operation batch limit.
+async function writeQueueItems(db: any, items: QueueItem[]) {
+  const CHUNK = 450
+  for (let start = 0; start < items.length; start += CHUNK) {
+    const batch = writeBatch(db)
+    const slice = items.slice(start, start + CHUNK)
+    slice.forEach((item, i) => {
+      const index = start + i
+      const itemRef = doc(db, 'bulkFlashcardJobs', JOB_ID, 'queueItems', String(index).padStart(6, '0'))
+      batch.set(itemRef, { index, ...item })
+    })
+    await batch.commit()
+  }
+}
+
+async function readQueueItems(db: any): Promise<QueueItem[]> {
+  const snap = await getDocs(collection(db, 'bulkFlashcardJobs', JOB_ID, 'queueItems'))
+  const items = snap.docs.map((d) => d.data() as any)
+  items.sort((a, b) => a.index - b.index)
+  return items.map(({ index, ...rest }) => rest as QueueItem)
+}
+
+async function clearQueueItems(db: any) {
+  const snap = await getDocs(collection(db, 'bulkFlashcardJobs', JOB_ID, 'queueItems'))
+  const CHUNK = 450
+  const docs = snap.docs
+  for (let start = 0; start < docs.length; start += CHUNK) {
+    const batch = writeBatch(db)
+    docs.slice(start, start + CHUNK).forEach((d) => batch.delete(d.ref))
+    await batch.commit()
+  }
 }
 
 type ChapterMeta = {
@@ -245,7 +282,7 @@ export default function FlashcardBulkGeneratorPage() {
 
       await setDoc(doc(db, 'bulkFlashcardJobs', JOB_ID), {
         status: "running",
-        queue,
+        queueLength: queue.length,
         pauseSeconds,
         currentIndex: 0,
         completedCount: 0,
@@ -254,6 +291,7 @@ export default function FlashcardBulkGeneratorPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
+      await writeQueueItems(db, queue)
 
       toast({ title: "Job Started", description: `${queue.length} topic(s) queued.` })
       isPausedRef.current = false
@@ -266,10 +304,11 @@ export default function FlashcardBulkGeneratorPage() {
   }
 
   async function handleResume() {
-    if (!job || job.status !== "paused") return
+    if (!job || job.status !== "paused" || !db) return
     isPausedRef.current = false
     await updateJob({ status: "running" })
-    runLoop(job.queue, job.currentIndex, job.pauseSeconds)
+    const queue = await readQueueItems(db)
+    runLoop(queue, job.currentIndex, job.pauseSeconds)
   }
   function handlePause() {
     isPausedRef.current = true
@@ -278,7 +317,8 @@ export default function FlashcardBulkGeneratorPage() {
   async function handleReset() {
     if (!confirm("Reset the job? This clears progress tracking (already-saved decks are NOT deleted).")) return
     isPausedRef.current = true
-    await updateJob({ status: "idle", queue: [], currentIndex: 0, completedCount: 0, totalCardsSaved: 0, failedChapters: [] })
+    if (db) await clearQueueItems(db)
+    await updateJob({ status: "idle", queueLength: 0, currentIndex: 0, completedCount: 0, totalCardsSaved: 0, failedChapters: [] })
   }
 
   async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number) {
@@ -356,8 +396,8 @@ export default function FlashcardBulkGeneratorPage() {
     )
   }
 
-  const hasJob = job && job.queue && job.queue.length > 0
-  const progressPct = hasJob ? Math.round(((job.currentIndex || 0) / job.queue.length) * 100) : 0
+  const hasJob = job && job.queueLength && job.queueLength > 0
+  const progressPct = hasJob ? Math.round(((job.currentIndex || 0) / job.queueLength) * 100) : 0
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
@@ -493,7 +533,7 @@ export default function FlashcardBulkGeneratorPage() {
             <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden">
               <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progressPct}%` }} />
             </div>
-            <p className="text-xs text-muted-foreground text-center">{job.currentIndex || 0} / {job.queue.length} topic(s) processed ({progressPct}%)</p>
+            <p className="text-xs text-muted-foreground text-center">{job.currentIndex || 0} / {job.queueLength} topic(s) processed ({progressPct}%)</p>
 
             {job.status === "running" && currentLabel && (
               <p className="text-sm text-center flex items-center justify-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> {currentLabel}</p>
