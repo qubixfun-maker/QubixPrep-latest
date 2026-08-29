@@ -159,6 +159,12 @@ export default function FlashcardBulkGeneratorPage() {
   function toggleChapter(key: string) {
     setSelectedChapterKeys((prev) => ({ ...prev, [key]: !prev[key] }))
   }
+  function toggleAllChapters() {
+    const allSelected = chapterList.length > 0 && chapterList.every((c) => selectedChapterKeys[c.key])
+    const next: Record<string, boolean> = {}
+    chapterList.forEach((c) => { next[c.key] = !allSelected })
+    setSelectedChapterKeys(next)
+  }
 
   const chapterList: ChapterMeta[] = useMemo(() => {
     const list: ChapterMeta[] = []
@@ -446,7 +452,12 @@ export default function FlashcardBulkGeneratorPage() {
 
           {chapterList.length > 0 && (
             <Card className="glass border-none">
-              <CardHeader><CardTitle className="text-base">2. Select Chapters</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">2. Select Chapters</CardTitle>
+                <Button onClick={toggleAllChapters} variant="ghost" size="sm">
+                  {chapterList.every((c) => selectedChapterKeys[c.key]) ? "Deselect All" : "Select All"}
+                </Button>
+              </CardHeader>
               <CardContent className="space-y-2 max-h-96 overflow-y-auto">
                 {chapterList.map((ch) => (
                   <label key={ch.key} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${selectedChapterKeys[ch.key] ? "bg-primary/10 border-primary/40" : "glass border-white/10"}`}>
