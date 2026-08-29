@@ -72,13 +72,42 @@ export async function POST(req: NextRequest) {
     let chapterEntries = flatEntries.filter(e => /^\d+\.\s/.test(e.title) || /^Chapter\s+\d+\b/i.test(e.title))
 
     // Fallback: bookmarks are missing or unusable (e.g. junk "Page N" reading
-    // bookmarks). Scan every page's text for a "CHAPTER <N> <TITLE IN CAPS>"
-    // running header - common in printed/scanned textbooks - and derive
-    // chapters from where the chapter number increments.
+    // bookmarks). Scan every page's text for a "CHAPTER <N> <TITLE>" running
+    // header - common in printed/scanned textbooks - and derive chapters
+    // from where the chapter number increments. Different books format the
+    // title differently, so multiple strategies are tried per page in order:
+    //   1. ALL-CAPS title right after "CHAPTER N" (e.g. "CHAPTER 1 HOMEOSTASIS")
+    //   2. Title-Case text bounded by a following "Learning objectives"
+    //      marker (common in books with a learning-objectives box on the
+    //      chapter opener page)
+    function matchChapterHeader(pageText: string): { num: number; title: string } | null {
+      const allCapsPattern = /CHAPTER\s+(\d+)\s+([A-Z][A-Z ,\-]{4,80})/
+      const m1 = allCapsPattern.exec(pageText)
+      if (m1) {
+        const rawTitle = m1[2].trim().replace(/\s{2,}/g, ' ')
+        const titleCased = rawTitle
+          .toLowerCase()
+          .split(' ')
+          .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+          .join(' ')
+        return { num: parseInt(m1[1], 10), title: titleCased }
+      }
+
+      const learningObjPattern = /CHAPTER\s+(\d+)\s+(.+?)\s*Learning [Oo]bjectives/
+      const m2 = learningObjPattern.exec(pageText)
+      if (m2) {
+        const title = m2[2].trim().replace(/\s{2,}/g, ' ')
+        if (title.length >= 2 && title.length <= 100) {
+          return { num: parseInt(m2[1], 10), title }
+        }
+      }
+
+      return null
+    }
+
     let contentPageTextCache: string[] | null = null
     if (chapterEntries.length === 0) {
       contentPageTextCache = new Array(totalPages + 1).fill('')
-      const headerPattern = /CHAPTER\s+(\d+)\s+([A-Z][A-Z ,\-]{4,80})/
       const detected: { title: string; page: number }[] = []
       let lastNum = 0
       for (let p = 1; p <= totalPages; p++) {
@@ -87,19 +116,10 @@ export async function POST(req: NextRequest) {
         const pageText = content.items.map((it: any) => it.str).join(' ')
         contentPageTextCache[p] = pageText
 
-        const m = headerPattern.exec(pageText)
-        if (m) {
-          const num = parseInt(m[1], 10)
-          if (num === lastNum + 1) {
-            const rawTitle = m[2].trim().replace(/\s{2,}/g, ' ')
-            const titleCased = rawTitle
-              .toLowerCase()
-              .split(' ')
-              .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
-              .join(' ')
-            detected.push({ title: titleCased, page: p })
-            lastNum = num
-          }
+        const match = matchChapterHeader(pageText)
+        if (match && match.num === lastNum + 1) {
+          detected.push({ title: match.title, page: p })
+          lastNum = match.num
         }
       }
 
