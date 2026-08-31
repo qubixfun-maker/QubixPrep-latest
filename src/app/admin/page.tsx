@@ -1588,6 +1588,16 @@ export default function AdminDashboard() {
               <Network className="h-4 w-4" /> Mind Map Prompts
             </Button>
           </Link>
+          <Link href="/admin/long-answers-bulk-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+              <FileText className="h-4 w-4" /> Long Answers Bulk
+            </Button>
+          </Link>
+          <Link href="/admin/long-answers-bulk-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+              <FileText className="h-4 w-4" /> Long Answers Bulk
+            </Button>
+          </Link>
           <Link href="/admin/analytics">
             <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
               <BarChart3 className="h-4 w-4" /> Analytics
