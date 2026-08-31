@@ -105,11 +105,40 @@ export async function POST(req: NextRequest) {
       return null
     }
 
+    // Strategy 3: some books print "Chapter N: Title" as a running header on
+    // EVERY page of the chapter, not just the opener (e.g. "Chapter 1:
+    // Anatomy of the Female Pelvic Organs"). Body-content noise trailing the
+    // title differs page to page, but the title itself is identical every
+    // time it appears - so instead of trying to bound the title from one
+    // occurrence, this collects every occurrence per chapter number and
+    // keeps only their longest common word-prefix, which cleanly strips
+    // whatever varies.
+    function longestCommonPrefixWords(strs: string[]): string {
+      if (strs.length === 1) return strs[0].split(' ').slice(0, 8).join(' ')
+      const wordLists = strs.map((s) => s.split(' '))
+      const minLen = Math.min(...wordLists.map((w) => w.length))
+      const result: string[] = []
+      for (let i = 0; i < minLen; i++) {
+        const w0 = wordLists[0][i]
+        if (wordLists.every((wl) => wl[i] === w0)) {
+          result.push(w0)
+        } else {
+          break
+        }
+      }
+      return result.length ? result.join(' ') : wordLists[0].slice(0, 8).join(' ')
+    }
+
     let contentPageTextCache: string[] | null = null
     if (chapterEntries.length === 0) {
       contentPageTextCache = new Array(totalPages + 1).fill('')
       const detected: { title: string; page: number }[] = []
       let lastNum = 0
+
+      const colonPattern = /Chapter\s+(\d+):\s*([A-Za-z][a-zA-Z ,:\-]{2,100})/
+      const colonCandidates = new Map<number, string[]>()
+      const colonFirstPage = new Map<number, number>()
+
       for (let p = 1; p <= totalPages; p++) {
         const page = await pdfDoc.getPage(p)
         const content = await page.getTextContent()
@@ -120,6 +149,27 @@ export async function POST(req: NextRequest) {
         if (match && match.num === lastNum + 1) {
           detected.push({ title: match.title, page: p })
           lastNum = match.num
+        }
+
+        const cm = colonPattern.exec(pageText)
+        if (cm) {
+          const num = parseInt(cm[1], 10)
+          const candidate = cm[2].trim().replace(/\s{2,}/g, ' ')
+          if (!colonCandidates.has(num)) colonCandidates.set(num, [])
+          colonCandidates.get(num)!.push(candidate)
+          if (!colonFirstPage.has(num)) colonFirstPage.set(num, p)
+        }
+      }
+
+      if (detected.length < 2 && colonCandidates.size >= 2) {
+        const nums = [...colonFirstPage.keys()].sort((a, b) => colonFirstPage.get(a)! - colonFirstPage.get(b)!)
+        let lastColonNum = 0
+        for (const num of nums) {
+          if (num === lastColonNum + 1) {
+            const title = longestCommonPrefixWords(colonCandidates.get(num)!)
+            detected.push({ title, page: colonFirstPage.get(num)! })
+            lastColonNum = num
+          }
         }
       }
 
