@@ -34,7 +34,12 @@ export async function POST(req: NextRequest) {
     for (let p = 1; p <= totalPages; p++) {
       const page = await pdfDoc.getPage(p)
       const content = await page.getTextContent()
-      const pageText = content.items.map((it: any) => it.str).join(' ')
+      let pageText = ''
+      for (const item of content.items as any[]) {
+        pageText += item.str
+        if (item.hasEOL) pageText += '\n'
+        else if (!item.str.endsWith(' ')) pageText += ' '
+      }
       fullText += pageText + '\n\n'
     }
 

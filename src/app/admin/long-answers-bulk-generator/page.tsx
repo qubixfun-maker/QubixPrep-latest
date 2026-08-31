@@ -85,8 +85,18 @@ function splitIntoChapters(rawText: string): { title: string; text: string }[] {
     const start = matches[i].index!
     const end = i < matches.length - 1 ? matches[i + 1].index! : rawText.length
     const chunk = rawText.slice(start, end)
-    const titleLineEnd = chunk.indexOf("\n")
-    const titleRaw = titleLineEnd > -1 ? chunk.slice(0, titleLineEnd) : chunk.slice(0, 120)
+    // Chapter titles sometimes visually wrap across 2 printed lines - keep
+    // appending lines to the title until we hit a recognizable section header
+    // or a sane line cap, instead of always stopping at the first line break.
+    const stopWords = /^(Long Essay|Short Essay|Short Answer|MCQ|\(No questions)/i
+    const chunkLines = chunk.split("\n")
+    let titleLines: string[] = []
+    for (let li = 0; li < chunkLines.length && li < 3; li++) {
+      const line = chunkLines[li].trim()
+      if (li > 0 && stopWords.test(line)) break
+      if (line) titleLines.push(line)
+    }
+    const titleRaw = titleLines.join(" ") || chunk.slice(0, 120)
     const title = titleRaw.replace(pattern, "").trim().slice(0, 150) || `Chapter ${i + 1}`
     chapters.push({ title, text: chunk })
   }
