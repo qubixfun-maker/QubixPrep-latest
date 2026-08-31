@@ -59,17 +59,62 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const flatEntries: { title: string; page: number }[] = []
-    async function walk(items: any[]) {
+    const flatEntries: { title: string; page: number; depth: number }[] = []
+    async function walk(items: any[], depth: number = 0) {
       for (const item of items) {
         const pageNum = await getPageNumber(item.dest)
-        if (pageNum) flatEntries.push({ title: item.title.trim(), page: pageNum })
-        if (item.items && item.items.length) await walk(item.items)
+        if (pageNum) flatEntries.push({ title: item.title.trim(), page: pageNum, depth })
+        if (item.items && item.items.length) await walk(item.items, depth + 1)
       }
     }
     if (outline) await walk(outline)
 
-    let chapterEntries = flatEntries.filter(e => /^\d+\.\s/.test(e.title) || /^Chapter\s+\d+\b/i.test(e.title))
+    let chapterEntries: { title: string; page: number }[] = flatEntries.filter(e => /^\d+\.\s/.test(e.title) || /^Chapter\s+\d+\b/i.test(e.title))
+
+    // Bookmark fallback: some books' real chapters live at a nested outline
+    // depth mixed in with unrelated numbering at other depths (e.g. depth 0
+    // = "1 PART NAME" section headers, depth 1 = "1 Actual Chapter Title"
+    // chapters with no period after the number, depth 2 = sub-headings
+    // within a chapter). Rather than assume chapters sit at any particular
+    // depth, every depth is scored by how many sequentially-numbered
+    // (1, 2, 3...) entries it contains, and the best-scoring depth wins.
+    function parseNumberedTitle(raw: string): { num: number; title: string } | null {
+      let m = raw.match(/^Chapter\s+(\d+)[.:]?\s*(.*)$/i)
+      if (m) return { num: parseInt(m[1], 10), title: m[2].trim() }
+      m = raw.match(/^(\d+)[.:]?\s+(.+)$/)
+      if (m) return { num: parseInt(m[1], 10), title: m[2].trim() }
+      return null
+    }
+
+    if (chapterEntries.length === 0 && flatEntries.length > 0) {
+      const byDepth = new Map<number, { title: string; page: number }[]>()
+      flatEntries.forEach((e) => {
+        if (!byDepth.has(e.depth)) byDepth.set(e.depth, [])
+        byDepth.get(e.depth)!.push({ title: e.title, page: e.page })
+      })
+
+      let bestSeq: { title: string; page: number }[] = []
+      for (const entries of byDepth.values()) {
+        let lastNum = 0
+        const seq: { title: string; page: number }[] = []
+        for (const e of entries) {
+          const parsed = parseNumberedTitle(e.title)
+          if (parsed && parsed.num === lastNum + 1) {
+            // If the bookmark had no title text after the number (e.g. plain
+            // "Chapter 5"), keep the raw string so the later generic-title
+            // page-content resolution step still recognizes and fills it in.
+            const displayTitle = parsed.title.length > 0 ? parsed.title : e.title
+            seq.push({ title: displayTitle, page: e.page })
+            lastNum = parsed.num
+          }
+        }
+        if (seq.length > bestSeq.length) bestSeq = seq
+      }
+
+      if (bestSeq.length >= 2) {
+        chapterEntries = bestSeq
+      }
+    }
 
     // Fallback: bookmarks are missing or unusable (e.g. junk "Page N" reading
     // bookmarks). Scan every page's text for a "CHAPTER <N> <TITLE>" running
