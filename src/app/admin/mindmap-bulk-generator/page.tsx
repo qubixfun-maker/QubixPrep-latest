@@ -143,8 +143,7 @@ export default function MindmapBulkGeneratorPage() {
       for (let i = 0; i < selectedChapters.length; i++) {
         const ch = selectedChapters[i]
         setExtractProgress(`Planning: ${ch.chapterTitle} (${i + 1}/${selectedChapters.length})...`)
-        const chapterDoc = await getDocs(query(collection(db, 'textbooks', ch.textbookId, 'chapters')))
-        const chapterData = chapterDoc.docs.find((d) => d.id === ch.chapterId)?.data() as any
+        const chapterData = (chaptersByTextbook[ch.textbookId] || []).find((c: any) => c.chapterId === ch.chapterId)
         const sources = [{ textbookTitle: ch.textbookTitle, chapterTitle: ch.chapterTitle, text: chapterData?.text || "" }]
 
         const result = await extractMindmapBranches({ sources })
@@ -299,8 +298,7 @@ export default function MindmapBulkGeneratorPage() {
 
       try {
         const chapterMeta = extractedChapters.find((c) => c.key === item.mindmapKey)
-        const chapterDocsSnap = chapterMeta ? await getDocs(collection(db!, 'textbooks', chapterMeta.textbookId, 'chapters')) : null
-        const chapterData = chapterDocsSnap?.docs.find((d) => d.id === chapterMeta!.chapterId)?.data() as any
+        const chapterData = chapterMeta ? (chaptersByTextbook[chapterMeta.textbookId] || []).find((c: any) => c.chapterId === chapterMeta.chapterId) : null
         const sources = [{ textbookTitle: chapterMeta?.textbookTitle || "", chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
 
         const result = await generateMindmapBranchDetail({ sources, centralTopic: item.centralTopic, branchName: item.branchName })
@@ -508,7 +506,7 @@ export default function MindmapBulkGeneratorPage() {
                 <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> {job.failedBranches.length} branch(es) failed</p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {job.failedBranches.map((f: any, i: number) => (
-                    <p key={i} className="text-xs text-muted-foreground truncate">• {f.chapterTitle} — {f.branchName} — {f.error}</p>
+                    <p key={i} className="text-xs text-muted-foreground break-words">• {f.chapterTitle} — {f.branchName} — {f.error}</p>
                   ))}
                 </div>
               </div>

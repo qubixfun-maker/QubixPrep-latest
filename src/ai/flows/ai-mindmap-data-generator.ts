@@ -133,14 +133,17 @@ TASK: List the top-level branch names only (one per distinct disease/topic/conce
 Output ONLY valid JSON, no markdown fences, no commentary:
 {"centralTopic": "...", "branchNames": ["...", "..."]}`;
 
-    const raw = await callAI([{ role: 'user', content: prompt }], 1500);
-    if (!raw) return { error: 'Empty response from AI model' };
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const raw = await callAI([{ role: 'user', content: prompt }], 1500);
+      if (!raw) continue;
 
-    const parsed = tryParseJson(raw);
-    if (!parsed || !parsed.centralTopic || !Array.isArray(parsed.branchNames)) {
-      return { error: 'AI response was not valid JSON for branch list. Try again.' };
+      const parsed = tryParseJson(raw);
+      if (parsed && parsed.centralTopic && Array.isArray(parsed.branchNames)) {
+        return { centralTopic: parsed.centralTopic, branchNames: parsed.branchNames };
+      }
     }
-    return { centralTopic: parsed.centralTopic, branchNames: parsed.branchNames };
+    return { error: `AI response was not valid JSON for branch list after ${MAX_ATTEMPTS} attempts. Try again.` };
   } catch (err: any) {
     return { error: err.message || 'Unknown error extracting branches' };
   }
@@ -206,14 +209,17 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
     }
   ]
 }`;
-    const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000);
-    if (!raw) return { error: 'Empty response from AI model' };
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000);
+      if (!raw) continue;
 
-    const parsed = tryParseJson(raw);
-    if (!parsed || !parsed.name) {
-      return { error: 'AI response was not valid JSON for this branch. Try again.' };
+      const parsed = tryParseJson(raw);
+      if (parsed && parsed.name) {
+        return { branch: parsed as MindmapNode, provider };
+      }
     }
-    return { branch: parsed as MindmapNode, provider };
+    return { error: `AI response was not valid JSON for this branch after ${MAX_ATTEMPTS} attempts. Try again.` };
   } catch (err: any) {
     return { error: err.message || 'Unknown error generating branch detail' };
   }
