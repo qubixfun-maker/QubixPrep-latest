@@ -280,6 +280,12 @@ export default function NotesImageGeneratorPage() {
 
         results.push({ topicTitle: planItem.topicTitle, imageUrl, needsReview: result.needsReview, matchScore: result.matchScore })
         setGeneratedPages([...results])
+
+        // Small pause between pages so we don't immediately re-trip the image model's
+        // per-minute quota right after finishing one.
+        if (i < pagesToRun.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 5000))
+        }
       }
       toast({ title: "Generation Complete", description: `${results.length}/${pagesToRun.length} page(s) generated.` })
     } finally {

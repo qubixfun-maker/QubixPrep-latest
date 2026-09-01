@@ -170,15 +170,26 @@ export async function generatePageContent(input: GeneratePageContentInput): Prom
     ? `\n\nPAST EXAM QUESTIONS FOR THIS CHAPTER (use to prioritize depth, but source every fact from the chapter text, never from this list itself):\n${input.qbankQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
     : '';
 
-  const prompt = `You are writing ONE page of exam-focused handwritten-style study notes for a medical student. The overall chapter is "${input.chapterTitle}". You are writing ONLY this one page: "${input.topicTitle}" - scope: ${input.scope}
+  const prompt = `You are writing ONE page of exam-focused handwritten-style study notes for a medical student, in a fixed template style. The overall chapter is "${input.chapterTitle}". You are writing ONLY this one page: "${input.topicTitle}" - scope: ${input.scope}
 
 CHAPTER TEXT:
 ${truncatedText}
 ${qbankBlock}
 
-TASK: Write out the exact text content for this one page: a short title, then organized notes using short headings, bullet points, arrows for cause->effect relationships, and simple tables where useful - written the way a topper's handwritten notes would look. Every fact must come from the chapter text. Keep it to what would realistically fit on one clean page (concise, not a wall of text).
+TASK: Write this page using this exact structure - skip any section that doesn't genuinely apply to this topic, never pad a section just to fill it:
 
-Output ONLY the plain page text - no JSON, no markdown fences, no commentary, no preamble like "Here is the page".`;
+1. TITLE line - the topic name only.
+2. MAIN CONTENT - the core facts. If this topic is naturally a comparison between two or more things, format it as a TABLE with a header row and short row labels (max 6 rows). Otherwise, a short bulleted list of definitions/causes/features (max 6 bullets, each one short line).
+3. (Optional, only if a genuine one exists) A section headed exactly "MNEMONIC" with one short mnemonic line.
+4. (Optional, only if genuinely warranted) A section headed exactly "CLINICAL CORRELATION" with 2-3 short bullet lines.
+5. (Optional, only if genuinely warranted) A section headed exactly "HIGH-YIELD POINTS" with 2-3 short exam-tip bullet lines.
+
+HARD LIMITS - these matter more than completeness:
+- The ENTIRE page must total under 150 words including the title. A shorter, cleaner page beats a dense one - cut detail rather than exceed this.
+- Do NOT describe a multi-step flowchart, pathway diagram, or cell/organelle illustration - this format is table-and-bullet only, no diagrams.
+- Every fact must come from the chapter text - never invent.
+
+Output ONLY the plain page text (headers as plain text, no markdown formatting, no JSON, no commentary, no preamble like "Here is the page").`;
 
   const MAX_ATTEMPTS = 3;
   let lastError = 'Unknown error generating page content';
@@ -204,17 +215,21 @@ export type NotesPage = {
 };
 
 function buildNoteImagePrompt(page: NotesPage, chapterTitle: string): string {
-  return `Create a single clean handwritten-style study notes page image, like a topper's medical school notebook page.
+  return `Create a single clean handwritten-style exam study notes page image, following this EXACT template layout (this is a fixed brand template, not free-form):
 
-STYLE: White/off-white notebook page background. Neat handwriting-style lettering (not a typed/print font). Use 3-4 ink colors (e.g. black, blue, dark red, dark green) to distinguish headings, key terms, and structure, the way students color-code notes. Use underlines, boxes, and simple arrows to organize information and show relationships. No cartoon doodles or stickers beyond simple hand-drawn-style dividers/arrows/boxes.
+LAYOUT (top to bottom, with GENEROUS white space between every section - do not fill the page edge to edge, leave clear margins all around):
+1. Page title in bold colorful hand-lettered display text at the very top, centered, with two small decorative asterisk/star marks flanking it.
+2. The main content directly below: if the given text contains a table, draw it as a clean rectangular table with a distinct header row and thin black grid lines. Otherwise render it as a simple bulleted list with generous line spacing. Use only 3-4 ink colors total (black, blue, dark red, dark green) to color-code headings and key terms - the way students color-code notes.
+3. Below that, ONLY for each optional section actually present in the given text (skip entirely if not present): draw it as its own small rounded rectangle box with a colored border and the section's heading in bold at the top of its box - "MNEMONIC" gets a purple border, "CLINICAL CORRELATION" gets a blue border, "HIGH-YIELD POINTS" gets a pink border. Each box should be compact, uncluttered, with clear space around it.
 
-RENDER THIS EXACT TEXT ON THE PAGE, ARRANGED CLEARLY (do not add, omit, or reword anything):
-Topic: ${page.topicTitle}
+Do not draw any flowchart, pathway diagram, arrows-between-boxes, or cell/organelle illustration - this template is title + table/bullets + small colored callout boxes only.
+
+RENDER THIS EXACT TEXT ON THE PAGE (do not add, omit, or reword anything; distribute it into the layout above based on its own section headers):
 Chapter: ${chapterTitle}
 
 ${page.content}
 
-Reproduce every word above exactly as written. Do not invent additional facts or headings beyond what's given.`;
+Reproduce every word above exactly as written. Do not invent additional facts, headings, or sections beyond what's given. Prioritize a clean, uncluttered, readable result over fitting more in - leave visible white space.`;
 }
 
 export type VerifiedImageResult = {
@@ -228,6 +243,10 @@ export type GenerateNoteImageOutput = VerifiedImageResult | { error: string };
 
 const ACCURACY_THRESHOLD = 0.75;
 const MAX_IMAGE_ATTEMPTS = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function generateVerifiedNoteImage(page: NotesPage, chapterTitle: string): Promise<GenerateNoteImageOutput> {
   const prompt = buildNoteImagePrompt(page, chapterTitle);
@@ -247,6 +266,11 @@ export async function generateVerifiedNoteImage(page: NotesPage, chapterTitle: s
       if (!best || score > best.matchScore) best = result;
     } catch (err: any) {
       lastError = err?.message || String(err);
+      // Rate-limit/quota errors need real backoff, not an instant retry that just
+      // hits the same limit again - wait progressively longer (10s, 20s, 30s).
+      if (String(lastError).includes('429') || String(lastError).includes('RESOURCE_EXHAUSTED')) {
+        await sleep(attempt * 10000);
+      }
     }
   }
 
