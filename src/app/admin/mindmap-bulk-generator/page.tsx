@@ -262,7 +262,7 @@ export default function MindmapBulkGeneratorPage() {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function saveMindmap(subjectId: string, chapterTitle: string, unitName: string | null | undefined, centralTopic: string, branches: MindmapNode[]) {
+  async function saveMindmap(subjectId: string, chapterTitle: string, unitName: string | null | undefined, centralTopic: string, branches: MindmapNode[], textbookId?: string, chapterId?: string) {
     const mmId = chapterTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now()
     const subjectRef = doc(db!, 'subjects', subjectId)
     const mmRef = doc(db!, 'subjects', subjectId, 'mindmaps', mmId)
@@ -278,6 +278,21 @@ export default function MindmapBulkGeneratorPage() {
       tier: "free",
       createdAt: serverTimestamp(),
     })
+
+    // Also mirror the extracted knowledge tree back onto the source chapter doc, so future
+    // features (auto notes/images, QBank generation) can reuse this AI-derived structure
+    // directly instead of burning credits re-extracting the same chapter from scratch.
+    if (textbookId && chapterId) {
+      await setDoc(doc(db!, 'textbooks', textbookId, 'chapters', chapterId), {
+        extractedKnowledge: {
+          centralTopic,
+          branches,
+          subjectId,
+          mindmapId: mmId,
+          extractedAt: serverTimestamp(),
+        },
+      }, { merge: true })
+    }
   }
 
   async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, branchPauseSecs: number, collectedSoFar: Record<string, MindmapNode[]>) {
@@ -313,7 +328,7 @@ export default function MindmapBulkGeneratorPage() {
         const nextItem = queue[i + 1]
         const isLastForThisChapter = !nextItem || nextItem.mindmapKey !== item.mindmapKey
         if (isLastForThisChapter) {
-          await saveMindmap(item.subjectId, item.chapterTitle, item.unitName, item.centralTopic, collected[item.mindmapKey])
+          await saveMindmap(item.subjectId, item.chapterTitle, item.unitName, item.centralTopic, collected[item.mindmapKey], chapterMeta?.textbookId, chapterMeta?.chapterId)
           // This chapter is now permanently saved as its own mindmap doc - drop it from the
           // job-tracking doc so collectedBranches doesn't grow past Firestore's 1MB doc limit.
           delete collected[item.mindmapKey]
