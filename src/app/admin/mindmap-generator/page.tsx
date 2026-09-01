@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { doc, collection, query, orderBy, getDocs, setDoc, increment, serverTimestamp } from "firebase/firestore"
-import { generateMindmapData } from "@/ai/flows/ai-mindmap-data-generator"
+import { extractMindmapBranches, generateMindmapBranchDetail } from "@/ai/flows/ai-mindmap-data-generator"
 import { extractLongAnswerQuestions } from "@/ai/flows/ai-longanswers-question-extractor"
 import { ref as storageRef, uploadBytes } from "firebase/storage"
 import MindMapCanvas, { type MindmapNode } from "@/components/mindmap/MindMapCanvas"
@@ -180,6 +180,7 @@ export default function MindmapGeneratorPage() {
   // --- Generation ---
   const [topicFocus, setTopicFocus] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState("")
   const [generatedData, setGeneratedData] = useState<{ centralTopic: string; branches: MindmapNode[] } | null>(null)
 
   async function handleGenerate() {
@@ -191,17 +192,42 @@ export default function MindmapGeneratorPage() {
     setIsGenerating(true)
     setGeneratedData(null)
     try {
-      const result = await generateMindmapData({ sources, topicFocus: topicFocus.trim() || undefined, pyqQuestions: pyqQuestions.length > 0 ? pyqQuestions : undefined })
-      if (result.error || !result.data) {
-        toast({ variant: "destructive", title: "Generation Failed", description: result.error || "No data returned." })
+      setGenerationProgress("Planning chapter structure...")
+      const pyqs = pyqQuestions.length > 0 ? pyqQuestions : undefined
+      const branchesResult = await extractMindmapBranches({ sources, topicFocus: topicFocus.trim() || undefined, pyqQuestions: pyqs })
+      if (branchesResult.error || !branchesResult.branchNames || !branchesResult.centralTopic) {
+        toast({ variant: "destructive", title: "Planning Failed", description: branchesResult.error || "No branches returned." })
+        setIsGenerating(false)
+        setGenerationProgress("")
+        return
+      }
+
+      const centralTopic = branchesResult.centralTopic
+      const branchNames = branchesResult.branchNames
+      const finalBranches: MindmapNode[] = []
+
+      for (let i = 0; i < branchNames.length; i++) {
+        const branchName = branchNames[i]
+        setGenerationProgress(`Generating branch ${i + 1} of ${branchNames.length}: ${branchName}...`)
+        const detailResult = await generateMindmapBranchDetail({ sources, centralTopic, branchName, pyqQuestions: pyqs })
+        if (detailResult.error || !detailResult.branch) {
+          toast({ variant: "destructive", title: `Failed on "${branchName}"`, description: detailResult.error || "No data returned." })
+          continue
+        }
+        finalBranches.push(detailResult.branch)
+      }
+
+      if (finalBranches.length === 0) {
+        toast({ variant: "destructive", title: "Generation Failed", description: "No branches were successfully generated." })
       } else {
-        setGeneratedData(result.data)
-        toast({ title: "Generated", description: `${result.data.branches.length} branch(es) ready to preview.` })
+        setGeneratedData({ centralTopic, branches: finalBranches })
+        toast({ title: "Generated", description: `${finalBranches.length} branch(es) ready to preview.` })
       }
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message })
     } finally {
       setIsGenerating(false)
+      setGenerationProgress("")
     }
   }
 
@@ -327,7 +353,7 @@ export default function MindmapGeneratorPage() {
           </div>
           <Button onClick={handleGenerate} disabled={isGenerating || Object.values(matchedChapters).every(v => !v)} className="gap-2">
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {isGenerating ? "Generating..." : "Generate Mind Map"}
+            {isGenerating ? (generationProgress || "Generating...") : "Generate Mind Map"}
           </Button>
         </CardContent>
       </Card>

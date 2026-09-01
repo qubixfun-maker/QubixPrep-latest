@@ -7,15 +7,9 @@ export type ChapterSource = {
   text: string;
 };
 
-export type MindmapDataInput = {
-  sources: ChapterSource[];
-  topicFocus?: string; // optional - focus on one topic/disease within the chapter
-  pyqQuestions?: string[]; // optional - real past exam questions for this chapter, used to prioritize depth/topics
-};
-
 export type MindmapNode = {
   name: string;
-  definition: string;
+  definition?: string;
   mechanism?: string;
   examples?: string;
   branches?: MindmapNode[];
@@ -26,17 +20,21 @@ export type MindmapData = {
   branches: MindmapNode[];
 };
 
-export type MindmapDataOutput = {
-  data?: MindmapData;
-  error?: string;
-};
+const MAX_CHARS_PER_SOURCE = 60000;
 
-// If the model's response got cut off mid-generation (hit the token ceiling),
-// plain JSON.parse fails entirely even though most of the tree is valid. This
-// walks the string tracking bracket/brace depth (respecting string literals),
-// finds the last point where a complete branch object had just closed, cuts
-// there, and appends whatever closing brackets are needed to make the
-// truncated-but-mostly-complete tree parse as valid JSON.
+function buildSourcesBlock(sources: ChapterSource[]): string {
+  return sources.map((s, i) => {
+    const truncated = s.text.length > MAX_CHARS_PER_SOURCE ? s.text.slice(0, MAX_CHARS_PER_SOURCE) + '\n[...excerpt truncated...]' : s.text;
+    return `--- SOURCE ${i + 1}: "${s.textbookTitle}", Chapter: "${s.chapterTitle}" ---\n${truncated}`;
+  }).join('\n\n');
+}
+
+function buildPyqBlock(pyqQuestions?: string[]): string {
+  if (!pyqQuestions || pyqQuestions.length === 0) return '';
+  const list = pyqQuestions.map((q, i) => (i + 1) + '. ' + q).join('\n');
+  return '\n\nPAST EXAM QUESTIONS FOR THIS CHAPTER (real questions students have been asked - use these to prioritize which topics need more depth, but source every actual fact from the textbook excerpt above, never from this question list itself, since these are questions only, not answers):\n' + list;
+}
+
 function repairTruncatedJson(str: string): any | null {
   const stack: string[] = [];
   let inString = false;
@@ -54,9 +52,6 @@ function repairTruncatedJson(str: string): any | null {
       stack.push(ch === '{' ? '}' : ']');
     } else if (ch === '}' || ch === ']') {
       stack.pop();
-      // A safe cut point: we just closed something, and what's left open
-      // (if anything) is an array - meaning this was a complete element
-      // inside a "branches": [ ... ] list.
       if (stack.length > 0 && stack[stack.length - 1] === ']') {
         lastSafeCut = i;
       }
@@ -66,8 +61,6 @@ function repairTruncatedJson(str: string): any | null {
   if (lastSafeCut === -1) return null;
 
   const truncated = str.slice(0, lastSafeCut + 1);
-  // Figure out what's still open at the cut point by re-running the same scan
-  // only up to lastSafeCut, then append closers in reverse order.
   const stack2: string[] = [];
   let inString2 = false;
   let escapeNext2 = false;
@@ -90,101 +83,138 @@ function repairTruncatedJson(str: string): any | null {
   }
 }
 
-const MAX_CHARS_PER_SOURCE = 60000;
+function tryParseJson(raw: string): any | null {
+  const clean = raw.replace(/```json|```/g, '').trim();
+  try {
+    return JSON.parse(clean);
+  } catch {
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch { /* fall through */ }
+    }
+    return repairTruncatedJson(clean);
+  }
+}
 
-function buildPrompt(input: MindmapDataInput): string {
-  const sourcesBlock = input.sources.map((s, i) => {
-    const truncated = s.text.length > MAX_CHARS_PER_SOURCE ? s.text.slice(0, MAX_CHARS_PER_SOURCE) + '\n[...excerpt truncated...]' : s.text;
-    return `--- SOURCE ${i + 1}: "${s.textbookTitle}", Chapter: "${s.chapterTitle}" ---\n${truncated}`;
-  }).join('\n\n');
+// ============ PHASE 1: extract just the branch list (cheap, always fits) ============
 
-  const pyqList = (input.pyqQuestions || []).map((q, i) => (i + 1) + ". " + q).join("\n")
-  const pyqBlock = input.pyqQuestions && input.pyqQuestions.length > 0
-    ? "\n\nPAST EXAM QUESTIONS FOR THIS CHAPTER (real questions students have been asked - use these to prioritize which topics need more depth/branches, and make sure the mind map has enough detail to answer them, but source every actual FACT from the textbook excerpt above, never from this question list itself, since these are questions only, not answers):\n" + pyqList
-    : ""
+export type ExtractBranchesInput = {
+  sources: ChapterSource[];
+  topicFocus?: string;
+  pyqQuestions?: string[];
+};
 
-  const focusLine = input.topicFocus
-    ? `Focus specifically on this topic/disease within the chapter: "${input.topicFocus}"`
-    : `Cover the whole chapter - every distinct disease/topic the excerpt discusses in meaningful depth.`;
+export type ExtractBranchesOutput = {
+  centralTopic?: string;
+  branchNames?: string[];
+  error?: string;
+};
 
-  return `You are a medical education AI building an interactive, exam-oriented mind map for a medical student preparing for university theory exams (long essays, short essays, short answers) and practical/viva questions.
+export async function extractMindmapBranches(input: ExtractBranchesInput): Promise<ExtractBranchesOutput> {
+  if (!input.sources.length) return { error: 'No chapter source excerpts provided.' };
+
+  try {
+    const sourcesBlock = buildSourcesBlock(input.sources);
+    const pyqBlock = buildPyqBlock(input.pyqQuestions);
+    const focusLine = input.topicFocus
+      ? `Focus specifically on this topic/disease within the chapter: "${input.topicFocus}"`
+      : `Cover the whole chapter - identify every distinct disease/topic/concept it discusses in meaningful depth.`;
+
+    const prompt = `You are planning the top-level structure of an exam-oriented mind map for a medical student.
 
 CHAPTER EXCERPT(S):
 ${sourcesBlock}
+${pyqBlock}
 
 ${focusLine}
 
-TASK: Produce a mind map as a tree of nodes (centralTopic + recursive branches). The structure should scale with how much the excerpt actually covers - do not force a fixed shape.
+TASK: List the top-level branch names only (one per distinct disease/topic/concept covered in real depth) - do NOT go into any further detail yet, that comes in a later step. A rich chapter may need 6-10 branches; a thin chapter may only need 2-3. Do not pad with weak/filler branches, and do not omit a real topic just to hit a "nice" number. Also give a short central topic name for the whole chapter/focus area.
+
+Output ONLY valid JSON, no markdown fences, no commentary:
+{"centralTopic": "...", "branchNames": ["...", "..."]}`;
+
+    const raw = await callAI([{ role: 'user', content: prompt }], 1500);
+    if (!raw) return { error: 'Empty response from AI model' };
+
+    const parsed = tryParseJson(raw);
+    if (!parsed || !parsed.centralTopic || !Array.isArray(parsed.branchNames)) {
+      return { error: 'AI response was not valid JSON for branch list. Try again.' };
+    }
+    return { centralTopic: parsed.centralTopic, branchNames: parsed.branchNames };
+  } catch (err: any) {
+    return { error: err.message || 'Unknown error extracting branches' };
+  }
+}
+
+// ============ PHASE 2: flesh out ONE branch in full depth ============
+
+export type GenerateBranchDetailInput = {
+  sources: ChapterSource[];
+  centralTopic: string;
+  branchName: string;
+  pyqQuestions?: string[];
+};
+
+export type GenerateBranchDetailOutput = {
+  branch?: MindmapNode;
+  error?: string;
+};
+
+export async function generateMindmapBranchDetail(input: GenerateBranchDetailInput): Promise<GenerateBranchDetailOutput> {
+  if (!input.sources.length) return { error: 'No chapter source excerpts provided.' };
+
+  try {
+    const sourcesBlock = buildSourcesBlock(input.sources);
+    const pyqBlock = buildPyqBlock(input.pyqQuestions);
+
+    const prompt = `You are building ONE branch of a larger exam-oriented mind map for a medical student. The overall chapter/topic is "${input.centralTopic}". You are fleshing out ONLY this one branch in full depth: "${input.branchName}" - do not cover any other branch.
+
+CHAPTER EXCERPT(S):
+${sourcesBlock}
+${pyqBlock}
+
+TASK: Produce the full recursive sub-tree for the branch "${input.branchName}" only.
 
 STRUCTURE GUIDANCE:
-- Top level: one branch per distinct disease/topic/concept covered in real depth in the excerpt. A rich chapter may need 6-10 top-level branches; a thin chapter may only need 2-3. Do not pad with weak/filler branches, and do not omit a real topic just to hit a "nice" number.
-- For sub-branches, DERIVE the natural organizing categories from how the source material itself discusses each topic - do not force a fixed template, since different subjects and even different topics within a subject organize their content differently. For example, a pathology disease entry often naturally breaks into etiology / pathogenesis / morphology / complications / lab diagnosis; a pharmacology drug entry often naturally breaks into mechanism of action / pharmacokinetics / adverse effects / clinical uses; an anatomy structure often naturally breaks into origin / insertion / nerve supply / blood supply / clinical correlation. These are illustrative, not mandatory - follow whatever structure the actual excerpt uses, including subheadings already present in the source text.
-- Each sub-branch can itself have leaf facts as its own branches when there's enough distinct content.
-- Leaves (deepest nodes, no further branches) should be concrete, exam-ready facts - not vague restatements.
+- Derive natural organizing sub-categories from how the source material itself discusses this topic - do not force a fixed template, since different subjects and topics organize their content differently. For example, a pathology disease entry often naturally breaks into etiology / pathogenesis / morphology / complications / lab diagnosis; a pharmacology drug entry often naturally breaks into mechanism of action / pharmacokinetics / adverse effects / clinical uses; an anatomy structure often naturally breaks into origin / insertion / nerve supply / blood supply / clinical correlation. These are illustrative, not mandatory - follow whatever structure the actual excerpt uses.
+- Go as deep as the source material genuinely supports for this one branch - since this call only covers this single branch, there is no need to compress or shorten to save space.
+- Leaves (deepest nodes, no further branches) should be concrete, exam-ready facts.
 
-CRITICAL - NAMED EPONYMS AND SPECIFIC TERMS: Wherever the excerpt names a specific eponym, sign, cell type, test, staging system, classification, or other precise term, give it its OWN leaf node using that exact name - do not paraphrase it away into a generic description. These exact terms are what exam questions ask for by name.
+CRITICAL - NAMED EPONYMS AND SPECIFIC TERMS: Wherever the excerpt names a specific eponym, sign, cell type, test, staging system, classification, or other precise term relevant to this branch, give it its own leaf node using that exact name - do not paraphrase it away.
 
-CLINICAL VIGNETTES: When the excerpt includes a clinical vignette or describes a classic presentation for a condition, capture the key identifying features as their own branch under that topic. Skip this entirely for non-clinical subjects where it does not apply.
+CLINICAL VIGNETTES: If the excerpt has a clinical vignette or classic presentation relevant to this branch, capture it as its own sub-branch. Skip entirely if not applicable.
 
-OTHER RULES:
+RULES:
 - Every fact must come directly from the excerpt(s) - never invent details, numbers, or examples not present in the source.
-- Definitions/mechanisms/examples fields are concise (1-2 sentences). Leaf node "definition" fields can run to 2-3 sentences when the source genuinely has that much detail for it (e.g. a named lesion's full morphology) - don't artificially shorten real content.
-- Branch and node names are short (2-6 words), suitable as diagram labels - the DETAIL goes in the definition/mechanism/examples fields, not the name.
+- Node names are short (2-6 words). Detail goes in definition/mechanism/examples fields, each 1-2 sentences (leaf definitions can run to 2-3 sentences when the source genuinely supports it).
 - Do not add a "branches" array to true leaf nodes.
 
-Output ONLY valid JSON in this exact shape, no markdown fences, no commentary:
+Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
 {
-  "centralTopic": "...",
+  "name": "${input.branchName}",
+  "definition": "...",
+  "mechanism": "...",
+  "examples": "...",
   "branches": [
     {
       "name": "...",
       "definition": "...",
-      "mechanism": "...",
-      "examples": "...",
       "branches": [
-        {
-          "name": "...",
-          "definition": "...",
-          "branches": [
-            { "name": "...", "definition": "..." }
-          ]
-        }
+        { "name": "...", "definition": "..." }
       ]
     }
   ]
 }`;
-}
 
-export async function generateMindmapData(input: MindmapDataInput): Promise<MindmapDataOutput> {
-  if (!input.sources.length) {
-    return { error: 'No chapter source excerpts provided.' };
-  }
-
-  try {
-    const prompt = buildPrompt(input);
-    const raw = await callAI([{ role: 'user', content: prompt }], 16000);
+    const raw = await callAI([{ role: 'user', content: prompt }], 8000);
     if (!raw) return { error: 'Empty response from AI model' };
 
-    let clean = raw.replace(/```json|```/g, '').trim();
-    let parsed: any;
-    try {
-      parsed = JSON.parse(clean);
-    } catch {
-      const match = clean.match(/\{[\s\S]*\}/);
-      if (match) {
-        try { parsed = JSON.parse(match[0]); } catch { /* fall through */ }
-      }
-      if (!parsed) {
-        parsed = repairTruncatedJson(clean);
-      }
+    const parsed = tryParseJson(raw);
+    if (!parsed || !parsed.name) {
+      return { error: 'AI response was not valid JSON for this branch. Try again.' };
     }
-
-    if (!parsed || typeof parsed !== 'object' || !parsed.centralTopic || !Array.isArray(parsed.branches)) {
-      return { error: 'AI response was not valid mind map JSON. Try again, or narrow with a topicFocus if the chapter is very large.' };
-    }
-
-    return { data: parsed as MindmapData };
+    return { branch: parsed as MindmapNode };
   } catch (err: any) {
-    return { error: err.message || 'Unknown error during mind map generation' };
+    return { error: err.message || 'Unknown error generating branch detail' };
   }
 }
