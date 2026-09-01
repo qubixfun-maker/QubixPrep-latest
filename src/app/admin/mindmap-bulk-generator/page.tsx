@@ -314,6 +314,9 @@ export default function MindmapBulkGeneratorPage() {
         const isLastForThisChapter = !nextItem || nextItem.mindmapKey !== item.mindmapKey
         if (isLastForThisChapter) {
           await saveMindmap(item.subjectId, item.chapterTitle, item.unitName, item.centralTopic, collected[item.mindmapKey])
+          // This chapter is now permanently saved as its own mindmap doc - drop it from the
+          // job-tracking doc so collectedBranches doesn't grow past Firestore's 1MB doc limit.
+          delete collected[item.mindmapKey]
         }
 
         await updateJob({

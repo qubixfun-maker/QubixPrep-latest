@@ -134,16 +134,22 @@ Output ONLY valid JSON, no markdown fences, no commentary:
 {"centralTopic": "...", "branchNames": ["...", "..."]}`;
 
     const MAX_ATTEMPTS = 3;
+    let lastError = 'Unknown error extracting branches';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const raw = await callAI([{ role: 'user', content: prompt }], 1500);
-      if (!raw) continue;
+      try {
+        const raw = await callAI([{ role: 'user', content: prompt }], 1500);
+        if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
-      const parsed = tryParseJson(raw);
-      if (parsed && parsed.centralTopic && Array.isArray(parsed.branchNames)) {
-        return { centralTopic: parsed.centralTopic, branchNames: parsed.branchNames };
+        const parsed = tryParseJson(raw);
+        if (parsed && parsed.centralTopic && Array.isArray(parsed.branchNames)) {
+          return { centralTopic: parsed.centralTopic, branchNames: parsed.branchNames };
+        }
+        lastError = 'AI response was not valid JSON for branch list.';
+      } catch (err) {
+        lastError = err.message || 'Unknown error extracting branches';
       }
     }
-    return { error: `AI response was not valid JSON for branch list after ${MAX_ATTEMPTS} attempts. Try again.` };
+    return { error: `${lastError} (after ${MAX_ATTEMPTS} attempts). Try again.` };
   } catch (err: any) {
     return { error: err.message || 'Unknown error extracting branches' };
   }
@@ -210,16 +216,22 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
   ]
 }`;
     const MAX_ATTEMPTS = 3;
+    let lastError = 'Unknown error generating branch detail';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000);
-      if (!raw) continue;
+      try {
+        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000);
+        if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
-      const parsed = tryParseJson(raw);
-      if (parsed && parsed.name) {
-        return { branch: parsed as MindmapNode, provider };
+        const parsed = tryParseJson(raw);
+        if (parsed && parsed.name) {
+          return { branch: parsed as MindmapNode, provider };
+        }
+        lastError = 'AI response was not valid JSON for this branch.';
+      } catch (err) {
+        lastError = err.message || 'Unknown error generating branch detail';
       }
     }
-    return { error: `AI response was not valid JSON for this branch after ${MAX_ATTEMPTS} attempts. Try again.` };
+    return { error: `${lastError} (after ${MAX_ATTEMPTS} attempts). Try again.` };
   } catch (err: any) {
     return { error: err.message || 'Unknown error generating branch detail' };
   }
