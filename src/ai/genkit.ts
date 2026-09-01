@@ -100,7 +100,7 @@ async function getVertexProvider(): Promise<Provider | null> {
 // Low-level call to Vertex's native generateContent REST endpoint (not the OpenAI-compat
 // shim above) - needed for image generation and vision input, which aren't reliably
 // exposed through the chat-completions shim.
-async function vertexGenerateContent(model: string, contents: any[]): Promise<any> {
+async function vertexGenerateContent(model: string, contents: any[], generationConfig?: any): Promise<any> {
   const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
   if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
   const token = await getVertexAccessToken()
@@ -111,7 +111,7 @@ async function vertexGenerateContent(model: string, contents: any[]): Promise<an
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents }),
+    body: JSON.stringify({ contents, ...(generationConfig ? { generationConfig } : {}) }),
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
@@ -125,7 +125,9 @@ async function vertexGenerateContent(model: string, contents: any[]): Promise<an
 // models are far more accurate at reproducing given text than composing their own.
 export async function generateVertexImage(prompt: string): Promise<{ base64: string; mimeType: string } | null> {
   const model = process.env.GOOGLE_VERTEX_IMAGE_MODEL || 'gemini-2.5-flash-image'
-  const data = await vertexGenerateContent(model, [{ role: 'user', parts: [{ text: prompt }] }])
+  // Vertex's image models default to text-only output unless explicitly told to also
+  // return an image - without this, the model just replies with text and we get nothing.
+  const data = await vertexGenerateContent(model, [{ role: 'user', parts: [{ text: prompt }] }], { responseModalities: ['TEXT', 'IMAGE'] })
   const parts = data?.candidates?.[0]?.content?.parts || []
   for (const part of parts) {
     if (part.inlineData?.data) {

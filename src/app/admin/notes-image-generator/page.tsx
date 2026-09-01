@@ -6,12 +6,14 @@ import { doc, collection, query, orderBy, getDocs, setDoc, increment, serverTime
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 import { planNotesPages, generatePageContent, generateVerifiedNoteImage, type PagePlanItem } from "@/ai/flows/ai-notes-image-generator"
 import { type MindmapNode } from "@/ai/flows/ai-mindmap-data-generator"
+import { extractLongAnswerQuestions } from "@/ai/flows/ai-longanswers-question-extractor"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, Lock, ArrowLeft, BookOpenText, Sparkles, Save, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, BookOpenText, Sparkles, Save, AlertTriangle, CheckCircle2, Upload } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -29,6 +31,49 @@ function flattenKnowledgeTree(nodes: MindmapNode[], depth = 0): string {
     const children = n.branches && n.branches.length > 0 ? "\n" + flattenKnowledgeTree(n.branches, depth + 1) : ""
     return line + children
   }).join("\n")
+}
+
+// Splits a raw PYQ PDF text dump into per-chapter chunks (same heuristic used by the
+// mindmap generator's PYQ upload) so we can find the chunk matching the selected chapter.
+function splitIntoChapters(rawText: string) {
+  const pattern = /Chapter\s+\d+[:.]?\s*/gi
+  const matches = [...rawText.matchAll(pattern)]
+  if (matches.length === 0) {
+    return [{ title: "Untitled Chapter", text: rawText }]
+  }
+  const chapters = []
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index
+    const end = i < matches.length - 1 ? matches[i + 1].index : rawText.length
+    const chunk = rawText.slice(start, end)
+    const stopWords = /^(Long Essay|Short Essay|Short Answer|MCQ|\(No questions)/i
+    const chunkLines = chunk.split("\n")
+    let titleLines = []
+    for (let li = 0; li < chunkLines.length && li < 3; li++) {
+      const line = chunkLines[li].trim()
+      if (li > 0 && stopWords.test(line)) break
+      if (line) titleLines.push(line)
+    }
+    const title = titleLines.join(" ") || `Chapter ${i + 1}`
+    chapters.push({ title, text: chunk })
+  }
+  return chapters
+}
+
+function fuzzyMatchChapter(query: string, chapters: { title: string; __idx: number }[]) {
+  const q = query.toLowerCase().trim()
+  if (!q) return null
+  let best: { title: string; __idx: number } | null = null
+  let bestScore = 0
+  for (const ch of chapters) {
+    const title = (ch.title || "").toLowerCase()
+    let score = 0
+    if (title.includes(q)) score += 10
+    const qWords = q.split(/\s+/).filter(Boolean)
+    for (const w of qWords) if (w.length > 2 && title.includes(w)) score += 1
+    if (score > bestScore) { bestScore = score; best = ch }
+  }
+  return bestScore > 0 ? best : null
 }
 
 export default function NotesImageGeneratorPage() {
@@ -61,6 +106,7 @@ export default function NotesImageGeneratorPage() {
     setChapters([])
     setPlan([])
     setGeneratedPages([])
+    setUploadedPyqQuestions([])
     setIsLoadingChapters(true)
     try {
       const snap = await getDocs(collection(db, 'textbooks', tbId, 'chapters'))
@@ -74,7 +120,7 @@ export default function NotesImageGeneratorPage() {
 
   const selectedChapter = chapters.find((c) => c.chapterId === chapterId)
 
-  // --- Step 2: pull QBank questions for this subject, filtered to this chapter's unit ---
+  // --- Step 2a: auto-pull QBank questions for this subject, filtered to this chapter's unit ---
   const [qbankQuestions, setQbankQuestions] = useState<string[]>([])
   useEffect(() => {
     if (!subjectId || !selectedChapter) { setQbankQuestions([]); return }
@@ -92,6 +138,63 @@ export default function NotesImageGeneratorPage() {
       .catch(() => setQbankQuestions([]))
     return () => { cancelled = true }
   }, [subjectId, selectedChapter])
+
+  // --- Step 2b: optional - upload a PYQ PDF and extract this chapter's questions from it ---
+  const [pyqFile, setPyqFile] = useState<File | null>(null)
+  const [isExtractingPyq, setIsExtractingPyq] = useState(false)
+  const [pyqStage, setPyqStage] = useState("")
+  const [uploadedPyqQuestions, setUploadedPyqQuestions] = useState<string[]>([])
+
+  async function handleExtractPyq() {
+    if (!storage || !user || !pyqFile || !selectedChapter) {
+      toast({ variant: "destructive", title: "Select a chapter and pick a PYQ PDF first" })
+      return
+    }
+    setIsExtractingPyq(true)
+    setUploadedPyqQuestions([])
+    try {
+      setPyqStage("Uploading PYQ PDF...")
+      const safeId = "notes-pyq-" + Date.now()
+      const storagePath = `long-answers-source/${safeId}.pdf`
+      const fileRef = storageRef(storage, storagePath)
+      await uploadBytes(fileRef, pyqFile)
+
+      setPyqStage("Extracting text from PDF...")
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/long-answers/extract-pdf-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, storagePath }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Extraction failed")
+
+      setPyqStage("Matching chapter and extracting questions...")
+      const pyqChapters = splitIntoChapters(data.text)
+      const matched = fuzzyMatchChapter(selectedChapter.title, pyqChapters.map((c, i) => ({ title: c.title, __idx: i })))
+      if (!matched) {
+        toast({ variant: "destructive", title: "No matching chapter found in PYQ PDF" })
+        return
+      }
+      const matchedChunk = pyqChapters[matched.__idx]
+      const result = await extractLongAnswerQuestions({ chapterTitle: matchedChunk.title, rawText: matchedChunk.text })
+      if (result.error) {
+        toast({ variant: "destructive", title: "Extraction Failed", description: result.error })
+        return
+      }
+      const flatQuestions = [...result.longEssays, ...result.shortEssays, ...result.shortAnswers]
+      setUploadedPyqQuestions(flatQuestions)
+      toast({ title: "PYQ Extracted", description: `${flatQuestions.length} question(s) found for this chapter.` })
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setIsExtractingPyq(false)
+      setPyqStage("")
+    }
+  }
+
+  // Combined depth signal used everywhere below: auto-pulled QBank + any manually uploaded PYQ.
+  const combinedQuestions = useMemo(() => [...qbankQuestions, ...uploadedPyqQuestions], [qbankQuestions, uploadedPyqQuestions])
 
   // --- Step 3: plan pages (titles + scope only) ---
   const [plan, setPlan] = useState<PagePlanItem[]>([])
@@ -114,7 +217,7 @@ export default function NotesImageGeneratorPage() {
       const result = await planNotesPages({
         chapterTitle: selectedChapter.title,
         textbookText: resolvedSourceText,
-        qbankQuestions: qbankQuestions.length > 0 ? qbankQuestions : undefined,
+        qbankQuestions: combinedQuestions.length > 0 ? combinedQuestions : undefined,
       })
       if (result.error || !result.pages) {
         toast({ variant: "destructive", title: "Planning Failed", description: result.error })
@@ -151,7 +254,7 @@ export default function NotesImageGeneratorPage() {
         const contentResult = await generatePageContent({
           chapterTitle: selectedChapter.title,
           textbookText: sourceText,
-          qbankQuestions: qbankQuestions.length > 0 ? qbankQuestions : undefined,
+          qbankQuestions: combinedQuestions.length > 0 ? combinedQuestions : undefined,
           topicTitle: planItem.topicTitle,
           scope: planItem.scope,
         })
@@ -258,7 +361,7 @@ export default function NotesImageGeneratorPage() {
           ) : chapters.length > 0 ? (
             <div>
               <Label>Chapter</Label>
-              <Select value={chapterId} onValueChange={(v) => { setChapterId(v); setPlan([]); setGeneratedPages([]) }}>
+              <Select value={chapterId} onValueChange={(v) => { setChapterId(v); setPlan([]); setGeneratedPages([]); setUploadedPyqQuestions([]) }}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select chapter" /></SelectTrigger>
                 <SelectContent>
                   {chapters.map((c) => <SelectItem key={c.chapterId} value={c.chapterId}>{c.title}{c.extractedKnowledge ? " (has extracted knowledge)" : ""}</SelectItem>)}
@@ -268,9 +371,23 @@ export default function NotesImageGeneratorPage() {
           ) : null}
 
           {selectedChapter && (
-            <p className="text-xs text-muted-foreground">
-              {qbankQuestions.length > 0 ? `${qbankQuestions.length} QBank question(s) found for this chapter's unit - will be used to judge topic depth.` : "No matching QBank questions found for this chapter's unit."}
-            </p>
+            <>
+              <p className="text-xs text-muted-foreground">
+                {qbankQuestions.length > 0 ? `${qbankQuestions.length} QBank question(s) auto-found for this chapter's unit.` : "No matching QBank questions found for this chapter's unit."}
+                {uploadedPyqQuestions.length > 0 ? ` +${uploadedPyqQuestions.length} from uploaded PYQ PDF.` : ""}
+              </p>
+
+              <div className="p-3 rounded-lg border border-white/10 space-y-2">
+                <Label className="text-xs">Optional: Upload PYQ PDF (extracts this chapter's real exam questions to sharpen topic depth)</Label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input type="file" accept="application/pdf" onChange={(e) => setPyqFile(e.target.files?.[0] || null)} className="text-xs" />
+                  <Button onClick={handleExtractPyq} disabled={!pyqFile || isExtractingPyq} variant="outline" className="gap-2 shrink-0">
+                    {isExtractingPyq ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    {isExtractingPyq ? pyqStage || "Extracting..." : "Extract PYQ"}
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
 
           <Button onClick={handlePlan} disabled={!selectedChapter || isPlanning} className="gap-2">
