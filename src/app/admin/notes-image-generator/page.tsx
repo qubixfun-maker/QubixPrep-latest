@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { doc, collection, query, orderBy, getDocs, setDoc, increment, serverTimestamp } from "firebase/firestore"
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import { planNotesPages, generateVerifiedNoteImage, type NotesPage } from "@/ai/flows/ai-notes-image-generator"
+import { planNotesPages, generatePageContent, generateVerifiedNoteImage, type PagePlanItem } from "@/ai/flows/ai-notes-image-generator"
 import { type MindmapNode } from "@/ai/flows/ai-mindmap-data-generator"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -93,10 +93,11 @@ export default function NotesImageGeneratorPage() {
     return () => { cancelled = true }
   }, [subjectId, selectedChapter])
 
-  // --- Step 3: plan pages ---
-  const [plan, setPlan] = useState<NotesPage[]>([])
+  // --- Step 3: plan pages (titles + scope only) ---
+  const [plan, setPlan] = useState<PagePlanItem[]>([])
   const [selectedPages, setSelectedPages] = useState<Record<number, boolean>>({})
   const [isPlanning, setIsPlanning] = useState(false)
+  const [sourceText, setSourceText] = useState("")
 
   async function handlePlan() {
     if (!selectedChapter) return
@@ -107,11 +108,12 @@ export default function NotesImageGeneratorPage() {
       const knowledgeText = selectedChapter.extractedKnowledge?.branches
         ? flattenKnowledgeTree(selectedChapter.extractedKnowledge.branches)
         : ""
-      const sourceText = knowledgeText || selectedChapter.text || ""
+      const resolvedSourceText = knowledgeText || selectedChapter.text || ""
+      setSourceText(resolvedSourceText)
 
       const result = await planNotesPages({
         chapterTitle: selectedChapter.title,
-        textbookText: sourceText,
+        textbookText: resolvedSourceText,
         qbankQuestions: qbankQuestions.length > 0 ? qbankQuestions : undefined,
       })
       if (result.error || !result.pages) {
@@ -128,7 +130,7 @@ export default function NotesImageGeneratorPage() {
     }
   }
 
-  // --- Step 4: generate + verify + upload each selected page ---
+  // --- Step 4: for each selected page, write its content, then generate + verify + upload the image ---
   type GeneratedPage = { topicTitle: string; imageUrl: string; needsReview: boolean; matchScore: number }
   const [generatedPages, setGeneratedPages] = useState<GeneratedPage[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
@@ -143,12 +145,26 @@ export default function NotesImageGeneratorPage() {
     const results: GeneratedPage[] = []
     try {
       for (let i = 0; i < pagesToRun.length; i++) {
-        const page = pagesToRun[i]
-        setCurrentLabel(`${page.topicTitle} (${i + 1}/${pagesToRun.length})`)
+        const planItem = pagesToRun[i]
+        setCurrentLabel(`Writing: ${planItem.topicTitle} (${i + 1}/${pagesToRun.length})`)
 
+        const contentResult = await generatePageContent({
+          chapterTitle: selectedChapter.title,
+          textbookText: sourceText,
+          qbankQuestions: qbankQuestions.length > 0 ? qbankQuestions : undefined,
+          topicTitle: planItem.topicTitle,
+          scope: planItem.scope,
+        })
+        if (contentResult.error || !contentResult.content) {
+          toast({ variant: "destructive", title: `Failed writing "${planItem.topicTitle}"`, description: contentResult.error })
+          continue
+        }
+
+        setCurrentLabel(`Generating image: ${planItem.topicTitle} (${i + 1}/${pagesToRun.length})`)
+        const page = { topicTitle: planItem.topicTitle, content: contentResult.content }
         const result = await generateVerifiedNoteImage(page, selectedChapter.title)
         if ("error" in result) {
-          toast({ variant: "destructive", title: `Failed on "${page.topicTitle}"`, description: result.error })
+          toast({ variant: "destructive", title: `Failed on "${planItem.topicTitle}"`, description: result.error })
           continue
         }
 
@@ -159,7 +175,7 @@ export default function NotesImageGeneratorPage() {
         await uploadBytes(fileRef, buffer, { contentType: result.mimeType })
         const imageUrl = await getDownloadURL(fileRef)
 
-        results.push({ topicTitle: page.topicTitle, imageUrl, needsReview: result.needsReview, matchScore: result.matchScore })
+        results.push({ topicTitle: planItem.topicTitle, imageUrl, needsReview: result.needsReview, matchScore: result.matchScore })
         setGeneratedPages([...results])
       }
       toast({ title: "Generation Complete", description: `${results.length}/${pagesToRun.length} page(s) generated.` })
@@ -273,13 +289,13 @@ export default function NotesImageGeneratorPage() {
                 <Checkbox checked={!!selectedPages[i]} onCheckedChange={(v) => setSelectedPages((prev) => ({ ...prev, [i]: !!v }))} className="mt-1" />
                 <div className="min-w-0">
                   <p className="font-semibold text-sm">{page.topicTitle}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{page.content}</p>
+                  <p className="text-xs text-muted-foreground">{page.scope}</p>
                 </div>
               </div>
             ))}
             <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2">
               {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {isGenerating ? `Generating: ${currentLabel}` : "Generate Selected Pages"}
+              {isGenerating ? currentLabel : "Generate Selected Pages"}
             </Button>
           </CardContent>
         </Card>
