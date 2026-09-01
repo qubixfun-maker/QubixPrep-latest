@@ -145,7 +145,7 @@ Output ONLY valid JSON, no markdown fences, no commentary:
           return { centralTopic: parsed.centralTopic, branchNames: parsed.branchNames };
         }
         lastError = 'AI response was not valid JSON for branch list.';
-      } catch (err) {
+      } catch (err: any) {
         lastError = err.message || 'Unknown error extracting branches';
       }
     }
@@ -227,7 +227,7 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
           return { branch: parsed as MindmapNode, provider };
         }
         lastError = 'AI response was not valid JSON for this branch.';
-      } catch (err) {
+      } catch (err: any) {
         lastError = err.message || 'Unknown error generating branch detail';
       }
     }
