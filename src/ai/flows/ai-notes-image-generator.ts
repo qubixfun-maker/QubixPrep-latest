@@ -97,7 +97,7 @@ Output ONLY valid JSON, no markdown fences, no commentary:
 
 // ============ PHASE 2: generate + verify one page image ============
 
-export function buildNoteImagePrompt(page: NotesPage, chapterTitle: string): string {
+function buildNoteImagePrompt(page: NotesPage, chapterTitle: string): string {
   return `Create a single clean handwritten-style study notes page image, like a topper's medical school notebook page.
 
 STYLE: White/off-white notebook page background. Neat handwriting-style lettering (not a typed/print font). Use 3-4 ink colors (e.g. black, blue, dark red, dark green) to distinguish headings, key terms, and structure, the way students color-code notes. Use underlines, boxes, and simple arrows to organize information and show relationships. No cartoon doodles or stickers beyond simple hand-drawn-style dividers/arrows/boxes.
