@@ -1,5 +1,5 @@
 'use server';
-import { callAI } from '@/ai/genkit';
+import { callAI, callAIWithProvider } from '@/ai/genkit';
 
 export type ChapterSource = {
   textbookTitle: string;
@@ -158,6 +158,7 @@ export type GenerateBranchDetailInput = {
 export type GenerateBranchDetailOutput = {
   branch?: MindmapNode;
   error?: string;
+  provider?: string;
 };
 
 export async function generateMindmapBranchDetail(input: GenerateBranchDetailInput): Promise<GenerateBranchDetailOutput> {
@@ -205,15 +206,14 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
     }
   ]
 }`;
-
-    const raw = await callAI([{ role: 'user', content: prompt }], 8000);
+    const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000);
     if (!raw) return { error: 'Empty response from AI model' };
 
     const parsed = tryParseJson(raw);
     if (!parsed || !parsed.name) {
       return { error: 'AI response was not valid JSON for this branch. Try again.' };
     }
-    return { branch: parsed as MindmapNode };
+    return { branch: parsed as MindmapNode, provider };
   } catch (err: any) {
     return { error: err.message || 'Unknown error generating branch detail' };
   }

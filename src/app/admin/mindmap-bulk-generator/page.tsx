@@ -182,6 +182,7 @@ export default function MindmapBulkGeneratorPage() {
 
   // --- Step 4: settings + run ---
   const [pauseSeconds, setPauseSeconds] = useState(60)
+  const [branchPauseSeconds, setBranchPauseSeconds] = useState(3)
   const [isStarting, setIsStarting] = useState(false)
 
   const isPausedRef = useRef(false)
@@ -222,17 +223,19 @@ export default function MindmapBulkGeneratorPage() {
         status: "running",
         queue,
         pauseSeconds,
+        branchPauseSeconds,
         currentIndex: 0,
         completedCount: 0,
         failedBranches: [],
         collectedBranches: {},
+        providerCounts: {},
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
 
       toast({ title: "Job Started", description: `${queue.length} branch(es) across ${extractedChapters.length} chapter(s) queued.` })
       isPausedRef.current = false
-      runLoop(queue, 0, pauseSeconds, {})
+      runLoop(queue, 0, pauseSeconds, branchPauseSeconds, {})
     } catch (e: any) {
       toast({ variant: "destructive", title: "Failed to start", description: e.message })
     } finally {
@@ -244,7 +247,7 @@ export default function MindmapBulkGeneratorPage() {
     if (!job || job.status !== "paused") return
     isPausedRef.current = false
     await updateJob({ status: "running" })
-    runLoop(job.queue, job.currentIndex, job.pauseSeconds, job.collectedBranches || {})
+    runLoop(job.queue, job.currentIndex, job.pauseSeconds, job.branchPauseSeconds || 3, job.collectedBranches || {})
   }
   function handlePause() {
     isPausedRef.current = true
@@ -278,7 +281,7 @@ export default function MindmapBulkGeneratorPage() {
     })
   }
 
-  async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, collectedSoFar: Record<string, MindmapNode[]>) {
+  async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, branchPauseSecs: number, collectedSoFar: Record<string, MindmapNode[]>) {
     if (isRunningLocallyRef.current) return
     isRunningLocallyRef.current = true
 
@@ -307,6 +310,7 @@ export default function MindmapBulkGeneratorPage() {
 
         if (!collected[item.mindmapKey]) collected[item.mindmapKey] = []
         collected[item.mindmapKey].push(result.branch)
+        const providerUsed = result.provider || "unknown"
 
         const nextItem = queue[i + 1]
         const isLastForThisChapter = !nextItem || nextItem.mindmapKey !== item.mindmapKey
@@ -318,6 +322,7 @@ export default function MindmapBulkGeneratorPage() {
           currentIndex: i + 1,
           completedCount: increment(1),
           collectedBranches: collected,
+          [`providerCounts.${providerUsed}`]: increment(1),
           updatedAt: serverTimestamp(),
         })
       } catch (e: any) {
@@ -331,9 +336,7 @@ export default function MindmapBulkGeneratorPage() {
       if (i < queue.length - 1 && !isPausedRef.current) {
         const nextItem = queue[i + 1]
         const movingToNewChapter = nextItem.mindmapKey !== item.mindmapKey
-        if (movingToNewChapter) {
-          await sleep(pauseSecs * 1000)
-        }
+        await sleep((movingToNewChapter ? pauseSecs : branchPauseSecs) * 1000)
       }
     }
 
@@ -447,8 +450,12 @@ export default function MindmapBulkGeneratorPage() {
             <>
               <Card className="glass border-none">
                 <CardHeader><CardTitle className="text-base">4. Settings</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-w-xs">
+                <CardContent className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Pause between branches (seconds)</Label>
+                    <Input type="number" min={1} max={60} value={branchPauseSeconds} onChange={(e) => setBranchPauseSeconds(parseInt(e.target.value) || 3)} className="glass border-white/10" />
+                  </div>
+                  <div className="space-y-2">
                     <Label>Rest between chapters (seconds)</Label>
                     <Input type="number" min={5} max={600} value={pauseSeconds} onChange={(e) => setPauseSeconds(parseInt(e.target.value) || 60)} className="glass border-white/10" />
                   </div>
@@ -486,6 +493,15 @@ export default function MindmapBulkGeneratorPage() {
               <p className="text-2xl font-bold text-primary">{job.completedCount || 0}</p>
               <p className="text-xs text-muted-foreground">Branches generated</p>
             </div>
+
+            {job.providerCounts && Object.keys(job.providerCounts).length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-muted-foreground">Branches by provider (for quality spot-checking):</p>
+                {Object.entries(job.providerCounts).map(([provider, count]: any) => (
+                  <p key={provider} className="text-xs text-muted-foreground">• {provider}: {count}</p>
+                ))}
+              </div>
+            )}
 
             {job.failedBranches && job.failedBranches.length > 0 && (
               <div className="space-y-1">
