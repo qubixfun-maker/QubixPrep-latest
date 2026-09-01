@@ -32,9 +32,23 @@ type LaidOutNode = {
 
 type Line = { x1: number; y1: number; x2: number; y2: number; color: string; opacity: number }
 
+const MAX_DETAIL_CHARS = 220
+
 function nodeDetailText(node: MindmapNode): string | null {
   const parts = [node.definition, node.mechanism, node.examples].filter(Boolean)
-  return parts.length > 0 ? parts.join(" ") : null
+  if (parts.length === 0) return null
+  const full = parts.join(" ")
+  return full.length > MAX_DETAIL_CHARS ? full.slice(0, MAX_DETAIL_CHARS).trim() + "..." : full
+}
+
+// Rough estimate of how tall a detail block will render at a given card width,
+// so card height scales with actual text length instead of a fixed guess.
+function estimateDetailHeight(text: string, width: number): number {
+  const usableWidth = Math.max(60, width - 24)
+  const avgCharWidth = 5.8
+  const charsPerLine = Math.max(8, Math.floor(usableWidth / avgCharWidth))
+  const lines = Math.max(1, Math.ceil(text.length / charsPerLine))
+  return lines * 15 + 12
 }
 
 function layoutChildren(
@@ -62,7 +76,7 @@ function layoutChildren(
     const childHasChildren = !!(child.branches && child.branches.length > 0)
     const detail = nodeDetailText(child)
     const showInlineDetail = childExpanded && !!detail && !childHasChildren
-    const height = showInlineDetail ? BASE_NODE_H + 46 : BASE_NODE_H
+    const height = showInlineDetail ? BASE_NODE_H + estimateDetailHeight(detail!, childW) : BASE_NODE_H
     return { child, childPath, childExpanded, childHasChildren, detail, height }
   })
 
@@ -124,7 +138,7 @@ function computeLayout(root: MindmapNode, expandedPaths: Record<string, boolean>
     const hasChildren = !!(branch.branches && branch.branches.length > 0)
     const detail = nodeDetailText(branch)
     const showInlineDetail = isExpanded && !!detail && !hasChildren
-    const h = showInlineDetail ? BASE_NODE_H + 46 : BASE_NODE_H + 8
+    const h = showInlineDetail ? BASE_NODE_H + estimateDetailHeight(detail!, 170) : BASE_NODE_H + 8
     return { branch, side, path, color, isExpanded, hasChildren, detail, h }
   })
 
