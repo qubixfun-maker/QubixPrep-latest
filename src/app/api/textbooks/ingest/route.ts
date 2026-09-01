@@ -150,6 +150,102 @@ export async function POST(req: NextRequest) {
       return null
     }
 
+    // Last resort: books with a plain, unnumbered Contents page (just a list
+    // of topic names, no numbers, no page references - common in condensed
+    // exam-notes style PDFs like scanned handwritten study guides). Each TOC
+    // line is fuzzy-matched against the first line of every subsequent page
+    // (a running header), tolerating OCR noise via per-word similarity.
+    function extractPageLines(items: any[]): string[] {
+      const lineMap = new Map<number, { y: number; parts: { x: number; str: string }[] }>()
+      for (const it of items) {
+        if (!it.str || !it.str.trim()) continue
+        const y = Math.round(it.transform[5])
+        let key: number | null = null
+        for (const k of lineMap.keys()) {
+          if (Math.abs(k - y) <= 2) { key = k; break }
+        }
+        if (key === null) key = y
+        if (!lineMap.has(key)) lineMap.set(key, { y, parts: [] })
+        lineMap.get(key)!.parts.push({ x: it.transform[4], str: it.str })
+      }
+      return [...lineMap.values()]
+        .sort((a, b) => b.y - a.y)
+        .map((line) => line.parts.sort((a, b) => a.x - b.x).map((p) => p.str).join(' ').trim())
+        .filter((l) => l.length > 0)
+    }
+
+    function levenshtein(a: string, b: string): number {
+      const dp: number[][] = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0))
+      for (let i = 0; i <= a.length; i++) dp[i][0] = i
+      for (let j = 0; j <= b.length; j++) dp[0][j] = j
+      for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+          dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1])
+        }
+      }
+      return dp[a.length][b.length]
+    }
+
+    function wordSimilarity(a: string, b: string): number {
+      if (a === b) return 1
+      const longer = a.length > b.length ? a : b
+      const shorter = a.length > b.length ? b : a
+      if (longer.length === 0) return 1
+      return (longer.length - levenshtein(longer, shorter)) / longer.length
+    }
+
+    function normalizeWords(s: string): string[] {
+      return s.toUpperCase().replace(/[^A-Z ]/g, '').split(/\s+/).filter(Boolean)
+    }
+
+    function titleSimilarity(tocWords: string[], headerWords: string[]): number {
+      if (tocWords.length === 0 || headerWords.length === 0) return 0
+      let matches = 0
+      for (const tw of tocWords) {
+        const best = Math.max(0, ...headerWords.map((hw) => wordSimilarity(tw, hw)))
+        if (best > 0.75) matches++
+      }
+      return matches / tocWords.length
+    }
+
+    async function findTocSuggestions(pdfDoc: any, totalPages: number): Promise<{ title: string; page: number | null }[] | null> {
+      let tocPageNum: number | null = null
+      let tocLines: string[] = []
+      for (let p = 1; p <= Math.min(15, totalPages); p++) {
+        const page = await pdfDoc.getPage(p)
+        const content = await page.getTextContent()
+        const lines = extractPageLines(content.items)
+        if (lines.length >= 2 && /^contents$/i.test(lines[0].trim())) {
+          tocPageNum = p
+          tocLines = lines.slice(1)
+          break
+        }
+      }
+      if (!tocPageNum || tocLines.length < 2) return null
+
+      const tocTitles = tocLines.filter((l) => l.length >= 2 && l.length <= 120)
+      const tocNorm = tocTitles.map((t) => normalizeWords(t))
+
+      const found = new Map<number, number>()
+      let tocIdx = 0
+      for (let p = tocPageNum + 1; p <= totalPages && tocIdx < tocTitles.length; p++) {
+        const page = await pdfDoc.getPage(p)
+        const content = await page.getTextContent()
+        const lines = extractPageLines(content.items)
+        if (lines.length === 0) continue
+        const headerWords = normalizeWords(lines[0])
+        const sim = titleSimilarity(tocNorm[tocIdx], headerWords)
+        if (sim >= 0.6) {
+          found.set(tocIdx, p)
+          tocIdx++
+        }
+      }
+
+      if (found.size < 2) return null
+
+      return tocTitles.map((title, i) => ({ title, page: found.has(i) ? found.get(i)! : null }))
+    }
+
     // Strategy 3: some books print "Chapter N: Title" as a running header on
     // EVERY page of the chapter, not just the opener (e.g. "Chapter 1:
     // Anatomy of the Female Pelvic Organs"). Body-content noise trailing the
@@ -219,6 +315,14 @@ export async function POST(req: NextRequest) {
       }
 
       if (detected.length < 2) {
+        const tocSuggestions = await findTocSuggestions(pdfDoc, totalPages)
+        if (tocSuggestions && tocSuggestions.length >= 2) {
+          return NextResponse.json({
+            error: 'No chapters could be detected from bookmarks or page content. This textbook\'s structure isn\'t supported yet.',
+            suggestedChapters: tocSuggestions,
+          }, { status: 400 })
+        }
+
         return NextResponse.json({ error: 'No chapters could be detected from bookmarks or page content. This textbook\'s structure isn\'t supported yet.' }, { status: 400 })
       }
 

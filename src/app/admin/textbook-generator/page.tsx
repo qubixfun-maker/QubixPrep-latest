@@ -196,7 +196,22 @@ export default function TextbookGeneratorPage() {
         body: JSON.stringify({ idToken, storagePath, title: uploadTitle.trim(), author: uploadAuthor.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Ingestion failed")
+      if (!res.ok) {
+        toast({ variant: "destructive", title: "Upload Failed", description: data.error || "Ingestion failed" })
+        if (/no chapters could be detected/i.test(data.error || "")) {
+          setManualFallback({ storagePath, title: uploadTitle.trim(), author: uploadAuthor.trim() })
+          if (Array.isArray(data.suggestedChapters) && data.suggestedChapters.length > 0) {
+            setManualChapters(
+              data.suggestedChapters.map((c: { title: string; page: number | null }) => ({
+                title: c.title,
+                startPage: c.page ? String(c.page) : "",
+              }))
+            )
+            toast({ title: "Partial Match Found", description: `Pre-filled ${data.suggestedChapters.filter((c: any) => c.page).length} of ${data.suggestedChapters.length} chapters - just fill in the rest.` })
+          }
+        }
+        return
+      }
 
       setLastResult({ chapters: data.chapters })
       toast({ title: "Textbook Ready", description: `Detected ${data.chapters.length} chapters across ${data.totalPages} pages.` })
@@ -205,9 +220,6 @@ export default function TextbookGeneratorPage() {
       setUploadFile(null)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Upload Failed", description: e.message })
-      if (/no chapters could be detected/i.test(e.message)) {
-        setManualFallback({ storagePath, title: uploadTitle.trim(), author: uploadAuthor.trim() })
-      }
     } finally {
       setIsUploading(false)
       setUploadStage("")
