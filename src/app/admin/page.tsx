@@ -1593,9 +1593,9 @@ export default function AdminDashboard() {
               <FileText className="h-4 w-4" /> Long Answers Bulk
             </Button>
           </Link>
-          <Link href="/admin/long-answers-bulk-generator">
-            <Button variant="outline" className="rounded-xl gap-2 glass border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
-              <FileText className="h-4 w-4" /> Long Answers Bulk
+          <Link href="/admin/mindmap-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-violet-500/30 text-violet-400 hover:bg-violet-500/10">
+              <Network className="h-4 w-4" /> Mind Map Generator
             </Button>
           </Link>
           <Link href="/admin/analytics">
