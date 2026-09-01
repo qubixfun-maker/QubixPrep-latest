@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Lock, ArrowLeft, BookMarked, UploadCloud, CheckCircle2, FileText, Sparkles, Save, ImagePlus, Wand2, Check, Trash2 } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, BookMarked, UploadCloud, CheckCircle2, FileText, Sparkles, Save, ImagePlus, Wand2, Check, Trash2, Plus, X, ListPlus } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -101,6 +101,61 @@ export default function TextbookGeneratorPage() {
   const [lastResult, setLastResult] = useState<{ chapters: any[] } | null>(null)
   const [deletingTextbookId, setDeletingTextbookId] = useState<string | null>(null)
 
+  // Manual chapter fallback - shown when auto-detection (bookmarks or page-
+  // content pattern scanning) can't find a usable chapter structure. Reuses
+  // the PDF already sitting in Storage from the failed attempt, so nothing
+  // needs re-uploading.
+  const [manualFallback, setManualFallback] = useState<{ storagePath: string; title: string; author: string } | null>(null)
+  const [manualChapters, setManualChapters] = useState<{ title: string; startPage: string }[]>([{ title: "", startPage: "" }])
+  const [isManualIngesting, setIsManualIngesting] = useState(false)
+
+  function addManualChapterRow() {
+    setManualChapters((prev) => [...prev, { title: "", startPage: "" }])
+  }
+  function removeManualChapterRow(index: number) {
+    setManualChapters((prev) => prev.filter((_, i) => i !== index))
+  }
+  function updateManualChapterRow(index: number, field: "title" | "startPage", value: string) {
+    setManualChapters((prev) => prev.map((c, i) => (i === index ? { ...c, [field]: value } : c)))
+  }
+
+  async function handleManualIngest() {
+    if (!manualFallback || !user) return
+    const parsed = manualChapters
+      .filter((c) => c.title.trim())
+      .map((c) => ({ title: c.title.trim(), startPage: parseInt(c.startPage, 10) }))
+
+    if (parsed.length === 0) {
+      toast({ variant: "destructive", title: "Add at least one chapter", description: "Each chapter needs a title and a start page." })
+      return
+    }
+    if (parsed.some((c) => !Number.isInteger(c.startPage) || c.startPage < 1)) {
+      toast({ variant: "destructive", title: "Invalid start page", description: "Every chapter needs a valid page number." })
+      return
+    }
+
+    setIsManualIngesting(true)
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/textbooks/ingest-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, storagePath: manualFallback.storagePath, title: manualFallback.title, author: manualFallback.author, chapters: parsed }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Ingestion failed")
+
+      setLastResult({ chapters: data.chapters })
+      toast({ title: "Textbook Ready", description: `Saved ${data.chapters.length} manually-defined chapters across ${data.totalPages} pages.` })
+      setManualFallback(null)
+      setManualChapters([{ title: "", startPage: "" }])
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Manual Ingest Failed", description: e.message })
+    } finally {
+      setIsManualIngesting(false)
+    }
+  }
+
   const handleDeleteTextbook = async (tb: any) => {
     if (!confirm(`Delete "${tb.title}"? This removes the textbook and all its extracted chapters permanently.`)) return
     if (!user) return
@@ -126,10 +181,10 @@ export default function TextbookGeneratorPage() {
     if (!storage || !uploadFile || !uploadTitle.trim() || !user) return
     setIsUploading(true)
     setLastResult(null)
+    const safeId = uploadTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+    const storagePath = `textbooks-source/${safeId}-${Date.now()}.pdf`
     try {
       setUploadStage("Uploading PDF to storage...")
-      const safeId = uploadTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-      const storagePath = `textbooks-source/${safeId}-${Date.now()}.pdf`
       const fileRef = storageRef(storage, storagePath)
       await uploadBytes(fileRef, uploadFile)
 
@@ -150,6 +205,9 @@ export default function TextbookGeneratorPage() {
       setUploadFile(null)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Upload Failed", description: e.message })
+      if (/no chapters could be detected/i.test(e.message)) {
+        setManualFallback({ storagePath, title: uploadTitle.trim(), author: uploadAuthor.trim() })
+      }
     } finally {
       setIsUploading(false)
       setUploadStage("")
@@ -578,6 +636,52 @@ export default function TextbookGeneratorPage() {
             {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
             {isUploading ? (uploadStage || "Processing...") : "Upload & Process"}
           </Button>
+
+          {manualFallback && (
+            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 space-y-3 animate-in slide-in-from-bottom-2">
+              <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5"><ListPlus className="h-3.5 w-3.5" /> Define Chapters Manually</p>
+              <p className="text-xs text-muted-foreground">
+                Auto-detection couldn't find a chapter structure in "{manualFallback.title}". List each chapter's title and its starting page number (check the PDF's table of contents, or just skim through it) - the rest of the book gets split automatically at each chapter's start page.
+              </p>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {manualChapters.map((c, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <Input
+                      placeholder={`Chapter ${i + 1} title`}
+                      value={c.title}
+                      onChange={(e) => updateManualChapterRow(i, "title", e.target.value)}
+                      className="glass border-white/10 flex-1"
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Start page"
+                      value={c.startPage}
+                      onChange={(e) => updateManualChapterRow(i, "startPage", e.target.value)}
+                      className="glass border-white/10 w-28"
+                    />
+                    {manualChapters.length > 1 && (
+                      <button onClick={() => removeManualChapterRow(i)} className="text-muted-foreground hover:text-destructive p-2 shrink-0" title="Remove">
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={addManualChapterRow} variant="outline" size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" /> Add Chapter
+                </Button>
+                <Button onClick={() => { setManualFallback(null); setManualChapters([{ title: "", startPage: "" }]) }} variant="ghost" size="sm">
+                  Cancel
+                </Button>
+              </div>
+              <Button onClick={handleManualIngest} disabled={isManualIngesting} className="w-full gap-2">
+                {isManualIngesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListPlus className="h-4 w-4" />}
+                {isManualIngesting ? "Processing..." : "Save Chapters & Process"}
+              </Button>
+            </div>
+          )}
 
           {lastResult && (
             <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2 animate-in slide-in-from-bottom-2">
