@@ -232,23 +232,24 @@ const MAX_IMAGE_ATTEMPTS = 3;
 export async function generateVerifiedNoteImage(page: NotesPage, chapterTitle: string): Promise<GenerateNoteImageOutput> {
   const prompt = buildNoteImagePrompt(page, chapterTitle);
   let best: VerifiedImageResult | null = null;
+  let lastError = 'Image model returned no image';
 
   for (let attempt = 1; attempt <= MAX_IMAGE_ATTEMPTS; attempt++) {
     try {
       const img = await generateVertexImage(prompt);
-      if (!img) continue;
+      if (!img) { lastError = 'Image model returned no image (check GOOGLE_VERTEX_IMAGE_MODEL is enabled for your project/region)'; continue; }
 
-      const transcribed = await transcribeVertexImage(img.base64, img.mimeType).catch(() => '');
+      const transcribed = await transcribeVertexImage(img.base64, img.mimeType).catch((e: any) => { lastError = `Vision transcription failed: ${e?.message || e}`; return ''; });
       const score = textSimilarity(page.content, transcribed);
       const result: VerifiedImageResult = { base64: img.base64, mimeType: img.mimeType, needsReview: score < ACCURACY_THRESHOLD, matchScore: score };
 
       if (score >= ACCURACY_THRESHOLD) return result;
       if (!best || score > best.matchScore) best = result;
-    } catch {
-      continue;
+    } catch (err: any) {
+      lastError = err?.message || String(err);
     }
   }
 
   if (best) return best; // best attempt across retries, flagged needsReview for admin follow-up
-  return { error: `Failed to generate an image for "${page.topicTitle}" after ${MAX_IMAGE_ATTEMPTS} attempts.` };
+  return { error: `Failed to generate an image for "${page.topicTitle}" after ${MAX_IMAGE_ATTEMPTS} attempts: ${lastError}` };
 }
