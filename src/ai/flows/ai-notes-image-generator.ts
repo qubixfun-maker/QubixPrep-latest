@@ -91,9 +91,12 @@ export type NotesPlanInput = {
   qbankQuestions?: string[];
 };
 
+export type PageType = 'notes' | 'diagram';
+
 export type PagePlanItem = {
   topicTitle: string;
   scope: string;
+  pageType: PageType;
 };
 
 export type NotesPlanOutput = {
@@ -122,10 +125,14 @@ ${qbankBlock}
 
 TASK: Break this chapter into a sequence of note PAGES. Each page covers ONE topic/subtopic and always starts fresh - never mix two different topics on one page. If a topic needs more than one page, split it into separate pages labeled clearly (e.g. "Topic (contd.)"). Decide the number of pages yourself based on how much the chapter and QBank actually call for - a short topic may need only 1 page, a heavily-tested one may need 2-3.
 
-Do NOT write the full page content yet - just list each page's title and a one-sentence scope of exactly what that page should cover.
+For each page, also decide its type:
+- "notes" - the default: definitions, tables, causes, features, clinical points. Use this for most pages.
+- "diagram" - ONLY for a topic that is fundamentally a short step-by-step process, mechanism, or pathway (e.g. "Mechanism of X", a stepwise sequence of events) where a simple flowchart genuinely communicates it better than a bullet list. Use sparingly - most pages should be "notes".
+
+Do NOT write the full page content yet - just list each page's title, a one-sentence scope of exactly what it should cover, and its type.
 
 Output ONLY valid JSON, no markdown fences, no commentary:
-{"pages": [{"topicTitle": "...", "scope": "..."}]}`;
+{"pages": [{"topicTitle": "...", "scope": "...", "pageType": "notes"}]}`;
 
   const MAX_ATTEMPTS = 3;
   let lastError = 'Unknown error planning notes pages';
@@ -136,7 +143,12 @@ Output ONLY valid JSON, no markdown fences, no commentary:
 
       const parsed = tryParseJson(raw);
       if (parsed && Array.isArray(parsed.pages) && parsed.pages.length > 0) {
-        return { pages: parsed.pages };
+        const pages: PagePlanItem[] = parsed.pages.map((p: any) => ({
+          topicTitle: p.topicTitle,
+          scope: p.scope,
+          pageType: p.pageType === 'diagram' ? 'diagram' : 'notes',
+        }));
+        return { pages };
       }
       lastError = 'AI response was not valid JSON for notes plan.';
     } catch (err: any) {
@@ -154,6 +166,7 @@ export type GeneratePageContentInput = {
   qbankQuestions?: string[];
   topicTitle: string;
   scope: string;
+  pageType: PageType;
 };
 
 export type GeneratePageContentOutput = {
@@ -161,16 +174,29 @@ export type GeneratePageContentOutput = {
   error?: string;
 };
 
-export async function generatePageContent(input: GeneratePageContentInput): Promise<GeneratePageContentOutput> {
-  const truncatedText = input.textbookText.length > MAX_CHARS_SOURCE
-    ? input.textbookText.slice(0, MAX_CHARS_SOURCE) + '\n[...excerpt truncated...]'
-    : input.textbookText;
+function buildContentPrompt(input: GeneratePageContentInput, truncatedText: string, qbankBlock: string): string {
+  if (input.pageType === 'diagram') {
+    return `You are writing ONE simple flowchart-style diagram page of exam-focused study notes for a medical student. The overall chapter is "${input.chapterTitle}". You are writing ONLY this one page: "${input.topicTitle}" - scope: ${input.scope}
 
-  const qbankBlock = input.qbankQuestions && input.qbankQuestions.length > 0
-    ? `\n\nPAST EXAM QUESTIONS FOR THIS CHAPTER (use to prioritize depth, but source every fact from the chapter text, never from this list itself):\n${input.qbankQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
-    : '';
+CHAPTER TEXT:
+${truncatedText}
+${qbankBlock}
 
-  const prompt = `You are writing ONE page of exam-focused handwritten-style study notes for a medical student, in a fixed template style. The overall chapter is "${input.chapterTitle}". You are writing ONLY this one page: "${input.topicTitle}" - scope: ${input.scope}
+TASK: Write this page as a simple linear (or lightly branching) step-by-step flow:
+
+1. TITLE line - the topic name only.
+2. A sequence of short steps, one per line, each starting with "STEP:", in the order they flow (top to bottom). Each step must be under 6 words - a label, not a sentence.
+3. At most ONE branch point is allowed, where a single step splits into 2-3 short parallel steps - mark each branch step with "BRANCH:" instead of "STEP:" and keep branches grouped together in the text.
+
+HARD LIMITS - these matter more than completeness:
+- Maximum 8 steps total (including any branches). If the real process has more than 8 meaningful steps, keep only the most exam-important ones - this is a simplified overview diagram, not the full mechanism.
+- No table, no bullet list, no callout boxes - steps only.
+- Every step must come from the chapter text - never invent.
+
+Output ONLY the plain page text (STEP:/BRANCH: lines, no markdown, no JSON, no commentary, no preamble).`;
+  }
+
+  return `You are writing ONE page of exam-focused handwritten-style study notes for a medical student, in a fixed template style. The overall chapter is "${input.chapterTitle}". You are writing ONLY this one page: "${input.topicTitle}" - scope: ${input.scope}
 
 CHAPTER TEXT:
 ${truncatedText}
@@ -190,6 +216,18 @@ HARD LIMITS - these matter more than completeness:
 - Every fact must come from the chapter text - never invent.
 
 Output ONLY the plain page text (headers as plain text, no markdown formatting, no JSON, no commentary, no preamble like "Here is the page").`;
+}
+
+export async function generatePageContent(input: GeneratePageContentInput): Promise<GeneratePageContentOutput> {
+  const truncatedText = input.textbookText.length > MAX_CHARS_SOURCE
+    ? input.textbookText.slice(0, MAX_CHARS_SOURCE) + '\n[...excerpt truncated...]'
+    : input.textbookText;
+
+  const qbankBlock = input.qbankQuestions && input.qbankQuestions.length > 0
+    ? `\n\nPAST EXAM QUESTIONS FOR THIS CHAPTER (use to prioritize depth, but source every fact from the chapter text, never from this list itself):\n${input.qbankQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+    : '';
+
+  const prompt = buildContentPrompt(input, truncatedText, qbankBlock);
 
   const MAX_ATTEMPTS = 3;
   let lastError = 'Unknown error generating page content';
@@ -212,9 +250,23 @@ Output ONLY the plain page text (headers as plain text, no markdown formatting, 
 export type NotesPage = {
   topicTitle: string;
   content: string;
+  pageType: PageType;
 };
 
 function buildNoteImagePrompt(page: NotesPage, chapterTitle: string): string {
+  if (page.pageType === 'diagram') {
+    return `Create a single clean, simple hand-drawn-style flowchart diagram page, exam study notes style.
+
+LAYOUT: White/off-white background, generous margins. Page title in bold colorful hand-lettered text at the top, centered. Below it, render the given steps as a vertical sequence of small rounded rectangle boxes, each containing one short step's text, connected by simple straight downward arrows. If the text marks a branch, show one step splitting into 2-3 boxes side by side at that point, each with its own short downward arrow continuing from it. Use 2-3 ink colors total for the boxes/text. Keep generous white space between every box - do not crowd them together, do not add any content not given.
+
+RENDER THIS EXACT TEXT (do not add, omit, or reword any step; do not add extra steps or extra branches beyond what's given):
+Chapter: ${chapterTitle}
+
+${page.content}
+
+Reproduce every step above exactly as written, as its own box, in order. Prioritize a clean, spacious, easy-to-follow diagram over fitting more in.`;
+  }
+
   return `Create a single clean handwritten-style exam study notes page image, following this EXACT template layout (this is a fixed brand template, not free-form):
 
 LAYOUT (top to bottom, with GENEROUS white space between every section - do not fill the page edge to edge, leave clear margins all around):

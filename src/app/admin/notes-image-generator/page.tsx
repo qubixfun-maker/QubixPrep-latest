@@ -257,6 +257,7 @@ export default function NotesImageGeneratorPage() {
           qbankQuestions: combinedQuestions.length > 0 ? combinedQuestions : undefined,
           topicTitle: planItem.topicTitle,
           scope: planItem.scope,
+          pageType: planItem.pageType,
         })
         if (contentResult.error || !contentResult.content) {
           toast({ variant: "destructive", title: `Failed writing "${planItem.topicTitle}"`, description: contentResult.error })
@@ -264,7 +265,7 @@ export default function NotesImageGeneratorPage() {
         }
 
         setCurrentLabel(`Generating image: ${planItem.topicTitle} (${i + 1}/${pagesToRun.length})`)
-        const page = { topicTitle: planItem.topicTitle, content: contentResult.content }
+        const page = { topicTitle: planItem.topicTitle, content: contentResult.content, pageType: planItem.pageType }
         const result = await generateVerifiedNoteImage(page, selectedChapter.title)
         if ("error" in result) {
           toast({ variant: "destructive", title: `Failed on "${planItem.topicTitle}"`, description: result.error })
@@ -411,7 +412,10 @@ export default function NotesImageGeneratorPage() {
               <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-white/10">
                 <Checkbox checked={!!selectedPages[i]} onCheckedChange={(v) => setSelectedPages((prev) => ({ ...prev, [i]: !!v }))} className="mt-1" />
                 <div className="min-w-0">
-                  <p className="font-semibold text-sm">{page.topicTitle}</p>
+                  <p className="font-semibold text-sm flex items-center gap-1.5">
+                    {page.topicTitle}
+                    {page.pageType === "diagram" && <span className="text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-400 font-medium">diagram</span>}
+                  </p>
                   <p className="text-xs text-muted-foreground">{page.scope}</p>
                 </div>
               </div>
