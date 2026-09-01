@@ -31,6 +31,65 @@ export type MindmapDataOutput = {
   error?: string;
 };
 
+// If the model's response got cut off mid-generation (hit the token ceiling),
+// plain JSON.parse fails entirely even though most of the tree is valid. This
+// walks the string tracking bracket/brace depth (respecting string literals),
+// finds the last point where a complete branch object had just closed, cuts
+// there, and appends whatever closing brackets are needed to make the
+// truncated-but-mostly-complete tree parse as valid JSON.
+function repairTruncatedJson(str: string): any | null {
+  const stack: string[] = [];
+  let inString = false;
+  let escapeNext = false;
+  let lastSafeCut = -1;
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === '{' || ch === '[') {
+      stack.push(ch === '{' ? '}' : ']');
+    } else if (ch === '}' || ch === ']') {
+      stack.pop();
+      // A safe cut point: we just closed something, and what's left open
+      // (if anything) is an array - meaning this was a complete element
+      // inside a "branches": [ ... ] list.
+      if (stack.length > 0 && stack[stack.length - 1] === ']') {
+        lastSafeCut = i;
+      }
+    }
+  }
+
+  if (lastSafeCut === -1) return null;
+
+  const truncated = str.slice(0, lastSafeCut + 1);
+  // Figure out what's still open at the cut point by re-running the same scan
+  // only up to lastSafeCut, then append closers in reverse order.
+  const stack2: string[] = [];
+  let inString2 = false;
+  let escapeNext2 = false;
+  for (let i = 0; i <= lastSafeCut; i++) {
+    const ch = truncated[i];
+    if (escapeNext2) { escapeNext2 = false; continue; }
+    if (ch === '\\') { escapeNext2 = true; continue; }
+    if (ch === '"') { inString2 = !inString2; continue; }
+    if (inString2) continue;
+    if (ch === '{' || ch === '[') stack2.push(ch === '{' ? '}' : ']');
+    else if (ch === '}' || ch === ']') stack2.pop();
+  }
+
+  const closers = stack2.slice().reverse().join('');
+  const candidate = truncated + closers;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
+
 const MAX_CHARS_PER_SOURCE = 60000;
 
 function buildPrompt(input: MindmapDataInput): string {
@@ -103,7 +162,7 @@ export async function generateMindmapData(input: MindmapDataInput): Promise<Mind
 
   try {
     const prompt = buildPrompt(input);
-    const raw = await callAI([{ role: 'user', content: prompt }], 7000);
+    const raw = await callAI([{ role: 'user', content: prompt }], 16000);
     if (!raw) return { error: 'Empty response from AI model' };
 
     let clean = raw.replace(/```json|```/g, '').trim();
@@ -114,6 +173,9 @@ export async function generateMindmapData(input: MindmapDataInput): Promise<Mind
       const match = clean.match(/\{[\s\S]*\}/);
       if (match) {
         try { parsed = JSON.parse(match[0]); } catch { /* fall through */ }
+      }
+      if (!parsed) {
+        parsed = repairTruncatedJson(clean);
       }
     }
 
