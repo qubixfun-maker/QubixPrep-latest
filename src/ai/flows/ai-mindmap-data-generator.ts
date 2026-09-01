@@ -10,6 +10,7 @@ export type ChapterSource = {
 export type MindmapDataInput = {
   sources: ChapterSource[];
   topicFocus?: string; // optional - focus on one topic/disease within the chapter
+  pyqQuestions?: string[]; // optional - real past exam questions for this chapter, used to prioritize depth/topics
 };
 
 export type MindmapNode = {
@@ -37,6 +38,11 @@ function buildPrompt(input: MindmapDataInput): string {
     const truncated = s.text.length > MAX_CHARS_PER_SOURCE ? s.text.slice(0, MAX_CHARS_PER_SOURCE) + '\n[...excerpt truncated...]' : s.text;
     return `--- SOURCE ${i + 1}: "${s.textbookTitle}", Chapter: "${s.chapterTitle}" ---\n${truncated}`;
   }).join('\n\n');
+
+  const pyqList = (input.pyqQuestions || []).map((q, i) => (i + 1) + ". " + q).join("\n")
+  const pyqBlock = input.pyqQuestions && input.pyqQuestions.length > 0
+    ? "\n\nPAST EXAM QUESTIONS FOR THIS CHAPTER (real questions students have been asked - use these to prioritize which topics need more depth/branches, and make sure the mind map has enough detail to answer them, but source every actual FACT from the textbook excerpt above, never from this question list itself, since these are questions only, not answers):\n" + pyqList
+    : ""
 
   const focusLine = input.topicFocus
     ? `Focus specifically on this topic/disease within the chapter: "${input.topicFocus}"`

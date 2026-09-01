@@ -1,16 +1,18 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
+import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { doc, collection, query, orderBy, getDocs, setDoc, increment, serverTimestamp } from "firebase/firestore"
 import { generateMindmapData } from "@/ai/flows/ai-mindmap-data-generator"
+import { extractLongAnswerQuestions } from "@/ai/flows/ai-longanswers-question-extractor"
+import { ref as storageRef, uploadBytes } from "firebase/storage"
 import MindMapRadial, { type MindmapNode } from "@/components/mindmap/MindMapRadial"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Lock, ArrowLeft, Network, Sparkles, Save } from "lucide-react"
+import { Loader2, Lock, ArrowLeft, Network, Sparkles, Save, ListTree } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 
@@ -30,9 +32,35 @@ function fuzzyMatchChapter(query: string, chapters: any[]) {
   return bestScore > 0 ? best : null
 }
 
+function splitIntoChapters(rawText: string) {
+  const pattern = /Chapter\s+\d+[:.]?\s*/gi
+  const matches = [...rawText.matchAll(pattern)]
+  if (matches.length === 0) {
+    return [{ title: "Untitled Chapter", text: rawText }]
+  }
+  const chapters = []
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index
+    const end = i < matches.length - 1 ? matches[i + 1].index : rawText.length
+    const chunk = rawText.slice(start, end)
+    const stopWords = /^(Long Essay|Short Essay|Short Answer|MCQ|\(No questions)/i
+    const chunkLines = chunk.split("\n")
+    let titleLines = []
+    for (let li = 0; li < chunkLines.length && li < 3; li++) {
+      const line = chunkLines[li].trim()
+      if (li > 0 && stopWords.test(line)) break
+      if (line) titleLines.push(line)
+    }
+    const title = titleLines.join(" ") || `Chapter ${i + 1}`
+    chapters.push({ title, text: chunk })
+  }
+  return chapters
+}
+
 export default function MindmapGeneratorPage() {
   const { user, loading: authLoading } = useUser()
   const db = useFirestore()
+  const storage = useStorage()
   const { toast } = useToast()
 
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
@@ -92,6 +120,63 @@ export default function MindmapGeneratorPage() {
     }).filter(Boolean) as { textbookTitle: string; chapterTitle: string; text: string }[]
   }
 
+  // --- Optional: PYQ / question bank PDF, used to prioritize depth/topics ---
+  const [pyqFile, setPyqFile] = useState<File | null>(null)
+  const [isExtractingPyq, setIsExtractingPyq] = useState(false)
+  const [pyqStage, setPyqStage] = useState("")
+  const [pyqQuestions, setPyqQuestions] = useState<string[]>([])
+
+  async function handleExtractPyq() {
+    if (!storage || !user || !pyqFile || !referenceChapterName.trim()) {
+      toast({ variant: "destructive", title: "Match a chapter and pick a PYQ PDF first" })
+      return
+    }
+    setIsExtractingPyq(true)
+    setPyqQuestions([])
+    try {
+      setPyqStage("Uploading PYQ PDF...")
+      const safeId = "mindmap-pyq-" + Date.now()
+      const storagePath = `long-answers-source/${safeId}.pdf`
+      const fileRef = storageRef(storage, storagePath)
+      await uploadBytes(fileRef, pyqFile)
+
+      setPyqStage("Extracting text from PDF...")
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/long-answers/extract-pdf-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, storagePath }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Extraction failed")
+
+      setPyqStage("Matching chapter and extracting questions...")
+      const chapters = splitIntoChapters(data.text)
+      const matched = fuzzyMatchChapter(referenceChapterName, chapters.map((c, i) => ({ title: c.title, __idx: i })))
+      if (!matched) {
+        toast({ variant: "destructive", title: "No matching chapter found in PYQ PDF" })
+        setIsExtractingPyq(false)
+        setPyqStage("")
+        return
+      }
+      const matchedChunk = chapters[matched.__idx]
+      const result = await extractLongAnswerQuestions({ chapterTitle: matchedChunk.title, rawText: matchedChunk.text })
+      const flatQuestions = [...result.longEssays, ...result.shortEssays, ...result.shortAnswers]
+
+      if (flatQuestions.length === 0) {
+        toast({ variant: "destructive", title: "No questions found for this chapter in the PYQ PDF" })
+      } else {
+        setPyqQuestions(flatQuestions)
+        toast({ title: "PYQs Extracted", description: `${flatQuestions.length} question(s) found for "${matchedChunk.title}".` })
+      }
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message })
+    } finally {
+      setIsExtractingPyq(false)
+      setPyqStage("")
+    }
+  }
+
   // --- Generation ---
   const [topicFocus, setTopicFocus] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
@@ -106,7 +191,7 @@ export default function MindmapGeneratorPage() {
     setIsGenerating(true)
     setGeneratedData(null)
     try {
-      const result = await generateMindmapData({ sources, topicFocus: topicFocus.trim() || undefined })
+      const result = await generateMindmapData({ sources, topicFocus: topicFocus.trim() || undefined, pyqQuestions: pyqQuestions.length > 0 ? pyqQuestions : undefined })
       if (result.error || !result.data) {
         toast({ variant: "destructive", title: "Generation Failed", description: result.error || "No data returned." })
       } else {
@@ -221,7 +306,20 @@ export default function MindmapGeneratorPage() {
       </Card>
 
       <Card className="glass border-none">
-        <CardHeader><CardTitle className="text-base">2. Generate</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><ListTree className="h-4 w-4" /> 2. Optional: PYQ / Question Bank PDF</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">Upload a question bank PDF to prioritize which topics need more depth. Match a chapter above first.</p>
+          <input type="file" accept="application/pdf" onChange={(e) => setPyqFile(e.target.files?.[0] || null)} className="text-sm" />
+          <Button onClick={handleExtractPyq} disabled={isExtractingPyq || !pyqFile} variant="secondary" className="gap-2">
+            {isExtractingPyq ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {isExtractingPyq ? (pyqStage || "Extracting...") : "Extract PYQs For This Chapter"}
+          </Button>
+          {pyqQuestions.length > 0 && <p className="text-xs text-green-400">{pyqQuestions.length} question(s) loaded and will be used to guide depth.</p>}
+        </CardContent>
+      </Card>
+
+      <Card className="glass border-none">
+        <CardHeader><CardTitle className="text-base">3. Generate</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Topic Focus (optional - leave blank to cover the whole matched chapter)</Label>
@@ -239,7 +337,7 @@ export default function MindmapGeneratorPage() {
           <Card className="glass border-none overflow-x-auto">
             <CardHeader><CardTitle className="text-base">3. Preview</CardTitle></CardHeader>
             <CardContent className="flex justify-center py-8">
-              <div style={{ transform: "scale(0.55)", transformOrigin: "top center", marginBottom: "-380px" }}>
+              <div className="overflow-x-auto">
                 <MindMapRadial root={{ name: generatedData.centralTopic, branches: generatedData.branches }} />
               </div>
             </CardContent>
