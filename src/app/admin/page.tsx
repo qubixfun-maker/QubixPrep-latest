@@ -47,7 +47,8 @@ import {
   Sparkles,
   ArrowRight,
   Gift,
-  Zap
+  Zap,
+  BookOpenText
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -1601,6 +1602,11 @@ export default function AdminDashboard() {
           <Link href="/admin/mindmap-bulk-generator">
             <Button variant="outline" className="rounded-xl gap-2 glass border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10">
               <Network className="h-4 w-4" /> Mind Map Bulk
+            </Button>
+          </Link>
+          <Link href="/admin/notes-image-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-sky-500/30 text-sky-400 hover:bg-sky-500/10">
+              <BookOpenText className="h-4 w-4" /> Notes Image Generator
             </Button>
           </Link>
           <Link href="/admin/analytics">
