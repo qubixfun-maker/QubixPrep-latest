@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useRef } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
-import { doc, collection, query, orderBy, getDoc, setDoc, updateDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore"
+import { doc, collection, query, orderBy, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore"
 import { ref as storageRef, uploadBytes } from "firebase/storage"
 import { extractLongAnswerQuestions } from "@/ai/flows/ai-longanswers-question-extractor"
 import { generateProfPyqAnswerWithProvider } from "@/ai/flows/ai-profpyq-answer-generator"
+import { generateProfPyqAnswerFromTextbook } from "@/ai/flows/ai-profpyq-answer-from-textbook"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,22 @@ import { useToast } from "@/hooks/use-toast"
 
 const JOB_ID = "current"
 const MAX_PAIRS = 10
+
+function fuzzyMatchChapter(queryTitle: string, chapters: any[]) {
+  const q = queryTitle.toLowerCase().trim()
+  if (!q) return null
+  let best: any = null
+  let bestScore = 0
+  for (const ch of chapters) {
+    const title = (ch.title || "").toLowerCase()
+    let score = 0
+    if (title.includes(q)) score += 10
+    const qWords = q.split(/\s+/).filter(Boolean)
+    for (const w of qWords) if (w.length > 2 && title.includes(w)) score += 1
+    if (score > bestScore) { bestScore = score; best = ch }
+  }
+  return bestScore > 0 ? best : null
+}
 
 type QAItem = { questionHtml: string; answerHtml: string }
 
@@ -270,6 +287,20 @@ export default function LongAnswersBulkGeneratorPage() {
   }, [extractedChapters])
 
   // --- Step 3: settings + run ---
+  const textbooksQuery = useMemo(() => (!db) ? null : query(collection(db, 'textbooks'), orderBy('createdAt', 'desc')), [db])
+  const { data: textbooksList } = useCollection(textbooksQuery)
+  const [selectedTextbookId, setSelectedTextbookId] = useState<string>("none")
+  const textbookChaptersCacheRef = useRef<Record<string, any[]>>({})
+
+  async function getTextbookChapters(textbookId: string) {
+    if (textbookChaptersCacheRef.current[textbookId]) return textbookChaptersCacheRef.current[textbookId]
+    if (!db) return []
+    const snap = await getDocs(collection(db, 'textbooks', textbookId, 'chapters'))
+    const chapters = snap.docs.map((d) => ({ chapterId: d.id, ...d.data() }))
+    textbookChaptersCacheRef.current[textbookId] = chapters
+    return chapters
+  }
+
   const [pauseSeconds, setPauseSeconds] = useState(60)
   const [questionPauseSeconds, setQuestionPauseSeconds] = useState(3)
   const [isStarting, setIsStarting] = useState(false)
@@ -305,6 +336,7 @@ export default function LongAnswersBulkGeneratorPage() {
         queue,
         pauseSeconds,
         questionPauseSeconds,
+        textbookId: selectedTextbookId !== "none" ? selectedTextbookId : null,
         currentIndex: 0,
         completedCount: 0,
         failedQuestions: [],
@@ -315,7 +347,7 @@ export default function LongAnswersBulkGeneratorPage() {
 
       toast({ title: "Job Started", description: `${queue.length} question(s) across ${new Set(queue.map(q => q.subjectId)).size} subject(s) queued.` })
       isPausedRef.current = false
-      runLoop(queue, 0, pauseSeconds, questionPauseSeconds)
+      runLoop(queue, 0, pauseSeconds, questionPauseSeconds, selectedTextbookId !== "none" ? selectedTextbookId : null)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Failed to start", description: e.message })
     } finally {
@@ -327,7 +359,7 @@ export default function LongAnswersBulkGeneratorPage() {
     if (!job || job.status !== "paused") return
     isPausedRef.current = false
     await updateJob({ status: "running" })
-    runLoop(job.queue, job.currentIndex, job.pauseSeconds, job.questionPauseSeconds || 3)
+    runLoop(job.queue, job.currentIndex, job.pauseSeconds, job.questionPauseSeconds || 3, job.textbookId || null)
   }
   function handlePause() {
     isPausedRef.current = true
@@ -343,7 +375,7 @@ export default function LongAnswersBulkGeneratorPage() {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, qPauseSecs: number) {
+  async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, qPauseSecs: number, textbookId: string | null) {
     if (isRunningLocallyRef.current) return
     isRunningLocallyRef.current = true
 
@@ -360,12 +392,38 @@ export default function LongAnswersBulkGeneratorPage() {
       setCurrentLabel(`${subjectName} — ${item.chapterTitle} — ${item.question.slice(0, 50)}${item.question.length > 50 ? "..." : ""}`)
 
       try {
-        const result = await generateProfPyqAnswerWithProvider({
-          subject: subjectName,
-          chapter: item.chapterTitle,
-          type: item.questionType,
-          question: item.question,
-        })
+        let result: { answer?: string; provider?: string; error?: string }
+        if (textbookId) {
+          const chapters = await getTextbookChapters(textbookId)
+          const matchedChapter = fuzzyMatchChapter(item.chapterTitle, chapters)
+          if (matchedChapter && matchedChapter.text) {
+            const tb = textbooksList?.find((t: any) => t.id === textbookId)
+            result = await generateProfPyqAnswerFromTextbook({
+              subject: subjectName,
+              chapter: item.chapterTitle,
+              type: item.questionType,
+              question: item.question,
+              textbookTitle: tb?.title || "the textbook",
+              chapterExcerpt: matchedChapter.text,
+            })
+            if (result.provider) result.provider = result.provider + " (textbook)"
+          } else {
+            result = await generateProfPyqAnswerWithProvider({
+              subject: subjectName,
+              chapter: item.chapterTitle,
+              type: item.questionType,
+              question: item.question,
+            })
+            if (result.provider) result.provider = result.provider + " (no chapter match)"
+          }
+        } else {
+          result = await generateProfPyqAnswerWithProvider({
+            subject: subjectName,
+            chapter: item.chapterTitle,
+            type: item.questionType,
+            question: item.question,
+          })
+        }
 
         if (!result.answer) {
           throw new Error(result.error || "No answer generated")
@@ -536,6 +594,18 @@ export default function LongAnswersBulkGeneratorPage() {
               <Card className="glass border-none">
                 <CardHeader><CardTitle className="text-base">4. Settings</CardTitle></CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Reference textbook (optional)</Label>
+                    <Select value={selectedTextbookId} onValueChange={setSelectedTextbookId}>
+                      <SelectTrigger className="glass border-white/10"><SelectValue placeholder="None - use AI knowledge" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None - use AI knowledge</SelectItem>
+                        {textbooksList?.map((tb: any) => (
+                          <SelectItem key={tb.id} value={tb.id}>{tb.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <Label>Pause between questions (seconds)</Label>
                     <Input type="number" min={1} max={60} value={questionPauseSeconds} onChange={(e) => setQuestionPauseSeconds(parseInt(e.target.value) || 3)} className="glass border-white/10" />
