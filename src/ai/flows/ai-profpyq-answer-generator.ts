@@ -15,8 +15,14 @@ export type GenerateProfAnswerOutput = {
 
 const LENGTH_GUIDE: Record<string, string> = {
   short_answer: 'a crisp 2-4 sentence answer, exam-point format',
-  short_essay: 'a structured 150-250 word answer with clear headings/points (definition, classification, key features, etc. as relevant)',
-  long_answer: 'a comprehensive 400-600 word answer with proper structure (definition, etiology, clinical features, investigations, management, etc. as relevant), suitable for a university theory exam'
+  short_essay: 'a structured 150-250 word answer',
+  long_answer: 'a comprehensive 400-600 word answer'
+};
+
+const STRUCTURE_GUIDE: Record<string, string> = {
+  short_answer: 'Use plain text with simple line breaks and dashes for lists where helpful. Use **bold** for 1-2 key terms only. No section headers needed for an answer this short.',
+  short_essay: "Structure the answer using short section headers on their own line, each prefixed with '## ' (e.g. '## Definition', '## Key features'), choosing headers relevant to the topic - skip any that don't apply to this question. Use '-' prefixed lines for lists within a section. Use **bold** for key terms and important facts.",
+  long_answer: "Structure the answer using short section headers on their own line, each prefixed with '## ' (e.g. '## Definition', '## Etiology', '## Clinical features', '## Investigations', '## Management', '## Complications'), choosing only headers relevant to this specific topic - skip any that don't apply. Use '-' prefixed lines for lists within a section. Use **bold** for key terms and important facts."
 };
 
 export async function generateProfPyqAnswer(input: GenerateProfAnswerInput): Promise<GenerateProfAnswerOutput> {
@@ -27,7 +33,7 @@ Chapter: ${input.chapter}
 Question Type: ${input.type}
 Question: ${input.question}
 
-Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. Use plain text with simple line breaks and dashes for lists where helpful (no markdown headers, no asterisks for bold). Base the answer on standard textbook content (as relevant: K. Park for PSM, BD Chaurasia/Vishram Singh for Anatomy, Guyton for Physiology, Harsh Mohan for Pathology, etc.) and typical university exam expectations in India.
+Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. ${STRUCTURE_GUIDE[input.type] || STRUCTURE_GUIDE.short_answer} Base the answer on standard textbook content (as relevant: K. Park for PSM, BD Chaurasia/Vishram Singh for Anatomy, Guyton for Physiology, Harsh Mohan for Pathology, etc.) and typical university exam expectations in India.
 
 Respond with ONLY the answer text, nothing else - no preamble, no "Here is the answer", no quotation marks around it.`;
 
@@ -56,7 +62,7 @@ Subject: ${input.subject}
 Chapter: ${input.chapter}
 Question Type: ${input.type}
 Question: ${input.question}
-Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. Use plain text with simple line breaks and dashes for lists where helpful (no markdown headers, no asterisks for bold). Base the answer on standard textbook content (as relevant: K. Park for PSM, BD Chaurasia/Vishram Singh for Anatomy, Guyton for Physiology, Harsh Mohan for Pathology, etc.) and typical university exam expectations in India.
+Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. ${STRUCTURE_GUIDE[input.type] || STRUCTURE_GUIDE.short_answer} Base the answer on standard textbook content (as relevant: K. Park for PSM, BD Chaurasia/Vishram Singh for Anatomy, Guyton for Physiology, Harsh Mohan for Pathology, etc.) and typical university exam expectations in India.
 Respond with ONLY the answer text, nothing else - no preamble, no "Here is the answer", no quotation marks around it.`;
   try {
     const { content, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 1500);

@@ -15,6 +15,7 @@ const SECTION_LABEL: Record<string, string> = {
 }
 
 type QAItem = { questionHtml: string; answerHtml: string }
+type AnswerSection = { heading: string | null; bodyHtml: string }
 
 function parseQaItems(html: string): QAItem[] {
   if (typeof document === "undefined") return []
@@ -24,6 +25,29 @@ function parseQaItems(html: string): QAItem[] {
     questionHtml: el.querySelector(".qa-question")?.innerHTML || "",
     answerHtml: el.querySelector(".qa-answer")?.innerHTML || "",
   }))
+}
+
+function parseAnswerSections(answerHtml: string): AnswerSection[] {
+  if (typeof document === "undefined") return [{ heading: null, bodyHtml: answerHtml }]
+  const container = document.createElement("div")
+  container.innerHTML = answerHtml
+  const children = Array.from(container.children)
+  const hasHeadings = children.some((el) => el.tagName === "H4")
+  if (!hasHeadings) return [{ heading: null, bodyHtml: answerHtml }]
+
+  const sections: AnswerSection[] = []
+  let current: AnswerSection | null = null
+  for (const el of children) {
+    if (el.tagName === "H4") {
+      if (current) sections.push(current)
+      current = { heading: el.innerHTML, bodyHtml: "" }
+    } else {
+      if (!current) current = { heading: null, bodyHtml: "" }
+      current.bodyHtml += el.outerHTML
+    }
+  }
+  if (current) sections.push(current)
+  return sections
 }
 
 export default function LongAnswersQuestionsPage({ params }: { params: Promise<{ subjectId: string; chapterId: string; sectionType: string }> }) {
@@ -79,7 +103,14 @@ export default function LongAnswersQuestionsPage({ params }: { params: Promise<{
                 <ChevronDown className={`h-5 w-5 shrink-0 mt-1 ${color.text} transition-transform duration-300 ${expanded[i] ? 'rotate-180' : ''}`} />
               </button>
               {expanded[i] && (
-                <div className="qa-answer px-5 pb-5 pt-1 border-t border-white/5 animate-in slide-in-from-top-2 duration-300" dangerouslySetInnerHTML={{ __html: item.answerHtml }} />
+                <div className="px-5 pb-5 pt-1 border-t border-white/5 animate-in slide-in-from-top-2 duration-300 space-y-3">
+                  {parseAnswerSections(item.answerHtml).map((section, si) => (
+                    <div key={si} className={`qa-section qa-section-c${(si % 4) + 1}`}>
+                      {section.heading && <h4 dangerouslySetInnerHTML={{ __html: section.heading }} />}
+                      <div className="qa-answer" dangerouslySetInnerHTML={{ __html: section.bodyHtml }} />
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           ))}

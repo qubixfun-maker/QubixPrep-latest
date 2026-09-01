@@ -291,3 +291,36 @@
   margin: 0.15rem 0.1rem;
   white-space: nowrap;
 }
+
+/* Two-tone accent-border section cards for long-answer content */
+.qa-section {
+  border-radius: 0.875rem;
+  padding: 1rem 1.1rem;
+  background: hsl(var(--card) / 0.5);
+  border-top: 3px solid;
+  border-left: 3px solid;
+}
+.qa-section h4 {
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 0.5rem;
+}
+.qa-section .qa-answer {
+  font-size: 0.875rem;
+}
+.qa-section .qa-answer p:first-child {
+  margin-top: 0;
+}
+.qa-section .qa-answer p:last-child {
+  margin-bottom: 0;
+}
+.qa-section-c1 { border-top-color: hsl(256 58% 55%); border-left-color: hsl(215 100% 75%); }
+.qa-section-c1 h4 { color: hsl(215 100% 75%); }
+.qa-section-c2 { border-top-color: hsl(215 100% 75%); border-left-color: hsl(165 70% 45%); }
+.qa-section-c2 h4 { color: hsl(165 70% 45%); }
+.qa-section-c3 { border-top-color: hsl(165 70% 45%); border-left-color: hsl(35 90% 60%); }
+.qa-section-c3 h4 { color: hsl(35 90% 60%); }
+.qa-section-c4 { border-top-color: hsl(35 90% 60%); border-left-color: hsl(340 70% 60%); }
+.qa-section-c4 h4 { color: hsl(340 70% 60%); }
