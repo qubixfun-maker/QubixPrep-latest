@@ -1,0 +1,64 @@
+.wrap { display: flex; flex-direction: column; gap: 8px; }
+
+.toolbar { display: flex; gap: 8px; justify-content: flex-end; }
+.zoomBtn {
+  border: 0.5px solid var(--border-strong);
+  background: var(--surface-1);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+.zoomLabel { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; padding: 0 6px; }
+
+.viewport {
+  position: relative;
+  width: 100%;
+  height: min(65vh, 560px);
+  min-height: 320px;
+  border: 0.5px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface-0);
+  touch-action: none;
+  cursor: grab;
+}
+.viewport.dragging { cursor: grabbing; }
+
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.svg { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+
+.node {
+  position: absolute;
+  background: var(--surface-1);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.08));
+}
+.rootNode {
+  border-width: 1.5px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rootLabel { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+
+.nodeLabel { font-size: 13px; font-weight: 500; color: var(--text-primary); line-height: 1.3; }
+.nodeArrow { display: inline-block; width: 5px; height: 5px; border-right: 1.5px solid var(--text-muted); border-bottom: 1.5px solid var(--text-muted); transform: rotate(-45deg); margin-left: 6px; vertical-align: middle; }
+.nodeDetail { font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin-top: 6px; }
+
+.hint { font-size: 12px; color: var(--text-muted); text-align: center; }

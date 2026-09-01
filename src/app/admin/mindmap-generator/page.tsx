@@ -6,7 +6,7 @@ import { doc, collection, query, orderBy, getDocs, setDoc, increment, serverTime
 import { generateMindmapData } from "@/ai/flows/ai-mindmap-data-generator"
 import { extractLongAnswerQuestions } from "@/ai/flows/ai-longanswers-question-extractor"
 import { ref as storageRef, uploadBytes } from "firebase/storage"
-import MindMapTree, { type MindmapNode } from "@/components/mindmap/MindMapTree"
+import MindMapCanvas, { type MindmapNode } from "@/components/mindmap/MindMapCanvas"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -338,7 +338,7 @@ export default function MindmapGeneratorPage() {
             <CardHeader><CardTitle className="text-base">3. Preview</CardTitle></CardHeader>
             <CardContent className="flex justify-center py-8">
               <div className="overflow-x-auto">
-                <MindMapTree root={{ name: generatedData.centralTopic, branches: generatedData.branches }} />
+                <MindMapCanvas root={{ name: generatedData.centralTopic, branches: generatedData.branches }} />
               </div>
             </CardContent>
           </Card>

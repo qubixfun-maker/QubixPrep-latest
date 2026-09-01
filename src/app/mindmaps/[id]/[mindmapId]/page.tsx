@@ -5,7 +5,7 @@ import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { ChevronLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
-import MindMapTree from "@/components/mindmap/MindMapTree"
+import MindMapCanvas from "@/components/mindmap/MindMapCanvas"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
 
@@ -46,7 +46,7 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
 
       {mm.type === "radial" && mm.data ? (
         <div className="flex justify-center overflow-x-auto py-4">
-          <MindMapTree root={{ name: mm.data.centralTopic, branches: mm.data.branches }} />
+          <MindMapCanvas root={{ name: mm.data.centralTopic, branches: mm.data.branches }} />
         </div>
       ) : mm.imageUrl ? (
         <div className="flex justify-center">
