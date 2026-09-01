@@ -231,8 +231,9 @@ export default function LongAnswersBulkGeneratorPage() {
     if (pairsWithText.length === 0) return
     setIsExtractingQuestions(true)
     setExtractedChapters([])
+    const results: ExtractedChapter[] = []
+    let failedCount = 0
     try {
-      const results: ExtractedChapter[] = []
       for (const pair of pairsWithText) {
         const subject = subjects?.find((s: any) => s.id === pair.subjectId)
         const subjectName = subject?.name || pair.subjectId
@@ -240,24 +241,34 @@ export default function LongAnswersBulkGeneratorPage() {
         for (let i = 0; i < chapters.length; i++) {
           const ch = chapters[i]
           setQuestionExtractProgress(`${subjectName}: ${ch.title} (${i + 1}/${chapters.length})...`)
-          const result = await extractLongAnswerQuestions({ chapterTitle: ch.title, rawText: ch.text })
-          results.push({
-            key: `${pair.id}-${i}-${ch.title}`,
-            subjectId: pair.subjectId,
-            subjectName,
-            title: ch.title,
-            longEssays: result.longEssays,
-            shortEssays: result.shortEssays,
-            shortAnswers: result.shortAnswers,
-            selected: true,
-          })
+          try {
+            const result = await extractLongAnswerQuestions({ chapterTitle: ch.title, rawText: ch.text })
+            if (result.error) {
+              failedCount++
+              toast({ variant: "destructive", title: `Skipped "${ch.title}"`, description: result.error })
+              continue
+            }
+            results.push({
+              key: `${pair.id}-${i}-${ch.title}`,
+              subjectId: pair.subjectId,
+              subjectName,
+              title: ch.title,
+              longEssays: result.longEssays,
+              shortEssays: result.shortEssays,
+              shortAnswers: result.shortAnswers,
+              selected: true,
+            })
+            // Commit progress after every chapter so a later failure never loses
+            // chapters that already succeeded.
+            setExtractedChapters([...results])
+          } catch (chErr: any) {
+            failedCount++
+            toast({ variant: "destructive", title: `Skipped "${ch.title}"`, description: chErr.message })
+          }
         }
       }
-      setExtractedChapters(results)
       const totalQ = results.reduce((sum, c) => sum + c.longEssays.length + c.shortEssays.length + c.shortAnswers.length, 0)
-      toast({ title: "Questions Extracted", description: `${results.length} chapter(s) across ${pairsWithText.length} subject(s), ${totalQ} question(s) total.` })
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Extraction Failed", description: e.message })
+      toast({ title: "Questions Extracted", description: `${results.length} chapter(s) across ${pairsWithText.length} subject(s), ${totalQ} question(s) total.${failedCount > 0 ? ` (${failedCount} chapter(s) skipped)` : ""}` })
     } finally {
       setIsExtractingQuestions(false)
       setQuestionExtractProgress("")

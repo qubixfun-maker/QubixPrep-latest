@@ -40,34 +40,44 @@ export async function extractLongAnswerQuestions(input: ExtractQuestionsInput): 
     return { longEssays: [], shortEssays: [], shortAnswers: [], error: 'No text provided.' };
   }
 
-  try {
-    const prompt = buildPrompt(input);
-    const raw = await callAI([{ role: 'user', content: prompt }], 4000);
-    if (!raw) return { longEssays: [], shortEssays: [], shortAnswers: [], error: 'Empty response from AI model' };
+  const prompt = buildPrompt(input);
+  const MAX_ATTEMPTS = 3;
+  let lastError = 'Unknown error during question extraction';
 
-    let clean = raw.replace(/```json|```/g, '').trim();
-    let parsed: any;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      parsed = JSON.parse(clean);
-    } catch {
-      const match = clean.match(/\{[\s\S]*\}/);
-      if (match) {
-        try { parsed = JSON.parse(match[0]); } catch { /* fall through */ }
+      const raw = await callAI([{ role: 'user', content: prompt }], 4000);
+      if (!raw) { lastError = 'Empty response from AI model'; continue; }
+
+      let clean = raw.replace(/```json|```/g, '').trim();
+      let parsed: any;
+      try {
+        parsed = JSON.parse(clean);
+      } catch {
+        const match = clean.match(/\{[\s\S]*\}/);
+        if (match) {
+          try { parsed = JSON.parse(match[0]); } catch { /* fall through */ }
+        }
       }
+
+      if (!parsed || typeof parsed !== 'object') {
+        lastError = 'AI response was not valid JSON.';
+        continue;
+      }
+
+      const clean_arr = (arr: any) => Array.isArray(arr) ? arr.filter((q: any) => typeof q === 'string' && q.trim()).map((q: string) => q.trim()) : [];
+
+      return {
+        longEssays: clean_arr(parsed.longEssays),
+        shortEssays: clean_arr(parsed.shortEssays),
+        shortAnswers: clean_arr(parsed.shortAnswers),
+      };
+    } catch (err: any) {
+      // Covers transient network errors too (e.g. "Failed to fetch") - retry instead
+      // of aborting the whole batch this chapter is part of.
+      lastError = err.message || 'Unknown error during question extraction';
     }
-
-    if (!parsed || typeof parsed !== 'object') {
-      return { longEssays: [], shortEssays: [], shortAnswers: [], error: 'AI response was not valid JSON.' };
-    }
-
-    const clean_arr = (arr: any) => Array.isArray(arr) ? arr.filter((q: any) => typeof q === 'string' && q.trim()).map((q: string) => q.trim()) : [];
-
-    return {
-      longEssays: clean_arr(parsed.longEssays),
-      shortEssays: clean_arr(parsed.shortEssays),
-      shortAnswers: clean_arr(parsed.shortAnswers),
-    };
-  } catch (err: any) {
-    return { longEssays: [], shortEssays: [], shortAnswers: [], error: err.message || 'Unknown error during question extraction' };
   }
+
+  return { longEssays: [], shortEssays: [], shortAnswers: [], error: `${lastError} (after ${MAX_ATTEMPTS} attempts)` };
 }
