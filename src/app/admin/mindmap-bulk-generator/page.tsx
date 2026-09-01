@@ -36,7 +36,7 @@ type ExtractedChapter = ChapterMeta & {
 type QueueItem = {
   subjectId: string
   chapterTitle: string
-  unitName?: string
+  unitName?: string | null
   mindmapKey: string
   centralTopic: string
   branchName: string
@@ -205,7 +205,7 @@ export default function MindmapBulkGeneratorPage() {
           queue.push({
             subjectId: ch.subjectId,
             chapterTitle: ch.chapterTitle,
-            unitName: ch.unitName,
+            unitName: ch.unitName || null,
             mindmapKey: ch.key,
             centralTopic: ch.centralTopic,
             branchName,
@@ -263,7 +263,7 @@ export default function MindmapBulkGeneratorPage() {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async function saveMindmap(subjectId: string, chapterTitle: string, unitName: string | undefined, centralTopic: string, branches: MindmapNode[]) {
+  async function saveMindmap(subjectId: string, chapterTitle: string, unitName: string | null | undefined, centralTopic: string, branches: MindmapNode[]) {
     const mmId = chapterTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now()
     const subjectRef = doc(db!, 'subjects', subjectId)
     const mmRef = doc(db!, 'subjects', subjectId, 'mindmaps', mmId)
