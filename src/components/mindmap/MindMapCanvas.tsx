@@ -52,39 +52,48 @@ function layoutChildren(
   if (branches.length === 0) return
 
   const childW = Math.max(110, 170 - depth * 12)
-  const spacing = Math.max(46, 72 - depth * 6)
+  const vGap = Math.max(14, 22 - depth * 2)
   const gap = Math.max(28, 40 - depth * 4)
-  const startY = parentY + parentH / 2 - ((branches.length - 1) * spacing) / 2
   const childX = side === "left" ? parentX - childW - gap : parentX + parentW + gap
 
-  branches.forEach((child, i) => {
+  const infos = branches.map((child, i) => {
     const childPath = parentPath + "|" + i
     const childExpanded = !!expandedPaths[childPath]
     const childHasChildren = !!(child.branches && child.branches.length > 0)
     const detail = nodeDetailText(child)
-    const childY = startY + i * spacing
-    const childH = childExpanded && detail && !childHasChildren ? BASE_NODE_H + 46 : BASE_NODE_H
+    const showInlineDetail = childExpanded && !!detail && !childHasChildren
+    const height = showInlineDetail ? BASE_NODE_H + 46 : BASE_NODE_H
+    return { child, childPath, childExpanded, childHasChildren, detail, height }
+  })
+
+  const totalHeight = infos.reduce((sum, info) => sum + info.height, 0) + vGap * (infos.length - 1)
+  let currentY = parentY + parentH / 2 - totalHeight / 2
+
+  infos.forEach((info) => {
+    const childY = currentY
 
     nodes.push({
-      path: childPath,
-      label: child.name,
-      detail: childExpanded ? detail : null,
-      x: childX, y: childY, w: childW, h: childH,
+      path: info.childPath,
+      label: info.child.name,
+      detail: info.childExpanded ? info.detail : null,
+      x: childX, y: childY, w: childW, h: info.height,
       side, depth, color,
       isRoot: false,
-      hasChildren: childHasChildren || !!detail,
-      isExpanded: childExpanded,
+      hasChildren: info.childHasChildren || !!info.detail,
+      isExpanded: info.childExpanded,
     })
 
     const startEdgeX = side === "left" ? parentX : parentX + parentW
     const startEdgeY = parentY + parentH / 2
     const endEdgeX = side === "left" ? childX + childW : childX
-    const endEdgeY = childY + childH / 2
+    const endEdgeY = childY + info.height / 2
     lines.push({ x1: startEdgeX, y1: startEdgeY, x2: endEdgeX, y2: endEdgeY, color, opacity: Math.max(0.25, 0.55 - depth * 0.08) })
 
-    if (childExpanded && childHasChildren) {
-      layoutChildren(child, childPath, childX, childY, childW, childH, side, depth + 1, color, expandedPaths, nodes, lines)
+    if (info.childExpanded && info.childHasChildren) {
+      layoutChildren(info.child, info.childPath, childX, childY, childW, info.height, side, depth + 1, color, expandedPaths, nodes, lines)
     }
+
+    currentY += info.height + vGap
   })
 }
 
@@ -103,41 +112,55 @@ function computeLayout(root: MindmapNode, expandedPaths: Record<string, boolean>
     isRoot: true, hasChildren: branches.length > 0, isExpanded: true,
   })
 
-  const leftBranches = branches.filter((_, i) => i % 2 === 0)
-  const rightBranches = branches.filter((_, i) => i % 2 === 1)
-  const topSpacing = 130
+  const vGapTop = 22
 
-  branches.forEach((branch, i) => {
+  // Precompute each top-level branch's own height first (same fix as
+  // layoutChildren below), so an expanded branch never overlaps its neighbor.
+  const branchInfos = branches.map((branch, i) => {
     const side: "left" | "right" = i % 2 === 0 ? "left" : "right"
-    const sideIndex = Math.floor(i / 2)
-    const sideCount = side === "left" ? leftBranches.length : rightBranches.length
-    const startY = rootY + ROOT_H / 2 - ((sideCount - 1) * topSpacing) / 2
-    const y = startY + sideIndex * topSpacing
-    const x = side === "left" ? rootX - 210 : rootX + ROOT_W + 40
     const path = "0|" + i
     const color = COLORS[i % COLORS.length]
     const isExpanded = !!expandedPaths[path]
     const hasChildren = !!(branch.branches && branch.branches.length > 0)
     const detail = nodeDetailText(branch)
-    const h = isExpanded && detail && !hasChildren ? BASE_NODE_H + 46 : BASE_NODE_H + 8
-
-    nodes.push({
-      path, label: branch.name, detail: isExpanded ? detail : null,
-      x, y, w: 170, h,
-      side, depth: 0, color,
-      isRoot: false, hasChildren: hasChildren || !!detail, isExpanded,
-    })
-
-    const startEdgeX = side === "left" ? rootX : rootX + ROOT_W
-    const startEdgeY = rootY + ROOT_H / 2
-    const endEdgeX = side === "left" ? x + 170 : x
-    const endEdgeY = y + h / 2
-    lines.push({ x1: startEdgeX, y1: startEdgeY, x2: endEdgeX, y2: endEdgeY, color, opacity: 0.6 })
-
-    if (isExpanded && hasChildren) {
-      layoutChildren(branch, path, x, y, 170, h, side, 1, color, expandedPaths, nodes, lines)
-    }
+    const showInlineDetail = isExpanded && !!detail && !hasChildren
+    const h = showInlineDetail ? BASE_NODE_H + 46 : BASE_NODE_H + 8
+    return { branch, side, path, color, isExpanded, hasChildren, detail, h }
   })
+
+  const leftInfos = branchInfos.filter((b) => b.side === "left")
+  const rightInfos = branchInfos.filter((b) => b.side === "right")
+
+  function positionSide(infos: typeof branchInfos) {
+    const totalHeight = infos.reduce((sum, b) => sum + b.h, 0) + vGapTop * (infos.length - 1)
+    let currentY = rootY + ROOT_H / 2 - totalHeight / 2
+    infos.forEach((info) => {
+      const x = info.side === "left" ? rootX - 210 : rootX + ROOT_W + 40
+      const y = currentY
+
+      nodes.push({
+        path: info.path, label: info.branch.name, detail: info.isExpanded ? info.detail : null,
+        x, y, w: 170, h: info.h,
+        side: info.side, depth: 0, color: info.color,
+        isRoot: false, hasChildren: info.hasChildren || !!info.detail, isExpanded: info.isExpanded,
+      })
+
+      const startEdgeX = info.side === "left" ? rootX : rootX + ROOT_W
+      const startEdgeY = rootY + ROOT_H / 2
+      const endEdgeX = info.side === "left" ? x + 170 : x
+      const endEdgeY = y + info.h / 2
+      lines.push({ x1: startEdgeX, y1: startEdgeY, x2: endEdgeX, y2: endEdgeY, color: info.color, opacity: 0.6 })
+
+      if (info.isExpanded && info.hasChildren) {
+        layoutChildren(info.branch, info.path, x, y, 170, info.h, info.side, 1, info.color, expandedPaths, nodes, lines)
+      }
+
+      currentY += info.h + vGapTop
+    })
+  }
+
+  positionSide(leftInfos)
+  positionSide(rightInfos)
 
   // Bounds for the pannable canvas size
   const allX = nodes.flatMap(n => [n.x, n.x + n.w])
