@@ -83,7 +83,7 @@
   margin-bottom: 0.75rem;
 }
 .qa-number {
-  color: hsl(var(--primary));
+  color: hsl(0 0% 95%);
   margin-right: 0.4rem;
 }
 .qa-repeat {
@@ -316,11 +316,11 @@
 .qa-section .qa-answer p:last-child {
   margin-bottom: 0;
 }
-.qa-section-c1 { border-top-color: hsl(256 58% 55%); border-left-color: hsl(215 100% 75%); }
-.qa-section-c1 h4 { color: hsl(215 100% 75%); }
-.qa-section-c2 { border-top-color: hsl(215 100% 75%); border-left-color: hsl(165 70% 45%); }
-.qa-section-c2 h4 { color: hsl(165 70% 45%); }
-.qa-section-c3 { border-top-color: hsl(165 70% 45%); border-left-color: hsl(35 90% 60%); }
-.qa-section-c3 h4 { color: hsl(35 90% 60%); }
-.qa-section-c4 { border-top-color: hsl(35 90% 60%); border-left-color: hsl(340 70% 60%); }
-.qa-section-c4 h4 { color: hsl(340 70% 60%); }
+.qa-section-c1 { border-top-color: hsl(0 0% 90%); border-left-color: hsl(210 55% 85%); }
+.qa-section-c1 h4 { color: hsl(210 60% 78%); }
+.qa-section-c2 { border-top-color: hsl(210 55% 85%); border-left-color: hsl(165 40% 82%); }
+.qa-section-c2 h4 { color: hsl(165 45% 72%); }
+.qa-section-c3 { border-top-color: hsl(165 40% 82%); border-left-color: hsl(35 55% 84%); }
+.qa-section-c3 h4 { color: hsl(35 65% 75%); }
+.qa-section-c4 { border-top-color: hsl(35 55% 84%); border-left-color: hsl(340 45% 86%); }
+.qa-section-c4 h4 { color: hsl(340 50% 78%); }
