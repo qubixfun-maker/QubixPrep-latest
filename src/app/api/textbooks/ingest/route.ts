@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
     // depth, every depth is scored by how many sequentially-numbered
     // (1, 2, 3...) entries it contains, and the best-scoring depth wins.
     function parseNumberedTitle(raw: string): { num: number; title: string } | null {
-      let m = raw.match(/^Chapter\s+(\d+)[.:]?\s*(.*)$/i)
+      // [\s\-]+ after "Chapter" and [.:_\s\-]* before the title covers
+      // "Chapter 1: Title", "Chapter-01_Title", "Chapter 5" (no title), etc.
+      let m = raw.match(/^Chapter[\s\-]+(\d+)[.:_\s\-]*(.*)$/i)
       if (m) return { num: parseInt(m[1], 10), title: m[2].trim() }
       m = raw.match(/^(\d+)[.:]?\s+(.+)$/)
       if (m) return { num: parseInt(m[1], 10), title: m[2].trim() }
@@ -208,6 +210,31 @@ export async function POST(req: NextRequest) {
       return matches / tocWords.length
     }
 
+    // Shared by every TOC-title-list strategy below: given an ordered list of
+    // candidate chapter titles (source varies - see callers), fuzzy-match
+    // each one in order against the first line of every subsequent page
+    // (a running header), tolerating OCR/extraction noise. Only ever
+    // advances forward through the list, never backward, to avoid false
+    // positives between lexically-similar titles.
+    async function locateTitlesInBody(pdfDoc: any, titles: string[], searchFromPage: number, totalPages: number): Promise<Map<number, number>> {
+      const titleNorm = titles.map((t) => normalizeWords(t))
+      const found = new Map<number, number>()
+      let idx = 0
+      for (let p = searchFromPage; p <= totalPages && idx < titles.length; p++) {
+        const page = await pdfDoc.getPage(p)
+        const content = await page.getTextContent()
+        const lines = extractPageLines(content.items)
+        if (lines.length === 0) continue
+        const headerWords = normalizeWords(lines[0])
+        const sim = titleSimilarity(titleNorm[idx], headerWords)
+        if (sim >= 0.6) {
+          found.set(idx, p)
+          idx++
+        }
+      }
+      return found
+    }
+
     async function findTocSuggestions(pdfDoc: any, totalPages: number): Promise<{ title: string; page: number | null }[] | null> {
       let tocPageNum: number | null = null
       let tocLines: string[] = []
@@ -224,26 +251,81 @@ export async function POST(req: NextRequest) {
       if (!tocPageNum || tocLines.length < 2) return null
 
       const tocTitles = tocLines.filter((l) => l.length >= 2 && l.length <= 120)
-      const tocNorm = tocTitles.map((t) => normalizeWords(t))
+      const found = await locateTitlesInBody(pdfDoc, tocTitles, tocPageNum + 1, totalPages)
+      if (found.size < 2) return null
 
-      const found = new Map<number, number>()
-      let tocIdx = 0
-      for (let p = tocPageNum + 1; p <= totalPages && tocIdx < tocTitles.length; p++) {
+      return tocTitles.map((title, i) => ({ title, page: found.has(i) ? found.get(i)! : null }))
+    }
+
+    // For books with no bookmarks and no "Contents" page (or one page.js
+    // can't cleanly isolate), scan the WHOLE document for a numbered listing
+    // like "1. Wound, Keloid..." / "2. Acute Infections..." - common as a
+    // per-section chapter list scattered near each section's start, rather
+    // than one single front-matter TOC. Only lines that look like short
+    // title phrases are kept (long sentences ending in ":" or "?" are almost
+    // always multiple-choice questions using the same "N. text" numbering,
+    // not chapters), and only a page with at least 2 CONSECUTIVE expected
+    // chapter numbers together is trusted - an isolated single match is far
+    // more likely to be an unrelated coincidence (e.g. one MCQ option that
+    // happens to share a number with the next real chapter).
+    function looksLikeChapterTitle(title: string): boolean {
+      if (title.length > 90) return false
+      const words = title.split(/\s+/)
+      if (words.length > 10) return false
+      if (/[:?]$/.test(title.trim())) return false
+      return true
+    }
+
+    async function findNumberedListingTitles(pdfDoc: any, totalPages: number): Promise<Map<number, string> | null> {
+      const linePattern = /^(\d+)\.\s+(.+)$/
+      const found = new Map<number, string>()
+      let lastNum = 0
+
+      for (let p = 1; p <= totalPages; p++) {
         const page = await pdfDoc.getPage(p)
         const content = await page.getTextContent()
         const lines = extractPageLines(content.items)
-        if (lines.length === 0) continue
-        const headerWords = normalizeWords(lines[0])
-        const sim = titleSimilarity(tocNorm[tocIdx], headerWords)
-        if (sim >= 0.6) {
-          found.set(tocIdx, p)
-          tocIdx++
+        const pageMatches: { num: number; title: string }[] = []
+        for (const line of lines) {
+          const m = line.match(linePattern)
+          if (m && looksLikeChapterTitle(m[2].trim())) {
+            pageMatches.push({ num: parseInt(m[1], 10), title: m[2].trim() })
+          }
+        }
+        if (pageMatches.length === 0) continue
+
+        const accepted: { num: number; title: string }[] = []
+        let expect = lastNum + 1
+        for (const { num, title } of pageMatches) {
+          if (num === expect) {
+            accepted.push({ num, title })
+            expect++
+          }
+        }
+        if (accepted.length >= 2) {
+          for (const { num, title } of accepted) found.set(num, title)
+          lastNum = accepted[accepted.length - 1].num
         }
       }
 
       if (found.size < 2) return null
+      return found
+    }
 
-      return tocTitles.map((title, i) => ({ title, page: found.has(i) ? found.get(i)! : null }))
+    async function findNumberedListingSuggestions(pdfDoc: any, totalPages: number): Promise<{ title: string; page: number | null }[] | null> {
+      const titleMap = await findNumberedListingTitles(pdfDoc, totalPages)
+      if (!titleMap) return null
+
+      const maxNum = Math.max(...titleMap.keys())
+      const orderedTitles: string[] = []
+      for (let n = 1; n <= maxNum; n++) {
+        orderedTitles.push(titleMap.get(n) || `Chapter ${n}`)
+      }
+
+      const found = await locateTitlesInBody(pdfDoc, orderedTitles, 1, totalPages)
+      if (found.size < 2) return null
+
+      return orderedTitles.map((title, i) => ({ title, page: found.has(i) ? found.get(i)! : null }))
     }
 
     // Strategy 3: some books print "Chapter N: Title" as a running header on
@@ -315,6 +397,14 @@ export async function POST(req: NextRequest) {
       }
 
       if (detected.length < 2) {
+        const numberedSuggestions = await findNumberedListingSuggestions(pdfDoc, totalPages)
+        if (numberedSuggestions && numberedSuggestions.length >= 2) {
+          return NextResponse.json({
+            error: 'No chapters could be detected from bookmarks or page content. This textbook\'s structure isn\'t supported yet.',
+            suggestedChapters: numberedSuggestions,
+          }, { status: 400 })
+        }
+
         const tocSuggestions = await findTocSuggestions(pdfDoc, totalPages)
         if (tocSuggestions && tocSuggestions.length >= 2) {
           return NextResponse.json({
