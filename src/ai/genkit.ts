@@ -214,11 +214,21 @@ export async function callAI(
 // long-answer generation), since the fallback chain can switch models mid-run.
 export async function callAIWithProvider(
   messages: { role: "user" | "assistant" | "system"; content: string }[],
-  maxTokens: number = 2000
+  maxTokens: number = 2000,
+  forceVertex: boolean = false
 ): Promise<{ content: string; provider: string }> {
-  const providers = getStaticProviders()
-  const vertexProvider = await getVertexProvider()
-  if (vertexProvider) providers.push(vertexProvider)
+  let providers: Provider[]
+  if (forceVertex) {
+    const vertexProvider = await getVertexProvider()
+    if (!vertexProvider) {
+      throw new Error("Vertex AI is not configured (check GOOGLE_SERVICE_ACCOUNT_KEY / GOOGLE_CLOUD_PROJECT_ID) but Vertex-only mode was requested.")
+    }
+    providers = [vertexProvider]
+  } else {
+    providers = getStaticProviders()
+    const vertexProvider = await getVertexProvider()
+    if (vertexProvider) providers.push(vertexProvider)
+  }
 
   if (providers.length === 0) {
     throw new Error("No AI providers configured. Please set at least one API key in environment variables.")

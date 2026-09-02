@@ -162,6 +162,7 @@ export type GenerateBranchDetailInput = {
   centralTopic: string;
   branchName: string;
   pyqQuestions?: string[];
+  forceVertex?: boolean;
 };
 
 export type GenerateBranchDetailOutput = {
@@ -219,7 +220,7 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
     let lastError = 'Unknown error generating branch detail';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000);
+        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000, input.forceVertex);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);

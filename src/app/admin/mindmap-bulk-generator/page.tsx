@@ -182,6 +182,8 @@ export default function MindmapBulkGeneratorPage() {
   // --- Step 4: settings + run ---
   const [pauseSeconds, setPauseSeconds] = useState(60)
   const [branchPauseSeconds, setBranchPauseSeconds] = useState(3)
+  const [concurrency, setConcurrency] = useState(4)
+  const [pinVertexOnly, setPinVertexOnly] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
 
   const isPausedRef = useRef(false)
@@ -223,18 +225,19 @@ export default function MindmapBulkGeneratorPage() {
         queue,
         pauseSeconds,
         branchPauseSeconds,
-        currentIndex: 0,
+        concurrency,
+        forceVertex: pinVertexOnly,
         completedCount: 0,
         failedBranches: [],
-        collectedBranches: {},
+        doneMindmapKeys: [],
         providerCounts: {},
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
 
-      toast({ title: "Job Started", description: `${queue.length} branch(es) across ${extractedChapters.length} chapter(s) queued.` })
+      toast({ title: "Job Started", description: `${queue.length} branch(es) across ${extractedChapters.length} chapter(s) queued, ${concurrency} chapter(s) processed at a time.` })
       isPausedRef.current = false
-      runLoop(queue, 0, pauseSeconds, branchPauseSeconds, {})
+      runLoop(queue, pauseSeconds, branchPauseSeconds, [], concurrency, pinVertexOnly)
     } catch (e: any) {
       toast({ variant: "destructive", title: "Failed to start", description: e.message })
     } finally {
@@ -246,16 +249,16 @@ export default function MindmapBulkGeneratorPage() {
     if (!job || job.status !== "paused") return
     isPausedRef.current = false
     await updateJob({ status: "running" })
-    runLoop(job.queue, job.currentIndex, job.pauseSeconds, job.branchPauseSeconds || 3, job.collectedBranches || {})
+    runLoop(job.queue, job.pauseSeconds, job.branchPauseSeconds || 3, job.doneMindmapKeys || [], job.concurrency || 4, job.forceVertex || false)
   }
   function handlePause() {
     isPausedRef.current = true
-    toast({ title: "Pausing...", description: "Will stop after the current branch finishes." })
+    toast({ title: "Pausing...", description: "Will stop once each in-progress chapter finishes its current branch." })
   }
   async function handleReset() {
     if (!confirm("Reset the job? This clears progress tracking (already-saved mind maps are NOT deleted).")) return
     isPausedRef.current = true
-    await updateJob({ status: "idle", queue: [], currentIndex: 0, completedCount: 0, failedBranches: [], collectedBranches: {} })
+    await updateJob({ status: "idle", queue: [], completedCount: 0, failedBranches: [], doneMindmapKeys: [] })
   }
 
   function sleep(ms: number) {
@@ -279,9 +282,6 @@ export default function MindmapBulkGeneratorPage() {
       createdAt: serverTimestamp(),
     })
 
-    // Also mirror the extracted knowledge tree back onto the source chapter doc, so future
-    // features (auto notes/images, QBank generation) can reuse this AI-derived structure
-    // directly instead of burning credits re-extracting the same chapter from scratch.
     if (textbookId && chapterId) {
       await setDoc(doc(db!, 'textbooks', textbookId, 'chapters', chapterId), {
         extractedKnowledge: {
@@ -295,68 +295,94 @@ export default function MindmapBulkGeneratorPage() {
     }
   }
 
-  async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, branchPauseSecs: number, collectedSoFar: Record<string, MindmapNode[]>) {
+  function groupIntoChapters(queue: QueueItem[]): QueueItem[][] {
+    const order: string[] = []
+    const map: Record<string, QueueItem[]> = {}
+    for (const item of queue) {
+      if (!map[item.mindmapKey]) { map[item.mindmapKey] = []; order.push(item.mindmapKey) }
+      map[item.mindmapKey].push(item)
+    }
+    return order.map((k) => map[k])
+  }
+
+  async function runLoop(queue: QueueItem[], pauseSecs: number, branchPauseSecs: number, doneKeysSoFar: string[], concurrencyLevel: number, useVertexOnly: boolean) {
     if (isRunningLocallyRef.current) return
     isRunningLocallyRef.current = true
 
-    const collected: Record<string, MindmapNode[]> = { ...collectedSoFar }
+    const doneKeys = new Set(doneKeysSoFar)
+    const allGroups = groupIntoChapters(queue)
+    const pendingGroups = allGroups.filter((g) => !doneKeys.has(g[0].mindmapKey))
 
-    for (let i = startIndex; i < queue.length; i++) {
-      if (isPausedRef.current) {
-        await updateJob({ status: "paused", currentIndex: i, collectedBranches: collected, updatedAt: serverTimestamp() })
-        isRunningLocallyRef.current = false
-        return
-      }
+    let nextGroupPos = 0
+    function claimNextGroup(): QueueItem[] | null {
+      if (nextGroupPos >= pendingGroups.length) return null
+      return pendingGroups[nextGroupPos++]
+    }
 
-      const item = queue[i]
-      setCurrentLabel(`${item.chapterTitle} — ${item.branchName}`)
+    async function processGroup(group: QueueItem[]) {
+      const collected: MindmapNode[] = []
+      const mindmapKey = group[0].mindmapKey
+      const chapterMeta = extractedChapters.find((c) => c.key === mindmapKey)
 
-      try {
-        const chapterMeta = extractedChapters.find((c) => c.key === item.mindmapKey)
-        const chapterData = chapterMeta ? (chaptersByTextbook[chapterMeta.textbookId] || []).find((c: any) => c.chapterId === chapterMeta.chapterId) : null
-        const sources = [{ textbookTitle: chapterMeta?.textbookTitle || "", chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
+      for (let bi = 0; bi < group.length; bi++) {
+        if (isPausedRef.current) return
+        const item = group[bi]
+        setCurrentLabel(`${item.chapterTitle} — ${item.branchName}`)
 
-        const result = await generateMindmapBranchDetail({ sources, centralTopic: item.centralTopic, branchName: item.branchName })
-        if (result.error || !result.branch) {
-          throw new Error(result.error || "No branch data returned")
+        try {
+          const chapterData = chapterMeta ? (chaptersByTextbook[chapterMeta.textbookId] || []).find((c: any) => c.chapterId === chapterMeta.chapterId) : null
+          const sources = [{ textbookTitle: chapterMeta?.textbookTitle || "", chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
+
+          const result = await generateMindmapBranchDetail({ sources, centralTopic: item.centralTopic, branchName: item.branchName, forceVertex: useVertexOnly })
+          if (result.error || !result.branch) throw new Error(result.error || "No branch data returned")
+
+          collected.push(result.branch)
+          const providerUsed = result.provider || "unknown"
+          await updateJob({
+            completedCount: increment(1),
+            [`providerCounts.${providerUsed}`]: increment(1),
+            updatedAt: serverTimestamp(),
+          })
+        } catch (e: any) {
+          await updateJob({
+            failedBranches: arrayUnion({ chapterTitle: item.chapterTitle, branchName: item.branchName, error: e.message || "Unknown error" }),
+            updatedAt: serverTimestamp(),
+          })
         }
 
-        if (!collected[item.mindmapKey]) collected[item.mindmapKey] = []
-        collected[item.mindmapKey].push(result.branch)
-        const providerUsed = result.provider || "unknown"
-
-        const nextItem = queue[i + 1]
-        const isLastForThisChapter = !nextItem || nextItem.mindmapKey !== item.mindmapKey
-        if (isLastForThisChapter) {
-          await saveMindmap(item.subjectId, item.chapterTitle, item.unitName, item.centralTopic, collected[item.mindmapKey], chapterMeta?.textbookId, chapterMeta?.chapterId)
-          // This chapter is now permanently saved as its own mindmap doc - drop it from the
-          // job-tracking doc so collectedBranches doesn't grow past Firestore's 1MB doc limit.
-          delete collected[item.mindmapKey]
+        if (bi < group.length - 1 && !isPausedRef.current) {
+          await sleep(branchPauseSecs * 1000)
         }
-
-        await updateJob({
-          currentIndex: i + 1,
-          completedCount: increment(1),
-          collectedBranches: collected,
-          [`providerCounts.${providerUsed}`]: increment(1),
-          updatedAt: serverTimestamp(),
-        })
-      } catch (e: any) {
-        await updateJob({
-          currentIndex: i + 1,
-          failedBranches: arrayUnion({ chapterTitle: item.chapterTitle, branchName: item.branchName, error: e.message || "Unknown error" }),
-          updatedAt: serverTimestamp(),
-        })
       }
 
-      if (i < queue.length - 1 && !isPausedRef.current) {
-        const nextItem = queue[i + 1]
-        const movingToNewChapter = nextItem.mindmapKey !== item.mindmapKey
-        await sleep((movingToNewChapter ? pauseSecs : branchPauseSecs) * 1000)
+      if (!isPausedRef.current && collected.length > 0) {
+        const firstItem = group[0]
+        await saveMindmap(firstItem.subjectId, firstItem.chapterTitle, firstItem.unitName, firstItem.centralTopic, collected, chapterMeta?.textbookId, chapterMeta?.chapterId)
+        await updateJob({ doneMindmapKeys: arrayUnion(mindmapKey), updatedAt: serverTimestamp() })
+      }
+
+      if (!isPausedRef.current) {
+        await sleep(pauseSecs * 1000)
       }
     }
 
-    await updateJob({ status: "done", updatedAt: serverTimestamp() })
+    async function worker() {
+      while (true) {
+        if (isPausedRef.current) return
+        const group = claimNextGroup()
+        if (!group) return
+        await processGroup(group)
+      }
+    }
+
+    const workerCount = Math.max(1, Math.min(concurrencyLevel, pendingGroups.length || 1))
+    await Promise.all(Array.from({ length: workerCount }, () => worker()))
+
+    if (isPausedRef.current) {
+      await updateJob({ status: "paused", updatedAt: serverTimestamp() })
+    } else {
+      await updateJob({ status: "done", updatedAt: serverTimestamp() })
+    }
     setCurrentLabel("")
     isRunningLocallyRef.current = false
   }
@@ -373,7 +399,7 @@ export default function MindmapBulkGeneratorPage() {
   }
 
   const hasJob = job && job.queue && job.queue.length > 0
-  const progressPct = hasJob ? Math.round(((job.currentIndex || 0) / job.queue.length) * 100) : 0
+  const progressPct = hasJob ? Math.round(((job.completedCount || 0) / job.queue.length) * 100) : 0
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
@@ -468,6 +494,18 @@ export default function MindmapBulkGeneratorPage() {
                 <CardHeader><CardTitle className="text-base">4. Settings</CardTitle></CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label>Concurrent chapters</Label>
+                    <Input type="number" min={1} max={8} value={concurrency} onChange={(e) => setConcurrency(parseInt(e.target.value) || 1)} className="glass border-white/10" />
+                    <p className="text-xs text-muted-foreground">How many chapters to generate at once. Higher = faster, but more likely to hit provider rate limits.</p>
+                  </div>
+                  <label className="space-y-2 flex flex-col cursor-pointer">
+                    <Label className="cursor-pointer">Pin to Vertex AI only</Label>
+                    <div className="flex items-center gap-2 h-10">
+                      <input type="checkbox" checked={pinVertexOnly} onChange={(e) => setPinVertexOnly(e.target.checked)} />
+                      <span className="text-xs text-muted-foreground">Skip the fallback chain entirely — every branch uses the same model, never a weaker fallback.</span>
+                    </div>
+                  </label>
+                  <div className="space-y-2">
                     <Label>Pause between branches (seconds)</Label>
                     <Input type="number" min={1} max={60} value={branchPauseSeconds} onChange={(e) => setBranchPauseSeconds(parseInt(e.target.value) || 3)} className="glass border-white/10" />
                   </div>
@@ -499,7 +537,7 @@ export default function MindmapBulkGeneratorPage() {
             <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden">
               <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progressPct}%` }} />
             </div>
-            <p className="text-xs text-muted-foreground text-center">{job.currentIndex || 0} / {job.queue.length} branch(es) processed ({progressPct}%)</p>
+            <p className="text-xs text-muted-foreground text-center">{job.completedCount || 0} / {job.queue.length} branch(es) processed ({progressPct}%)</p>
 
             {job.status === "running" && currentLabel && (
               <p className="text-sm text-center flex items-center justify-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> {currentLabel}</p>
