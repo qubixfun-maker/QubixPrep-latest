@@ -276,8 +276,24 @@ export async function POST(req: NextRequest) {
       return true
     }
 
+    // Titles that visually wrap to a second line in the source TOC (e.g.
+    // "4. Adolescent Health and" / "Development" on the next line) end up
+    // truncated by a single-line regex. A title ending in a connector word
+    // is unambiguously incomplete, so the next line gets pulled in as its
+    // continuation - but only then, to avoid ever appending an unrelated
+    // line (like an author-name credit) onto an already-complete title.
+    const TITLE_CONTINUATION_WORDS = new Set(['and', 'of', 'the', 'in', 'to', 'for', 'with', 'or', 'a', 'an', '&', 'vs', 'on', 'from', 'as'])
+
+    function stripTrailingPageNumber(s: string): string {
+      return s.replace(/\s+\d{1,4}\s*$/, '').trim()
+    }
+
     async function findNumberedListingTitles(pdfDoc: any, totalPages: number): Promise<Map<number, string> | null> {
-      const linePattern = /^(\d+)\.\s+(.+)$/
+      // \s* (not \s+) - some TOCs have no space after the period at all,
+      // e.g. "19.Disaster Management." Requiring a space silently skipped
+      // those entries, sending the scan hunting through the rest of the
+      // document and picking up unrelated numbered lists instead.
+      const linePattern = /^(\d+)\.\s*(.+)$/
       const found = new Map<number, string>()
       let lastNum = 0
 
@@ -286,10 +302,19 @@ export async function POST(req: NextRequest) {
         const content = await page.getTextContent()
         const lines = extractPageLines(content.items)
         const pageMatches: { num: number; title: string }[] = []
-        for (const line of lines) {
-          const m = line.match(linePattern)
-          if (m && looksLikeChapterTitle(m[2].trim())) {
-            pageMatches.push({ num: parseInt(m[1], 10), title: m[2].trim() })
+        for (let li = 0; li < lines.length; li++) {
+          const m = lines[li].match(linePattern)
+          if (!m) continue
+          let title = stripTrailingPageNumber(m[2].trim())
+          const lastWord = title.split(/\s+/).pop()?.toLowerCase().replace(/,$/, '') || ''
+          if (TITLE_CONTINUATION_WORDS.has(lastWord) && li + 1 < lines.length) {
+            const nextLine = lines[li + 1]
+            if (!linePattern.test(nextLine) && nextLine.length < 60) {
+              title = stripTrailingPageNumber(title + ' ' + nextLine)
+            }
+          }
+          if (looksLikeChapterTitle(title)) {
+            pageMatches.push({ num: parseInt(m[1], 10), title })
           }
         }
         if (pageMatches.length === 0) continue

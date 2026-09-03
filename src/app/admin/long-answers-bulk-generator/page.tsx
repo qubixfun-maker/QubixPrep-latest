@@ -243,10 +243,14 @@ export default function LongAnswersBulkGeneratorPage() {
           setQuestionExtractProgress(`${subjectName}: ${ch.title} (${i + 1}/${chapters.length})...`)
           try {
             const result = await extractLongAnswerQuestions({ chapterTitle: ch.title, rawText: ch.text })
-            if (result.error) {
+            const totalExtracted = result.longEssays.length + result.shortEssays.length + result.shortAnswers.length
+            if (result.error && totalExtracted === 0) {
               failedCount++
               toast({ variant: "destructive", title: `Skipped "${ch.title}"`, description: result.error })
               continue
+            }
+            if (result.error) {
+              toast({ variant: "destructive", title: `Partial extraction for "${ch.title}"`, description: result.error })
             }
             results.push({
               key: `${pair.id}-${i}-${ch.title}`,

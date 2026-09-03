@@ -253,6 +253,33 @@ export async function callAIWithProvider(
   throw new Error("All AI providers exhausted. Please try again later.")
 }
 
+// Calls Vertex AI only, with no fallback to other providers. Used for bulk generation
+// runs where consistent output quality matters more than resilience via fallback - a
+// silent slide to a weaker free-tier model mid-run is worse than a clear retry/backoff
+// on the same model.
+export async function callVertexOnly(
+  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
+  maxTokens: number = 2000
+): Promise<string> {
+  const provider = await getVertexProvider()
+  if (!provider) {
+    throw new Error('Vertex AI is not configured (check GOOGLE_CLOUD_PROJECT_ID and GOOGLE_SERVICE_ACCOUNT_KEY).')
+  }
+
+  const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
+  const response = await client.chat.completions.create({
+    model: provider.model,
+    messages,
+    max_tokens: maxTokens,
+  })
+
+  const content = response.choices[0]?.message?.content
+  if (!content) {
+    throw new Error('Vertex AI returned an empty response.')
+  }
+  return content
+}
+
 export function getGroqClient() {
   return {
     chat: {
