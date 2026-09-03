@@ -418,6 +418,26 @@ export default function LongAnswersBulkGeneratorPage() {
               chapterExcerpt: matchedChapter.text,
             })
             if (result.provider) result.provider = result.provider + " (textbook)"
+
+            // The grounded prompt deliberately avoids filling gaps with outside knowledge,
+            // so a thin or poorly-matched excerpt can silently produce a much shorter answer
+            // than the question type calls for. Catch that and fall back to plain AI knowledge
+            // for this one question rather than leaving a 4-line "long essay".
+            const MIN_WORDS: Record<string, number> = { long_answer: 150, short_essay: 60 }
+            const minWords = MIN_WORDS[item.questionType]
+            const wordCount = (result.answer || "").trim().split(/s+/).filter(Boolean).length
+            if (minWords && wordCount < minWords) {
+              const fallbackResult = await generateProfPyqAnswerWithProvider({
+                subject: subjectName,
+                chapter: item.chapterTitle,
+                type: item.questionType,
+                question: item.question,
+              })
+              if (fallbackResult.answer) {
+                result = fallbackResult
+                if (result.provider) result.provider = result.provider + " (AI knowledge, textbook excerpt too thin)"
+              }
+            }
           } else {
             result = await generateProfPyqAnswerWithProvider({
               subject: subjectName,
