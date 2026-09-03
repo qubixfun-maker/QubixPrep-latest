@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
-import { doc, collection, query, orderBy, where, getDocs, getDoc, setDoc, updateDoc, increment, serverTimestamp, arrayUnion } from "firebase/firestore"
+import { doc, collection, query, orderBy, getDocs, setDoc, updateDoc, increment, serverTimestamp, arrayUnion } from "firebase/firestore"
 import { extractMindmapBranches, generateMindmapBranchDetail, type MindmapNode } from "@/ai/flows/ai-mindmap-data-generator"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -261,80 +261,6 @@ export default function MindmapBulkGeneratorPage() {
     await updateJob({ status: "idle", queue: [], completedCount: 0, failedBranches: [], doneMindmapKeys: [] })
   }
 
-  const [isRetrying, setIsRetrying] = useState(false)
-  const [retryLabel, setRetryLabel] = useState("")
-
-  // Regenerates each failed branch and appends it directly into its chapter's already-saved
-  // mindmap doc, instead of requiring the whole job to be redone. Failures recorded before
-  // this feature existed are missing subjectId/mindmapKey - for those, fall back to matching
-  // against extractedChapters still held in this tab's memory (only works in the same session
-  // that ran the job; older failures in a fresh tab can't be safely auto-matched).
-  async function handleRetryFailed() {
-    if (!db || !job?.failedBranches?.length) return
-    setIsRetrying(true)
-    const stillFailed: any[] = []
-    let retriedCount = 0
-    try {
-      for (const f of job.failedBranches) {
-        setRetryLabel(`${f.chapterTitle} — ${f.branchName}`)
-        try {
-          let subjectId = f.subjectId
-          let mindmapKey = f.mindmapKey
-          let centralTopic = f.centralTopic
-          let unitName = f.unitName
-          let textbookId = f.textbookId
-          let chapterId = f.chapterId
-
-          if (!subjectId || !mindmapKey || !centralTopic) {
-            const fallback = extractedChapters.find((c) => c.chapterTitle === f.chapterTitle)
-            if (!fallback) {
-              stillFailed.push({ ...f, error: "Missing context to retry - reload the chapter list in this tab, or re-run the job to regenerate this branch." })
-              continue
-            }
-            subjectId = fallback.subjectId
-            mindmapKey = fallback.key
-            centralTopic = fallback.centralTopic
-            unitName = fallback.unitName || null
-            textbookId = fallback.textbookId
-            chapterId = fallback.chapterId
-          }
-
-          let sourceText = ""
-          if (textbookId && chapterId) {
-            const chDoc = await getDoc(doc(db, 'textbooks', textbookId, 'chapters', chapterId))
-            sourceText = (chDoc.data() as any)?.text || ""
-          }
-
-          const chapterMetaForRetry = extractedChapters.find((c) => c.key === mindmapKey)
-          const sources = [{ textbookTitle: chapterMetaForRetry?.textbookTitle || "", chapterTitle: f.chapterTitle, text: sourceText }]
-          const result = await generateMindmapBranchDetail({ sources, centralTopic, branchName: f.branchName })
-          if (result.error || !result.branch) {
-            stillFailed.push({ ...f, subjectId, mindmapKey, centralTopic, unitName, textbookId, chapterId, error: result.error || "Retry failed again" })
-            continue
-          }
-
-          const mmQuery = query(collection(db, 'subjects', subjectId, 'mindmaps'), where('title', '==', f.chapterTitle), orderBy('createdAt', 'desc'))
-          const mmSnap = await getDocs(mmQuery)
-          if (mmSnap.empty) {
-            stillFailed.push({ ...f, subjectId, mindmapKey, centralTopic, unitName, textbookId, chapterId, error: "Could not find the saved mindmap to attach this branch to" })
-            continue
-          }
-          const mmRef = mmSnap.docs[0].ref
-          await updateDoc(mmRef, { 'data.branches': arrayUnion(result.branch) })
-          await updateJob({ completedCount: increment(1) })
-          retriedCount++
-        } catch (e: any) {
-          stillFailed.push({ ...f, error: e.message || "Retry failed" })
-        }
-      }
-      await updateJob({ failedBranches: stillFailed })
-      toast({ title: "Retry Complete", description: `${retriedCount} branch(es) recovered${stillFailed.length > 0 ? `, ${stillFailed.length} still failing` : ""}.` })
-    } finally {
-      setIsRetrying(false)
-      setRetryLabel("")
-    }
-  }
-
   function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
@@ -419,17 +345,7 @@ export default function MindmapBulkGeneratorPage() {
           })
         } catch (e: any) {
           await updateJob({
-            failedBranches: arrayUnion({
-              chapterTitle: item.chapterTitle,
-              branchName: item.branchName,
-              error: e.message || "Unknown error",
-              subjectId: item.subjectId,
-              mindmapKey,
-              centralTopic: item.centralTopic,
-              unitName: item.unitName || null,
-              textbookId: chapterMeta?.textbookId || null,
-              chapterId: chapterMeta?.chapterId || null,
-            }),
+            failedBranches: arrayUnion({ chapterTitle: item.chapterTitle, branchName: item.branchName, error: e.message || "Unknown error" }),
             updatedAt: serverTimestamp(),
           })
         }
@@ -642,17 +558,13 @@ export default function MindmapBulkGeneratorPage() {
             )}
 
             {job.failedBranches && job.failedBranches.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> {job.failedBranches.length} branch(es) failed</p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {job.failedBranches.map((f: any, i: number) => (
                     <p key={i} className="text-xs text-muted-foreground break-words">• {f.chapterTitle} — {f.branchName} — {f.error}</p>
                   ))}
                 </div>
-                <Button onClick={handleRetryFailed} disabled={isRetrying} variant="outline" size="sm" className="w-full gap-2">
-                  {isRetrying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                  {isRetrying ? (retryLabel || "Retrying...") : `Retry ${job.failedBranches.length} Failed Branch(es)`}
-                </Button>
               </div>
             )}
 
