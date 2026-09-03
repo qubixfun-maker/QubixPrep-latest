@@ -145,7 +145,9 @@ Output ONLY valid JSON, no markdown fences, no commentary:
         if (parsed && parsed.centralTopic && Array.isArray(parsed.branchNames)) {
           return { centralTopic: parsed.centralTopic, branchNames: parsed.branchNames };
         }
-        lastError = 'AI response was not valid JSON for branch list.';
+        // Surface what the model actually said instead of a generic message -
+        // needed to diagnose consistent failures that aren't network errors.
+        lastError = `AI response was not valid JSON for branch list. Raw response started with: "${raw.slice(0, 300).replace(/\n/g, ' ')}"`;
       } catch (err: any) {
         lastError = err.message || 'Unknown error extracting branches';
       }
