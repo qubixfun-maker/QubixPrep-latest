@@ -18,6 +18,7 @@ import { getAdminFirestore } from '@/lib/firebase-admin';
 // Bump a task's version when its prompt or output shape changes, so stale results
 // aren't silently reused. Leave alone otherwise.
 export const PROMPT_VERSIONS = {
+  chapterKnowledge: 'v1',
   mindmapBranchList: 'v1',
   mindmapBranchDetail: 'v1',
   notesPagePlan: 'v1',

@@ -55,19 +55,38 @@ export async function formatLongAnswers(input: FormatLongAnswersInput): Promise<
     return { html: '', error: 'No text provided to format.' }
   }
 
-  try {
-    const prompt = buildPrompt(input)
-    const raw = await callAI([{ role: 'user', content: prompt }], 6000)
-    if (!raw) return { html: '', error: 'Empty response from AI model' }
+  const prompt = buildPrompt(input)
+  const MAX_ATTEMPTS = 3
+  let lastError = 'Unknown error during formatting'
 
-    let clean = raw.replace(/```html|```/g, '').trim()
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      // 16000 rather than 6000: answers were being cut off mid-sentence, and a truncated
+      // answer is worse than a slow one - it silently ships incomplete study material.
+      const raw = await callAI([{ role: 'user', content: prompt }], 16000)
+      if (!raw) { lastError = 'Empty response from AI model'; continue }
 
-    if (!clean.includes('qa-item')) {
-      return { html: '', error: 'AI response did not contain the expected qa-item structure. Try again.' }
+      let clean = raw.replace(/```html|```/g, '').trim()
+
+      if (!clean.includes('qa-item')) {
+        lastError = 'AI response did not contain the expected qa-item structure.'
+        continue
+      }
+
+      // Detect a response that stopped mid-way: unbalanced tags mean the model ran out
+      // of room rather than finishing. Retrying is better than saving a partial answer.
+      const openDivs = (clean.match(/<div/g) || []).length
+      const closeDivs = (clean.match(/<\/div>/g) || []).length
+      if (openDivs > closeDivs) {
+        lastError = `Response was truncated (${openDivs} opening divs vs ${closeDivs} closing).`
+        continue
+      }
+
+      return { html: clean }
+    } catch (err: any) {
+      lastError = err.message || 'Unknown error during formatting'
     }
-
-    return { html: clean }
-  } catch (err: any) {
-    return { html: '', error: err.message || 'Unknown error during formatting' }
   }
+
+  return { html: '', error: `${lastError} (after ${MAX_ATTEMPTS} attempts)` }
 }

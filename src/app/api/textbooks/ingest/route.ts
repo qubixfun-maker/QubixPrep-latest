@@ -4,6 +4,7 @@ export const maxDuration = 300
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore, getAdminStorageBucket } from '@/lib/firebase-admin'
 import { FieldValue } from 'firebase-admin/firestore'
+import { repairPdfText } from '@/lib/pdf-text-repair'
 // Force Next.js bundler to include the pdf.js worker file in the deployed output -
 // pdfjs-dist looks this up dynamically at runtime, invisible to static bundling otherwise.
 import 'pdfjs-dist/legacy/build/pdf.worker.mjs'
@@ -535,17 +536,23 @@ export async function POST(req: NextRequest) {
         text += pageText + '\n\n'
       }
 
+      // Repair ligature corruption ("in fl ammation" -> "inflammation") before storing.
+      // Fixing it here means every downstream feature reads clean source text; fixing it
+      // later would leave already-generated content damaged.
+      const repairedText = repairPdfText(text)
+      const repairedTitle = repairPdfText(resolvedTitle)
+
       await textbookRef.collection('chapters').doc(chapterId).set({
-        title: resolvedTitle,
+        title: repairedTitle,
         startPage: ch.startPage,
         endPage: ch.endPage,
-        text,
+        text: repairedText,
         images: [],
         imageCount: 0,
         imagesExtracted: false,
       })
 
-      chapterSummaries.push({ chapterId, title: resolvedTitle, startPage: ch.startPage, endPage: ch.endPage, textLength: text.length })
+      chapterSummaries.push({ chapterId, title: repairedTitle, startPage: ch.startPage, endPage: ch.endPage, textLength: repairedText.length })
     }
 
     await textbookRef.update({ status: 'ready' })
