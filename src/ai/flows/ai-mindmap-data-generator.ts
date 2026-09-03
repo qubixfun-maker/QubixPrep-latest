@@ -1,5 +1,6 @@
 'use server';
 import { callAIWithProvider } from '@/ai/genkit';
+import { withCache, fingerprintInput } from '@/ai/ai-cache';
 
 export type ChapterSource = {
   textbookTitle: string;
@@ -42,6 +43,8 @@ function repairTruncatedJson(str: string): any | null {
   const direct = repairByClosingBrackets(str);
   if (direct) return direct;
 
+  // Cut landed mid-string: walk back to the last completed element boundary (a comma
+  // or opening bracket at depth, outside of any string) and retry from there.
   let inString = false;
   let escapeNext = false;
   let lastElementEnd = -1;
@@ -55,6 +58,7 @@ function repairTruncatedJson(str: string): any | null {
   }
   if (lastElementEnd === -1) return null;
 
+  // Drop the incomplete trailing element entirely, then close the structure.
   const trimmed = str.slice(0, lastElementEnd);
   return repairByClosingBrackets(trimmed);
 }
@@ -158,11 +162,29 @@ TASK: List the top-level branch names only (one per distinct disease/topic/conce
 Output ONLY valid JSON, no markdown fences, no commentary:
 {"centralTopic": "...", "branchNames": ["...", "..."]}`;
 
+    const scope = input.sources.map((s) => s.chapterTitle).join('|') + (input.topicFocus ? '::' + input.topicFocus : '');
+    const fingerprint = await fingerprintInput(sourcesBlock, pyqBlock, focusLine);
+
+    const cached = await withCache<ExtractBranchesOutput>(
+      'mindmapBranchList',
+      scope,
+      fingerprint,
+      async () => runBranchExtraction(prompt, input.forceVertex),
+      { shouldCache: (v) => !v.error && !!v.branchNames?.length },
+    );
+    return cached.value;
+  } catch (err: any) {
+    return { error: err.message || 'Unknown error extracting branches' };
+  }
+}
+
+async function runBranchExtraction(prompt: string, forceVertex?: boolean): Promise<ExtractBranchesOutput> {
+  {
     const MAX_ATTEMPTS = 3;
     let lastError = 'Unknown error extracting branches';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 4000, input.forceVertex);
+        const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 4000, forceVertex);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);
@@ -177,8 +199,6 @@ Output ONLY valid JSON, no markdown fences, no commentary:
       }
     }
     return { error: `${lastError} (after ${MAX_ATTEMPTS} attempts). Try again.` };
-  } catch (err: any) {
-    return { error: err.message || 'Unknown error extracting branches' };
   }
 }
 
@@ -243,11 +263,32 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
     }
   ]
 }`;
+    const scope = `${input.centralTopic}::${input.branchName}`;
+    const fingerprint = await fingerprintInput(sourcesBlock, pyqBlock, input.branchName, input.centralTopic);
+
+    const cached = await withCache<GenerateBranchDetailOutput>(
+      'mindmapBranchDetail',
+      scope,
+      fingerprint,
+      async () => runBranchDetail(prompt, input.branchName, input.forceVertex),
+      { shouldCache: (v) => !v.error && !!v.branch },
+    );
+    if (cached.cached) {
+      return { ...cached.value, provider: (cached.value.provider || 'unknown') + ' (cached)' };
+    }
+    return cached.value;
+  } catch (err: any) {
+    return { error: err.message || 'Unknown error generating branch detail' };
+  }
+}
+
+async function runBranchDetail(prompt: string, branchName: string, forceVertex?: boolean): Promise<GenerateBranchDetailOutput> {
+  {
     const MAX_ATTEMPTS = 3;
     let lastError = 'Unknown error generating branch detail';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000, input.forceVertex);
+        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000, forceVertex);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);
@@ -260,7 +301,5 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
       }
     }
     return { error: `${lastError} (after ${MAX_ATTEMPTS} attempts). Try again.` };
-  } catch (err: any) {
-    return { error: err.message || 'Unknown error generating branch detail' };
   }
 }
