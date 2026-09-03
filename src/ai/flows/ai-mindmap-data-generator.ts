@@ -1,5 +1,5 @@
 'use server';
-import { callAI, callAIWithProvider } from '@/ai/genkit';
+import { callAIWithProvider } from '@/ai/genkit';
 
 export type ChapterSource = {
   textbookTitle: string;
@@ -102,6 +102,7 @@ export type ExtractBranchesInput = {
   sources: ChapterSource[];
   topicFocus?: string;
   pyqQuestions?: string[];
+  forceVertex?: boolean;
 };
 
 export type ExtractBranchesOutput = {
@@ -137,7 +138,7 @@ Output ONLY valid JSON, no markdown fences, no commentary:
     let lastError = 'Unknown error extracting branches';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const raw = await callAI([{ role: 'user', content: prompt }], 1500);
+        const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 1500, input.forceVertex);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);
