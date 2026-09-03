@@ -35,7 +35,31 @@ function buildPyqBlock(pyqQuestions?: string[]): string {
   return '\n\nPAST EXAM QUESTIONS FOR THIS CHAPTER (real questions students have been asked - use these to prioritize which topics need more depth, but source every actual fact from the textbook excerpt above, never from this question list itself, since these are questions only, not answers):\n' + list;
 }
 
+// Salvages a truncated JSON object by discarding any incomplete trailing element and
+// closing the structure. Handles cuts landing mid-string (the common real-world case
+// when a token limit hits partway through writing an array item).
 function repairTruncatedJson(str: string): any | null {
+  const direct = repairByClosingBrackets(str);
+  if (direct) return direct;
+
+  let inString = false;
+  let escapeNext = false;
+  let lastElementEnd = -1;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === ',' || ch === '[' || ch === '{') lastElementEnd = i;
+  }
+  if (lastElementEnd === -1) return null;
+
+  const trimmed = str.slice(0, lastElementEnd);
+  return repairByClosingBrackets(trimmed);
+}
+
+function repairByClosingBrackets(str: string): any | null {
   const stack: string[] = [];
   let inString = false;
   let escapeNext = false;
@@ -84,7 +108,7 @@ function repairTruncatedJson(str: string): any | null {
 }
 
 function tryParseJson(raw: string): any | null {
-  const clean = raw.replace(/```json|```/g, '').trim();
+  const clean = raw.replace(/```[a-zA-Z]*/g, '').replace(/```/g, '').trim();
   try {
     return JSON.parse(clean);
   } catch {
@@ -138,7 +162,7 @@ Output ONLY valid JSON, no markdown fences, no commentary:
     let lastError = 'Unknown error extracting branches';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 1500, input.forceVertex);
+        const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 4000, input.forceVertex);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);
