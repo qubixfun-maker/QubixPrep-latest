@@ -146,7 +146,7 @@ export default function MindmapBulkGeneratorPage() {
         const chapterData = (chaptersByTextbook[ch.textbookId] || []).find((c: any) => c.chapterId === ch.chapterId)
         const sources = [{ textbookTitle: ch.textbookTitle, chapterTitle: ch.chapterTitle, text: chapterData?.text || "" }]
 
-        const result = await extractMindmapBranches({ sources, forceVertex: useVertexOnly })
+        const result = await extractMindmapBranches({ sources, forceVertex: pinVertexOnly })
         if (result.error || !result.branchNames || !result.centralTopic) {
           results.push({ ...ch, centralTopic: ch.chapterTitle, branchNames: [], selectedBranches: {}, isExtracting: false, error: result.error || "Failed to plan branches" })
           continue
