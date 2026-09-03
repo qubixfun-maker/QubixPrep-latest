@@ -429,7 +429,7 @@ export default function LongAnswersBulkGeneratorPage() {
             // for this one question rather than leaving a 4-line "long essay".
             const MIN_WORDS: Record<string, number> = { long_answer: 150, short_essay: 60 }
             const minWords = MIN_WORDS[item.questionType]
-            const wordCount = (result.answer || "").trim().split(/s+/).filter(Boolean).length
+            const wordCount = (result.answer || "").trim().split(/\s+/).filter(Boolean).length
             if (minWords && wordCount < minWords) {
               const fallbackResult = await generateProfPyqAnswerWithProvider({
                 subject: subjectName,
