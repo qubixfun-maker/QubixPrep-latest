@@ -1,6 +1,5 @@
 'use server';
 import { callAIWithProvider } from '@/ai/genkit';
-import { withCache, fingerprintInput } from '@/ai/ai-cache';
 
 export type ChapterSource = {
   textbookTitle: string;
@@ -162,17 +161,7 @@ TASK: List the top-level branch names only (one per distinct disease/topic/conce
 Output ONLY valid JSON, no markdown fences, no commentary:
 {"centralTopic": "...", "branchNames": ["...", "..."]}`;
 
-    const scope = input.sources.map((s) => s.chapterTitle).join('|') + (input.topicFocus ? '::' + input.topicFocus : '');
-    const fingerprint = await fingerprintInput(sourcesBlock, pyqBlock, focusLine);
-
-    const cached = await withCache<ExtractBranchesOutput>(
-      'mindmapBranchList',
-      scope,
-      fingerprint,
-      async () => runBranchExtraction(prompt, input.forceVertex),
-      { shouldCache: (v) => !v.error && !!v.branchNames?.length },
-    );
-    return cached.value;
+    return await runBranchExtraction(prompt, input.forceVertex);
   } catch (err: any) {
     return { error: err.message || 'Unknown error extracting branches' };
   }
@@ -263,20 +252,7 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
     }
   ]
 }`;
-    const scope = `${input.centralTopic}::${input.branchName}`;
-    const fingerprint = await fingerprintInput(sourcesBlock, pyqBlock, input.branchName, input.centralTopic);
-
-    const cached = await withCache<GenerateBranchDetailOutput>(
-      'mindmapBranchDetail',
-      scope,
-      fingerprint,
-      async () => runBranchDetail(prompt, input.branchName, input.forceVertex),
-      { shouldCache: (v) => !v.error && !!v.branch },
-    );
-    if (cached.cached) {
-      return { ...cached.value, provider: (cached.value.provider || 'unknown') + ' (cached)' };
-    }
-    return cached.value;
+    return await runBranchDetail(prompt, input.branchName, input.forceVertex);
   } catch (err: any) {
     return { error: err.message || 'Unknown error generating branch detail' };
   }
