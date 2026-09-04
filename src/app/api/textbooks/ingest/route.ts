@@ -260,8 +260,13 @@ export async function POST(req: NextRequest) {
 
       const tocTitles = tocLines.filter((l) => l.length >= 2 && l.length <= 120)
       console.log(`[INGEST] findTocSuggestions: ${tocTitles.length} candidate title lines (length 2-120 chars) out of ${tocLines.length} total lines`)
+      // Even if very few (or zero) pages get auto-located, the titles themselves were
+      // correctly extracted - discarding them here (as the old "found.size < 2" gate did)
+      // threw away good data the admin could have reviewed and filled in manually. Return
+      // the full title list whenever there are at least 2 titles, regardless of how many
+      // got a located page.
       const found = await locateTitlesInBody(pdfDoc, tocTitles, tocPageNum + 1, totalPages)
-      if (found.size < 2) return null
+      if (tocTitles.length < 2) return null
 
       return tocTitles.map((title, i) => ({ title, page: found.has(i) ? found.get(i)! : null }))
     }
@@ -360,8 +365,10 @@ export async function POST(req: NextRequest) {
       }
       console.log(`[INGEST] findNumberedListingSuggestions: built ordered title list of ${orderedTitles.length} entries (max chapter number seen: ${maxNum}), now locating them in body...`)
 
+      // Same reasoning as findTocSuggestions above - titles were correctly extracted
+      // even when page-location fails, so return them regardless rather than discarding.
       const found = await locateTitlesInBody(pdfDoc, orderedTitles, 1, totalPages)
-      if (found.size < 2) return null
+      if (orderedTitles.length < 2) return null
 
       return orderedTitles.map((title, i) => ({ title, page: found.has(i) ? found.get(i)! : null }))
     }
