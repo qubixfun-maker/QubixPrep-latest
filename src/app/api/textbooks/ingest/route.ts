@@ -39,8 +39,10 @@ export async function POST(req: NextRequest) {
     const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buffer) })
     const pdfDoc = await loadingTask.promise
     const totalPages = pdfDoc.numPages
+    console.log(`[INGEST] "${title}" - ${totalPages} pages`)
 
     const outline = await pdfDoc.getOutline()
+    console.log(`[INGEST] Bookmarks/outline present: ${!!outline}${outline ? `, ${outline.length} top-level entries` : ''}`)
 
     async function getPageNumber(dest: any): Promise<number | null> {
       if (!dest) return null
@@ -69,8 +71,10 @@ export async function POST(req: NextRequest) {
       }
     }
     if (outline) await walk(outline)
+    console.log(`[INGEST] Flat bookmark entries with resolvable page numbers: ${flatEntries.length}`)
 
     let chapterEntries: { title: string; page: number }[] = flatEntries.filter(e => /^\d+\.\s/.test(e.title) || /^Chapter\s+\d+\b/i.test(e.title))
+    console.log(`[INGEST] Bookmarks matching "N. Title" or "Chapter N" pattern directly: ${chapterEntries.length}`)
 
     // Bookmark fallback: some books' real chapters live at a nested outline
     // depth mixed in with unrelated numbering at other depths (e.g. depth 0
@@ -117,6 +121,7 @@ export async function POST(req: NextRequest) {
       if (bestSeq.length >= 2) {
         chapterEntries = bestSeq
       }
+      console.log(`[INGEST] Best-depth bookmark sequence found: ${bestSeq.length} entries (need >=2 to use)`)
     }
 
     // Fallback: bookmarks are missing or unusable (e.g. junk "Page N" reading
@@ -233,6 +238,7 @@ export async function POST(req: NextRequest) {
           idx++
         }
       }
+      console.log(`[INGEST] locateTitlesInBody: matched ${found.size} of ${titles.length} titles (searched from page ${searchFromPage})`)
       return found
     }
 
@@ -249,9 +255,11 @@ export async function POST(req: NextRequest) {
           break
         }
       }
+      console.log(`[INGEST] findTocSuggestions: "Contents" page found at page ${tocPageNum ?? 'NONE'}${tocPageNum ? `, ${tocLines.length} lines after it` : ''}`)
       if (!tocPageNum || tocLines.length < 2) return null
 
       const tocTitles = tocLines.filter((l) => l.length >= 2 && l.length <= 120)
+      console.log(`[INGEST] findTocSuggestions: ${tocTitles.length} candidate title lines (length 2-120 chars) out of ${tocLines.length} total lines`)
       const found = await locateTitlesInBody(pdfDoc, tocTitles, tocPageNum + 1, totalPages)
       if (found.size < 2) return null
 
@@ -297,6 +305,7 @@ export async function POST(req: NextRequest) {
       const linePattern = /^(\d+)\.\s*(.+)$/
       const found = new Map<number, string>()
       let lastNum = 0
+      let pagesWithAnyNumberedLine = 0
 
       for (let p = 1; p <= totalPages; p++) {
         const page = await pdfDoc.getPage(p)
@@ -319,6 +328,7 @@ export async function POST(req: NextRequest) {
           }
         }
         if (pageMatches.length === 0) continue
+        pagesWithAnyNumberedLine++
 
         const accepted: { num: number; title: string }[] = []
         let expect = lastNum + 1
@@ -334,6 +344,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      console.log(`[INGEST] findNumberedListingTitles: ${pagesWithAnyNumberedLine} pages had at least one "N. Title"-shaped line; ${found.size} titles accepted into a sequential run`)
       if (found.size < 2) return null
       return found
     }
@@ -347,6 +358,7 @@ export async function POST(req: NextRequest) {
       for (let n = 1; n <= maxNum; n++) {
         orderedTitles.push(titleMap.get(n) || `Chapter ${n}`)
       }
+      console.log(`[INGEST] findNumberedListingSuggestions: built ordered title list of ${orderedTitles.length} entries (max chapter number seen: ${maxNum}), now locating them in body...`)
 
       const found = await locateTitlesInBody(pdfDoc, orderedTitles, 1, totalPages)
       if (found.size < 2) return null
@@ -409,6 +421,7 @@ export async function POST(req: NextRequest) {
           if (!colonFirstPage.has(num)) colonFirstPage.set(num, p)
         }
       }
+      console.log(`[INGEST] Per-page "CHAPTER N TITLE" running-header scan: ${detected.length} matches. Colon-style "Chapter N:" candidates: ${colonCandidates.size} distinct numbers`)
 
       if (detected.length < 2 && colonCandidates.size >= 2) {
         const nums = [...colonFirstPage.keys()].sort((a, b) => colonFirstPage.get(a)! - colonFirstPage.get(b)!)
@@ -420,24 +433,30 @@ export async function POST(req: NextRequest) {
             lastColonNum = num
           }
         }
+        console.log(`[INGEST] Colon-style sequential chapters accepted: ${detected.length}`)
       }
 
       if (detected.length < 2) {
+        console.log(`[INGEST] Falling through to findNumberedListingSuggestions...`)
         const numberedSuggestions = await findNumberedListingSuggestions(pdfDoc, totalPages)
         if (numberedSuggestions && numberedSuggestions.length >= 2) {
+          console.log(`[INGEST] SUCCESS via numbered listing: ${numberedSuggestions.length} suggestions, ${numberedSuggestions.filter(s => s.page !== null).length} with a located page`)
           return NextResponse.json({
             error: 'No chapters could be detected from bookmarks or page content. This textbook\'s structure isn\'t supported yet.',
             suggestedChapters: numberedSuggestions,
           }, { status: 400 })
         }
+        console.log(`[INGEST] findNumberedListingSuggestions did not yield >=2 suggestions. Falling through to findTocSuggestions...`)
 
         const tocSuggestions = await findTocSuggestions(pdfDoc, totalPages)
         if (tocSuggestions && tocSuggestions.length >= 2) {
+          console.log(`[INGEST] SUCCESS via TOC page: ${tocSuggestions.length} suggestions, ${tocSuggestions.filter(s => s.page !== null).length} with a located page`)
           return NextResponse.json({
             error: 'No chapters could be detected from bookmarks or page content. This textbook\'s structure isn\'t supported yet.',
             suggestedChapters: tocSuggestions,
           }, { status: 400 })
         }
+        console.log(`[INGEST] findTocSuggestions did not yield >=2 suggestions either. Giving up with no suggestions.`)
 
         return NextResponse.json({ error: 'No chapters could be detected from bookmarks or page content. This textbook\'s structure isn\'t supported yet.' }, { status: 400 })
       }
