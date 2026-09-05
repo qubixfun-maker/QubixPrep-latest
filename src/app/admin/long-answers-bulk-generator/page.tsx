@@ -94,7 +94,11 @@ function answerTextToHtml(text: string): string {
 }
 
 function chapterIdFor(title: string) {
-  return title.trim().toLowerCase().replace(/\s+/g, '-')
+  // Strip everything except letters/digits before hyphenating - a raw title used
+  // directly as both a Firestore document ID AND a URL path segment (parentheses,
+  // commas, em-dashes and all) is fragile: even where it technically works, it invites
+  // exactly the kind of "looks fine, silently doesn't match" bug this replaced.
+  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
 function splitIntoChapters(rawText: string): { title: string; text: string }[] {
