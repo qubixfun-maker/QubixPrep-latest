@@ -45,10 +45,10 @@ function nodeDetailText(node: MindmapNode): string | null {
 // so card height scales with actual text length instead of a fixed guess.
 function estimateDetailHeight(text: string, width: number): number {
   const usableWidth = Math.max(60, width - 24)
-  const avgCharWidth = 5.8
+  const avgCharWidth = 6.85 // recalibrated for the 13px detail font (was 11px)
   const charsPerLine = Math.max(8, Math.floor(usableWidth / avgCharWidth))
   const lines = Math.max(1, Math.ceil(text.length / charsPerLine))
-  return lines * 15 + 12
+  return lines * 17 + 12
 }
 
 // Same idea, but for the node's own LABEL. This was previously missing entirely -
@@ -58,10 +58,10 @@ function estimateDetailHeight(text: string, width: number): number {
 // font is slightly bigger/bolder than the detail text, hence the different avg width.
 function estimateLabelHeight(label: string, width: number, hasArrow: boolean): number {
   const usableWidth = Math.max(50, width - 24 - (hasArrow ? 14 : 0))
-  const avgCharWidth = 6.4
+  const avgCharWidth = 7.4 // recalibrated for the 15px label font (was 13px)
   const charsPerLine = Math.max(6, Math.floor(usableWidth / avgCharWidth))
   const lines = Math.max(1, Math.ceil(label.length / charsPerLine))
-  return lines * 17 + 20 // line-height*lines + vertical padding
+  return lines * 19 + 20 // line-height*lines + vertical padding
 }
 
 function layoutChildren(

@@ -1,9 +1,9 @@
 "use client"
 
-import { useMemo, useState, use } from "react"
+import { useMemo, useState, useRef, useEffect, use } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ChevronLeft, ChevronRight, Loader2, Shuffle, RotateCw } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, Shuffle, RotateCw, Maximize2, Minimize2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useRequireAuth } from "@/hooks/use-require-auth"
@@ -22,12 +22,33 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ subje
   const [order, setOrder] = useState<number[] | null>(null)
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   const cards = (deck as any)?.cards || []
   const activeOrder = order || cards.map((_: any, i: number) => i)
 
   const { checkingAuth } = useRequireAuth()
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
+
+  // Real fullscreen via the browser Fullscreen API - the study card genuinely takes
+  // over the whole screen on demand, same pattern as the mindmap viewer.
+  async function toggleFullscreen() {
+    if (!wrapRef.current) return
+    if (!document.fullscreenElement) {
+      await wrapRef.current.requestFullscreen?.()
+    } else {
+      await document.exitFullscreen?.()
+    }
+  }
+
+  useEffect(() => {
+    function onChange() {
+      setIsFullscreen(!!document.fullscreenElement && document.fullscreenElement === wrapRef.current)
+    }
+    document.addEventListener("fullscreenchange", onChange)
+    return () => document.removeEventListener("fullscreenchange", onChange)
+  }, [])
 
   if (checkingAuth || subjectLoading || deckLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
 
@@ -70,7 +91,14 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ subje
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-4 md:p-12 space-y-6 animate-in fade-in duration-500">
+    <div
+      ref={wrapRef}
+      className={
+        isFullscreen
+          ? `bg-background h-screen w-screen p-6 md:p-10 flex flex-col gap-6`
+          : `max-w-2xl mx-auto p-4 md:p-12 space-y-6 animate-in fade-in duration-500`
+      }
+    >
       <div className="flex items-center justify-between">
         <Link href={`/flashcards/${subjectId}`} className={`text-xs font-bold uppercase tracking-widest ${color.text} flex items-center gap-1 hover:underline`}>
           <ChevronLeft className="h-3 w-3" /> Back
@@ -79,11 +107,14 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ subje
           <Button variant="ghost" size="icon" onClick={order ? resetOrder : shuffleDeck} title={order ? "Reset order" : "Shuffle"}>
             {order ? <RotateCw className="h-4 w-4" /> : <Shuffle className="h-4 w-4" />}
           </Button>
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
 
       <div className="text-center">
-        <h1 className="text-2xl font-bold">{(deck as any)?.title || (deck as any)?.chapterName}</h1>
+        <h1 className={isFullscreen ? "text-3xl font-bold" : "text-2xl font-bold"}>{(deck as any)?.title || (deck as any)?.chapterName}</h1>
         <p className="text-sm text-muted-foreground mt-1">Card {index + 1} of {activeOrder.length}</p>
       </div>
 
@@ -93,12 +124,16 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ subje
 
       <div
         onClick={() => setFlipped(!flipped)}
-        className={`relative min-h-[300px] rounded-3xl glass border ${color.border} p-8 flex items-center justify-center text-center cursor-pointer select-none transition-transform duration-300`}
+        className={`relative rounded-3xl glass border ${color.border} flex items-center justify-center text-center cursor-pointer select-none transition-transform duration-300 ${
+          isFullscreen ? "flex-1 p-12" : "min-h-[300px] p-8"
+        }`}
         style={{ transform: flipped ? 'scale(1.01)' : 'scale(1)' }}
       >
-        <div className="space-y-4">
+        <div className="space-y-4 max-w-3xl">
           <p className={`text-[10px] font-bold uppercase tracking-widest ${color.text}`}>{flipped ? "Answer" : "Question"}</p>
-          <p className="text-lg font-medium leading-relaxed">{flipped ? currentCard.back : currentCard.front}</p>
+          <p className={isFullscreen ? "text-2xl md:text-3xl font-medium leading-relaxed" : "text-lg font-medium leading-relaxed"}>
+            {flipped ? currentCard.back : currentCard.front}
+          </p>
           <p className="text-xs text-muted-foreground pt-4">Tap card to {flipped ? "see question" : "reveal answer"}</p>
         </div>
       </div>
