@@ -1,4 +1,10 @@
 .wrap { display: flex; flex-direction: column; gap: 8px; }
+.wrapFullscreen {
+  background: var(--surface-0);
+  padding: 12px;
+  height: 100vh;
+  width: 100vw;
+}
 
 .toolbar { display: flex; gap: 8px; justify-content: flex-end; }
 .zoomBtn {
@@ -19,8 +25,8 @@
 .viewport {
   position: relative;
   width: 100%;
-  height: min(65vh, 560px);
-  min-height: 320px;
+  height: min(75vh, 720px);
+  min-height: 380px;
   border: 0.5px solid var(--border);
   border-radius: 16px;
   overflow: hidden;
@@ -29,6 +35,10 @@
   cursor: grab;
 }
 .viewport.dragging { cursor: grabbing; }
+.viewportFullscreen {
+  height: calc(100vh - 56px);
+  border-radius: 8px;
+}
 
 .canvas {
   position: absolute;
@@ -47,6 +57,11 @@
   cursor: pointer;
   user-select: none;
   box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.08));
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.node:hover {
+  box-shadow: var(--shadow-md, 0 4px 14px rgba(0,0,0,0.14));
+  transform: translateY(-1px);
 }
 .rootNode {
   border-width: 1.5px;

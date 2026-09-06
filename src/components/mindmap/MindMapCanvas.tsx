@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useMemo, useCallback } from "react"
+import { useState, useRef, useMemo, useCallback, useEffect } from "react"
 import styles from "./MindMapCanvas.module.css"
 
 export type MindmapNode = {
@@ -51,6 +51,19 @@ function estimateDetailHeight(text: string, width: number): number {
   return lines * 15 + 12
 }
 
+// Same idea, but for the node's own LABEL. This was previously missing entirely -
+// every collapsed node used a fixed BASE_NODE_H regardless of how many lines its own
+// title wrapped to, so any node with a longer name (very common - branch titles are
+// often full phrases) silently overlapped whatever sibling came after it. The label
+// font is slightly bigger/bolder than the detail text, hence the different avg width.
+function estimateLabelHeight(label: string, width: number, hasArrow: boolean): number {
+  const usableWidth = Math.max(50, width - 24 - (hasArrow ? 14 : 0))
+  const avgCharWidth = 6.4
+  const charsPerLine = Math.max(6, Math.floor(usableWidth / avgCharWidth))
+  const lines = Math.max(1, Math.ceil(label.length / charsPerLine))
+  return lines * 17 + 20 // line-height*lines + vertical padding
+}
+
 function layoutChildren(
   parentNode: MindmapNode,
   parentPath: string,
@@ -76,7 +89,9 @@ function layoutChildren(
     const childHasChildren = !!(child.branches && child.branches.length > 0)
     const detail = nodeDetailText(child)
     const showInlineDetail = childExpanded && !!detail && !childHasChildren
-    const height = showInlineDetail ? BASE_NODE_H + estimateDetailHeight(detail!, childW) : BASE_NODE_H
+    const showArrow = childHasChildren || !!detail
+    const labelH = estimateLabelHeight(child.name, childW, showArrow && !childExpanded)
+    const height = Math.max(BASE_NODE_H, labelH) + (showInlineDetail ? estimateDetailHeight(detail!, childW) : 0)
     return { child, childPath, childExpanded, childHasChildren, detail, height }
   })
 
@@ -138,7 +153,9 @@ function computeLayout(root: MindmapNode, expandedPaths: Record<string, boolean>
     const hasChildren = !!(branch.branches && branch.branches.length > 0)
     const detail = nodeDetailText(branch)
     const showInlineDetail = isExpanded && !!detail && !hasChildren
-    const h = showInlineDetail ? BASE_NODE_H + estimateDetailHeight(detail!, 170) : BASE_NODE_H + 8
+    const showArrow = hasChildren || !!detail
+    const labelH = estimateLabelHeight(branch.name, 170, showArrow && !isExpanded)
+    const h = Math.max(BASE_NODE_H + 8, labelH) + (showInlineDetail ? estimateDetailHeight(detail!, 170) : 0)
     return { branch, side, path, color, isExpanded, hasChildren, detail, h }
   })
 
@@ -191,7 +208,9 @@ export default function MindMapCanvas({ root }: { root: MindmapNode }) {
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({})
   const [pan, setPan] = useState({ x: -500, y: -350 })
   const [zoom, setZoom] = useState(1)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
+  const wrapRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -227,20 +246,43 @@ export default function MindMapCanvas({ root }: { root: MindmapNode }) {
   function zoomIn() { setZoom((z) => Math.min(1.6, z + 0.15)) }
   function zoomOut() { setZoom((z) => Math.max(0.4, z - 0.15)) }
 
+  // Real fullscreen via the browser Fullscreen API, so the mindmap can genuinely take
+  // over the whole screen on demand rather than permanently resizing the embedded box
+  // (which would look odd everywhere this component is used, e.g. inline admin previews).
+  async function toggleFullscreen() {
+    if (!wrapRef.current) return
+    if (!document.fullscreenElement) {
+      await wrapRef.current.requestFullscreen?.()
+    } else {
+      await document.exitFullscreen?.()
+    }
+  }
+
+  useEffect(() => {
+    function onChange() {
+      setIsFullscreen(!!document.fullscreenElement && document.fullscreenElement === wrapRef.current)
+    }
+    document.addEventListener("fullscreenchange", onChange)
+    return () => document.removeEventListener("fullscreenchange", onChange)
+  }, [])
+
   const canvasW = bounds.maxX - bounds.minX
   const canvasH = bounds.maxY - bounds.minY
 
   return (
-    <div className={styles.wrap}>
+    <div ref={wrapRef} className={`${styles.wrap} ${isFullscreen ? styles.wrapFullscreen : ""}`}>
       <div className={styles.toolbar}>
         <button className={styles.zoomBtn} onClick={zoomOut} aria-label="Zoom out">-</button>
         <span className={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
         <button className={styles.zoomBtn} onClick={zoomIn} aria-label="Zoom in">+</button>
+        <button className={styles.zoomBtn} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+          {isFullscreen ? "⤡" : "⤢"}
+        </button>
       </div>
 
       <div
         ref={viewportRef}
-        className={`${styles.viewport} ${isDragging ? styles.dragging : ""}`}
+        className={`${styles.viewport} ${isFullscreen ? styles.viewportFullscreen : ""} ${isDragging ? styles.dragging : ""}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -296,7 +338,7 @@ export default function MindMapCanvas({ root }: { root: MindmapNode }) {
         </div>
       </div>
 
-      <p className={styles.hint}>Drag to move around - click a card to expand its branches</p>
+      <p className={styles.hint}>Drag to move around - click a card to expand its branches{isFullscreen ? " - press Esc or the ⤡ button to exit fullscreen" : ""}</p>
     </div>
   )
 }
