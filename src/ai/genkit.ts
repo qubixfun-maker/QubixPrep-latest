@@ -286,52 +286,81 @@ export async function callVertexOnly(
 // the OpenAI-client pattern the other providers share. No fallback: used deliberately
 // for the one step (chapter knowledge extraction) where accurate interpretation matters
 // more than provider resilience.
+// Writes the service account JSON to a temp file once per process lifetime, so
+// AnthropicVertex's own internal (bundled) GoogleAuth instance can find it via the
+// standard GOOGLE_APPLICATION_CREDENTIALS file-based lookup. We deliberately do NOT
+// construct our own GoogleAuth object and pass it in - @anthropic-ai/vertex-sdk bundles
+// its own nested copy of google-auth-library, and TypeScript rejects a GoogleAuth
+// instance built from a separately-installed top-level copy as an incompatible type
+// (identical shape, but nominally different due to private class fields). Letting the
+// SDK build its own default auth internally sidesteps this entirely.
+let vertexCredentialsFilePath: string | null = null;
+async function ensureVertexCredentialsFile(rawKey: string): Promise<string> {
+  if (vertexCredentialsFilePath) return vertexCredentialsFilePath;
+  const fs = await import('fs');
+  const os = await import('os');
+  const path = await import('path');
+  const filePath = path.join(os.tmpdir(), `vertex-claude-credentials-${Date.now()}.json`);
+  fs.writeFileSync(filePath, rawKey, 'utf8');
+  vertexCredentialsFilePath = filePath;
+  return filePath;
+}
+
 export async function callClaudeOnly(
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   maxTokens: number = 2000
 ): Promise<{ content: string; provider: string }> {
-  // Bedrock's newer Claude models require an "inference profile" ID (region-prefixed,
-  // e.g. "us.anthropic.claude-sonnet-5"), not the bare model ID - calling with the bare
-  // ID throws "on-demand throughput isn't supported". This ID was pulled directly from
-  // the account's own Inference profiles page, not guessed. Auth is via the AWS SDK's
-  // default credential chain, which reads AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
-  // AWS_REGION from the environment automatically - no manual credential handling here.
-  const { BedrockRuntimeClient, ConverseCommand } = await import('@aws-sdk/client-bedrock-runtime')
+  // Calls Claude through Google Vertex AI, reusing the SAME service account credentials
+  // already configured for this app's existing Gemini/Vertex calls (GOOGLE_SERVICE_ACCOUNT_KEY,
+  // GOOGLE_CLOUD_PROJECT_ID) - no separate credential setup needed, unlike Bedrock which
+  // required a whole new AWS account and IAM user. Uses Anthropic's own official Vertex SDK,
+  // which exposes the same messages.create() interface as their direct API.
+  const { AnthropicVertex } = await import('@anthropic-ai/vertex-sdk')
 
-  // .trim() guards against invisible whitespace from copy-pasting into Vercel's
-  // env var UI, which the AWS SDK rejects outright as an invalid hostname component.
-  const region = (process.env.AWS_REGION || 'us-east-1').trim()
-  const modelId = (process.env.BEDROCK_CLAUDE_MODEL_ID || 'us.anthropic.claude-sonnet-5').trim()
+  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+  if (!rawKey) {
+    throw new Error('Claude (via Vertex) is not configured - GOOGLE_SERVICE_ACCOUNT_KEY is missing.')
+  }
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
+  if (!projectId) {
+    throw new Error('Claude (via Vertex) is not configured - GOOGLE_CLOUD_PROJECT_ID is missing.')
+  }
+  // Claude on Vertex uses "global" as its region regardless of GOOGLE_CLOUD_LOCATION
+  // (which is used elsewhere for Gemini) - confirmed directly from the Model Garden's
+  // own quickstart code sample for this exact model.
+  const region = 'global'
 
-  const client = new BedrockRuntimeClient({ region })
+  const credentialsFilePath = await ensureVertexCredentialsFile(rawKey)
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsFilePath
 
-  // The Converse API takes system prompts as a separate top-level field, not a
-  // message with role "system" - pull any out of the messages array before sending.
+  const client = new AnthropicVertex({ region, projectId })
+
   const systemParts = messages.filter((m) => m.role === 'system').map((m) => m.content)
   const conversation = messages
     .filter((m) => m.role !== 'system')
-    .map((m) => ({ role: m.role as 'user' | 'assistant', content: [{ text: m.content }] }))
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
   let response
   try {
-    response = await client.send(new ConverseCommand({
-      modelId,
+    response = await client.messages.create({
+      model: process.env.VERTEX_CLAUDE_MODEL_ID || 'claude-sonnet-5',
+      max_tokens: maxTokens,
+      ...(systemParts.length ? { system: systemParts.join('\n\n') } : {}),
       messages: conversation,
-      ...(systemParts.length ? { system: [{ text: systemParts.join('\n\n') }] } : {}),
-      inferenceConfig: { maxTokens },
-    }))
+    })
   } catch (err: any) {
-    throw new Error(`Bedrock Claude call failed: ${err.message || err}`)
+    throw new Error(`Vertex Claude call failed: ${err.message || err}`)
   }
 
-  const content = (response.output?.message?.content || [])
-    .map((block: any) => block.text || '')
+  const content = (response.content || [])
+    .filter((block: any) => block.type === 'text')
+    .map((block: any) => block.text)
     .join('')
 
   if (!content) {
-    throw new Error('Claude (via Bedrock) returned an empty response.')
+    throw new Error('Claude (via Vertex) returned an empty response.')
   }
-  return { content, provider: 'Claude (Bedrock)' }
+  return { content, provider: 'Claude (Vertex)' }
 }
 
 export function getGroqClient() {
