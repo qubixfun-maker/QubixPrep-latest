@@ -298,8 +298,10 @@ export async function callClaudeOnly(
   // AWS_REGION from the environment automatically - no manual credential handling here.
   const { BedrockRuntimeClient, ConverseCommand } = await import('@aws-sdk/client-bedrock-runtime')
 
-  const region = process.env.AWS_REGION || 'us-east-1'
-  const modelId = process.env.BEDROCK_CLAUDE_MODEL_ID || 'us.anthropic.claude-sonnet-5'
+  // .trim() guards against invisible whitespace from copy-pasting into Vercel's
+  // env var UI, which the AWS SDK rejects outright as an invalid hostname component.
+  const region = (process.env.AWS_REGION || 'us-east-1').trim()
+  const modelId = (process.env.BEDROCK_CLAUDE_MODEL_ID || 'us.anthropic.claude-sonnet-5').trim()
 
   const client = new BedrockRuntimeClient({ region })
 
