@@ -280,6 +280,58 @@ export async function callVertexOnly(
   return content
 }
 
+// Calls the Anthropic API directly - it is NOT OpenAI-chat-completions compatible
+// (different endpoint, system prompts are a separate top-level field rather than a
+// message role, and responses come back as a content-block array), so it can't reuse
+// the OpenAI-client pattern the other providers share. No fallback: used deliberately
+// for the one step (chapter knowledge extraction) where accurate interpretation matters
+// more than provider resilience.
+export async function callClaudeOnly(
+  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
+  maxTokens: number = 2000
+): Promise<{ content: string; provider: string }> {
+  // Bedrock's newer Claude models require an "inference profile" ID (region-prefixed,
+  // e.g. "us.anthropic.claude-sonnet-5"), not the bare model ID - calling with the bare
+  // ID throws "on-demand throughput isn't supported". This ID was pulled directly from
+  // the account's own Inference profiles page, not guessed. Auth is via the AWS SDK's
+  // default credential chain, which reads AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY /
+  // AWS_REGION from the environment automatically - no manual credential handling here.
+  const { BedrockRuntimeClient, ConverseCommand } = await import('@aws-sdk/client-bedrock-runtime')
+
+  const region = process.env.AWS_REGION || 'us-east-1'
+  const modelId = process.env.BEDROCK_CLAUDE_MODEL_ID || 'us.anthropic.claude-sonnet-5'
+
+  const client = new BedrockRuntimeClient({ region })
+
+  // The Converse API takes system prompts as a separate top-level field, not a
+  // message with role "system" - pull any out of the messages array before sending.
+  const systemParts = messages.filter((m) => m.role === 'system').map((m) => m.content)
+  const conversation = messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: [{ text: m.content }] }))
+
+  let response
+  try {
+    response = await client.send(new ConverseCommand({
+      modelId,
+      messages: conversation,
+      ...(systemParts.length ? { system: [{ text: systemParts.join('\n\n') }] } : {}),
+      inferenceConfig: { maxTokens },
+    }))
+  } catch (err: any) {
+    throw new Error(`Bedrock Claude call failed: ${err.message || err}`)
+  }
+
+  const content = (response.output?.message?.content || [])
+    .map((block: any) => block.text || '')
+    .join('')
+
+  if (!content) {
+    throw new Error('Claude (via Bedrock) returned an empty response.')
+  }
+  return { content, provider: 'Claude (Bedrock)' }
+}
+
 export function getGroqClient() {
   return {
     chat: {
