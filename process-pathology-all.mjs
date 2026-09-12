@@ -28,7 +28,7 @@ console.log(`Textbook: ${pathologyTb.data().title} (${textbookId})\n`);
 const chapters = await pathologyTb.ref.collection('chapters').get();
 const chapterDocs = chapters.docs.sort((a, b) => (a.data().title || '').localeCompare(b.data().title || ''));
 
-console.log(`${chapterDocs.length} chapters found. Processing one at a time...\n`);
+console.log(`${chapterDocs.length} chapters found. Processing one at a time (using Gemini 3.8 Flash native)...\n`);
 
 let succeeded = 0, failed = 0, skipped = 0;
 
@@ -57,6 +57,7 @@ for (let i = 0; i < chapterDocs.length; i++) {
         chapterId,
         subjectId: SUBJECT_ID,
         subjectName: SUBJECT_NAME,
+        useGeminiNative: true,
       }),
     });
     const data = await res.json();
