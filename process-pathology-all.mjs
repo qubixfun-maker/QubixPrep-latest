@@ -39,9 +39,12 @@ for (let i = 0; i < chapterDocs.length; i++) {
   const label = `[${i + 1}/${chapterDocs.length}] ${chapterTitle}`;
 
   if (!FORCE) {
-    const existing = await db.collection('subjects').doc(SUBJECT_ID).collection('chapterKnowledge').doc(chapterId).get();
-    if (existing.exists) {
-      console.log(`${label} - SKIPPED (already processed, use --force to redo)`);
+    // Only skip if BOTH knowledge AND notes exist - a chapter with knowledge but no
+    // notes (e.g. one that timed out mid-way last run) still needs to be retried.
+    const existingKnowledge = await db.collection('subjects').doc(SUBJECT_ID).collection('chapterKnowledge').doc(chapterId).get();
+    const existingNotes = await db.collection('subjects').doc(SUBJECT_ID).collection('textNotes').doc(chapterId).get();
+    if (existingKnowledge.exists && existingNotes.exists) {
+      console.log(`${label} - SKIPPED (already fully processed, use --force to redo)`);
       skipped++;
       continue;
     }
@@ -63,7 +66,7 @@ for (let i = 0; i < chapterDocs.length; i++) {
     const data = await res.json();
 
     if (data.success) {
-      console.log(`${label} - OK (${data.topicCount} topics, ${data.factCount} facts, notes ${data.notesLength} chars)`);
+      console.log(`${label} - OK (${data.topicCount} topics, ${data.factCount} facts, notes ${data.notesLength} chars${data.reusedExistingKnowledge ? ', reused existing knowledge' : ''})`);
       succeeded++;
     } else {
       console.log(`${label} - FAILED at stage "${data.stage || '?'}": ${data.error}`);
@@ -74,8 +77,6 @@ for (let i = 0; i < chapterDocs.length; i++) {
     failed++;
   }
 
-  // Gentle pause between chapters - courteous to the API and quota, matches
-  // the same pacing pattern as the existing bulk-generation tools.
   await new Promise((r) => setTimeout(r, 8000));
 }
 
