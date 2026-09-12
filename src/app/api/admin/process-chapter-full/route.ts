@@ -24,7 +24,7 @@ import { generateChapterNotes } from '@/ai/chapter-notes-generator'
  */
 export async function POST(req: NextRequest) {
   try {
-    const { secret, textbookId, chapterId, subjectId, subjectName, useClaude } = await req.json()
+    const { secret, textbookId, chapterId, subjectId, subjectName, useClaude, useGeminiNative } = await req.json()
 
     const expectedSecret = process.env.ADMIN_BULK_SECRET
     if (!expectedSecret) {
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       }],
       subjectName,
       useClaude: !!useClaude,
+      useGeminiNative: !!useGeminiNative,
     })
 
     if (knowledgeResult.error || !knowledgeResult.knowledge) {
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Step 4: generate notes from the already-verified knowledge
-    const notesResult = await generateChapterNotes(knowledgeResult.knowledge, !useClaude)
+    const notesResult = await generateChapterNotes(knowledgeResult.knowledge, !useClaude, !!useGeminiNative)
 
     if (notesResult.error || !notesResult.markdown) {
       return NextResponse.json({

@@ -1,5 +1,5 @@
 'use server';
-import { callAIWithProvider, callClaudeOnly } from '@/ai/genkit';
+import { callAIWithProvider, callClaudeOnly, callGeminiNative } from '@/ai/genkit';
 import { withCache, fingerprintInput } from '@/ai/ai-cache';
 import { allTemplatesForPrompt, resolveTemplateForSubject, FORMAT_TEMPLATES, type FormatTemplate } from '@/ai/subject-templates';
 
@@ -160,6 +160,7 @@ export type BuildKnowledgeInput = {
   pyqQuestions?: string[];
   forceVertex?: boolean;
   useClaude?: boolean; // route this extraction through Claude instead of the usual provider chain
+  useGeminiNative?: boolean; // route through Vertex's native endpoint (for models not yet on the OpenAI-compat shim, e.g. gemini-3.8-flash)
 };
 
 export type BuildKnowledgeOutput = {
@@ -212,7 +213,7 @@ Output ONLY valid JSON, no markdown fences, no commentary:
 {"centralTopic": "...", "overview": "...", "topics": [{"name": "...", "summary": "...", "definitions": ["..."], "mechanisms": ["..."], "classifications": ["..."], "facts": [{"fact": "...", "detail": "...", "confusedWith": ["..."], "bestFor": ["..."]}], "clinicalCorrelations": ["..."], "namedEntities": ["..."], "suggestedFormat": "...", "formatReason": "...", "subtopics": []}]}`;
 }
 
-async function runExtraction(prompt: string, chapterTitle: string, subjectName: string, forceVertex?: boolean, useClaude?: boolean): Promise<BuildKnowledgeOutput> {
+async function runExtraction(prompt: string, chapterTitle: string, subjectName: string, forceVertex?: boolean, useClaude?: boolean, useGeminiNative?: boolean): Promise<BuildKnowledgeOutput> {
   const MAX_ATTEMPTS = 3;
   let lastError = 'Unknown error building chapter knowledge';
 
@@ -222,6 +223,8 @@ async function runExtraction(prompt: string, chapterTitle: string, subjectName: 
       // truncation here would silently starve all of them.
       const { content: raw } = useClaude
         ? await callClaudeOnly([{ role: 'user', content: prompt }], 16000)
+        : useGeminiNative
+        ? await callGeminiNative([{ role: 'user', content: prompt }], 16000)
         : await callAIWithProvider([{ role: 'user', content: prompt }], 16000, forceVertex);
       if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
@@ -268,7 +271,7 @@ export async function getChapterKnowledge(input: BuildKnowledgeInput): Promise<B
     'chapterKnowledge',
     scope,
     fingerprint,
-    async () => runExtraction(prompt, chapterTitle, input.subjectName, input.forceVertex, input.useClaude),
+    async () => runExtraction(prompt, chapterTitle, input.subjectName, input.forceVertex, input.useClaude, input.useGeminiNative),
     { shouldCache: (v) => !v.error && !!v.knowledge },
   );
 

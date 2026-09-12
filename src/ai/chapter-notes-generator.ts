@@ -1,5 +1,5 @@
 'use server';
-import { callAIWithProvider } from '@/ai/genkit';
+import { callAIWithProvider, callGeminiNative } from '@/ai/genkit';
 import type { ChapterKnowledge } from '@/ai/chapter-knowledge';
 import { allTemplatesForPrompt } from '@/ai/subject-templates';
 
@@ -45,7 +45,7 @@ export type GenerateNotesOutput = {
   error?: string;
 };
 
-async function renderOneTopic(chapterTitle: string, subjectName: string, topic: any, forceVertex?: boolean): Promise<string> {
+async function renderOneTopic(chapterTitle: string, subjectName: string, topic: any, forceVertex?: boolean, useGeminiNative?: boolean): Promise<string> {
   const formats = allTemplatesForPrompt(subjectName);
   const formatName = topic.suggestedFormat || formats[0].name;
   const match = formats.find((f) => f.name === formatName) || formats[0];
@@ -57,7 +57,9 @@ async function renderOneTopic(chapterTitle: string, subjectName: string, topic: 
   let lastError = '';
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 3000, forceVertex);
+      const { content: raw } = useGeminiNative
+        ? await callGeminiNative([{ role: 'user', content: prompt }], 3000)
+        : await callAIWithProvider([{ role: 'user', content: prompt }], 3000, forceVertex);
       if (raw && raw.trim().length > 20) return tryParseText(raw);
       lastError = 'Empty or too-short response';
     } catch (err: any) {
@@ -73,13 +75,13 @@ async function renderOneTopic(chapterTitle: string, subjectName: string, topic: 
  * concatenating them. Topics are rendered independently so one failure doesn't lose
  * the rest of the chapter, and so each stays within a safe, focused output length.
  */
-export async function generateChapterNotes(knowledge: ChapterKnowledge, forceVertex?: boolean): Promise<GenerateNotesOutput> {
+export async function generateChapterNotes(knowledge: ChapterKnowledge, forceVertex?: boolean, useGeminiNative?: boolean): Promise<GenerateNotesOutput> {
   if (!knowledge.topics?.length) return { error: 'Chapter knowledge has no topics to render.' };
 
   const sections: string[] = [`# ${knowledge.centralTopic}`, knowledge.overview, ''];
 
   for (const topic of knowledge.topics) {
-    const rendered = await renderOneTopic(knowledge.chapterTitle, knowledge.subjectName || '', topic, forceVertex);
+    const rendered = await renderOneTopic(knowledge.chapterTitle, knowledge.subjectName || '', topic, forceVertex, useGeminiNative);
     sections.push(rendered, '');
   }
 

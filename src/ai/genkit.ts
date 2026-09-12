@@ -370,6 +370,62 @@ export async function callClaudeOnly(
   return { content, provider: 'Claude (Vertex)' }
 }
 
+// Calls a Gemini model via Vertex's NATIVE generateContent endpoint (not the
+// OpenAI-compat shim used elsewhere) - brand-new models often aren't onboarded to that
+// compat layer yet even when fully available natively, which is exactly what happened
+// with gemini-3.8-flash (confirmed 404 via the shim, works via Model Garden's own
+// quickstart using this native path). Critically, this model uses "global" as its
+// location, which uses a BARE aiplatform.googleapis.com host with no region prefix -
+// different from the regional pattern vertexGenerateContent() otherwise uses.
+export async function callGeminiNative(
+  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
+  maxTokens: number = 2000
+): Promise<{ content: string; provider: string }> {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
+  if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
+  const token = await getVertexAccessToken()
+  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
+
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.8-flash').trim()
+  const location = 'global'
+
+  // Gemini's native API uses "model" (not "assistant") for the assistant role, and
+  // system prompts go in a separate top-level field, not the contents array.
+  const systemParts = messages.filter((m) => m.role === 'system').map((m) => m.content)
+  const contents = messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
+
+  // "global" is a bare host with no region prefix - different from the regional
+  // pattern (`${location}-aiplatform.googleapis.com`) used elsewhere in this file.
+  const url = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents,
+      ...(systemParts.length ? { systemInstruction: { parts: [{ text: systemParts.join('\n\n') }] } } : {}),
+      generationConfig: { maxOutputTokens: maxTokens },
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Gemini native call failed (${res.status}): ${text.slice(0, 500)}`)
+  }
+
+  const data = await res.json()
+  const content = (data.candidates?.[0]?.content?.parts || [])
+    .map((p: any) => p.text || '')
+    .join('')
+
+  if (!content) {
+    throw new Error('Gemini (native) returned an empty response.')
+  }
+  return { content, provider: 'Gemini (native)' }
+}
+
 export function getGroqClient() {
   return {
     chat: {
