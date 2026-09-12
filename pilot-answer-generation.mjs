@@ -25,21 +25,46 @@ const questions = [
   "Discuss the healing of fractured bone and its complications.",
 ];
 
-console.log(`Generating ${questions.length} Long Essay answers for "Inflammation and Healing"...\n`);
+console.log(`Generating ${questions.length} Long Essay answers for "Inflammation and Healing", one at a time...\n`);
 
-const res = await fetch(`${SITE_URL}/api/admin/generate-section-answers`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    secret: SECRET,
-    subjectId: 'pathology',
-    chapterId: 'ch-06',
-    chapterTitle: '6. Inflammation and Healing',
-    sectionType: 'long-essays',
-    questions,
-    useGeminiNative: true,
-  }),
-});
+let succeeded = 0, skipped = 0, failed = 0;
 
-const data = await res.json();
-console.log(JSON.stringify(data, null, 2));
+for (let i = 0; i < questions.length; i++) {
+  const q = questions[i];
+  const label = `[${i + 1}/${questions.length}] ${q.slice(0, 60)}...`;
+
+  try {
+    const res = await fetch(`${SITE_URL}/api/admin/generate-section-answers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        secret: SECRET,
+        subjectId: 'pathology',
+        chapterId: 'ch-06',
+        chapterTitle: '6. Inflammation and Healing',
+        sectionType: 'long-essays',
+        question: q,
+        useGeminiNative: true,
+      }),
+    });
+    const data = await res.json();
+
+    if (data.skipped) {
+      console.log(`${label} - SKIPPED (already answered)`);
+      skipped++;
+    } else if (data.success) {
+      console.log(`${label} - OK (${data.answerLength} chars)`);
+      succeeded++;
+    } else {
+      console.log(`${label} - FAILED: ${data.error}`);
+      failed++;
+    }
+  } catch (err) {
+    console.log(`${label} - NETWORK ERROR: ${err.message}`);
+    failed++;
+  }
+
+  await new Promise((r) => setTimeout(r, 3000));
+}
+
+console.log(`\nDone. ${succeeded} succeeded, ${failed} failed, ${skipped} skipped.`);
