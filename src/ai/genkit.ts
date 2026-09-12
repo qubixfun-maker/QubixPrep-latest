@@ -234,6 +234,11 @@ export async function callAIWithProvider(
     throw new Error("No AI providers configured. Please set at least one API key in environment variables.")
   }
 
+  // Collect each provider's actual failure reason - the previous version silently
+  // discarded these, leaving only a generic "all exhausted" message with no way to
+  // tell whether the real cause was a bad model ID, an expired key, a genuine quota
+  // hit, or something else entirely.
+  const attemptErrors: string[] = []
   for (const provider of providers) {
     try {
       const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
@@ -246,11 +251,13 @@ export async function callAIWithProvider(
       if (content) {
         return { content, provider: provider.name }
       }
+      attemptErrors.push(`${provider.name} (${provider.model}): empty response`)
     } catch (error: any) {
+      attemptErrors.push(`${provider.name} (${provider.model}): ${error?.message || error}`)
       continue
     }
   }
-  throw new Error("All AI providers exhausted. Please try again later.")
+  throw new Error(`All AI providers exhausted. Attempts: ${attemptErrors.join(' | ')}`)
 }
 
 // Calls Vertex AI only, with no fallback to other providers. Used for bulk generation
