@@ -241,7 +241,10 @@ export default function MasterKnowledgeExtractionPage() {
               </p>
               <div className="flex gap-3">
                 {job?.status === "running" && (
-                  <Button onClick={handlePause} variant="secondary" className="flex-1">Pause</Button>
+                  <>
+                    <Button onClick={handlePause} variant="secondary" className="flex-1">Pause</Button>
+                    <Button onClick={handleResume} variant="secondary" className="flex-1">Continue (if stuck)</Button>
+                  </>
                 )}
                 {job?.status === "paused" && (
                   <Button onClick={handleResume} className="flex-1">Resume</Button>
