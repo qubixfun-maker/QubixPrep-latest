@@ -3,7 +3,7 @@ export const maxDuration = 280
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
-import { getChapterKnowledge } from '@/ai/chapter-knowledge'
+import { extractChapterKnowledgeResumable } from '@/ai/resumable-chapter-extraction'
 
 /**
  * Knowledge-extraction ONLY - deliberately does not generate notes, mindmaps,
@@ -11,8 +11,14 @@ import { getChapterKnowledge } from '@/ai/chapter-knowledge'
  * producing the structured JSON record that every other feature (built as separate
  * admin pages, reading from this stored record instead of raw text) derives from.
  *
- * Storage keys are scoped by textbookId + chapterId, since a single subject can draw
- * from multiple textbooks whose chapter IDs could otherwise collide.
+ * Uses the RESUMABLE extraction path - a very large chapter needing several chunks can
+ * time out mid-way through one request; progress is saved after every chunk, so a
+ * retry (via the admin page's "Retry Failed") resumes from the next unprocessed chunk
+ * instead of restarting the whole chapter from scratch.
+ *
+ * Storage keys are scoped by textbookId + chapterId (not chapterId alone), since a
+ * single subject can draw from multiple textbooks whose chapter IDs could otherwise
+ * collide and silently overwrite each other.
  *
  * Usage: POST { idToken, textbookId, chapterId, subjectId, subjectName, useGeminiNative? }
  */
@@ -54,7 +60,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const knowledgeResult = await getChapterKnowledge({
+    const progressRef = db.collection('subjects').doc(subjectId).collection('chapterKnowledgeProgress').doc(docKey)
+
+    const knowledgeResult = await extractChapterKnowledgeResumable({
       sources: [{
         textbookTitle,
         chapterTitle: chapterData.title || chapterId,
@@ -63,10 +71,13 @@ export async function POST(req: NextRequest) {
       subjectName,
       useClaude: !!useClaude,
       useGeminiNative: !!useGeminiNative,
-    })
+    }, progressRef)
 
     if (knowledgeResult.error || !knowledgeResult.knowledge) {
-      return NextResponse.json({ error: knowledgeResult.error || 'Unknown extraction error' }, { status: 500 })
+      const progressNote = knowledgeResult.chunksCompleted
+        ? ` (${knowledgeResult.chunksCompleted}/${knowledgeResult.totalChunks} chunks saved - retry will resume from here)`
+        : ''
+      return NextResponse.json({ error: (knowledgeResult.error || 'Unknown extraction error') + progressNote }, { status: 500 })
     }
     const knowledge = knowledgeResult.knowledge
 
@@ -76,6 +87,10 @@ export async function POST(req: NextRequest) {
       chapterId,
       updatedAt: new Date().toISOString(),
     })
+    // Extraction fully succeeded - clean up the now-unneeded progress record so a
+    // future re-run of this same chapter (e.g. after a "Reset Job") starts fresh
+    // rather than reading stale partial progress.
+    await progressRef.delete().catch(() => {})
 
     return NextResponse.json({
       success: true,
