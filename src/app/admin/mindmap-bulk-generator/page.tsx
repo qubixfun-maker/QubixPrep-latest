@@ -143,6 +143,25 @@ export default function MindmapBulkGeneratorPage() {
       for (let i = 0; i < selectedChapters.length; i++) {
         const ch = selectedChapters[i]
         setExtractProgress(`Planning: ${ch.chapterTitle} (${i + 1}/${selectedChapters.length})...`)
+
+        let usedKnowledge = false
+        try {
+          const knowledgeDoc = await getDoc(doc(db, 'subjects', ch.subjectId, 'chapterKnowledge', `${ch.textbookId}__${ch.chapterId}`))
+          if (knowledgeDoc.exists()) {
+            const knowledge = knowledgeDoc.data() as any
+            const branchNames: string[] = (knowledge.topics || []).map((t: any) => t.name)
+            if (branchNames.length > 0) {
+              const selectedBranches: Record<string, boolean> = {}
+              branchNames.forEach((b: string) => { selectedBranches[b] = true })
+              results.push({ ...ch, centralTopic: knowledge.centralTopic || ch.chapterTitle, branchNames, selectedBranches, isExtracting: false, error: "" })
+              usedKnowledge = true
+            }
+          }
+        } catch {
+          usedKnowledge = false
+        }
+        if (usedKnowledge) continue
+
         const chapterData = (chaptersByTextbook[ch.textbookId] || []).find((c: any) => c.chapterId === ch.chapterId)
         const sources = [{ textbookTitle: ch.textbookTitle, chapterTitle: ch.chapterTitle, text: chapterData?.text || "" }]
 
@@ -398,20 +417,42 @@ export default function MindmapBulkGeneratorPage() {
       const mindmapKey = group[0].mindmapKey
       const chapterMeta = extractedChapters.find((c) => c.key === mindmapKey)
 
+      let knowledgeBranches: MindmapNode[] | null = null
+      if (chapterMeta?.subjectId && chapterMeta?.textbookId && chapterMeta?.chapterId && db) {
+        try {
+          const knowledgeDoc = await getDoc(doc(db, 'subjects', chapterMeta.subjectId, 'chapterKnowledge', `${chapterMeta.textbookId}__${chapterMeta.chapterId}`))
+          if (knowledgeDoc.exists()) {
+            const { knowledgeToMindmapData } = await import('@/ai/knowledge-to-mindmap')
+            knowledgeBranches = knowledgeToMindmapData(knowledgeDoc.data() as any).branches
+          }
+        } catch {
+          knowledgeBranches = null
+        }
+      }
+
       for (let bi = 0; bi < group.length; bi++) {
         if (isPausedRef.current) return
         const item = group[bi]
         setCurrentLabel(`${item.chapterTitle} — ${item.branchName}`)
 
         try {
-          const chapterData = chapterMeta ? (chaptersByTextbook[chapterMeta.textbookId] || []).find((c: any) => c.chapterId === chapterMeta.chapterId) : null
-          const sources = [{ textbookTitle: chapterMeta?.textbookTitle || "", chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
+          const knowledgeBranch = knowledgeBranches?.find((b) => b.name === item.branchName)
+          let branch: MindmapNode
+          let providerUsed: string
+          if (knowledgeBranch) {
+            branch = knowledgeBranch
+            providerUsed = "Master Knowledge Extraction"
+          } else {
+            const chapterData = chapterMeta ? (chaptersByTextbook[chapterMeta.textbookId] || []).find((c: any) => c.chapterId === chapterMeta.chapterId) : null
+            const sources = [{ textbookTitle: chapterMeta?.textbookTitle || "", chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
 
-          const result = await generateMindmapBranchDetail({ sources, centralTopic: item.centralTopic, branchName: item.branchName, forceVertex: useVertexOnly })
-          if (result.error || !result.branch) throw new Error(result.error || "No branch data returned")
+            const result = await generateMindmapBranchDetail({ sources, centralTopic: item.centralTopic, branchName: item.branchName, forceVertex: useVertexOnly })
+            if (result.error || !result.branch) throw new Error(result.error || "No branch data returned")
+            branch = result.branch
+            providerUsed = result.provider || "unknown"
+          }
 
-          collected.push(result.branch)
-          const providerUsed = result.provider || "unknown"
+          collected.push(branch)
           await updateJob({
             completedCount: increment(1),
             [`providerCounts.${providerUsed}`]: increment(1),

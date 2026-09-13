@@ -35,7 +35,7 @@ export default function MasterKnowledgeExtractionPage() {
   }
 
   async function loadChapters() {
-    if (!db || selectedTextbookIds.length === 0) return
+    if (!db || !subjectId || selectedTextbookIds.length === 0) return
     const all: Chapter[] = []
     for (const tbId of selectedTextbookIds) {
       const tbTitle = textbooks?.find((t: any) => t.id === tbId)?.title || tbId
@@ -50,7 +50,7 @@ export default function MasterKnowledgeExtractionPage() {
   }
 
   async function runExtraction() {
-    if (!user || chapters.length === 0) return
+    if (!user || !subjectId || chapters.length === 0) return
     setRunning(true)
     setProgress(chapters.map((c) => ({ chapterId: c.id, textbookId: c.textbookId, title: `${c.textbookTitle} - ${c.title}`, status: "pending" })))
     const idToken = await user.getIdToken()
@@ -147,7 +147,7 @@ export default function MasterKnowledgeExtractionPage() {
           Use Gemini 3.8 Flash (native endpoint)
         </label>
 
-        <Button onClick={loadChapters} disabled={selectedTextbookIds.length === 0} variant="secondary">
+        <Button onClick={loadChapters} disabled={!subjectId || selectedTextbookIds.length === 0} variant="secondary">
           Load Chapters ({chapters.length > 0 ? chapters.length : "none loaded"})
         </Button>
       </div>
