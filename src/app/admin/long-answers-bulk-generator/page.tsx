@@ -7,6 +7,8 @@ import { ref as storageRef, uploadBytes } from "firebase/storage"
 import { extractLongAnswerQuestions } from "@/ai/flows/ai-longanswers-question-extractor"
 import { generateProfPyqAnswerWithProvider } from "@/ai/flows/ai-profpyq-answer-generator"
 import { generateProfPyqAnswerFromTextbook } from "@/ai/flows/ai-profpyq-answer-from-textbook"
+import { generateGroundedAnswer } from "@/ai/grounded-answer-generator"
+import { answerTextToHtml as knowledgeAnswerTextToHtml } from "@/ai/grounded-answer-utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -411,11 +413,38 @@ export default function LongAnswersBulkGeneratorPage() {
       setCurrentLabel(`${subjectName} — ${item.chapterTitle} — ${item.question.slice(0, 50)}${item.question.length > 50 ? "..." : ""}`)
 
       try {
-        let result: { answer?: string; provider?: string; error?: string }
+        let result: { answer?: string; provider?: string; error?: string } = {}
+        let precomputedAnswerHtml: string | null = null
         if (textbookId) {
           const chapters = await getTextbookChapters(textbookId)
           const matchedChapter = fuzzyMatchChapter(item.chapterTitle, chapters)
-          if (matchedChapter && matchedChapter.text) {
+
+          // Prefer already-extracted, already-verified knowledge over a fresh AI call on
+          // raw text - if this chapter has been through Master Knowledge Extraction, its
+          // structured facts ground a more reliable answer than re-reading raw excerpt
+          // text each time. Falls back to the existing textbook/AI-knowledge paths
+          // unchanged for any chapter not yet processed that way, or if this fails.
+          let usedKnowledge = false
+          if (matchedChapter?.chapterId) {
+            try {
+              const knowledgeDoc = await getDoc(doc(db!, 'subjects', item.subjectId, 'chapterKnowledge', `${textbookId}__${matchedChapter.chapterId}`))
+              if (knowledgeDoc.exists()) {
+                const knowledge = knowledgeDoc.data() as any
+                const groundedResult = await generateGroundedAnswer(item.question, item.sectionType, knowledge, { useGeminiNative: true })
+                if (groundedResult.answer) {
+                  result = { answer: groundedResult.answer, provider: "Master Knowledge Extraction" }
+                  precomputedAnswerHtml = knowledgeAnswerTextToHtml(groundedResult.answer)
+                  usedKnowledge = true
+                }
+              }
+            } catch {
+              usedKnowledge = false
+            }
+          }
+
+          if (usedKnowledge) {
+            // result and precomputedAnswerHtml already set above
+          } else if (matchedChapter && matchedChapter.text) {
             const tb = textbooksList?.find((t: any) => t.id === textbookId)
             result = await generateProfPyqAnswerFromTextbook({
               subject: subjectName,
@@ -476,7 +505,7 @@ export default function LongAnswersBulkGeneratorPage() {
         const existingItems = existingSnap.exists() && (existingSnap.data() as any).html
           ? parseQaItems((existingSnap.data() as any).html)
           : []
-        const newItem: QAItem = { questionHtml: item.question, answerHtml: answerTextToHtml(result.answer) }
+        const newItem: QAItem = { questionHtml: item.question, answerHtml: precomputedAnswerHtml || answerTextToHtml(result.answer) }
         const combinedItems = [...existingItems, newItem]
         const finalHtml = rebuildHtml(combinedItems)
 
