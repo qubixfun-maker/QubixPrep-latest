@@ -84,11 +84,12 @@ export default function MasterKnowledgeExtractionPage() {
    * aren't already "done" - a fresh start, a resume after pause, and picking back up
    * after a browser refresh all go through this same path. */
   async function runLoop(chapters: ChapterProgress[], startIndex: number) {
-    if (isRunningLocallyRef.current || !user || !jobRef) return
+    console.log('runLoop called. startIndex:', startIndex, 'isRunningLocally:', isRunningLocallyRef.current, 'user:', !!user, 'jobRef:', !!jobRef)
+    if (isRunningLocallyRef.current || !user || !jobRef) { console.log('runLoop aborting early'); return }
     isRunningLocallyRef.current = true
-    const idToken = await user.getIdToken()
 
     const working = [...chapters]
+    console.log('runLoop starting, total chapters:', working.length)
     for (let i = startIndex; i < working.length; i++) {
       if (isPausedRef.current) {
         await updateJob({ status: "paused", chapters: working, updatedAt: serverTimestamp() })
@@ -101,6 +102,7 @@ export default function MasterKnowledgeExtractionPage() {
       await updateJob({ chapters: working, updatedAt: serverTimestamp() })
 
       try {
+        const idToken = await user.getIdToken()
         const res = await fetch("/api/admin/master-extract-chapter", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
