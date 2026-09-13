@@ -212,52 +212,18 @@ export async function callAI(
 // Same as callAI, but also returns which provider actually answered - used where
 // we want to track/tag output quality across a long automated run (e.g. bulk
 // long-answer generation), since the fallback chain can switch models mid-run.
+// Simplified to a single provider (Gemini 3.8 Flash native) rather than a multi-provider
+// fallback chain (Groq, Cerebras, Mistral, OpenRouter, Vertex-OpenAI-shim) - the fallback
+// chain added resilience but also inconsistency (which provider actually served a given
+// request was often unclear, and different providers gave meaningfully different output
+// quality for the same prompt). Every existing caller keeps working unchanged, since the
+// signature and return shape ({content, provider}) are the same - this just delegates.
 export async function callAIWithProvider(
   messages: { role: "user" | "assistant" | "system"; content: string }[],
   maxTokens: number = 2000,
   forceVertex: boolean = false
 ): Promise<{ content: string; provider: string }> {
-  let providers: Provider[]
-  if (forceVertex) {
-    const vertexProvider = await getVertexProvider()
-    if (!vertexProvider) {
-      throw new Error("Vertex AI is not configured (check GOOGLE_SERVICE_ACCOUNT_KEY / GOOGLE_CLOUD_PROJECT_ID) but Vertex-only mode was requested.")
-    }
-    providers = [vertexProvider]
-  } else {
-    providers = getStaticProviders()
-    const vertexProvider = await getVertexProvider()
-    if (vertexProvider) providers.push(vertexProvider)
-  }
-
-  if (providers.length === 0) {
-    throw new Error("No AI providers configured. Please set at least one API key in environment variables.")
-  }
-
-  // Collect each provider's actual failure reason - the previous version silently
-  // discarded these, leaving only a generic "all exhausted" message with no way to
-  // tell whether the real cause was a bad model ID, an expired key, a genuine quota
-  // hit, or something else entirely.
-  const attemptErrors: string[] = []
-  for (const provider of providers) {
-    try {
-      const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
-      const response = await client.chat.completions.create({
-        model: provider.model,
-        messages,
-        max_tokens: maxTokens,
-      })
-      const content = response.choices[0]?.message?.content
-      if (content) {
-        return { content, provider: provider.name }
-      }
-      attemptErrors.push(`${provider.name} (${provider.model}): empty response`)
-    } catch (error: any) {
-      attemptErrors.push(`${provider.name} (${provider.model}): ${error?.message || error}`)
-      continue
-    }
-  }
-  throw new Error(`All AI providers exhausted. Attempts: ${attemptErrors.join(' | ')}`)
+  return callGeminiNative(messages, maxTokens)
 }
 
 // Calls Vertex AI only, with no fallback to other providers. Used for bulk generation
@@ -313,61 +279,16 @@ async function ensureVertexCredentialsFile(rawKey: string): Promise<string> {
   return filePath;
 }
 
+// Simplified to delegate to Gemini 3.8 native, same reasoning as callAIWithProvider
+// above - one consistent model handling everything, rather than a second alternate
+// provider (this path was also never reliably working, due to a persistent Claude-via-
+// Vertex quota-grant issue). Signature/return shape unchanged, so existing callers
+// that pass useClaude: true keep working, just served by Gemini now.
 export async function callClaudeOnly(
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   maxTokens: number = 2000
 ): Promise<{ content: string; provider: string }> {
-  // Calls Claude through Google Vertex AI, reusing the SAME service account credentials
-  // already configured for this app's existing Gemini/Vertex calls (GOOGLE_SERVICE_ACCOUNT_KEY,
-  // GOOGLE_CLOUD_PROJECT_ID) - no separate credential setup needed, unlike Bedrock which
-  // required a whole new AWS account and IAM user. Uses Anthropic's own official Vertex SDK,
-  // which exposes the same messages.create() interface as their direct API.
-  const { AnthropicVertex } = await import('@anthropic-ai/vertex-sdk')
-
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-  if (!rawKey) {
-    throw new Error('Claude (via Vertex) is not configured - GOOGLE_SERVICE_ACCOUNT_KEY is missing.')
-  }
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
-  if (!projectId) {
-    throw new Error('Claude (via Vertex) is not configured - GOOGLE_CLOUD_PROJECT_ID is missing.')
-  }
-  // Claude on Vertex uses "global" as its region regardless of GOOGLE_CLOUD_LOCATION
-  // (which is used elsewhere for Gemini) - confirmed directly from the Model Garden's
-  // own quickstart code sample for this exact model.
-  const region = 'global'
-
-  const credentialsFilePath = await ensureVertexCredentialsFile(rawKey)
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = credentialsFilePath
-
-  const client = new AnthropicVertex({ region, projectId })
-
-  const systemParts = messages.filter((m) => m.role === 'system').map((m) => m.content)
-  const conversation = messages
-    .filter((m) => m.role !== 'system')
-    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-
-  let response
-  try {
-    response = await client.messages.create({
-      model: process.env.VERTEX_CLAUDE_MODEL_ID || 'claude-sonnet-5',
-      max_tokens: maxTokens,
-      ...(systemParts.length ? { system: systemParts.join('\n\n') } : {}),
-      messages: conversation,
-    })
-  } catch (err: any) {
-    throw new Error(`Vertex Claude call failed: ${err.message || err}`)
-  }
-
-  const content = (response.content || [])
-    .filter((block: any) => block.type === 'text')
-    .map((block: any) => block.text)
-    .join('')
-
-  if (!content) {
-    throw new Error('Claude (via Vertex) returned an empty response.')
-  }
-  return { content, provider: 'Claude (Vertex)' }
+  return callGeminiNative(messages, maxTokens)
 }
 
 // Calls a Gemini model via Vertex's NATIVE generateContent endpoint (not the
@@ -424,6 +345,54 @@ export async function callGeminiNative(
     throw new Error('Gemini (native) returned an empty response.')
   }
   return { content, provider: 'Gemini (native)' }
+}
+
+// Same native "global" endpoint as callGeminiNative, but accepts one or more images
+// (base64-encoded, sent as inlineData parts) alongside the text prompt - used for
+// scanned/image-only PDF pages, where Gemini's own vision reads the page directly
+// rather than needing a separate OCR library.
+export async function callGeminiNativeMultimodal(
+  prompt: string,
+  imagesBase64: string[],
+  maxTokens: number = 2000,
+  mimeType: string = 'image/jpeg'
+): Promise<{ content: string; provider: string }> {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
+  if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
+  const token = await getVertexAccessToken()
+  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
+
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.8-flash').trim()
+  const location = 'global'
+
+  const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))
+  const contents = [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
+
+  const url = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents,
+      generationConfig: { maxOutputTokens: maxTokens },
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Gemini native multimodal call failed (${res.status}): ${text.slice(0, 500)}`)
+  }
+
+  const data = await res.json()
+  const content = (data.candidates?.[0]?.content?.parts || [])
+    .map((p: any) => p.text || '')
+    .join('')
+
+  if (!content) {
+    throw new Error('Gemini (native multimodal) returned an empty response.')
+  }
+  return { content, provider: 'Gemini (native, vision)' }
 }
 
 export function getGroqClient() {
