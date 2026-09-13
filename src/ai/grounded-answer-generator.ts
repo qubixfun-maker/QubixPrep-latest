@@ -2,6 +2,7 @@
 import { callAIWithProvider, callGeminiNative, callClaudeOnly } from '@/ai/genkit';
 import type { ChapterKnowledge } from '@/ai/chapter-knowledge';
 import { knowledgeToText } from '@/ai/chapter-knowledge-utils';
+import { allTemplatesForPrompt } from '@/ai/subject-templates';
 
 /**
  * Generates a model answer to a real exam question, grounded strictly in a chapter's
@@ -26,7 +27,12 @@ const TARGET_WORDS: Record<SectionType, string> = {
   'short-answers': '20-50 words, direct and to the point',
 };
 
-function buildPrompt(question: string, sectionType: SectionType, knowledgeText: string): string {
+function buildPrompt(question: string, sectionType: SectionType, knowledgeText: string, subjectName: string): string {
+  const templates = allTemplatesForPrompt(subjectName);
+  const templateBlock = templates.map((t) =>
+    `- "${t.name}": structure as [${t.sections.join(' -> ')}] - use when: ${t.description}`
+  ).join('\n');
+
   return `You are writing a model exam answer for an MBBS student, using ONLY the chapter knowledge given below - never invent facts, numbers, or examples beyond what's here.
 
 CHAPTER KNOWLEDGE (the only source of truth - already extracted and verified from the textbook):
@@ -35,16 +41,27 @@ ${knowledgeText}
 QUESTION: ${question}
 
 TASK: Write a complete model answer to this question.
-STEP 1 - Before writing, identify every distinct part of this question (many exam questions ask for several things at once - e.g. "define X. Mention the types. Explain Y" has three parts; "(a)...(b)...(c)" has three parts). List them to yourself, then make sure your answer gives EACH part its own real paragraph of substance - do not answer only the first part and stop.
-STEP 2 - Write the answer:
-- HARD MINIMUM LENGTH: ${TARGET_WORDS[sectionType]}. This is a firm requirement, not a suggestion - a short, single-paragraph answer is an INCOMPLETE answer for this task, even if it sounds finished.
-- Use ONLY facts present in the chapter knowledge above. If the knowledge doesn't fully cover some part of the question, cover that part as completely as the given facts allow rather than inventing the rest or skipping it.
-- Write in clear exam-answer prose, organized into multiple paragraphs (one per part of the question, per Step 1). Use "-" at the start of a line for bullet points where a list genuinely helps (e.g. types, causes, features).
-- Do not repeat the question back or add a preamble like "Answer:" - start directly with the content.
-- Do not stop after covering just the first clause of the question - continue through every part you identified in Step 1.
-- PACE YOURSELF: as you write, keep track of how much you've covered versus how much room you likely have left. If you sense you're approaching your limit, do NOT start a new subtopic or mechanism you won't have room to finish - instead, wrap up your current point and end with a short, complete concluding sentence. A shorter answer that ends cleanly is far better than a longer one that cuts off mid-thought.
 
-Output ONLY the answer text - no markdown headers, no code fences, no restating the parts you identified in Step 1. Your final sentence must be a complete, properly punctuated sentence - never end mid-clause or mid-word.`;
+STEP 1 - Before writing, identify every distinct part of this question (many exam questions ask for several things at once - e.g. "define X. Mention the types. Explain Y" has three parts; "(a)...(b)...(c)" has three parts). Make sure your answer gives EACH part its own real coverage - do not answer only the first part and stop.
+
+STEP 2 - Choose the best presentation format for THIS SPECIFIC question from the list below. Different questions genuinely suit different shapes - do not default to plain prose for every question.
+${templateBlock}
+- If the question asks to compare/differentiate/contrast two or more things, use "Comparison Table" and render an ACTUAL Markdown table (using | pipes |), not prose describing a comparison.
+- If the question describes a clinical case/scenario (e.g. "A 42-year-old male presented with..."), use "Clinical Vignette Card" with clear sub-headers for each part asked (e.g. "### Diagnosis", "### Etiopathogenesis", "### Findings").
+- If the question asks to describe a sequence/steps/mechanism, use "Process/Mechanism Flowchart" and render an ACTUAL numbered list (1. 2. 3. ...) for the steps, not prose.
+- Otherwise use the subject's own default template, with a "###" sub-header per major part of the question.
+
+STEP 3 - Write the answer using real Markdown structure matching your chosen format:
+- Use "###" for section sub-headers when the format calls for named sections.
+- Use real Markdown tables (| Column | Column |) for comparisons - never describe a comparison in prose instead.
+- Use real numbered lists (1. 2. 3.) for sequences/steps.
+- Use "**bold**" for key terms worth highlighting.
+- HARD MINIMUM LENGTH: ${TARGET_WORDS[sectionType]}. This is a firm requirement - a short answer is an INCOMPLETE answer for this task, even if it sounds finished.
+- Use ONLY facts present in the chapter knowledge above. If the knowledge doesn't fully cover some part of the question, cover that part as completely as the given facts allow rather than inventing the rest or skipping it.
+- Do not repeat the question back or add a preamble like "Answer:" - start directly with the content.
+- PACE YOURSELF: if you sense you're approaching your limit, do NOT start a new subtopic you won't have room to finish - wrap up cleanly instead. A shorter answer that ends properly is far better than one that cuts off mid-thought.
+
+Output ONLY the answer as Markdown - no commentary about which format you chose, no code fences around the whole answer. Your final sentence must be complete and properly punctuated - never end mid-clause or mid-word.`;
 }
 
 export type GenerateAnswerOutput = {
@@ -81,7 +98,7 @@ export async function generateGroundedAnswer(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      let prompt = buildPrompt(question, sectionType, knowledgeText);
+      let prompt = buildPrompt(question, sectionType, knowledgeText, knowledge.subjectName || '');
       if (attempt > 1 && bestAttempt) {
         prompt += bestAttemptWasTruncated
           ? `\n\nYour previous attempt was REJECTED for stopping mid-sentence before finishing (it reached a reasonable length but got cut off): "${bestAttempt}"\nWrite a NEW answer that covers the same ground more concisely per point, so the FULL answer (covering every part of the question) fits and finishes with a complete final sentence. Do not trail off - make sure the answer properly concludes.`
