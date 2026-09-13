@@ -52,7 +52,7 @@ export function AppSidebar() {
 
   const mainItems = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    // { title: "Notes", url: "/notes", icon: BookOpen },
+    { title: "Notes", url: "/notes", icon: BookOpen },
     { title: "Long Answers", url: "/long-answers", icon: GraduationCap },
     { title: "Flashcards", url: "/flashcards", icon: Layers },
     { title: "Mindmaps", url: "/mindmaps", icon: Network },
