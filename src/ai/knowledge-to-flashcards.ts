@@ -56,6 +56,77 @@ async function callModel(prompt: string, maxTokens: number, useClaude?: boolean,
 
 export type TopicFlashcards = { topicName: string; cards: FlashcardPair[] };
 
+/** Recursively finds one topic by name, including nested subtopics. */
+function findTopicByName(topics: any[], name: string): any | null {
+  for (const t of topics) {
+    if (t.name === name) return t;
+    if (t.subtopics?.length) {
+      const found = findTopicByName(t.subtopics, name);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Flattens every flashcard-tagged fact across ALL topics/subtopics in a chapter. */
+function allFlashcardFactsInChapter(knowledge: ChapterKnowledge): string[] {
+  const out: string[] = [];
+  function walk(topics: any[]) {
+    for (const t of topics) {
+      (t.facts || []).forEach((f: any) => {
+        if (!f.bestFor || f.bestFor.includes('flashcard')) out.push(f.fact);
+      });
+      if (t.subtopics?.length) walk(t.subtopics);
+    }
+  }
+  walk(knowledge.topics);
+  return out;
+}
+
+/**
+ * Generates flashcards for ONE topic (or the whole chapter, if topicName is empty) -
+ * used when an admin tool lets the user pick a specific topic and card count, rather
+ * than generating a deck per topic for the whole chapter in one pass. Reuses the same
+ * prompt/model logic as knowledgeToFlashcards, just scoped to one topic's facts (or all
+ * of them, capped to cardCount, for the "whole chapter" case).
+ */
+export async function generateFlashcardsForOneTopic(
+  knowledge: ChapterKnowledge,
+  topicName: string,
+  cardCount: number,
+  options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
+): Promise<{ cards?: FlashcardPair[]; error?: string }> {
+  let facts: string[];
+  if (topicName) {
+    const topic = findTopicByName(knowledge.topics, topicName);
+    if (!topic) return { error: `Topic "${topicName}" not found in extracted knowledge.` };
+    facts = (topic.facts || [])
+      .filter((f: any) => !f.bestFor || f.bestFor.includes('flashcard'))
+      .map((f: any) => f.fact);
+  } else {
+    facts = allFlashcardFactsInChapter(knowledge);
+  }
+
+  if (facts.length === 0) return { error: 'No flashcard-suitable facts found.' };
+  if (cardCount > 0 && facts.length > cardCount) facts = facts.slice(0, cardCount);
+
+  const prompt = buildPrompt(topicName || knowledge.centralTopic, facts);
+  const MAX_ATTEMPTS = 2;
+  let lastError = '';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const { content: raw } = await callModel(prompt, 2000, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
+      const parsed = tryParseArray(raw);
+      if (parsed && parsed.length > 0) return { cards: parsed };
+      lastError = 'AI response was not a valid flashcard array';
+    } catch (err: any) {
+      lastError = err.message || 'Unknown error';
+    }
+  }
+  return { error: `${lastError} (after ${MAX_ATTEMPTS} attempts)` };
+}
+
 /**
  * Generates one deck's worth of flashcards per topic that has flashcard-tagged facts.
  * Topics with no such facts are skipped entirely rather than forcing empty decks.
@@ -67,7 +138,6 @@ export async function knowledgeToFlashcards(
   const allFacts = knowledgeToFactsFor(knowledge, 'flashcard');
   if (allFacts.length === 0) return { error: 'No facts tagged as flashcard-suitable in this chapter.' };
 
-  // Group by topic, matching the existing app's convention of one deck per topic.
   const byTopic = new Map<string, string[]>();
   for (const { topicName, fact } of allFacts) {
     if (!byTopic.has(topicName)) byTopic.set(topicName, []);
@@ -98,8 +168,6 @@ export async function knowledgeToFlashcards(
     if (cards) {
       decks.push({ topicName, cards });
     }
-    // A topic that fails after retries is skipped, not fatal to the whole chapter -
-    // matches the same graceful-degradation approach used elsewhere tonight.
   }
 
   if (decks.length === 0) return { error: 'No decks could be generated from any topic.' };

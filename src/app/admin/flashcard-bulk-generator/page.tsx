@@ -201,11 +201,26 @@ export default function FlashcardBulkGeneratorPage() {
       const allItems: TopicItem[] = []
       for (const ch of selectedChapters) {
         setExtractProgress(`Extracting topics: ${ch.chapterTitle}...`)
-        const chapterDoc = await getDoc(doc(db, 'textbooks', ch.textbookId, 'chapters', ch.chapterId))
-        const data = chapterDoc.data() as any
-        const sources = [{ textbookTitle: ch.textbookTitle, chapterTitle: ch.chapterTitle, text: data?.text || "" }]
-        const result = await extractChapterTopics({ sources })
-        const topics = result.topics && result.topics.length > 0 ? result.topics : [null]
+
+        let topics: (string | null)[] | null = null
+        try {
+          const knowledgeDoc = await getDoc(doc(db, 'subjects', ch.subjectId, 'chapterKnowledge', `${ch.textbookId}__${ch.chapterId}`))
+          if (knowledgeDoc.exists()) {
+            const knowledge = knowledgeDoc.data() as any
+            const names: string[] = (knowledge.topics || []).map((t: any) => t.name)
+            if (names.length > 0) topics = names
+          }
+        } catch {
+          topics = null
+        }
+
+        if (!topics) {
+          const chapterDoc = await getDoc(doc(db, 'textbooks', ch.textbookId, 'chapters', ch.chapterId))
+          const data = chapterDoc.data() as any
+          const sources = [{ textbookTitle: ch.textbookTitle, chapterTitle: ch.chapterTitle, text: data?.text || "" }]
+          const result = await extractChapterTopics({ sources })
+          topics = result.topics && result.topics.length > 0 ? result.topics : [null]
+        }
         topics.forEach((topic, idx) => {
           allItems.push({
             key: `${ch.key}__${idx}`,
@@ -342,11 +357,26 @@ export default function FlashcardBulkGeneratorPage() {
       setCurrentLabel(`${item.textbookTitle} — ${item.chapterTitle}${item.topic ? " — " + item.topic : ""}`)
 
       try {
-        const chapterDoc = await getDoc(doc(db!, 'textbooks', item.textbookId, 'chapters', item.chapterId))
-        const chapterData = chapterDoc.data() as any
-        const sources = [{ textbookTitle: item.textbookTitle, chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
+        let result: { cards?: { front: string; back: string }[]; error?: string } | null = null
+        try {
+          const knowledgeDoc = await getDoc(doc(db!, 'subjects', item.subjectId, 'chapterKnowledge', `${item.textbookId}__${item.chapterId}`))
+          if (knowledgeDoc.exists()) {
+            const { generateFlashcardsForOneTopic } = await import('@/ai/knowledge-to-flashcards')
+            const knowledge = knowledgeDoc.data() as any
+            const knowledgeResult = await generateFlashcardsForOneTopic(knowledge, item.topic || "", item.cardCount, { useGeminiNative: true })
+            if (knowledgeResult.cards) result = knowledgeResult
+          }
+        } catch {
+          result = null
+        }
 
-        const result = await generateFlashcards({ sources, topicFocus: item.topic || "", cardCount: item.cardCount })
+        if (!result) {
+          const chapterDoc = await getDoc(doc(db!, 'textbooks', item.textbookId, 'chapters', item.chapterId))
+          const chapterData = chapterDoc.data() as any
+          const sources = [{ textbookTitle: item.textbookTitle, chapterTitle: item.chapterTitle, text: chapterData?.text || "" }]
+          result = await generateFlashcards({ sources, topicFocus: item.topic || "", cardCount: item.cardCount })
+        }
+
         let cardsSaved = 0
         if (result.cards && result.cards.length > 0) {
           const parts = [item.unitName, item.chapterTitle, item.topic].filter(Boolean).join(" ")
