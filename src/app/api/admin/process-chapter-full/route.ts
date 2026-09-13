@@ -15,12 +15,9 @@ import { generateChapterNotes } from '@/ai/chapter-notes-generator'
  *      notes generation, leaving the full time budget for that step alone instead of
  *      re-spending it on an extraction that already succeeded last time.
  *   3. Store that knowledge at subjects/{subjectId}/chapterKnowledge/{textbookId}__{chapterId}
- *   4. Generate text notes from the (already-verified) knowledge - never re-reads
- *      raw text, so it can't reintroduce misreadings at this stage
+ *   4. Generate text notes from the (already-verified) knowledge, as a separate entry
+ *      per topic - never re-reads raw text, so it can't reintroduce misreadings here
  *   5. Store those notes at subjects/{subjectId}/textNotes/{textbookId}__{chapterId}
- *
- * Storage keys are scoped by textbookId+chapterId (not chapterId alone), since a single
- * subject can draw from multiple textbooks whose chapter IDs could otherwise collide.
  *
  * Auth: a shared secret (ADMIN_BULK_SECRET) rather than a Firebase ID token, since a
  * 30-chapter run can outlast a token's ~1hr lifetime. Set this once in Vercel env vars.
@@ -88,7 +85,7 @@ export async function POST(req: NextRequest) {
     // Step 4: generate notes from the already-verified knowledge
     const notesResult = await generateChapterNotes(knowledge, !useClaude, !!useGeminiNative)
 
-    if (notesResult.error || !notesResult.markdown) {
+    if (notesResult.error || !notesResult.topics) {
       return NextResponse.json({
         stage: 'notes',
         error: notesResult.error || 'Unknown notes generation error',
@@ -99,9 +96,10 @@ export async function POST(req: NextRequest) {
     // Step 5: store notes
     await db.collection('subjects').doc(subjectId).collection('textNotes').doc(docKey).set({
       chapterId,
+      textbookId,
       chapterTitle: chapterData.title || chapterId,
       subjectId,
-      markdown: notesResult.markdown,
+      topics: notesResult.topics,
       topicCount: knowledge.topics.length,
       updatedAt: new Date().toISOString(),
     })
@@ -111,7 +109,7 @@ export async function POST(req: NextRequest) {
       chapterTitle: chapterData.title,
       topicCount: knowledge.topics.length,
       factCount: knowledge.topics.reduce((sum: number, t: any) => sum + (t.facts?.length || 0), 0),
-      notesLength: notesResult.markdown.length,
+      notesLength: notesResult.topics.reduce((sum, t) => sum + t.markdown.length, 0),
       reusedExistingKnowledge,
     })
   } catch (e: any) {
