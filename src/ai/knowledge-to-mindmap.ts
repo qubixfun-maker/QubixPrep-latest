@@ -3,9 +3,12 @@ import type { ChapterKnowledge, KnowledgeTopic } from '@/ai/chapter-knowledge';
 /**
  * Converts already-extracted chapter knowledge directly into mindmap data - a pure,
  * zero-cost transform with no AI call, since the knowledge tree already has exactly the
- * hierarchy (topics -> subtopics) a mindmap needs. This is the clearest case of the
- * "mother record" paying for itself: the hard work of understanding the chapter and
- * organizing it into a topic tree already happened once during extraction.
+ * hierarchy (topics -> subtopics) a mindmap needs.
+ *
+ * Fields are conditionally spread in rather than set to `undefined` when absent -
+ * Firestore's .set() rejects documents containing a literal `undefined` value outright
+ * ("Cannot use 'undefined' as a Firestore value"), so a missing optional field must be
+ * OMITTED from the object entirely, not present with an undefined value.
  */
 
 export type MindmapNode = {
@@ -24,13 +27,14 @@ function topicToMindmapNode(topic: KnowledgeTopic): MindmapNode {
   const examples = topic.facts?.length
     ? topic.facts.slice(0, MAX_FACTS_IN_EXAMPLES).map((f) => f.fact).join(' ')
     : undefined;
+  const branches = topic.subtopics?.length ? topic.subtopics.map(topicToMindmapNode) : undefined;
 
   return {
     name: topic.name,
-    definition,
-    mechanism,
-    examples,
-    branches: topic.subtopics?.length ? topic.subtopics.map(topicToMindmapNode) : undefined,
+    ...(definition ? { definition } : {}),
+    ...(mechanism ? { mechanism } : {}),
+    ...(examples ? { examples } : {}),
+    ...(branches ? { branches } : {}),
   };
 }
 

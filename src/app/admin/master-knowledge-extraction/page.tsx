@@ -1,21 +1,16 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useUser, useFirestore, useStorage, useCollection } from "@/firebase"
+import { useUser, useFirestore, useCollection } from "@/firebase"
 import { collection, query, orderBy, getDocs } from "firebase/firestore"
-import { ref as storageRef, uploadBytes } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 
 type Chapter = { id: string; title: string; textbookId: string; textbookTitle: string }
-type StepStatus = "pending" | "running" | "done" | "failed" | "skipped"
-type ChapterProgress = { chapterId: string; textbookId: string; title: string; status: StepStatus; detail?: string }
-type SectionType = "long-essays" | "short-essays" | "short-answers"
-type ParsedQBChapter = { chapterNum: number; title: string; longEssays: string[]; shortEssays: string[]; shortAnswers: string[] }
+type ChapterProgress = { chapterId: string; textbookId: string; title: string; status: "pending" | "running" | "done" | "failed"; detail?: string }
 
 export default function MasterKnowledgeExtractionPage() {
   const { user } = useUser()
   const db = useFirestore()
-  const storage = useStorage()
 
   const subjectsQuery = useMemo(() => (!db ? null : query(collection(db, "subjects"), orderBy("name", "asc"))), [db])
   const { data: subjects } = useCollection(subjectsQuery)
@@ -25,22 +20,11 @@ export default function MasterKnowledgeExtractionPage() {
 
   const [subjectId, setSubjectId] = useState("")
   const [selectedTextbookIds, setSelectedTextbookIds] = useState<string[]>([])
-  const [useGeminiNative, setUseGeminiNative] = useState(false)
+  const [useGeminiNative, setUseGeminiNative] = useState(true)
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [progress, setProgress] = useState<ChapterProgress[]>([])
-  const [running, setRunning] = useState<string>("")
+  const [running, setRunning] = useState(false)
   const [exportedJson, setExportedJson] = useState<string>("")
-
-  const [qbFile, setQbFile] = useState<File | null>(null)
-  const [qbParsing, setQbParsing] = useState(false)
-  const [qbChapters, setQbChapters] = useState<ParsedQBChapter[]>([])
-  const [qbError, setQbError] = useState("")
-
-  const [longAnswerChapterKey, setLongAnswerChapterKey] = useState("")
-  const [longAnswerSectionType, setLongAnswerSectionType] = useState<SectionType>("long-essays")
-  const [longAnswerQuestions, setLongAnswerQuestions] = useState("")
-  const [longAnswerProgress, setLongAnswerProgress] = useState<{ question: string; status: string; detail?: string }[]>([])
-  const [longAnswerRunning, setLongAnswerRunning] = useState(false)
 
   const selectedSubject = subjects?.find((s: any) => s.id === subjectId) as any
 
@@ -65,180 +49,43 @@ export default function MasterKnowledgeExtractionPage() {
     setProgress(all.map((c) => ({ chapterId: c.id, textbookId: c.textbookId, title: `${c.textbookTitle} - ${c.title}`, status: "pending" as const })))
   }
 
-  async function callStep(endpoint: string, ch: Chapter, idToken: string, extra: Record<string, any> = {}) {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        idToken,
-        textbookId: ch.textbookId,
-        chapterId: ch.id,
-        subjectId,
-        subjectName: selectedSubject?.name || subjectId,
-        chapterTitle: ch.title,
-        useGeminiNative,
-        ...extra,
-      }),
-    })
-    return res.json()
-  }
-
-  function detailFor(data: any): string {
-    if (data.reusedExistingKnowledge) return "reused existing knowledge, notes generated"
-    if (data.branchCount !== undefined) return `${data.branchCount} branches`
-    if (data.deckCount !== undefined) return `${data.deckCount} deck(s), ${data.totalCards} card(s)`
-    if (data.topicCount !== undefined) return `${data.topicCount} topics`
-    return ""
-  }
-
-  async function runSingleStep(actionName: string, endpoint: string) {
+  async function runExtraction() {
     if (!user || chapters.length === 0) return
-    setRunning(actionName)
+    setRunning(true)
     setProgress(chapters.map((c) => ({ chapterId: c.id, textbookId: c.textbookId, title: `${c.textbookTitle} - ${c.title}`, status: "pending" })))
     const idToken = await user.getIdToken()
 
     for (let i = 0; i < chapters.length; i++) {
+      const ch = chapters[i]
       setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "running" } : p)))
+
       try {
-        const data = await callStep(endpoint, chapters[i], idToken)
+        const res = await fetch("/api/admin/master-extract-chapter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken,
+            textbookId: ch.textbookId,
+            chapterId: ch.id,
+            subjectId,
+            subjectName: selectedSubject?.name || subjectId,
+            useGeminiNative,
+          }),
+        })
+        const data = await res.json()
         if (data.success) {
-          setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "done", detail: detailFor(data) } : p)))
+          const detail = data.reused ? `already extracted (${data.topicCount} topics)` : `${data.topicCount} topics, ${data.factCount} facts`
+          setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "done", detail } : p)))
         } else {
           setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "failed", detail: data.error } : p)))
         }
       } catch (err: any) {
         setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "failed", detail: err.message } : p)))
       }
-      await new Promise((r) => setTimeout(r, 3000))
-    }
-    setRunning("")
-  }
-
-  async function runEverything() {
-    if (!user || chapters.length === 0) return
-    setRunning("everything")
-    setProgress(chapters.map((c) => ({ chapterId: c.id, textbookId: c.textbookId, title: `${c.textbookTitle} - ${c.title}`, status: "pending" })))
-    const idToken = await user.getIdToken()
-
-    for (let i = 0; i < chapters.length; i++) {
-      const ch = chapters[i]
-      setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "running", detail: "extracting knowledge..." } : p)))
-
-      try {
-        const knowledgeData = await callStep("/api/admin/master-extract-chapter", ch, idToken)
-        if (!knowledgeData.success) {
-          setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "failed", detail: `knowledge: ${knowledgeData.error}` } : p)))
-          await new Promise((r) => setTimeout(r, 2000))
-          continue
-        }
-
-        setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, detail: "generating mindmap..." } : p)))
-        const mindmapData = await callStep("/api/admin/master-generate-mindmap", ch, idToken)
-
-        setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, detail: "generating flashcards..." } : p)))
-        const flashcardData = await callStep("/api/admin/master-generate-flashcards", ch, idToken)
-
-        const parts = [
-          detailFor(knowledgeData),
-          mindmapData.success ? `${mindmapData.branchCount} mindmap branches` : `mindmap failed: ${mindmapData.error}`,
-          flashcardData.success ? `${flashcardData.deckCount} flashcard decks` : `flashcards failed: ${flashcardData.error}`,
-        ]
-        setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "done", detail: parts.join(" | ") } : p)))
-      } catch (err: any) {
-        setProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "failed", detail: err.message } : p)))
-      }
 
       await new Promise((r) => setTimeout(r, 3000))
     }
-    setRunning("")
-  }
-
-  async function uploadAndParseQB() {
-    if (!qbFile || !user || !storage) return
-    setQbParsing(true)
-    setQbError("")
-    try {
-      const storagePath = `question-banks/${Date.now()}-${qbFile.name}`
-      const fileRef = storageRef(storage, storagePath)
-      await uploadBytes(fileRef, qbFile)
-
-      const idToken = await user.getIdToken()
-      const res = await fetch("/api/admin/parse-question-bank", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, storagePath }),
-      })
-      const data = await res.json()
-      if (data.error) {
-        setQbError(data.error)
-      } else {
-        setQbChapters(data.chapters || [])
-      }
-    } catch (err: any) {
-      setQbError(err.message)
-    }
-    setQbParsing(false)
-  }
-
-  function findMatchingQBChapter(chapterTitle: string): ParsedQBChapter | undefined {
-    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
-    const target = norm(chapterTitle)
-    return qbChapters.find((qc) => norm(qc.title) === target || target.includes(norm(qc.title)) || norm(qc.title).includes(target))
-  }
-
-  function selectLongAnswerChapter(key: string) {
-    setLongAnswerChapterKey(key)
-    const ch = chapters.find((c) => `${c.textbookId}__${c.id}` === key)
-    if (!ch) return
-    const match = findMatchingQBChapter(ch.title)
-    if (match) {
-      const list = longAnswerSectionType === "long-essays" ? match.longEssays : longAnswerSectionType === "short-essays" ? match.shortEssays : match.shortAnswers
-      setLongAnswerQuestions(list.join("\n"))
-    }
-  }
-
-  async function runLongAnswers() {
-    if (!user || !longAnswerChapterKey) return
-    const ch = chapters.find((c) => `${c.textbookId}__${c.id}` === longAnswerChapterKey)
-    if (!ch) return
-    const questions = longAnswerQuestions.split("\n").map((q) => q.trim()).filter(Boolean)
-    if (questions.length === 0) return
-
-    setLongAnswerRunning(true)
-    setLongAnswerProgress(questions.map((q) => ({ question: q, status: "pending" })))
-    const idToken = await user.getIdToken()
-
-    for (let i = 0; i < questions.length; i++) {
-      setLongAnswerProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "running" } : p)))
-      try {
-        const res = await fetch("/api/admin/master-generate-answer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            idToken,
-            subjectId,
-            textbookId: ch.textbookId,
-            chapterId: ch.id,
-            chapterTitle: ch.title,
-            sectionType: longAnswerSectionType,
-            question: questions[i],
-            useGeminiNative,
-          }),
-        })
-        const data = await res.json()
-        if (data.skipped) {
-          setLongAnswerProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "skipped", detail: "already answered" } : p)))
-        } else if (data.success) {
-          setLongAnswerProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "done", detail: `${data.answerLength} chars` } : p)))
-        } else {
-          setLongAnswerProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "failed", detail: data.error } : p)))
-        }
-      } catch (err: any) {
-        setLongAnswerProgress((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "failed", detail: err.message } : p)))
-      }
-      await new Promise((r) => setTimeout(r, 3000))
-    }
-    setLongAnswerRunning(false)
+    setRunning(false)
   }
 
   async function exportJson() {
@@ -270,7 +117,7 @@ export default function MasterKnowledgeExtractionPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Master Knowledge Extraction</h1>
         <p className="text-muted-foreground mt-2">
-          Pick a subject and one or more of its textbooks, load chapters, then run generation.
+          Extract structured knowledge, chapter by chapter, then export it as JSON for review before anything else is generated from it.
         </p>
       </div>
 
@@ -293,12 +140,11 @@ export default function MasterKnowledgeExtractionPage() {
               </label>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">A subject can have more than one textbook - select all that apply and they'll be processed together.</p>
         </div>
 
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={useGeminiNative} onChange={(e) => setUseGeminiNative(e.target.checked)} />
-          Use Gemini 3.8 Flash (native endpoint) instead of the default provider chain
+          Use Gemini 3.8 Flash (native endpoint)
         </label>
 
         <Button onClick={loadChapters} disabled={selectedTextbookIds.length === 0} variant="secondary">
@@ -306,39 +152,12 @@ export default function MasterKnowledgeExtractionPage() {
         </Button>
       </div>
 
-      <div className="space-y-3 rounded-2xl glass border p-6">
-        <h2 className="text-lg font-semibold">Question bank (optional)</h2>
-        <p className="text-sm text-muted-foreground">Upload a chapter-wise question bank PDF to auto-fill real exam questions per chapter below.</p>
-        <input type="file" accept="application/pdf" onChange={(e) => setQbFile(e.target.files?.[0] || null)} className="text-sm" />
-        <Button onClick={uploadAndParseQB} disabled={!qbFile || qbParsing} variant="secondary">
-          {qbParsing ? "Parsing..." : "Upload & Parse"}
-        </Button>
-        {qbError && <p className="text-sm text-red-500">{qbError}</p>}
-        {qbChapters.length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Parsed {qbChapters.length} chapters, {qbChapters.reduce((s, c) => s + c.longEssays.length + c.shortEssays.length + c.shortAnswers.length, 0)} total questions.
-          </p>
-        )}
-      </div>
-
       {chapters.length > 0 && (
         <div className="space-y-4 rounded-2xl glass border p-6">
-          <h2 className="text-lg font-semibold">Generation ({chapters.length} chapters)</h2>
-          <Button onClick={runEverything} disabled={!!running} className="w-full">
-            {running === "everything" ? "Running..." : "Run Everything (one reading pass per chapter)"}
+          <h2 className="text-lg font-semibold">Extraction ({chapters.length} chapters)</h2>
+          <Button onClick={runExtraction} disabled={running} className="w-full">
+            {running ? "Running..." : "Extract Knowledge"}
           </Button>
-          <p className="text-xs text-muted-foreground">Or run individual steps:</p>
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={() => runSingleStep("knowledge", "/api/admin/master-extract-chapter")} disabled={!!running} variant="secondary">
-              Extract Knowledge + Notes
-            </Button>
-            <Button onClick={() => runSingleStep("mindmap", "/api/admin/master-generate-mindmap")} disabled={!!running} variant="secondary">
-              Generate Mindmaps
-            </Button>
-            <Button onClick={() => runSingleStep("flashcards", "/api/admin/master-generate-flashcards")} disabled={!!running} variant="secondary">
-              Generate Flashcards
-            </Button>
-          </div>
 
           <p className="text-sm text-muted-foreground">{doneCount}/{progress.length} done{failedCount > 0 ? `, ${failedCount} failed` : ""}</p>
           <div className="space-y-1 max-h-96 overflow-y-auto">
@@ -351,57 +170,6 @@ export default function MasterKnowledgeExtractionPage() {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {chapters.length > 0 && (
-        <div className="space-y-4 rounded-2xl glass border p-6">
-          <h2 className="text-lg font-semibold">Long Answers (one chapter at a time)</h2>
-          <p className="text-sm text-muted-foreground">Auto-filled from the uploaded question bank if a matching chapter is found - edit freely before running.</p>
-
-          <div>
-            <label className="text-sm font-medium block mb-1">Chapter</label>
-            <select className="w-full rounded-lg border bg-background p-2" value={longAnswerChapterKey} onChange={(e) => selectLongAnswerChapter(e.target.value)}>
-              <option value="">Select a chapter...</option>
-              {chapters.map((c) => <option key={`${c.textbookId}__${c.id}`} value={`${c.textbookId}__${c.id}`}>{c.textbookTitle} - {c.title}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium block mb-1">Section type</label>
-            <select className="w-full rounded-lg border bg-background p-2" value={longAnswerSectionType} onChange={(e) => { setLongAnswerSectionType(e.target.value as SectionType); if (longAnswerChapterKey) selectLongAnswerChapter(longAnswerChapterKey) }}>
-              <option value="long-essays">Long Essays</option>
-              <option value="short-essays">Short Essays</option>
-              <option value="short-answers">Short Answers</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium block mb-1">Questions (one per line)</label>
-            <textarea
-              className="w-full h-40 rounded-lg border bg-background p-2 text-sm"
-              value={longAnswerQuestions}
-              onChange={(e) => setLongAnswerQuestions(e.target.value)}
-              placeholder="Define inflammation. Mention the types...&#10;Describe the vascular phenomenon of inflammation..."
-            />
-          </div>
-
-          <Button onClick={runLongAnswers} disabled={!longAnswerChapterKey || longAnswerRunning}>
-            {longAnswerRunning ? "Running..." : "Generate Answers"}
-          </Button>
-
-          {longAnswerProgress.length > 0 && (
-            <div className="space-y-1 max-h-96 overflow-y-auto">
-              {longAnswerProgress.map((p, i) => (
-                <div key={i} className="flex items-center justify-between text-sm rounded-lg border p-2">
-                  <span className="truncate flex-1">{p.question.slice(0, 60)}...</span>
-                  <span className={p.status === "done" ? "text-green-500" : p.status === "failed" ? "text-red-500" : p.status === "running" ? "text-blue-500" : "text-muted-foreground"}>
-                    {p.status}{p.detail ? ` - ${p.detail}` : ""}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

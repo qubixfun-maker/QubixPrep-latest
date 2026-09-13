@@ -1,20 +1,18 @@
 export const dynamic = "force-dynamic"
-export const maxDuration = 300
+export const maxDuration = 280
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
 import { getChapterKnowledge } from '@/ai/chapter-knowledge'
-import { generateChapterNotes } from '@/ai/chapter-notes-generator'
 
 /**
- * Admin-UI-triggered version of the knowledge+notes pipeline - same underlying logic as
- * process-chapter-full, but authenticated with the logged-in admin's own Firebase ID
- * token instead of a shared secret, since this is called directly from a browser
- * session rather than a long-running background script.
+ * Knowledge-extraction ONLY - deliberately does not generate notes, mindmaps,
+ * flashcards, or anything else. This is the single "master read" pass over a chapter,
+ * producing the structured JSON record that every other feature (built as separate
+ * admin pages, reading from this stored record instead of raw text) derives from.
  *
- * Storage keys are scoped by textbookId + chapterId (not chapterId alone), since a
- * single subject can draw from multiple textbooks whose chapter IDs could otherwise
- * collide and silently overwrite each other.
+ * Storage keys are scoped by textbookId + chapterId, since a single subject can draw
+ * from multiple textbooks whose chapter IDs could otherwise collide.
  *
  * Usage: POST { idToken, textbookId, chapterId, subjectId, subjectName, useGeminiNative? }
  */
@@ -44,64 +42,47 @@ export async function POST(req: NextRequest) {
 
     const docKey = `${textbookId}__${chapterId}`
 
-    let knowledge: any
-    let reusedExistingKnowledge = false
     const existingKnowledgeDoc = await db.collection('subjects').doc(subjectId).collection('chapterKnowledge').doc(docKey).get()
-
     if (existingKnowledgeDoc.exists) {
-      knowledge = existingKnowledgeDoc.data()
-      reusedExistingKnowledge = true
-    } else {
-      const knowledgeResult = await getChapterKnowledge({
-        sources: [{
-          textbookTitle,
-          chapterTitle: chapterData.title || chapterId,
-          text: chapterData.text || '',
-        }],
-        subjectName,
-        useClaude: !!useClaude,
-        useGeminiNative: !!useGeminiNative,
-      })
-
-      if (knowledgeResult.error || !knowledgeResult.knowledge) {
-        return NextResponse.json({ stage: 'knowledge', error: knowledgeResult.error || 'Unknown extraction error' }, { status: 500 })
-      }
-      knowledge = knowledgeResult.knowledge
-
-      await db.collection('subjects').doc(subjectId).collection('chapterKnowledge').doc(docKey).set({
-        ...knowledge,
-        textbookId,
-        chapterId,
-        updatedAt: new Date().toISOString(),
-      })
-    }
-
-    const notesResult = await generateChapterNotes(knowledge, !useClaude, !!useGeminiNative)
-    if (notesResult.error || !notesResult.topics) {
+      const knowledge = existingKnowledgeDoc.data()!
       return NextResponse.json({
-        stage: 'notes',
-        error: notesResult.error || 'Unknown notes generation error',
-        knowledgeStored: true,
-      }, { status: 500 })
+        success: true,
+        reused: true,
+        chapterTitle: chapterData.title,
+        topicCount: knowledge.topics?.length || 0,
+        factCount: (knowledge.topics || []).reduce((sum: number, t: any) => sum + (t.facts?.length || 0), 0),
+      })
     }
 
-    await db.collection('subjects').doc(subjectId).collection('textNotes').doc(docKey).set({
-      chapterId,
+    const knowledgeResult = await getChapterKnowledge({
+      sources: [{
+        textbookTitle,
+        chapterTitle: chapterData.title || chapterId,
+        text: chapterData.text || '',
+      }],
+      subjectName,
+      useClaude: !!useClaude,
+      useGeminiNative: !!useGeminiNative,
+    })
+
+    if (knowledgeResult.error || !knowledgeResult.knowledge) {
+      return NextResponse.json({ error: knowledgeResult.error || 'Unknown extraction error' }, { status: 500 })
+    }
+    const knowledge = knowledgeResult.knowledge
+
+    await db.collection('subjects').doc(subjectId).collection('chapterKnowledge').doc(docKey).set({
+      ...knowledge,
       textbookId,
-      chapterTitle: chapterData.title || chapterId,
-      subjectId,
-      topics: notesResult.topics,
-      topicCount: knowledge.topics.length,
+      chapterId,
       updatedAt: new Date().toISOString(),
     })
 
     return NextResponse.json({
       success: true,
+      reused: false,
       chapterTitle: chapterData.title,
       topicCount: knowledge.topics.length,
       factCount: knowledge.topics.reduce((sum: number, t: any) => sum + (t.facts?.length || 0), 0),
-      notesLength: notesResult.topics.reduce((sum: number, t: any) => sum + t.markdown.length, 0),
-      reusedExistingKnowledge,
     })
   } catch (e: any) {
     return NextResponse.json({ error: e.message || 'Processing failed', stack: e.stack }, { status: 500 })
