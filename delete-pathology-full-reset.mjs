@@ -1,0 +1,36 @@
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+
+const DRY_RUN = process.argv[2] !== '--apply';
+
+const key = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+initializeApp({ credential: cert(key) });
+const db = getFirestore();
+
+const subjectRef = db.collection('subjects').doc('pathology');
+
+async function deleteCollection(collectionName, hasSections) {
+  const docs = await subjectRef.collection(collectionName).get();
+  console.log(`${collectionName}: ${docs.size} doc(s)`);
+
+  let sectionCount = 0;
+  for (const doc of docs.docs) {
+    if (hasSections) {
+      const sections = await doc.ref.collection('sections').get();
+      sectionCount += sections.size;
+      if (!DRY_RUN) {
+        for (const sec of sections.docs) await sec.ref.delete();
+      }
+    }
+    if (!DRY_RUN) await doc.ref.delete();
+  }
+  if (hasSections && docs.size > 0) console.log(`  (+ ${sectionCount} section doc(s))`);
+}
+
+await deleteCollection('essayChapters', true);
+await deleteCollection('flashcardDecks', false);
+await deleteCollection('mindmaps', false);
+await deleteCollection('chapterKnowledge', false);
+await deleteCollection('textNotes', false);
+
+console.log(DRY_RUN ? '\nDRY RUN - nothing deleted. Re-run with --apply to actually delete.' : '\nDone - Pathology fully reset. Textbook source chapters untouched.');
