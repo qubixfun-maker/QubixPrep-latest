@@ -16,8 +16,6 @@ import { allTemplatesForPrompt } from '@/ai/subject-templates';
  */
 
 function tryParseText(raw: string): string {
-  // The output here is prose/Markdown, not JSON - just strip any stray code fences
-  // a model might wrap it in and trim.
   return raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
 }
 
@@ -41,7 +39,7 @@ Output ONLY the Markdown notes for this topic - no preamble, no commentary, no c
 }
 
 export type GenerateNotesOutput = {
-  markdown?: string;
+  topics?: { name: string; markdown: string; depth: number }[];
   error?: string;
 };
 
@@ -66,24 +64,30 @@ async function renderOneTopic(chapterTitle: string, subjectName: string, topic: 
       lastError = err.message || 'Unknown error';
     }
   }
-  // Graceful degradation: never let one bad topic sink the whole chapter's notes.
   return `## ${topic.name}\n\n*(Notes generation failed for this topic after retries: ${lastError})*`;
 }
 
 /**
- * Generates the full chapter's notes by rendering each top-level topic in turn and
- * concatenating them. Topics are rendered independently so one failure doesn't lose
- * the rest of the chapter, and so each stays within a safe, focused output length.
+ * Generates notes as a separate entry per topic AND every nested subtopic (recursively,
+ * depth-first) - a topic tree with real subtopics previously lost all subtopic content
+ * silently, since only top-level topics were rendered. Each entry carries its depth so
+ * the topic-list page can show proper indentation/hierarchy.
  */
 export async function generateChapterNotes(knowledge: ChapterKnowledge, forceVertex?: boolean, useGeminiNative?: boolean): Promise<GenerateNotesOutput> {
   if (!knowledge.topics?.length) return { error: 'Chapter knowledge has no topics to render.' };
 
-  const sections: string[] = [`# ${knowledge.centralTopic}`, knowledge.overview, ''];
+  const topics: { name: string; markdown: string; depth: number }[] = [];
 
-  for (const topic of knowledge.topics) {
-    const rendered = await renderOneTopic(knowledge.chapterTitle, knowledge.subjectName || '', topic, forceVertex, useGeminiNative);
-    sections.push(rendered, '');
+  async function walk(topicList: any[], depth: number) {
+    for (const topic of topicList) {
+      const rendered = await renderOneTopic(knowledge.chapterTitle, knowledge.subjectName || '', topic, forceVertex, useGeminiNative);
+      topics.push({ name: topic.name, markdown: rendered, depth });
+      if (topic.subtopics?.length) {
+        await walk(topic.subtopics, depth + 1);
+      }
+    }
   }
 
-  return { markdown: sections.join('\n') };
+  await walk(knowledge.topics, 0);
+  return { topics };
 }

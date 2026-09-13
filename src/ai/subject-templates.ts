@@ -31,32 +31,32 @@ export const FORMAT_TEMPLATES: Record<string, FormatTemplate> = {
   },
   pathology: {
     name: 'Pathology',
-    sections: ['Etiology', 'Pathogenesis', 'Morphology', 'Clinical Features', 'Complications', 'Lab Diagnosis'],
+    sections: ['Etiology', 'Classification', 'Pathogenesis', 'Morphology', 'Clinical Features', 'Complications', 'Lab Diagnosis'],
     description: 'Disease entities defined by cause, mechanism, and structural change',
   },
   pharmacology: {
     name: 'Pharmacology',
-    sections: ['Mechanism of Action', 'Pharmacokinetics', 'Adverse Effects', 'Clinical Uses', 'Contraindications'],
+    sections: ['Classification', 'Mechanism of Action', 'Pharmacokinetics', 'Adverse Effects', 'Clinical Uses', 'Contraindications'],
     description: 'Drugs defined by how they act and how they are used clinically',
   },
   physiology: {
     name: 'Physiology',
-    sections: ['Definition', 'Mechanism', 'Regulation', 'Clinical Correlation'],
+    sections: ['Definition', 'Classification', 'Mechanism', 'Regulation', 'Clinical Correlation'],
     description: 'Normal body processes and how they are controlled',
   },
   microbiology: {
     name: 'Microbiology',
-    sections: ['Morphology', 'Culture/Growth', 'Pathogenesis', 'Clinical Disease', 'Lab Diagnosis', 'Treatment'],
+    sections: ['Classification', 'Morphology', 'Culture/Growth', 'Pathogenesis', 'Clinical Disease', 'Lab Diagnosis', 'Treatment'],
     description: 'Organisms defined by structure, how they grow, and the disease they cause',
   },
   biochemistry: {
     name: 'Biochemistry',
-    sections: ['Structure/Composition', 'Metabolic Pathway', 'Enzymes/Regulation', 'Clinical Disorders'],
+    sections: ['Structure/Composition', 'Classification', 'Metabolic Pathway', 'Enzymes/Regulation', 'Clinical Disorders'],
     description: 'Molecules and pathways defined by structure and metabolic role',
   },
   appliedClinical: {
     name: 'Applied/Clinical',
-    sections: ['Definition', 'Etiology', 'Clinical Features', 'Investigations', 'Management', 'Complications'],
+    sections: ['Definition', 'Classification', 'Etiology', 'Clinical Features', 'Investigations', 'Management', 'Complications'],
     description: 'Clinical subjects (surgery, medicine, obstetrics, etc.) organized around patient care',
   },
 };

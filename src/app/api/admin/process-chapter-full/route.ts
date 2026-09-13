@@ -7,20 +7,9 @@ import { getChapterKnowledge } from '@/ai/chapter-knowledge'
 import { generateChapterNotes } from '@/ai/chapter-notes-generator'
 
 /**
- * Full per-chapter pipeline for the bulk knowledge/notes rebuild:
- *   1. Read the chapter's raw text from textbooks/{textbookId}/chapters/{chapterId}
- *   2. Extract structured knowledge (getChapterKnowledge) - UNLESS a knowledge record
- *      already exists for this chapter, in which case it's reused as-is. This matters
- *      most for chapters with many topics: a retry after a timeout skips straight to
- *      notes generation, leaving the full time budget for that step alone instead of
- *      re-spending it on an extraction that already succeeded last time.
- *   3. Store that knowledge at subjects/{subjectId}/chapterKnowledge/{textbookId}__{chapterId}
- *   4. Generate text notes from the (already-verified) knowledge, as a separate entry
- *      per topic - never re-reads raw text, so it can't reintroduce misreadings here
- *   5. Store those notes at subjects/{subjectId}/textNotes/{textbookId}__{chapterId}
- *
- * Auth: a shared secret (ADMIN_BULK_SECRET) rather than a Firebase ID token, since a
- * 30-chapter run can outlast a token's ~1hr lifetime. Set this once in Vercel env vars.
+ * Full per-chapter pipeline for the bulk knowledge/notes rebuild. Auth: a shared secret
+ * (ADMIN_BULK_SECRET) rather than a Firebase ID token, since a long run can outlast a
+ * token's ~1hr lifetime. Set this once in Vercel env vars.
  *
  * Usage: POST { secret, textbookId, chapterId, subjectId, subjectName, useClaude?, useGeminiNative? }
  */
@@ -49,10 +38,9 @@ export async function POST(req: NextRequest) {
     const textbookDoc = await db.collection('textbooks').doc(textbookId).get()
     const textbookTitle = textbookDoc.data()?.title || textbookId
 
-    // Step 1-3: extract knowledge, or reuse an already-saved extraction if one exists.
     let knowledge: any
     let reusedExistingKnowledge = false
-    const docKey = `${textbookId}__${chapterId}` // scoped by textbook, since one subject can have multiple textbooks whose chapter IDs could otherwise collide
+    const docKey = `${textbookId}__${chapterId}`
     const existingKnowledgeDoc = await db.collection('subjects').doc(subjectId).collection('chapterKnowledge').doc(docKey).get()
 
     if (existingKnowledgeDoc.exists) {
@@ -82,7 +70,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Step 4: generate notes from the already-verified knowledge
     const notesResult = await generateChapterNotes(knowledge, !useClaude, !!useGeminiNative)
 
     if (notesResult.error || !notesResult.topics) {
@@ -93,7 +80,6 @@ export async function POST(req: NextRequest) {
       }, { status: 500 })
     }
 
-    // Step 5: store notes
     await db.collection('subjects').doc(subjectId).collection('textNotes').doc(docKey).set({
       chapterId,
       textbookId,
@@ -109,7 +95,7 @@ export async function POST(req: NextRequest) {
       chapterTitle: chapterData.title,
       topicCount: knowledge.topics.length,
       factCount: knowledge.topics.reduce((sum: number, t: any) => sum + (t.facts?.length || 0), 0),
-      notesLength: notesResult.topics.reduce((sum, t) => sum + t.markdown.length, 0),
+      notesLength: notesResult.topics.reduce((sum: number, t: any) => sum + t.markdown.length, 0),
       reusedExistingKnowledge,
     })
   } catch (e: any) {

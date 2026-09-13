@@ -9,8 +9,8 @@ import { generateChapterNotes } from '@/ai/chapter-notes-generator'
 /**
  * Admin-UI-triggered version of the knowledge+notes pipeline - same underlying logic as
  * process-chapter-full, but authenticated with the logged-in admin's own Firebase ID
- * token (matching every other admin page) instead of a shared secret, since this is
- * called directly from a browser session rather than a long-running background script.
+ * token instead of a shared secret, since this is called directly from a browser
+ * session rather than a long-running background script.
  *
  * Storage keys are scoped by textbookId + chapterId (not chapterId alone), since a
  * single subject can draw from multiple textbooks whose chapter IDs could otherwise
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     const notesResult = await generateChapterNotes(knowledge, !useClaude, !!useGeminiNative)
-    if (notesResult.error || !notesResult.markdown) {
+    if (notesResult.error || !notesResult.topics) {
       return NextResponse.json({
         stage: 'notes',
         error: notesResult.error || 'Unknown notes generation error',
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       textbookId,
       chapterTitle: chapterData.title || chapterId,
       subjectId,
-      markdown: notesResult.markdown,
+      topics: notesResult.topics,
       topicCount: knowledge.topics.length,
       updatedAt: new Date().toISOString(),
     })
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       chapterTitle: chapterData.title,
       topicCount: knowledge.topics.length,
       factCount: knowledge.topics.reduce((sum: number, t: any) => sum + (t.facts?.length || 0), 0),
-      notesLength: notesResult.markdown.length,
+      notesLength: notesResult.topics.reduce((sum: number, t: any) => sum + t.markdown.length, 0),
       reusedExistingKnowledge,
     })
   } catch (e: any) {
