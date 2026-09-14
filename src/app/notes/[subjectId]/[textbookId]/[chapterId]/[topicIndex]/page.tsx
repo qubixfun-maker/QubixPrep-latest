@@ -42,7 +42,31 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
       </div>
 
       {topic ? (
-        <div className={`rounded-2xl glass border ${color.border} p-6 md:p-8 prose prose-invert max-w-none prose-headings:font-bold prose-table:border prose-th:border prose-th:p-2 prose-td:border prose-td:p-2`}>
+        <div
+          className={`rounded-2xl glass border ${color.border} p-6 md:p-8 prose prose-invert max-w-none
+            prose-headings:font-bold prose-headings:text-foreground
+            prose-h1:text-2xl md:prose-h1:text-3xl
+            prose-h2:text-xl prose-h2:text-primary prose-h2:mt-8 prose-h2:mb-3
+            prose-h3:text-lg prose-h3:text-primary/90
+            prose-strong:text-foreground
+            prose-a:text-primary prose-a:no-underline hover:prose-a:underline
+            prose-blockquote:border-l-primary/50 prose-blockquote:text-muted-foreground prose-blockquote:not-italic
+            prose-table:border prose-table:border-white/10 prose-table:text-sm
+            prose-thead:border-b prose-thead:border-white/20
+            prose-th:border prose-th:border-white/10 prose-th:bg-white/5 prose-th:p-2 prose-th:text-foreground
+            prose-td:border prose-td:border-white/10 prose-td:p-2
+            prose-ul:marker:text-primary
+            [&_ol]:list-none [&_ol]:pl-0 [&_ol]:[counter-reset:step]
+            [&_ol>li]:relative [&_ol>li]:pl-9 [&_ol>li]:pb-5 [&_ol>li]:ml-3 [&_ol>li]:border-l-2 [&_ol>li]:border-primary/30
+            [&_ol>li:last-child]:pb-0 [&_ol>li:last-child]:border-transparent
+            [&_ol>li]:[counter-increment:step]
+            [&_ol>li]:before:content-[counter(step)]
+            [&_ol>li]:before:absolute [&_ol>li]:before:-left-[13px] [&_ol>li]:before:top-0
+            [&_ol>li]:before:flex [&_ol>li]:before:h-6 [&_ol>li]:before:w-6
+            [&_ol>li]:before:items-center [&_ol>li]:before:justify-center
+            [&_ol>li]:before:rounded-full [&_ol>li]:before:bg-primary
+            [&_ol>li]:before:text-[11px] [&_ol>li]:before:font-bold [&_ol>li]:before:text-primary-foreground`}
+        >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{topic.markdown}</ReactMarkdown>
         </div>
       ) : (
