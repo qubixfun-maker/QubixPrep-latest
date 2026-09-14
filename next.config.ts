@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: false,
   },
   serverExternalPackages: ['@napi-rs/canvas', 'google-auth-library'],
+  outputFileTracingIncludes: {
+    '/api/admin/ai-ingest-textbook': ['./node_modules/@napi-rs/canvas/**/*'],
+    '/api/admin/parse-question-bank': ['./node_modules/@napi-rs/canvas/**/*'],
+    '/api/long-answers/extract-pdf-text': ['./node_modules/@napi-rs/canvas/**/*'],
+    '/api/qbank/upload': ['./node_modules/@napi-rs/canvas/**/*'],
+    '/api/textbooks/extract-chapter-images': ['./node_modules/@napi-rs/canvas/**/*'],
+    '/api/textbooks/ingest-manual': ['./node_modules/@napi-rs/canvas/**/*'],
+    '/api/textbooks/ingest': ['./node_modules/@napi-rs/canvas/**/*'],
+  },
   images: {
     remotePatterns: [
       {
