@@ -1559,6 +1559,11 @@ export default function AdminDashboard() {
               <Sparkles className="h-4 w-4" /> Master Knowledge Extraction
             </Button>
           </Link>
+          <Link href="/admin/ai-textbook-ingest">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
+              <Sparkles className="h-4 w-4" /> AI Textbook Ingestion
+            </Button>
+          </Link>
           <Link href="/admin/affiliates">
             <Button variant="outline" className="rounded-xl gap-2 glass border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
               <Gift className="h-4 w-4" /> Manage Affiliates
