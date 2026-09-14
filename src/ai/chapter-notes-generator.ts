@@ -65,21 +65,35 @@ async function renderOneTopic(chapterTitle: string, subjectName: string, topic: 
   return `## ${topic.name}\n\n*(Notes generation failed for this topic after retries: ${lastError})*`;
 }
 
+function flattenTopics(topicList: any[], depth: number, out: { topic: any; depth: number }[]) {
+  for (const topic of topicList) {
+    out.push({ topic, depth });
+    if (topic.subtopics?.length) {
+      flattenTopics(topic.subtopics, depth + 1, out);
+    }
+  }
+}
+
 export async function generateChapterNotes(knowledge: ChapterKnowledge, forceVertex?: boolean, useGeminiNative?: boolean): Promise<GenerateNotesOutput> {
   if (!knowledge.topics?.length) return { error: 'Chapter knowledge has no topics to render.' };
 
-  const topics: { name: string; markdown: string; depth: number }[] = [];
+  const flat: { topic: any; depth: number }[] = [];
+  flattenTopics(knowledge.topics, 0, flat);
 
-  async function walk(topicList: any[], depth: number) {
-    for (const topic of topicList) {
+  const results: { name: string; markdown: string; depth: number }[] = new Array(flat.length);
+
+  const CONCURRENCY = 4;
+  let nextIndex = 0;
+  async function worker() {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= flat.length) return;
+      const { topic, depth } = flat[i];
       const rendered = await renderOneTopic(knowledge.chapterTitle, knowledge.subjectName || '', topic, forceVertex, useGeminiNative);
-      topics.push({ name: topic.name, markdown: rendered, depth });
-      if (topic.subtopics?.length) {
-        await walk(topic.subtopics, depth + 1);
-      }
+      results[i] = { name: topic.name, markdown: rendered, depth };
     }
   }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, flat.length) }, () => worker()));
 
-  await walk(knowledge.topics, 0);
-  return { topics };
+  return { topics: results };
 }

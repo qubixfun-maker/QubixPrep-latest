@@ -81,7 +81,12 @@ export default function NotesBulkGeneratorPage() {
             useGeminiNative,
           }),
         })
-        const data = await res.json()
+        let data: any
+        try {
+          data = await res.json()
+        } catch {
+          data = { error: res.ok ? 'Server returned a non-JSON response' : `Server error (status ${res.status}), likely a timeout - try again or split this chapter's topics` }
+        }
         if (data.success) {
           working[i] = { ...working[i], status: "done", detail: `${data.topicCount} topics` }
         } else {

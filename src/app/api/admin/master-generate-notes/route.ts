@@ -1,17 +1,10 @@
 export const dynamic = "force-dynamic"
-export const maxDuration = 280
+export const maxDuration = 800
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
 import { generateChapterNotes } from '@/ai/chapter-notes-generator'
 
-/**
- * Generates topic-wise notes for one chapter, from its already-extracted knowledge
- * (never re-reads raw chapter text). Requires chapterKnowledge to already exist for
- * this chapter - run Master Knowledge Extraction first if it doesn't.
- *
- * Usage: POST { idToken, subjectId, textbookId, chapterId, chapterTitle, useGeminiNative? }
- */
 export async function POST(req: NextRequest) {
   try {
     const { idToken, subjectId, textbookId, chapterId, chapterTitle, useGeminiNative } = await req.json()
