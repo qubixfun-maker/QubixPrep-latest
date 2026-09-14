@@ -7,7 +7,7 @@ import 'pdfjs-dist/legacy/build/pdf.worker.mjs'
 import { processPageBatch, pageNeedsVision, stitchChapters, type PageInput, type PageResult } from '@/ai/ai-driven-textbook-ingest'
 import { repairPdfText } from '@/lib/pdf-text-repair'
 
-const BATCH_SIZE = 8 // pages per Gemini call - kept small since rendering+vision pages are slower than plain text
+const BATCH_SIZE = 5 // pages per Gemini call - kept small since a batch with several image-based pages needing full transcription can produce a lot of output; too many pages per call risks hitting the token ceiling before finishing
 
 /**
  * AI-driven textbook (re-)ingestion - processes ONE batch of consecutive pages per call

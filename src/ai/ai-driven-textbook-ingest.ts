@@ -98,7 +98,7 @@ export async function processPageBatch(pages: PageInput[]): Promise<{ results?: 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const { content: raw } = images.length > 0
-        ? await callGeminiNativeMultimodal(prompt, images, 8000)
+        ? await callGeminiNativeMultimodal(prompt, images, 16000)
         : await callGeminiNative([{ role: 'user', content: prompt }], 8000);
       const parsed = tryParseBatchResult(raw);
       if (parsed && parsed.length === pages.length) return { results: parsed };
