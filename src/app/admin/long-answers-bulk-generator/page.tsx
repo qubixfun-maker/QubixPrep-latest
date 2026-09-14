@@ -419,30 +419,33 @@ export default function LongAnswersBulkGeneratorPage() {
           const chapters = await getTextbookChapters(textbookId)
           const matchedChapter = fuzzyMatchChapter(item.chapterTitle, chapters)
 
-          // Prefer already-extracted, already-verified knowledge over a fresh AI call on
-          // raw text - if this chapter has been through Master Knowledge Extraction, its
-          // structured facts ground a more reliable answer than re-reading raw excerpt
-          // text each time. Falls back to the existing textbook/AI-knowledge paths
-          // unchanged for any chapter not yet processed that way, or if this fails.
-          let usedKnowledge = false
+          // Prefer already-generated NOTES over a fresh AI call on raw text - notes are
+          // already polished, well-organized prose (with the right format template
+          // already applied), so grounding the answer in them is more reliable than
+          // re-reading raw excerpt text each time. Falls back to the existing
+          // textbook/AI-knowledge paths unchanged for any chapter without notes yet.
+          let usedNotes = false
           if (matchedChapter?.chapterId) {
             try {
-              const knowledgeDoc = await getDoc(doc(db!, 'subjects', item.subjectId, 'chapterKnowledge', `${textbookId}__${matchedChapter.chapterId}`))
-              if (knowledgeDoc.exists()) {
-                const knowledge = knowledgeDoc.data() as any
-                const groundedResult = await generateGroundedAnswer(item.question, item.sectionType, knowledge, { useGeminiNative: true })
+              const notesDoc = await getDoc(doc(db!, 'subjects', item.subjectId, 'textNotes', `${textbookId}__${matchedChapter.chapterId}`))
+              if (notesDoc.exists()) {
+                const notesData = notesDoc.data() as any
+                const groundingText = (notesData.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n')
+                const subjectDoc = await getDoc(doc(db!, 'subjects', item.subjectId))
+                const subjectNameForAnswer = subjectDoc.exists() ? (subjectDoc.data() as any).name : item.subjectId
+                const groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectNameForAnswer, { useGeminiNative: true })
                 if (groundedResult.answer) {
-                  result = { answer: groundedResult.answer, provider: "Master Knowledge Extraction" }
+                  result = { answer: groundedResult.answer, provider: "Notes-based" }
                   precomputedAnswerHtml = knowledgeAnswerTextToHtml(groundedResult.answer)
-                  usedKnowledge = true
+                  usedNotes = true
                 }
               }
             } catch {
-              usedKnowledge = false
+              usedNotes = false
             }
           }
 
-          if (usedKnowledge) {
+          if (usedNotes) {
             // result and precomputedAnswerHtml already set above
           } else if (matchedChapter && matchedChapter.text) {
             const tb = textbooksList?.find((t: any) => t.id === textbookId)

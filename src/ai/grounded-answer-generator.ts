@@ -1,16 +1,15 @@
 'use server';
 import { callAIWithProvider, callGeminiNative, callClaudeOnly } from '@/ai/genkit';
-import type { ChapterKnowledge } from '@/ai/chapter-knowledge';
-import { knowledgeToText } from '@/ai/chapter-knowledge-utils';
 import { allTemplatesForPrompt } from '@/ai/subject-templates';
 
 /**
- * Generates a model answer to a real exam question, grounded strictly in a chapter's
- * already-extracted knowledge (never the raw textbook text again). This is the same
- * "cheap, safe downstream step" pattern as notes generation: the hard work of correctly
- * reading the chapter happened once, during extraction - this step only needs to select
- * and organize already-verified facts to answer a specific question, not interpret
- * anything new.
+ * Generates a model answer to a real exam question, grounded strictly in already-
+ * written source material (never the raw textbook text again). Takes a plain
+ * "grounding text" string rather than a ChapterKnowledge object, so the same
+ * retry/formatting logic here works whether the caller grounds the answer in the
+ * extracted knowledge JSON (via knowledgeToText) or in already-generated notes
+ * (concatenated topic markdown) - the caller decides the source, this only cares
+ * that it gets verified, already-correct text to work from.
  */
 
 export type SectionType = 'long-essays' | 'short-essays' | 'short-answers';
@@ -27,16 +26,16 @@ const TARGET_WORDS: Record<SectionType, string> = {
   'short-answers': '20-50 words, direct and to the point',
 };
 
-function buildPrompt(question: string, sectionType: SectionType, knowledgeText: string, subjectName: string): string {
+function buildPrompt(question: string, sectionType: SectionType, groundingText: string, subjectName: string): string {
   const templates = allTemplatesForPrompt(subjectName);
   const templateBlock = templates.map((t) =>
     `- "${t.name}": structure as [${t.sections.join(' -> ')}] - use when: ${t.description}`
   ).join('\n');
 
-  return `You are writing a model exam answer for an MBBS student, using ONLY the chapter knowledge given below - never invent facts, numbers, or examples beyond what's here.
+  return `You are writing a model exam answer for an MBBS student, using ONLY the source material given below - never invent facts, numbers, or examples beyond what's here.
 
-CHAPTER KNOWLEDGE (the only source of truth - already extracted and verified from the textbook):
-${knowledgeText}
+SOURCE MATERIAL (the only source of truth - already written and verified from the textbook):
+${groundingText}
 
 QUESTION: ${question}
 
@@ -57,7 +56,7 @@ STEP 3 - Write the answer using real Markdown structure matching your chosen for
 - Use real numbered lists (1. 2. 3.) for sequences/steps.
 - Use "**bold**" for key terms worth highlighting.
 - HARD MINIMUM LENGTH: ${TARGET_WORDS[sectionType]}. This is a firm requirement - a short answer is an INCOMPLETE answer for this task, even if it sounds finished.
-- Use ONLY facts present in the chapter knowledge above. If the knowledge doesn't fully cover some part of the question, cover that part as completely as the given facts allow rather than inventing the rest or skipping it.
+- Use ONLY facts present in the source material above. If it doesn't fully cover some part of the question, cover that part as completely as the given material allows rather than inventing the rest or skipping it.
 - Do not repeat the question back or add a preamble like "Answer:" - start directly with the content.
 - PACE YOURSELF: if you sense you're approaching your limit, do NOT start a new subtopic you won't have room to finish - wrap up cleanly instead. A shorter answer that ends properly is far better than one that cuts off mid-thought.
 
@@ -81,10 +80,10 @@ async function callModel(prompt: string, maxTokens: number, useClaude?: boolean,
 export async function generateGroundedAnswer(
   question: string,
   sectionType: SectionType,
-  knowledge: ChapterKnowledge,
+  groundingText: string,
+  subjectName: string,
   options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
 ): Promise<GenerateAnswerOutput> {
-  const knowledgeText = knowledgeToText(knowledge);
   // Generous headroom above the actual target length - a multi-part question needs real
   // room to cover every clause in full without hitting the ceiling mid-sentence, and some
   // models spend part of this budget on internal reasoning before the visible answer.
@@ -98,7 +97,7 @@ export async function generateGroundedAnswer(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      let prompt = buildPrompt(question, sectionType, knowledgeText, knowledge.subjectName || '');
+      let prompt = buildPrompt(question, sectionType, groundingText, subjectName);
       if (attempt > 1 && bestAttempt) {
         prompt += bestAttemptWasTruncated
           ? `\n\nYour previous attempt was REJECTED for stopping mid-sentence before finishing (it reached a reasonable length but got cut off): "${bestAttempt}"\nWrite a NEW answer that covers the same ground more concisely per point, so the FULL answer (covering every part of the question) fits and finishes with a complete final sentence. Do not trail off - make sure the answer properly concludes.`

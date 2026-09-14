@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 280
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
@@ -11,6 +11,10 @@ import { answerTextToHtml, rebuildQaHtml } from '@/ai/grounded-answer-utils'
  * for scripts) - this one is for the admin UI, called directly from a logged-in admin's
  * browser. Processes ONE question at a time (same reasoning as the original: a batch of
  * many questions can exceed the platform's real execution time limit).
+ *
+ * Grounds each answer in already-generated NOTES (concatenated topic markdown), not the
+ * raw knowledge JSON - requires textNotes to already exist for this chapter, matching
+ * the same dependency mindmap generation now has.
  *
  * Usage: POST { idToken, subjectId, textbookId, chapterId, chapterTitle, sectionType, question, useGeminiNative? }
  */
@@ -34,11 +38,15 @@ export async function POST(req: NextRequest) {
     }
 
     const docKey = `${textbookId}__${chapterId}`
-    const knowledgeDoc = await db.collection('subjects').doc(subjectId).collection('chapterKnowledge').doc(docKey).get()
-    if (!knowledgeDoc.exists) {
-      return NextResponse.json({ error: `No chapterKnowledge found for this chapter. Run knowledge extraction first.` }, { status: 404 })
+    const notesDoc = await db.collection('subjects').doc(subjectId).collection('textNotes').doc(docKey).get()
+    if (!notesDoc.exists) {
+      return NextResponse.json({ error: `No notes found for this chapter. Run Notes Bulk Generator first.` }, { status: 404 })
     }
-    const knowledge = knowledgeDoc.data() as any
+    const notes = notesDoc.data() as any
+    const groundingText = (notes.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n')
+
+    const subjectDoc = await db.collection('subjects').doc(subjectId).get()
+    const subjectName = subjectDoc.data()?.name || subjectId
 
     // essayChapters keeps its existing (bare chapterId) key format, matching the
     // student-facing viewer's URL structure, which was already live before this pipeline.
@@ -53,7 +61,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: true, reason: 'Already answered' })
     }
 
-    const result = await generateGroundedAnswer(question, sectionType as SectionType, knowledge, { useGeminiNative: !!useGeminiNative, useClaude: !!useClaude })
+    const result = await generateGroundedAnswer(question, sectionType as SectionType, groundingText, subjectName, { useGeminiNative: !!useGeminiNative, useClaude: !!useClaude })
     if (result.error || !result.answer) {
       return NextResponse.json({ error: result.error || 'Answer generation failed' }, { status: 500 })
     }
@@ -61,7 +69,7 @@ export async function POST(req: NextRequest) {
     const newItems = [...existingItems, { questionHtml: question, answerHtml: answerTextToHtml(result.answer) }]
     const finalHtml = rebuildQaHtml(newItems)
 
-    await chapterRef.set({ title: chapterTitle || knowledge.chapterTitle, subjectId, updatedAt: new Date().toISOString() }, { merge: true })
+    await chapterRef.set({ title: chapterTitle || notes.chapterTitle, subjectId, updatedAt: new Date().toISOString() }, { merge: true })
     await sectionRef.set({
       sectionType,
       html: finalHtml,

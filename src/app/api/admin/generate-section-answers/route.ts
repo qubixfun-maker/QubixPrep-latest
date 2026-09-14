@@ -8,12 +8,10 @@ import { answerTextToHtml, rebuildQaHtml } from '@/ai/grounded-answer-utils'
 
 /**
  * Generates a grounded answer for ONE real exam question at a time, using the chapter's
- * already-extracted knowledge. Deliberately one-at-a-time rather than a whole section in
- * one request - a batch of many questions (each its own AI call, some with retries) can
- * exceed the platform's real execution time limit, the same failure mode discovered with
- * the knowledge/notes pipeline. Each call appends to a plain "items" array stored
- * alongside the HTML, so no server-side HTML parsing is ever needed to resume - the next
- * call just reads that array, appends, and rebuilds the HTML from it.
+ * already-generated notes (concatenated topic markdown) - requires textNotes to already
+ * exist for this chapter. Deliberately one-at-a-time rather than a whole section in one
+ * request - a batch of many questions (each its own AI call, some with retries) can
+ * exceed the platform's real execution time limit.
  *
  * Stores results in the SAME format the existing long-answers admin page uses
  * (subjects/{subjectId}/essayChapters/{chapterId}/sections/{sectionType}), so answers
@@ -41,11 +39,15 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminFirestore()
 
-    const knowledgeDoc = await db.collection('subjects').doc(subjectId).collection('chapterKnowledge').doc(chapterId).get()
-    if (!knowledgeDoc.exists) {
-      return NextResponse.json({ error: `No chapterKnowledge found for ${subjectId}/${chapterId}. Run knowledge extraction first.` }, { status: 404 })
+    const notesDoc = await db.collection('subjects').doc(subjectId).collection('textNotes').doc(chapterId).get()
+    if (!notesDoc.exists) {
+      return NextResponse.json({ error: `No notes found for ${subjectId}/${chapterId}. Run Notes Bulk Generator first.` }, { status: 404 })
     }
-    const knowledge = knowledgeDoc.data() as any
+    const notes = notesDoc.data() as any
+    const groundingText = (notes.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n')
+
+    const subjectDoc = await db.collection('subjects').doc(subjectId).get()
+    const subjectName = subjectDoc.data()?.name || subjectId
 
     const chapterRef = db.collection('subjects').doc(subjectId).collection('essayChapters').doc(chapterId)
     const sectionRef = chapterRef.collection('sections').doc(sectionType)
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: true, reason: 'Already answered' })
     }
 
-    const result = await generateGroundedAnswer(question, sectionType as SectionType, knowledge, { useGeminiNative: !!useGeminiNative, useClaude: !!useClaude })
+    const result = await generateGroundedAnswer(question, sectionType as SectionType, groundingText, subjectName, { useGeminiNative: !!useGeminiNative, useClaude: !!useClaude })
     if (result.error || !result.answer) {
       return NextResponse.json({ error: result.error || 'Answer generation failed' }, { status: 500 })
     }
