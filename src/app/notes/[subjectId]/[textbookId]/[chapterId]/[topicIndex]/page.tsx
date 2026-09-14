@@ -5,10 +5,52 @@ import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { ChevronLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
+
+const LATEX_SYMBOL_MAP: [RegExp, string][] = [
+  [/\\rightarrow/g, '→'],
+  [/\\leftarrow/g, '←'],
+  [/\\leftrightarrow|\\rightleftharpoons/g, '↔'],
+  [/\\uparrow/g, '↑'],
+  [/\\downarrow/g, '↓'],
+  [/\\geq/g, '≥'],
+  [/\\leq/g, '≤'],
+  [/\\neq/g, '≠'],
+  [/\\approx/g, '≈'],
+  [/\\times/g, '×'],
+  [/\\pm/g, '±'],
+  [/\\infty/g, '∞'],
+  [/\\alpha/g, 'α'],
+  [/\\beta/g, 'β'],
+  [/\\gamma/g, 'γ'],
+  [/\\delta/g, 'δ'],
+  [/\\Delta/g, 'Δ'],
+  [/\\mu/g, 'μ'],
+  [/\\lambda/g, 'λ'],
+  [/\\sigma/g, 'σ'],
+]
+
+function sanitizeMarkdown(raw: string): string {
+  let text = raw
+  text = text.replace(/\\text\{([^}]*)\}/g, '$1')
+  for (const [pattern, replacement] of LATEX_SYMBOL_MAP) {
+    text = text.replace(pattern, replacement)
+  }
+  text = text.replace(/\\([a-zA-Z]+)/g, '$1')
+  text = text.replace(/\$([^$]*)\$/g, '$1')
+  return text
+}
+
+const markdownComponents: Components = {
+  table: ({ children }) => (
+    <div className="overflow-x-auto -mx-2 px-2">
+      <table>{children}</table>
+    </div>
+  ),
+}
 
 export default function NotesTopicDetailPage({ params }: { params: Promise<{ subjectId: string; textbookId: string; chapterId: string; topicIndex: string }> }) {
   const { subjectId, textbookId, chapterId, topicIndex } = use(params)
@@ -67,7 +109,7 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
             [&_ol>li]:before:rounded-full [&_ol>li]:before:bg-primary
             [&_ol>li]:before:text-[11px] [&_ol>li]:before:font-bold [&_ol>li]:before:text-primary-foreground`}
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{topic.markdown}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{sanitizeMarkdown(topic.markdown)}</ReactMarkdown>
         </div>
       ) : (
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">

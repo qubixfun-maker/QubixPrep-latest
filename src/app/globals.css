@@ -24,6 +24,54 @@
     --input: 220 15% 90%;
     --ring: 256 58% 55%;
     --radius: 0.75rem;
+    --sidebar-background: 220 20% 98%;
+    --sidebar-foreground: 240 10% 20%;
+    --sidebar-primary: 256 58% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 95%;
+    --sidebar-accent-foreground: 240 10% 12%;
+    --sidebar-border: 220 15% 88%;
+    --sidebar-ring: 256 58% 55%;
+    --chart-1: 256 58% 55%;
+    --chart-2: 215 90% 55%;
+    --chart-3: 165 45% 45%;
+    --chart-4: 35 70% 50%;
+    --chart-5: 340 60% 55%;
+  }
+
+  .dark {
+    --background: 240 25% 7%;
+    --foreground: 220 20% 97%;
+    --card: 240 20% 11%;
+    --card-foreground: 220 20% 97%;
+    --popover: 240 20% 11%;
+    --popover-foreground: 220 20% 97%;
+    --primary: 258 65% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 15% 16%;
+    --secondary-foreground: 220 20% 97%;
+    --muted: 240 15% 16%;
+    --muted-foreground: 220 10% 65%;
+    --accent: 215 85% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 15% 20%;
+    --input: 240 15% 18%;
+    --ring: 258 65% 65%;
+    --sidebar-background: 240 22% 9%;
+    --sidebar-foreground: 220 20% 90%;
+    --sidebar-primary: 258 65% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 15% 16%;
+    --sidebar-accent-foreground: 220 20% 97%;
+    --sidebar-border: 240 15% 18%;
+    --sidebar-ring: 258 65% 65%;
+    --chart-1: 258 65% 65%;
+    --chart-2: 215 85% 60%;
+    --chart-3: 165 45% 55%;
+    --chart-4: 35 70% 60%;
+    --chart-5: 340 60% 65%;
   }
 }
 
@@ -31,8 +79,10 @@
   * {
     @apply border-border;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground font-body;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
 }
 
