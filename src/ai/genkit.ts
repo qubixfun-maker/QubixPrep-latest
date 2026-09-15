@@ -28,7 +28,7 @@ function getStaticProviders(): Provider[] {
       name: 'Gemini',
       baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
       apiKey: process.env.GEMINI_API_KEY || '',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
     },
     {
       name: 'Mistral',
@@ -307,7 +307,7 @@ export async function callGeminiNative(
   const token = await getVertexAccessToken()
   if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.8-flash').trim()
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro').trim()
   const location = 'global'
 
   // Gemini's native API uses "model" (not "assistant") for the assistant role, and
@@ -362,7 +362,7 @@ export async function callGeminiNativeMultimodal(
   const token = await getVertexAccessToken()
   if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.8-flash').trim()
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro').trim()
   const location = 'global'
 
   const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))

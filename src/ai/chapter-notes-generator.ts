@@ -2,6 +2,7 @@
 import { callAIWithProvider, callGeminiNative } from '@/ai/genkit';
 import type { ChapterKnowledge } from '@/ai/chapter-knowledge';
 import { allTemplatesForPrompt } from '@/ai/subject-templates';
+import { searchWikimediaImage, buildImageMarkdown } from '@/ai/wikimedia-images';
 
 function tryParseText(raw: string): string {
   return raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
@@ -26,11 +27,12 @@ ${topicJson}
 
 FORMAT TO USE: "${format.name}"
 
-TASK: Write clean, well-presented Markdown notes for this ONE topic:
+TASK: Write clean, well-presented Markdown notes for this ONE topic, in the style of dense, high-yield coaching-institute revision notes (like Marrow-style notes) - NOT a textbook essay:
 ${structureInstruction}
-- Write in clear, exam-ready prose and bullet points - not just a raw list of facts strung together.
-- Reproduce named entities (eponyms, staging systems, classifications) exactly as given.
+- Bullet points and short, punchy lines are the default. Use full sentences only where a genuine explanation needs it - never default to paragraphs.
+- Reproduce named entities (eponyms, staging systems, classifications) exactly as given in the source data.
 - Do not invent examples, numbers, or facts beyond what's in the source data above.
+- Preserve the source's own mnemonics, arrows/flowchart-style sequences, and shorthand exactly as given - these are core to the format, not optional flourishes.
 - Write everything in plain text/Unicode only - never use LaTeX or math notation (no $...$, no \\rightarrow, no \\mu, no \\text{}, etc.). Use the actual symbol directly instead, e.g. "→" not "$\\rightarrow$", and "μm" not "$\\mu\\text{m}$".
 
 Output ONLY the Markdown notes for this topic - no preamble, no commentary, no code fences.`;
@@ -40,6 +42,14 @@ export type GenerateNotesOutput = {
   topics?: { name: string; markdown: string; depth: number }[];
   error?: string;
 };
+
+function insertImageAfterFirstHeading(markdown: string, imageMarkdown: string): string {
+  const lines = markdown.split('\n');
+  const headingIndex = lines.findIndex((l) => /^#{1,3}\s/.test(l));
+  if (headingIndex === -1) return `${imageMarkdown}\n${markdown}`; // no heading found, prepend
+  lines.splice(headingIndex + 1, 0, '', imageMarkdown);
+  return lines.join('\n');
+}
 
 async function renderOneTopic(chapterTitle: string, subjectName: string, topic: any, forceVertex?: boolean, useGeminiNative?: boolean): Promise<string> {
   const formats = allTemplatesForPrompt(subjectName);
@@ -56,7 +66,12 @@ async function renderOneTopic(chapterTitle: string, subjectName: string, topic: 
       const { content: raw } = useGeminiNative
         ? await callGeminiNative([{ role: 'user', content: prompt }], 3000)
         : await callAIWithProvider([{ role: 'user', content: prompt }], 3000, forceVertex);
-      if (raw && raw.trim().length > 20) return tryParseText(raw);
+      if (raw && raw.trim().length > 20) {
+        const notesMarkdown = tryParseText(raw);
+        const image = await searchWikimediaImage(topic.name);
+        if (!image) return notesMarkdown;
+        return insertImageAfterFirstHeading(notesMarkdown, buildImageMarkdown(image));
+      }
       lastError = 'Empty or too-short response';
     } catch (err: any) {
       lastError = err.message || 'Unknown error';

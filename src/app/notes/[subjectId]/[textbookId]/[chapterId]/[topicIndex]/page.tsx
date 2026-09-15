@@ -50,6 +50,14 @@ const markdownComponents: Components = {
       <table>{children}</table>
     </div>
   ),
+  img: ({ src, alt }) => (
+    <img
+      src={typeof src === 'string' ? src : undefined}
+      alt={alt || ''}
+      loading="lazy"
+      className="rounded-xl border border-white/10 mx-auto max-h-[420px] w-auto object-contain"
+    />
+  ),
 }
 
 export default function NotesTopicDetailPage({ params }: { params: Promise<{ subjectId: string; textbookId: string; chapterId: string; topicIndex: string }> }) {
