@@ -292,12 +292,12 @@ export async function callClaudeOnly(
 }
 
 // Calls a Gemini model via Vertex's NATIVE generateContent endpoint (not the
-// OpenAI-compat shim used elsewhere) - brand-new models often aren't onboarded to that
-// compat layer yet even when fully available natively, which is exactly what happened
-// with gemini-3.8-flash (confirmed 404 via the shim, works via Model Garden's own
-// quickstart using this native path). Critically, this model uses "global" as its
-// location, which uses a BARE aiplatform.googleapis.com host with no region prefix -
-// different from the regional pattern vertexGenerateContent() otherwise uses.
+// OpenAI-compat shim used elsewhere) - needed for features that pass system prompts
+// separately. Uses the same REGIONAL endpoint pattern as vertexGenerateContent() (this
+// app's other, already-working Gemini calls), and defaults to gemini-2.5-pro - a GA
+// model tier available on standard project access, including Google Cloud free-trial
+// projects. (Previously pointed at Gemini 3.x via a "global" bare-host endpoint, which
+// 404'd because that model tier isn't available on every project's access level.)
 export async function callGeminiNative(
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   maxTokens: number = 2000
@@ -307,8 +307,8 @@ export async function callGeminiNative(
   const token = await getVertexAccessToken()
   if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
-  const location = 'global'
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
+  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
 
   // Gemini's native API uses "model" (not "assistant") for the assistant role, and
   // system prompts go in a separate top-level field, not the contents array.
@@ -317,9 +317,7 @@ export async function callGeminiNative(
     .filter((m) => m.role !== 'system')
     .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
 
-  // "global" is a bare host with no region prefix - different from the regional
-  // pattern (`${location}-aiplatform.googleapis.com`) used elsewhere in this file.
-  const url = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
+  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
 
   const res = await fetch(url, {
     method: 'POST',
@@ -347,10 +345,10 @@ export async function callGeminiNative(
   return { content, provider: 'Gemini (native)' }
 }
 
-// Same native "global" endpoint as callGeminiNative, but accepts one or more images
-// (base64-encoded, sent as inlineData parts) alongside the text prompt - used for
-// scanned/image-only PDF pages, where Gemini's own vision reads the page directly
-// rather than needing a separate OCR library.
+// Same regional native endpoint as callGeminiNative, but accepts one or more files
+// (base64-encoded, sent as inlineData parts - images or, for the notes-pdf-ingest
+// pipeline, a single-page PDF) alongside the text prompt. Gemini reads the file's
+// actual content directly rather than needing a separate OCR/rasterization step.
 export async function callGeminiNativeMultimodal(
   prompt: string,
   imagesBase64: string[],
@@ -362,13 +360,13 @@ export async function callGeminiNativeMultimodal(
   const token = await getVertexAccessToken()
   if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
-  const location = 'global'
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
+  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
 
   const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))
   const contents = [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
 
-  const url = `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
+  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
 
   const res = await fetch(url, {
     method: 'POST',
