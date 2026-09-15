@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { doc, collection, query, orderBy, setDoc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { ref as storageRef, uploadBytes } from "firebase/storage"
@@ -39,24 +39,44 @@ export default function NotesPdfIngestPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [storagePath, setStoragePath] = useState("")
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState("")
 
   const [isPausedLocal, setIsPausedLocal] = useState(false)
   const [isRunningLocal, setIsRunningLocal] = useState(false)
   const [finalizeResult, setFinalizeResult] = useState<string>("")
   const [isFinalizing, setIsFinalizing] = useState(false)
 
+  // A PDF uploaded once for a given textbookId is reused for every chapter of that
+  // book - no need to re-upload per chapter. Looked up by textbookId as soon as it's
+  // typed, and auto-fills storagePath below if a prior upload is found.
+  const sourceRef = useMemo(() => (!db || !textbookId.trim()) ? null : doc(db, "notesPdfSources", textbookId.trim()), [db, textbookId])
+  const { data: existingSource } = useDoc(sourceRef)
+
+  useEffect(() => {
+    if (existingSource?.storagePath && !storagePath) {
+      setStoragePath(existingSource.storagePath)
+    }
+  }, [existingSource, storagePath])
+
   const jobKey = textbookId && chapterId ? `${textbookId}__${chapterId}` : ""
   const jobRef = useMemo(() => (!db || !subjectId || !jobKey) ? null : doc(db, "subjects", subjectId, "notesPdfIngestJob", jobKey), [db, subjectId, jobKey])
   const { data: job } = useDoc(jobRef)
 
   async function handleUpload() {
-    if (!storage || !uploadFile || !textbookId.trim()) return
+    if (!storage || !uploadFile || !textbookId.trim() || !db) return
     setIsUploading(true)
+    setUploadError("")
     try {
       const path = `textbooks-source/${textbookId.trim()}-notes-${Date.now()}.pdf`
       const fileRef = storageRef(storage, path)
       await uploadBytes(fileRef, uploadFile)
       setStoragePath(path)
+      // Persist so this textbookId never needs a re-upload again.
+      if (sourceRef) {
+        await setDoc(sourceRef, { textbookId: textbookId.trim(), storagePath: path, uploadedAt: serverTimestamp() })
+      }
+    } catch (err: any) {
+      setUploadError(err?.message || "Upload failed - check your connection and try again.")
     } finally {
       setIsUploading(false)
     }
@@ -78,14 +98,18 @@ export default function NotesPdfIngestPage() {
     const pages: JobPage[] = []
     for (let p = start; p <= end; p++) pages.push({ pageNum: p, status: "pending" })
 
-    await setDoc(jobRef, {
-      subjectId, textbookId, chapterId, chapterTitle, storagePath,
-      startPage: start, endPage: end,
-      pages, status: "running", updatedAt: serverTimestamp(),
-    })
-    setIsPausedLocal(false)
     setFinalizeResult("")
-    runLoop(pages)
+    try {
+      await setDoc(jobRef, {
+        subjectId, textbookId, chapterId, chapterTitle, storagePath,
+        startPage: start, endPage: end,
+        pages, status: "running", updatedAt: serverTimestamp(),
+      })
+      setIsPausedLocal(false)
+      runLoop(pages)
+    } catch (err: any) {
+      alert(`Could not start ingestion: ${err?.message || "unknown error"}. If this says "permission denied", the Firestore rules for this feature may not be deployed yet - check with whoever manages the Firebase project.`)
+    }
   }
 
   async function runLoop(initialPages: JobPage[]) {
@@ -250,13 +274,33 @@ export default function NotesPdfIngestPage() {
 
         <div>
           <Label className="text-sm font-medium block mb-1">PDF file</Label>
-          <div className="flex gap-3">
-            <Input type="file" accept="application/pdf" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="glass border-white/10" />
-            <Button onClick={handleUpload} disabled={!uploadFile || !textbookId.trim() || isUploading} variant="secondary">
-              {isUploading ? "Uploading..." : "Upload"}
-            </Button>
-          </div>
-          {storagePath && <p className="text-xs text-green-500 mt-1">Uploaded - ready to ingest.</p>}
+          {storagePath && !uploadFile ? (
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-green-500">
+                {existingSource?.storagePath === storagePath
+                  ? "This textbook was already uploaded previously - reusing it, no need to upload again."
+                  : "Uploaded - ready to ingest."}
+              </p>
+              <button onClick={() => setStoragePath("")} className="text-xs text-muted-foreground underline shrink-0">
+                Use a different file
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-3">
+                <Input type="file" accept="application/pdf" onChange={(e) => { setUploadFile(e.target.files?.[0] || null); setUploadError("") }} className="glass border-white/10" />
+                <Button onClick={handleUpload} disabled={!uploadFile || !textbookId.trim() || isUploading} variant="secondary">
+                  {isUploading ? "Uploading..." : "Upload"}
+                </Button>
+              </div>
+              {storagePath && <p className="text-xs text-green-500 mt-1">Uploaded - ready to ingest.</p>}
+            </>
+          )}
+          {uploadError && (
+            <p className="text-xs text-destructive mt-1 rounded-lg bg-destructive/10 p-2">
+              Upload failed: {uploadError}
+            </p>
+          )}
         </div>
 
         {!hasActiveJob && (
