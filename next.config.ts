@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/admin/ai-ingest-textbook': ['./node_modules/@napi-rs/canvas*/**/*'],
     '/api/admin/parse-question-bank': ['./node_modules/@napi-rs/canvas*/**/*'],
+    '/api/admin/ingest-notes-pdf-batch': ['./node_modules/@napi-rs/canvas*/**/*'],
     '/api/long-answers/extract-pdf-text': ['./node_modules/@napi-rs/canvas*/**/*'],
     '/api/qbank/upload': ['./node_modules/@napi-rs/canvas*/**/*'],
     '/api/textbooks/extract-chapter-images': ['./node_modules/@napi-rs/canvas*/**/*'],
