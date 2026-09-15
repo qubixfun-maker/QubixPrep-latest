@@ -76,7 +76,7 @@ async function generateTopicList(subjectName: string, chapterTitle: string): Pro
   let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 800)
+      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 1500, 0)
       const parsed = tryParseJson(raw)
       if (Array.isArray(parsed) && parsed.every((t) => typeof t === 'string') && parsed.length > 0) {
         return { topics: parsed }
@@ -95,7 +95,7 @@ async function generateOneTopicNotes(subjectName: string, chapterTitle: string, 
   let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 3000)
+      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 6000, 1024)
       if (raw && raw.trim().length > 20) {
         return tryParseText(raw)
       }
