@@ -1569,9 +1569,9 @@ export default function AdminDashboard() {
               <Sparkles className="h-4 w-4" /> Notes Bulk Generator
             </Button>
           </Link>
-          <Link href="/admin/notes-pdf-ingest">
+          <Link href="/admin/ai-notes-generator">
             <Button variant="outline" className="rounded-xl gap-2 glass border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
-              <Upload className="h-4 w-4" /> Notes PDF Ingestion
+              <Sparkles className="h-4 w-4" /> AI Notes Generator
             </Button>
           </Link>
           <Link href="/admin/affiliates">
