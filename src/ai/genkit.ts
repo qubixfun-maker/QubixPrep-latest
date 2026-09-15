@@ -16,394 +16,468 @@ function getStaticProviders(): Provider[] {
       name: 'Groq',
       baseURL: 'https://api.groq.com/openai/v1',
       apiKey: process.env.GROQ_API_KEY || '',
-      model: 'gpt-oss-120b',
-    },
-    {
-      name: 'Cerebras',
-      baseURL: 'https://api.cerebras.ai/v1',
-      apiKey: process.env.CEREBRAS_API_KEY || '',
-      model: 'llama-3.3-70b',
-    },
-    {
-      name: 'Gemini',
-      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      apiKey: process.env.GEMINI_API_KEY || '',
-      model: 'gemini-2.5-flash',
-    },
-    {
-      name: 'Mistral',
-      baseURL: 'https://api.mistral.ai/v1',
-      apiKey: process.env.MISTRAL_API_KEY || '',
-      model: 'mistral-small-latest',
-    },
-    {
-      name: 'OpenRouter',
-      baseURL: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY || '',
-      model: 'meta-llama/llama-3.3-70b-instruct',
-    },
-  ].filter(p => p.apiKey)
+      model: 'gpt-oss-Cprocess4    mod},{
+      name: 'Groq'Cere'
+
+s    baseURL: 'https://api.groq.cere'
+
+s.',
+      apiKey: process.env.GROQ_CEREBRASKEY || '',
+      model: 'gpt-o-3.3-70b-vers    mod},{
+      name: 'Groq'Gemini    baseURL: 'https://api.gt.terrovvelanguage.e-authy: sopenav1betaai/v1',    apiKey: process.env.GROQ_AEMINIKEY || '',
+      model: 'gpt-osemini-2.5-flash    mod},{
+      name: 'Groq'Mig
+}al    baseURL: 'https://api.groq.mig
+}al.',
+      apiKey: process.env.GROQ_MISTRALKEY || '',
+      model: 'gpt-omig
+}al-small-latest    mod},{
+      name: 'Groq'I frRouce     baseURL: 'https://api.gi/v1rouce .',
+y: 
+      apiKey: process.env.GROQ_OPENROUTERKEY || '',
+      model: 'gpt-ometa--3.3-/-3.3-70b-versaiROQruct    mod},{
+ ].filce (p => p.y: pro)unct// Vertex om uses a shonsaryved O} froacenv. token (not a sProvi EY  kro),t// t.terroed 'googa servioviaceount JSON kro. Cached in-memory until neroot ciry.
+lest achedVertexToken:ogltoken:og
 }
 
-// Vertex AI uses a short-lived OAuth access token (not a static API key),
-// generated from a service account JSON key. Cached in-memory until near expiry.
-let cachedVertexToken: { token: string; expiresAt: number } | null = null
+f;ot ciresAt: numb  n} | nulllamnull
 
-async function getVertexAccessToken(): Promise<string | null> {
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-  if (!rawKey) return null
-
-  if (cachedVertexToken && cachedVertexToken.expiresAt > Date.now() + 60_000) {
-    return cachedVertexToken.token
-  }
-
-  try {
-    const credentials = JSON.parse(rawKey)
-    const auth = new GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    })
-    const client = await auth.getClient()
-    const tokenResponse = await client.getAccessToken()
-    if (!tokenResponse.token) return null
-
-    cachedVertexToken = {
-      token: tokenResponse.token,
-      // Vertex tokens last ~1hr; refresh a bit early to be safe.
-      expiresAt: Date.now() + 50 * 60_000,
-    }
-    return tokenResponse.token
-  } catch (err: any) {
-    console.warn('[AI] Failed to get Vertex AI access token:', err?.message)
-    return null
-  }
+async ion getStatiVertexAcenv.Tokenrovidermige<g
 }
 
-async function getVertexProvider(): Promise<Provider | null> {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
-  if (!projectId) return null
+f | null>    n GROQ_rawprolamss.env.GROQ_AOOGLE_SERVICE_ACCOUNT|| '  nif (!rawpro)rn [
+   null
 
-  const token = await getVertexAccessToken()
-  if (!token) return null
+ nif ( achedVertexToken &&t achedVertexToken.t ciresAt > Droe.now() + 60_710)    namn [
+    achedVertexToken.token  n}
 
-  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
-  const model = process.env.GOOGLE_VERTEX_MODEL || 'google/gemini-2.5-flash'
+ ntry    nam GROQ_credentialslamJSON.parse(rawpro)  nam GROQ_librlamnewleAuth } fr(   name:credentials   modelsci/vs: [s://api.gwww.e-authy: sopenalibr/cloud-platform']   mod})  nam GROQ_clientlamawaiQ_libr.atiClient()  nam GROQ_tokenRespGROelamawaiQ_client.atiAcenv.Tokenro  namif (!tokenRespGROe.token)rn [
+   null
 
-  return {
-    name: 'Vertex AI',
-    baseURL: `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/endpoints/openapi`,
-    apiKey: token,
-    model,
-  }
+ n   achedVertexTokenlam   name:token:otokenRespGROe.token   model// Vertex tokens last ~1hr;rn fresroa biQ_eroly to be safe.  modelt ciresAt: Droe.now() + 50 * 60_710   mod}  namn [
+   tokenRespGROe.token  n}  atch (err: any)    nam GROole.warn('[AI] Fa
+ind to ati Vertex om acenv. token:', err?.mnv.age)  namn [
+   null
+od} }
+
+async ion getStatiVertexder[] {
+rovidermige<der {
+  n| null>    n GROQ_ss.jectIdlamss.env.GROQ_AOOGLE_CLOUD_PROJECT_ID  nif (!ss.jectId)rn [
+   null
+
+ n GROQ_tokenlamawaiQ_atiVertexAcenv.Tokenro
+amif (!token)rn [
+   null
+
+ n GROQ_lo atetStamss.env.GROQ_AOOGLE_CLOUD_LOCATION ,
+  us-cent}al1'
+ n GROQ_: 'gptamss.env.GROQ_AOOGLE_VERTEXL = 'll,
+  e-auth/semini-2.5-flash 
+turn [
+      nam 'Groq'Vertex om    modRL: 'http`://api.g${lo atetS}-aiplatform.e-authy: sopenav1/ss.jectsg${ss.jectId}/lo atetSsg${lo atetS}/endpofacsai/v1'pi`   mody: procetoken   mod: 'gp,
+od} }
+
+// Low-level  alllto Vertex'sm 'ovve t.terroeCoacentlREST endpofac (not theAI from-penpat
+// shiogabove) -mneeded 'or image t.terroetStand visetStinput, which aren'Q_reliably
+// t cosnd through theAchat-penplesetSs shio.
+async ion getStvertexG.terroeCoacent(: string
 }
 
-// Low-level call to Vertex's native generateContent REST endpoint (not the OpenAI-compat
-// shim above) - needed for image generation and vision input, which aren't reliably
-// exposed through the chat-completions shim.
-async function vertexGenerateContent(model: string, contents: any[], generationConfig?: any): Promise<any> {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
-  if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
-  const token = await getVertexAccessToken()
-  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
-  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
+f,n GRcents: any[], t.terroetSCoafig?: any)vidermige<any>    n GROQ_ss.jectIdlamss.env.GROQ_AOOGLE_CLOUD_PROJECT_ID  nif (!ss.jectId)rthrowmnewlError('AOOGLE_CLOUD_PROJECT_ID not coafigured')
+ n GROQ_tokenlamawaiQ_atiVertexAcenv.Tokenro
+amif (!token)rthrowmnewlError('Vertex om acenv. token unava
+iable ( heck AOOGLE_SERVICE_ACCOUNT|| ')')
+ n GROQ_lo atetStamss.env.GROQ_AOOGLE_CLOUD_LOCATION ,
+  us-cent}al1'
 
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents, ...(generationConfig ? { generationConfig } : {}) }),
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Vertex generateContent failed (${res.status}): ${text.slice(0, 500)}`)
-  }
-  return res.json()
+ n GROQ_urptam`://api.g${lo atetS}-aiplatform.e-authy: sopenav1/ss.jectsg${ss.jectId}/lo atetSsg${lo atetS}/publish: P/e-auth/: strsg${: str}:t.terroeCoacent`  n GROQ_reslamawaiQ_fetch(urp,    nammethodoq'POST    modhea): P:ogl} frorizatetStp`Bero  n${token}`,q'Coacent-Type'oq'appli atetS/json'd},{
+   bodoceJSON.g
 }
 
-// Generates one image from a text prompt using Vertex's Gemini image model. The prompt
-// should spell out the exact text to render, not just a topic to write about - image
-// models are far more accurate at reproducing given text than composing their own.
-export async function generateVertexImage(prompt: string): Promise<{ base64: string; mimeType: string } | null> {
-  const model = process.env.GOOGLE_VERTEX_IMAGE_MODEL || 'gemini-2.5-flash-image'
-  // Vertex's image models default to text-only output unless explicitly told to also
-  // return an image - without this, the model just replies with text and we get nothing.
-  const data = await vertexGenerateContent(model, [{ role: 'user', parts: [{ text: prompt }] }], { responseModalities: ['TEXT', 'IMAGE'] })
-  const parts = data?.candidates?.[0]?.content?.parts || []
-  for (const part of parts) {
-    if (part.inlineData?.data) {
-      return { base64: part.inlineData.data, mimeType: part.inlineData.mimeType || 'image/png' }
-    }
-  }
-  return null
+fify({n GRcents, ...(t.terroetSCoafig ?oglt.terroetSCoafig } :og})d}),
+od}o
+amif (!res.ok)    nam GROQ_textlamawaiQ_res.text(). atch(() => '')  namthrowmnewlError(`Vertex t.terroeCoacentlfa
+ind (${res.sProus})vi${text.sli e(0, 500)}`)
+od}  nn [
+   res.json()unct// G.terroes one image 'googa textlss.mpQ_us
+
+f Vertex'smGemini image : str. TheAss.mpQ
+// should spelllouc theAexacQ_textlto ren): , not juOQ_lltopvi to writegabouc - image
+// : strs arelfar : rviaceurroe aQ_ress.duc
+
+f gvven_textltha   .mpos
+
+f their own.rt constasync ion getStatterroeVertexImage(ss.mpQing
 }
 
-// Transcribes all visible text from an image using Vertex's Gemini vision - used to check
-// a generated note-image actually rendered the intended text accurately before saving it.
-export async function transcribeVertexImage(base64: string, mimeType: string): Promise<string> {
-  const model = process.env.GOOGLE_VERTEX_MODEL_VISION || 'gemini-2.5-flash'
-  const data = await vertexGenerateContent(model, [
-    {
-      role: 'user',
-      parts: [
-        { inlineData: { mimeType, data: base64 } },
-        { text: 'Transcribe every word of visible text in this image exactly as written, in reading order. Output only the transcribed text, no commentary.' },
-      ],
-    },
-  ])
-  const parts = data?.candidates?.[0]?.content?.parts || []
-  return parts.map((p: any) => p.text || '').join('').trim()
+f)vidermige<{dRL: 64:og
 }
 
-export async function callAI(
-  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
-  maxTokens: number = 2000
-): Promise<string> {
-  const providers = getStaticProviders()
-
-  const vertexProvider = await getVertexProvider()
-  if (vertexProvider) {
-    providers.push(vertexProvider)
-  }
-
-  if (providers.length === 0) {
-    throw new Error('No AI providers configured. Please set at least one API key in environment variables.')
-  }
-
-  for (const provider of providers) {
-    try {
-      const client = new OpenAI({
-        apiKey: provider.apiKey,
-        baseURL: provider.baseURL,
-      })
-
-      const response = await client.chat.completions.create({
-        model: provider.model,
-        messages,
-        max_tokens: maxTokens,
-      })
-
-      const content = response.choices[0]?.message?.content
-      if (content) {
-        console.log(`[AI] Used provider: ${provider.name}`)
-        return content
-      }
-    } catch (error: any) {
-      const isQuotaError =
-        error?.status === 429 ||
-        error?.status === 503 ||
-        error?.message?.includes('quota') ||
-        error?.message?.includes('rate limit') ||
-        error?.message?.includes('capacity') ||
-        error?.message?.includes('overloaded')
-
-      if (isQuotaError) {
-        console.warn(`[AI] ${provider.name} quota/rate limit hit, trying next provider...`)
-        continue
-      }
-
-      console.warn(`[AI] ${provider.name} error: ${error?.message}, trying next...`)
-      continue
-    }
-  }
-
-  throw new Error('All AI providers exhausted. Please try again later.')
+f;omimeType:og
 }
 
-// Same as callAI, but also returns which provider actually answered - used where
-// we want to track/tag output quality across a long automated run (e.g. bulk
-// long-answer generation), since the fallback chain can switch models mid-run.
-// Simplified to a single provider (Gemini 3.8 Flash native) rather than a multi-provider
-// fallback chain (Groq, Cerebras, Mistral, OpenRouter, Vertex-OpenAI-shim) - the fallback
-// chain added resilience but also inconsistency (which provider actually served a given
-// request was often unclear, and different providers gave meaningfully different output
-// quality for the same prompt). Every existing caller keeps working unchanged, since the
-// signature and return shape ({content, provider}) are the same - this just delegates.
-export async function callAIWithProvider(
-  messages: { role: "user" | "assistant" | "system"; content: string }[],
-  maxTokens: number = 2000,
-  forceVertex: boolean = false
-): Promise<{ content: string; provider: string }> {
-  return callGeminiNative(messages, maxTokens)
+fn} | null>    n GROQ_: 'gptamss.env.GROQ_AOOGLE_VERTEXLIMAGEL = 'll,
+  eemini-2.5-flash-image'
+ n// Vertex'smimage : strs defaultlto text-only oucput unlnv. t cli itly told to also
+ n// n [
+   a  image - wifrouc this, theA: 'gptjuOQ_reslies wifr_textland we ati noth
+
+f.  n GROQ_datalamawaiQ_vertexG.terroeCoacent(: str, [{ role:  use    parts: [{ text:lss.mpQ_}]_}],   respGROeModalitivs: [sTEXT   'IMAGE']d}o
+am GROQ_sartslamdata?. andidroes?.[0]?. oacent?.sartsl,
+ []
+am'or ( GROQ_sart of_sarts)    namif (sart.inlineData?.data)m   name:n [
+    dRL: 64:osart.inlineData.data,omimeType:osart.inlineData.mimeTypel,
+  image/png'd}  nam}
+od}  nn [
+   null
+nct// Transcribes alllviseble textl'googa  image us
+
+f Vertex'smGemini visetSt- used to  heckt// a t.terroed note-imageiactually ren): nd the iacended textlaceurroely bef rvisav
+
+f it.rt constasync ion getSttranscribeVertexImage(RL: 64:og
 }
 
-// Calls Vertex AI only, with no fallback to other providers. Used for bulk generation
-// runs where consistent output quality matters more than resilience via fallback - a
-// silent slide to a weaker free-tier model mid-run is worse than a clear retry/backoff
-// on the same model.
-export async function callVertexOnly(
-  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
-  maxTokens: number = 2000
-): Promise<string> {
-  const provider = await getVertexProvider()
-  if (!provider) {
-    throw new Error('Vertex AI is not configured (check GOOGLE_CLOUD_PROJECT_ID and GOOGLE_SERVICE_ACCOUNT_KEY).')
-  }
-
-  const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL })
-  const response = await client.chat.completions.create({
-    model: provider.model,
-    messages,
-    max_tokens: maxTokens,
-  })
-
-  const content = response.choices[0]?.message?.content
-  if (!content) {
-    throw new Error('Vertex AI returned an empty response.')
-  }
-  return content
+f,omimeType:og
 }
 
-// Calls the Anthropic API directly - it is NOT OpenAI-chat-completions compatible
-// (different endpoint, system prompts are a separate top-level field rather than a
-// message role, and responses come back as a content-block array), so it can't reuse
-// the OpenAI-client pattern the other providers share. No fallback: used deliberately
-// for the one step (chapter knowledge extraction) where accurate interpretation matters
-// more than provider resilience.
-// Writes the service account JSON to a temp file once per process lifetime, so
-// AnthropicVertex's own internal (bundled) GoogleAuth instance can find it via the
-// standard GOOGLE_APPLICATION_CREDENTIALS file-based lookup. We deliberately do NOT
-// construct our own GoogleAuth object and pass it in - @anthropic-ai/vertex-sdk bundles
-// its own nested copy of google-auth-library, and TypeScript rejects a GoogleAuth
-// instance built from a separately-installed top-level copy as an incompatible type
-// (identical shape, but nominally different due to private class fields). Letting the
-// SDK build its own default auth internally sidesteps this entirely.
-let vertexCredentialsFilePath: string | null = null;
-async function ensureVertexCredentialsFile(rawKey: string): Promise<string> {
-  if (vertexCredentialsFilePath) return vertexCredentialsFilePath;
-  const fs = await import('fs');
-  const os = await import('os');
-  const path = await import('path');
-  const filePath = path.join(os.tmpdir(), `vertex-claude-credentials-${Date.now()}.json`);
-  fs.writeFileSync(filePath, rawKey, 'utf8');
-  vertexCredentialsFilePath = filePath;
-  return filePath;
+fovidermige<g
 }
 
-// Simplified to delegate to Gemini 3.8 native, same reasoning as callAIWithProvider
-// above - one consistent model handling everything, rather than a second alternate
-// provider (this path was also never reliably working, due to a persistent Claude-via-
-// Vertex quota-grant issue). Signature/return shape unchanged, so existing callers
-// that pass useClaude: true keep working, just served by Gemini now.
-export async function callClaudeOnly(
-  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
-  maxTokens: number = 2000
-): Promise<{ content: string; provider: string }> {
-  return callGeminiNative(messages, maxTokens)
+f>    n GROQ_: 'gptamss.env.GROQ_AOOGLE_VERTEXL = 'l_VISION ,
+  semini-2.5-flash 
+ n GROQ_datalamawaiQ_vertexG.terroeCoacent(: str, [{
+      name:role:  use     name:parts: [  name:    inlineData:oglmimeType,_data:dRL: 64n} },  name:    text:l'Transcribe every word of_viseble textlin this image exacQly as writcen,lin rea)
+
+f order. Oucput only the transcribed text, no  .mmentary.' },  name:]   mod},{
+ ]o
+am GROQ_sartslamdata?. andidroes?.[0]?. oacent?.sartsl,
+ []
+amn [
+   sarts.map((p: any) => p.textl,
+   ).jofa(  ).
+}
+m()unctt constasync ion getSt allAI(del:nv.ageP:oglrole:  use   | 'assisPrnt  | 'system';n GRcent:og
 }
 
-// Calls a Gemini model via Vertex's NATIVE generateContent endpoint (not the
-// OpenAI-compat shim used elsewhere) - needed for features that pass system prompts
-// separately. Uses the same REGIONAL endpoint pattern as vertexGenerateContent() (this
-// app's other, already-working Gemini calls), and defaults to gemini-2.5-pro - a GA
-// model tier available on standard project access, including Google Cloud free-trial
-// projects. (Previously pointed at Gemini 3.x via a "global" bare-host endpoint, which
-// 404'd because that model tier isn't available on every project's access level.)
-export async function callGeminiNative(
-  messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
-  maxTokens: number = 2000
-): Promise<{ content: string; provider: string }> {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
-  if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
-  const token = await getVertexAccessToken()
-  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
-
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
-  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
-
-  // Gemini's native API uses "model" (not "assistant") for the assistant role, and
-  // system prompts go in a separate top-level field, not the contents array.
-  const systemParts = messages.filter((m) => m.role === 'system').map((m) => m.content)
-  const contents = messages
-    .filter((m) => m.role !== 'system')
-    .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
-
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      ...(systemParts.length ? { systemInstruction: { parts: [{ text: systemParts.join('\n\n') }] } } : {}),
-      generationConfig: { maxOutputTokens: maxTokens },
-    }),
-  })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Gemini native call failed (${res.status}): ${text.slice(0, 500)}`)
-  }
-
-  const data = await res.json()
-  const content = (data.candidates?.[0]?.content?.parts || [])
-    .map((p: any) => p.text || '')
-    .join('')
-
-  if (!content) {
-    throw new Error('Gemini (native) returned an empty response.')
-  }
-  return { content, provider: 'Gemini (native)' }
+fn}[]   mmaxTokens: numb  n= 2710
+ovidermige<g
 }
 
-// Same regional native endpoint as callGeminiNative, but accepts one or more files
-// (base64-encoded, sent as inlineData parts - images or, for the notes-pdf-ingest
-// pipeline, a single-page PDF) alongside the text prompt. Gemini reads the file's
-// actual content directly rather than needing a separate OCR/rasterization step.
-export async function callGeminiNativeMultimodal(
-  prompt: string,
-  imagesBase64: string[],
-  maxTokens: number = 2000,
-  mimeType: string = 'image/jpeg'
-): Promise<{ content: string; provider: string }> {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
-  if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
-  const token = await getVertexAccessToken()
-  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
+f>    n GROQ_pers(): Pn= aticProviders(): Pro
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
-  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
+ n GROQ_vertexder[] {
+lamawaiQ_atiVertexder[] {
+ro
+amif (vertexder[] {
+)m   nampers(): P.push(vertexder[] {
+)  n}
 
-  const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))
-  const contents = [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
+ nif (sers(): P.lengbrla== 0)    namthrowmnewlError('No om pers(): Pncoafigured. Pthysvisti aQ_thyst one EY  krolin ROQironment variables.')  n}
 
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
+ n'or ( GROQ_ser[] {
+lof_sers(): P)    namtry    namam GROQ_clientlamnewlI from(   name:Key: process.s(): .y: pro,  name:  RL: 'httpss.s(): .RL: 'ht,  name:})
+  namam GROQ_respGROelamawaiQ_client.chat.penplesetSs.create(   name:Ke: strinss.s(): .: 'gp,
+odame:Ke:nv.ageP,
+odame:Ke:ax_tokens: maxTokens,  name:})
+  namam GROQ_ GRcentlamrespGROe.choi es[0]?.:nv.age?. oacent  namamif ( oacent)m   name:am GROole.log(`[AI] Used ss.s(): vi${ss.s(): . 'Gr}`)
+od name:n [
+    oacent  namam}  nam}  atch (error: any)    namam GROQ_isQuotaError =
+od name:error?.sProusla== 429l,
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: { maxOutputTokens: maxTokens },
-    }),
-  })
+od name:error?.sProusla== 503l,
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Gemini native multimodal call failed (${res.status}): ${text.slice(0, 500)}`)
-  }
+od name:error?.:nv.age?.includes('quota')l,
 
-  const data = await res.json()
-  const content = (data.candidates?.[0]?.content?.parts || [])
-    .map((p: any) => p.text || '')
-    .join('')
+od name:error?.:nv.age?.includes('rroe limit')l,
 
-  if (!content) {
-    throw new Error('Gemini (native multimodal) returned an empty response.')
-  }
-  return { content, provider: 'Gemini (native, vision)' }
+od name:error?.:nv.age?.includes('capa ity')l,
+
+od name:error?.:nv.age?.includes('overloa):d')
+  namamif (isQuotaError)m   name:am GROole.warn(`[AI] ${ss.s(): . 'Gr} quota/rroe limit hit, try
+
+fnnextlss.s(): ...`)
+od name: oacinue  namam} 
+ame:am GROole.warn(`[AI] ${ss.s(): . 'Gr} error: ${error?.:nv.age}, try
+
+fnnext...`)
+od nam oacinue  nam}  n}
+
+ nthrowmnewlError('Alllom pers(): PnexhauOQed. Pthysvitry again later.') nct// S'Gr as  allAI, but also:n [
+  s which ser[] {
+lactually answ: nd - used wh: e
+// we wrntlto track/tag oucput quality across a lo
+fnautomroed run (e.g. bulkt// lo
+f-answ: lt.terroetS), s
+
+ce the fallbackAchaiSt an swifch : strs mid-run.t// Sinplified to a s
+
+gle ser[] {
+l(Gemini 3.8 Flashm 'ovve) rroh: ltha  a multi-ser[] {
+t// fallbackAchaiSt(,
+  , Cere'
+
+s, Mig
+}al, I frRouce , Vertex-I from-shio) -mthe fallbackt// chaiStadded resilience but also:
+
+cGROig
+ency (which ser[] {
+lactually served a gvven
+// n queOQ_was often uncthy , and differenQ_pers(): PngaveA:ean
+
+gfully differenQ_oucput
+// quality 'or the s'Gr ss.mpQ). Every exig
+
+
+fn all{
+lkeeps work
+
+fnuncha ged, s
+
+ce the
+// sig 'ourviand:n [
+   shapel({ oacent,_pers(): }) arelthe s'Gr - this juOQ_stregroes.rt constasync ion getSt allAIWifrder[] {
+rdel:nv.ageP:oglrole: "use " | "assisPrnt" | "system";n GRcent:og
 }
 
-export function getGroqClient() {
-  return {
-    chat: {
-      completions: {
-        create: async (params: any) => {
-          const content = await callAI(params.messages, params.max_tokens)
-          return {
-            choices: [{ message: { content } }]
-          }
-        }
-      }
-    }
-  }
+fn}[]   mmaxTokens: numb  n= 2710,
+ n'orceVertex:dRooleaStamfalse
+)vidermige<{d GRcent:og
 }
+
+f; ss.s(): vig
+}
+
+fn}>return [
+    allGeminiN'ovve(:nv.ageP,mmaxTokens) nct// Calls Vertex om only, wifr_no fallbackAto ooh: lsers(): P. Used 'or bulklt.terroetS
+// nu s where cGROig
+ent oucput quality mrot: Pn: rvitha  resilience via fallbackA- a
+// silent sl(): to a weak: lfree-tivr_: 'gptmid-run_is worseltha  a cthy rn [ry/backoff
+// tStthe s'Gr : str.rt constasync ion getSt allVertexOnly(del:nv.ageP:oglrole:  use   | 'assisPrnt  | 'system';n GRcent:og
+}
+
+fn}[]   mmaxTokens: numb  n= 2710
+ovidermige<g
+}
+
+f>    n GROQ_pers(): lamawaiQ_atiVertexder[] {
+ro
+amif (!per[] {
+)m   namthrowmnewlError('Vertex om is not coafigured ( heck AOOGLE_CLOUD_PROJECT_ID and:AOOGLE_SERVICE_ACCOUNT|| ').')  n}
+
+ n GROQ_clientlamnewlI from( ey: process.s(): .y: pro, RL: 'httpss.s(): .RL: 'htd}o
+am GROQ_respGROelamawaiQ_client.chat.penplesetSs.create(   nam: strinss.s(): .: 'gp,
+odam:nv.ageP,
+odam:ax_tokens: maxTokens,  n}o
+
+ n GROQ_ GRcentlamrespGROe.choi es[0]?.:nv.age?. oacent  nif (! oacent)m   namthrowmnewlError('Vertex om n [
+  ed an RmpQymrespGROe.')
+od}  nn [
+    oacent nct// Calls the Anthropvi EY  direcQly - iQ_is NOTAI from-phat-penplesetSs penpateblet// (differenQ_endpofac, system ss.mpQs arela sesarroe top-level field rroh: ltha  a
+// :nv.agelrole,iand:n spGROes pene backAas a  oacent-blockAarray), so iQ_ an'Q_reuse
+// theAI from-plientlprot: Stthe ooh: lsers(): P share. No fallback: used 'gpiberroelyt// for the one step ( hapt{
+lknowledge extracoetS) where aceurroe face pn [atetStmrot: P
+// : rvitha  pers(): lresilience.t// Writes the servioviaceount JSON to a temp file onovip: lserenv. lifeseme, sot// AnthropviVertex'smown face nal (bundled)leAuth } froiROQanovi an find:iQ_via the
+// sQandard:AOOGLE_APPLICATION_CREDENTIALS file-RL: d lookup. We 'gpiberroely do NOTt// coROQruct our ownleAuth } froobjectiand:pass iQ_iSt- @anthropvi-',
+ ertex-sdk bundleP
+// itsmown neOQed copylof_e-auth-library'
+
+ex,iand:TypeScripQ_rejects a eAuth } fr
+// iROQanovibuilt 'googa sesarroelyaiROQall{d top-level copylas an:
+
+cGnpateble typet// (identi al shape, but nrminally differenQ_du: to privroe class fields). Lett
+
+f thet// SDKibuild itsmown defaultla froiRce nally sidesteps this entirely.
+lest ertexCredentialsFileProh:og
+}
+
+fn| nulllamnull;
+async ion getStensureVertexCredentialsFile(rawpro:og
+}
+
+fovidermige<g
+}
+
+f>    nif (vertexCredentialsFileProh)rn [
+   vertexCredentialsFileProh;
+ n GROQ_fslamawaiQ_t { Go('fs');
+ n GROQ_oslamawaiQ_t { Go('os');
+ n GROQ_pathlamawaiQ_t { Go('path');
+ n GROQ_fileProhtamsroh.jofa(os.tmpdir(), ` ertex-claude-credentials-${Droe.now()}.json`);
+ nfs.writeFileSync(fileProh,_rawpro,  utf8');
+ nvertexCredentialsFileProhtamfileProh;
+ nn [
+   fileProh;
+nct// Sinplified to stregroe to Gemini 3.8  'ovve, s'Gr reason
+
+fnas  allAIWifrder[] {
+t// abovet- one cGROig
+ent : 'gptha dl
+
+fneveryth
+
+f, rroh: ltha  a secGRd alce natet// ser[] {
+l(this pathlwas also:never_reliably work
+
+f,_du: to aip: Oig
+ent Claude-via-t// Vertex quota-grrntlissue). Sig 'ourv/n [
+   shapeluncha ged, so exig
+
+
+fn all{
+s
+// that:pass useClaude: tru: keep work
+
+f,_juOQ_served by Gemini now.rt constasync ion getSt allClaudeOnly(del:nv.ageP:oglrole:  use   | 'assisPrnt  | 'system';n GRcent:og
+}
+
+fn}[]   mmaxTokens: numb  n= 2710
+ovidermige<{d GRcent:og
+}
+
+f; ss.s(): vig
+}
+
+fn}>return [
+    allGeminiN'ovve(:nv.ageP,mmaxTokens) nct// Calls a Gemini : 'gptvia Vertex'smNATIVE t.terroeCoacentlendpofac (not thet// I from-penpat shiogused elsewhere) -mneeded 'or fe'ourvs that:pass system ss.mpQs
+// sesarroely. Usestthe s'Gr REGIONALlendpofac prot: Stas vertexG.terroeCoacent()l(thist// app'smooh: ,ialrea)y-work
+
+fnGemini  alls), and defaults to atmini-2.5-ss.A- a GA
+// : str tivr_ava
+iable tStsQandard:ss.ject acenv.,linclud
+
+fnGAuth  Cloudlfree-trialt// serjects. (Previously pofaced at Gemini 3.xtvia a "global" bare-hosQ_endpofac, whicht// 404'd becauselthat : str tivr_isn'Q_ava
+iable tStevery serject'smacenv. level.)rt constasync ion getSt allGeminiN'ovve(del:nv.ageP:oglrole:  use   | 'assisPrnt  | 'system';n GRcent:og
+}
+
+fn}[]   mmaxTokens: numb  n= 2710,
+ nthink
+
+fBudget?: numb  
+ovidermige<{d GRcent:og
+}
+
+f; ss.s(): vig
+}
+
+fn}>retur GROQ_ss.jectIdlamss.env.GROQ_AOOGLE_CLOUD_PROJECT_ID  nif (!ss.jectId)rthrowmnewlError('AOOGLE_CLOUD_PROJECT_ID not coafigured')
+ n GROQ_tokenlamawaiQ_atiVertexAcenv.Tokenro
+amif (!token)rthrowmnewlError('Vertex om acenv. token unava
+iable ( heck AOOGLE_SERVICE_ACCOUNT|| ')')
+  n GROQ_: 'gptam(ss.env.GROQ_AEMINIKNATIVEL = 'll,
+  eemini-2.5-ss. ).
+}
+m()u n GROQ_lo atetStamss.env.GROQ_AOOGLE_CLOUD_LOCATION ,
+  us-cent}al1'
+
+ n// G.mini sm 'ovve EY  uses ": 'gp" (not "assisPrnt") for the assisPrntlrole,iand
+ n// system ss.mpQs go:
+
+la sesarroe top-level field, not theAcGRcentsAarray.  n GROQ_systemPartslam:nv.ageP.filce ((m) => m.rolela== 'system').map((m) => m. oacent)
+ n GROQ_ GRcentslam:nv.ageP  nam.filce ((m) => m.rolel!== 'system')  nam.map((m) => (glrole: m.rolela== 'assisPrnt  ? ': 'gp' :  use    parts: [{ text:lm. oacent_}]_}))
+
+ n GROQ_urptam`://api.g${lo atetS}-aiplatform.e-authy: sopenav1/ss.jectsg${ss.jectId}/lo atetSsg${lo atetS}/publish: P/e-auth/: strsg${: str}:t.terroeCoacent` 
+ n// 2.5-se ies : strs s frd_sart of_maxOucputTokens on face nal "think
+
+f" bef rv
+ n// writ
+
+f the_viseble answ: l- for  alls where the_viseble textlbudget_is tight
+ n// (e.g. a shons OQructured JSON n spGROe),lthat  an silently tron roe theiactual
+ n// oucput. Passi
+f think
+
+fBudget  aps or disableslthat (0lamdisabled)rso the full
+od// token budget_goes to the real answ: .  n GROQ_t.terroetSCoafig: anylam _maxOucputTokens: maxTokensd}  nif (think
+
+fBudget !== undefined)r   namt.terroetSCoafig.think
+
+fCoafig am _think
+
+fBudget }  n}
+
+ n GROQ_reslamawaiQ_fetch(urp,    nammethodoq'POST    modhea): P:ogl} frorizatetStp`Bero  n${token}`,q'Coacent-Type'oq'appli atetS/json'd},{
+   bodoceJSON.g
+}
+
+fify({
+od nam oacents,
+od nam...(systemParts.lengbrl?oglsystemIROQructetStp{ parts: [{ text:lsystemParts.jofa( \n\n')_}]_} } :og}),
+od namt.terroetSCoafig   mod}),  n}o
+
+ nif (!res.ok)    nam GROQ_textlamawaiQ_res.text(). atch(() => '')  namthrowmnewlError(`Gemini n'ovve  alllfa
+ind (${res.sProus})vi${text.sli e(0, 500)}`)
+od} 
+ n GROQ_datalamawaiQ_res.json()u n GROQ_ GRcentlam(data. andidroes?.[0]?. oacent?.sartsl,
+ [])  nam.map((p: any) => p.textl,
+   )  nam.jofa(  )
+
+ nif (! oacent)m   namthrowmnewlError('Gemini ( 'ovve) r [
+  ed an RmpQymrespGROe.')
+od}  nn [
+   {d GRcent, ss.s(): vi'Gemini ( 'ovve)'d} }
+
+// S'Gr regetSal n'ovve endpofac as  allGeminiN'ovve, but acenpQs one or : rvifilest// (RL: 64-enc std, seac as inlineData_sartsl- images or, for the notes-pdf-
+
+fest
+// pipeline, a s
+
+gle-pagelPDF)ialongs(): the textlss.mpQ. Gemini rea)stthe file'st// actual_ GRcentldirecQly rroh: ltha  need
+
+fna sesarroe OCR/rasterizatetS step.rt constasync ion getSt allGeminiN'ovveMultimodal(delss.mpQing
+}
+
+f,  nimagesBL: 64:og
+}
+
+f[]   mmaxTokens: numb  n= 2710,
+ nmimeType:og
+}
+
+fn=  image/jpeg'
+ovidermige<{d GRcent:og
+}
+
+f; ss.s(): vig
+}
+
+fn}>retur GROQ_ss.jectIdlamss.env.GROQ_AOOGLE_CLOUD_PROJECT_ID  nif (!ss.jectId)rthrowmnewlError('AOOGLE_CLOUD_PROJECT_ID not coafigured')
+ n GROQ_tokenlamawaiQ_atiVertexAcenv.Tokenro
+amif (!token)rthrowmnewlError('Vertex om acenv. token unava
+iable ( heck AOOGLE_SERVICE_ACCOUNT|| ')')
+  n GROQ_: 'gptam(ss.env.GROQ_AEMINIKNATIVEL = 'll,
+  eemini-2.5-ss. ).
+}
+m()u n GROQ_lo atetStamss.env.GROQ_AOOGLE_CLOUD_LOCATION ,
+  us-cent}al1'
+
+ n GROQ_imagePartslamimagesBL: 64.map((data)m=> (glinlineData:oglmimeType,_data_} }))
+ n GROQ_ GRcentslam[{ role:  use    parts: [...imageParts, { text:lss.mpQ_}]_}]
+
+ n GROQ_urptam`://api.g${lo atetS}-aiplatform.e-authy: sopenav1/ss.jectsg${ss.jectId}/lo atetSsg${lo atetS}/publish: P/e-auth/: strsg${: str}:t.terroeCoacent` 
+ n GROQ_reslamawaiQ_fetch(urp,    nammethodoq'POST    modhea): P:ogl} frorizatetStp`Bero  n${token}`,q'Coacent-Type'oq'appli atetS/json'd},{
+   bodoceJSON.g
+}
+
+fify({
+od nam oacents,
+od namt.terroetSCoafig:  _maxOucputTokens: maxTokensd}   mod}),  n}o
+
+ nif (!res.ok)    nam GROQ_textlamawaiQ_res.text(). atch(() => '')  namthrowmnewlError(`Gemini n'ovve multimodal  alllfa
+ind (${res.sProus})vi${text.sli e(0, 500)}`)
+od} 
+ n GROQ_datalamawaiQ_res.json()u n GROQ_ GRcentlam(data. andidroes?.[0]?. oacent?.sartsl,
+ [])  nam.map((p: any) => p.textl,
+   )  nam.jofa(  )
+
+ nif (! oacent)m   namthrowmnewlError('Gemini ( 'ovve multimodal) r [
+  ed an RmpQymrespGROe.')
+od}  nn [
+   {d GRcent, ss.s(): vi'Gemini ( 'ovve, visetS)'d} }
+
+t constion getStati,
+  Client()return [
+      nam hat:    namam GnplesetSs:m   name:am reate:tasync (sarams: any) =>    name:am n GROQ_ GRcentlamawaiQ_callAI(sarams.:nv.ageP,msarams.:ax_tokens)  name:am nn [
+      namame:am n hoi es: [{ :nv.age: {d GRcent_} }]  namame:am}
+amame:am}
+amame:}  nam}
+o
