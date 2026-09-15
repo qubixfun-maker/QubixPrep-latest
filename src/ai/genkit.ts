@@ -307,7 +307,7 @@ export async function callGeminiNative(
   const token = await getVertexAccessToken()
   if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro').trim()
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
   const location = 'global'
 
   // Gemini's native API uses "model" (not "assistant") for the assistant role, and
@@ -362,7 +362,7 @@ export async function callGeminiNativeMultimodal(
   const token = await getVertexAccessToken()
   if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro').trim()
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
   const location = 'global'
 
   const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))
