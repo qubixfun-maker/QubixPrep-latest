@@ -70,21 +70,23 @@ A: answer text
 
 Output ONLY the Markdown for this one topic - no preamble, no commentary, no outer code fences around the whole response.`;
 
-async function generateTopicList(subjectName: string, chapterTitle: string): Promise<string[] | null> {
+async function generateTopicList(subjectName: string, chapterTitle: string): Promise<{ topics: string[] | null; error?: string }> {
   const prompt = TOPIC_LIST_PROMPT(subjectName, chapterTitle)
   const MAX_ATTEMPTS = 2
+  let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 800)
       const parsed = tryParseJson(raw)
       if (Array.isArray(parsed) && parsed.every((t) => typeof t === 'string') && parsed.length > 0) {
-        return parsed
+        return { topics: parsed }
       }
-    } catch {
-      // retry
+      lastError = `Model response was not a valid JSON string array. Raw response: ${raw.slice(0, 300)}`
+    } catch (err: any) {
+      lastError = err.message || 'Unknown error calling Gemini'
     }
   }
-  return null
+  return { topics: null, error: lastError }
 }
 
 async function generateOneTopicNotes(subjectName: string, chapterTitle: string, topicName: string): Promise<string> {
@@ -106,8 +108,8 @@ async function generateOneTopicNotes(subjectName: string, chapterTitle: string, 
 }
 
 export async function generateChapterNotesFromKnowledge(subjectName: string, chapterTitle: string): Promise<GenerateFromKnowledgeOutput> {
-  const topicNames = await generateTopicList(subjectName, chapterTitle)
-  if (!topicNames) return { error: 'Could not generate a topic breakdown for this chapter.' }
+  const { topics: topicNames, error: topicListError } = await generateTopicList(subjectName, chapterTitle)
+  if (!topicNames) return { error: `Could not generate a topic breakdown for this chapter. ${topicListError || ''}`.trim() }
 
   const results: GeneratedTopic[] = new Array(topicNames.length)
   const CONCURRENCY = 4
