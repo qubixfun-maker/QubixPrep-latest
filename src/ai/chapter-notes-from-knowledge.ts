@@ -76,7 +76,7 @@ async function generateTopicList(subjectName: string, chapterTitle: string): Pro
   let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 1500, 0)
+      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 1500, 128)
       const parsed = tryParseJson(raw)
       if (Array.isArray(parsed) && parsed.every((t) => typeof t === 'string') && parsed.length > 0) {
         return { topics: parsed }
