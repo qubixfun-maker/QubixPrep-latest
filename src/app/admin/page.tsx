@@ -1574,6 +1574,11 @@ export default function AdminDashboard() {
               <Sparkles className="h-4 w-4" /> AI Notes Generator
             </Button>
           </Link>
+          <Link href="/admin/notes-manager">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-red-500/30 text-red-400 hover:bg-red-500/10">
+              <Trash2 className="h-4 w-4" /> Manage Notes
+            </Button>
+          </Link>
           <Link href="/admin/affiliates">
             <Button variant="outline" className="rounded-xl gap-2 glass border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
               <Gift className="h-4 w-4" /> Manage Affiliates
