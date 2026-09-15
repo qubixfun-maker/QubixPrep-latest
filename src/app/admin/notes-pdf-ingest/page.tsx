@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
-import { doc, collection, query, orderBy, setDoc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { doc, collection, query, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
 import { ref as storageRef, uploadBytes } from "firebase/storage"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -180,6 +180,15 @@ export default function NotesPdfIngestPage() {
     setIsRunningLocal(false)
   }
 
+  async function handleClearJob() {
+    if (!jobRef) return
+    if (!confirm("Clear this ingestion job and start over? Already-transcribed pages will be lost - you'll re-run the batch from scratch.")) return
+    setIsPausedLocal(false)
+    setIsRunningLocal(false)
+    setFinalizeResult("")
+    await deleteDoc(jobRef)
+  }
+
   function handlePause() {
     setIsPausedLocal(true)
   }
@@ -232,7 +241,7 @@ export default function NotesPdfIngestPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Notes PDF Ingestion</h1>
         <p className="text-muted-foreground mt-2">
-          For pre-made notes PDFs (e.g. Marrow-style condensed notes) - Gemini reads each page's actual image directly and transcribes it faithfully, rather than extracting-then-rewriting like the textbook pipeline. Give it a subject, a page range, and a chapter/section name - it groups pages into topics automatically using each page's own "Page X/Y" counter.
+          For pre-made notes PDFs (e.g. Marrow-style condensed notes) - Gemini reads each page directly as a PDF page and transcribes it faithfully, rather than extracting-then-rewriting like the textbook pipeline. Give it a subject, a page range, and a chapter/section name - it groups pages into topics automatically using each page's own "Page X/Y" counter.
         </p>
       </div>
 
@@ -336,6 +345,9 @@ export default function NotesPdfIngestPage() {
                 {isFinalizing ? "Saving..." : "Finalize & Save Notes"}
               </Button>
             )}
+            <Button onClick={handleClearJob} variant="outline" className="flex-1 border-destructive/40 text-destructive hover:bg-destructive/10">
+              Clear &amp; Start Over
+            </Button>
           </div>
 
           {finalizeResult && (

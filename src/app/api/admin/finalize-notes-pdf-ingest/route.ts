@@ -41,21 +41,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No successfully transcribed pages to finalize' }, { status: 400 })
     }
     // Pages should already be in ascending order from how the job was created, but sort
-    // defensively since page order determines topic grouping and concatenation order.
+    // defensively since page order determines concatenation order.
     donePages.sort((a, b) => a.pageNum - b.pageNum)
 
-    // Group consecutive pages into topics: a new topic starts whenever pageOfTopic is 1
-    // (or missing/invalid), matching the "Page 1/N" convention these notes use at the
-    // start of every topic. Pages within a topic are concatenated in page order.
-    const topics: { name: string; markdown: string; depth: number }[] = []
-    for (const page of donePages) {
-      const startsNewTopic = !page.pageOfTopic || page.pageOfTopic <= 1 || topics.length === 0
-      if (startsNewTopic) {
-        topics.push({ name: page.topicName || `Untitled Topic (page ${page.pageNum})`, markdown: page.markdown!, depth: 0 })
-      } else {
-        topics[topics.length - 1].markdown += `\n\n${page.markdown}`
-      }
-    }
+    // Concatenate every transcribed page into ONE chapter-wide note, in page order,
+    // rather than splitting into separate per-topic tiles - the chapter reads as a
+    // single continuous document, matching how these condensed-notes PDFs are meant
+    // to be studied.
+    const fullMarkdown = donePages.map((p) => p.markdown).join('\n\n')
+    const topics = [{ name: chapterTitle || job.chapterTitle || chapterId, markdown: fullMarkdown, depth: 0 }]
 
     const notesRef = db.collection('subjects').doc(subjectId).collection('textNotes').doc(jobKey)
     await notesRef.set({
