@@ -28,16 +28,29 @@ export default function AiNotesGeneratorPage() {
 
   const [subjectId, setSubjectId] = useState("")
   const [chapterNamesInput, setChapterNamesInput] = useState("")
+  const [isTriggering, setIsTriggering] = useState(false)
 
   const jobRef = useMemo(() => (!db || !subjectId) ? null : doc(db, "subjects", subjectId, "aiNotesGenJob", JOB_ID), [db, subjectId])
   const { data: job } = useDoc(jobRef)
 
-  const [isPausedLocal, setIsPausedLocal] = useState(false)
-  const [isRunningLocal, setIsRunningLocal] = useState(false)
-
-  async function updateJob(fields: any) {
-    if (!jobRef) return
-    await updateDoc(jobRef, fields)
+  // Kicks off (or continues) the job on the server. The server then keeps going on
+  // its own, chapter by chapter, even if this tab is closed - see run-notes-job/route.ts.
+  async function triggerJob() {
+    if (!user || !subjectId) return
+    setIsTriggering(true)
+    try {
+      const idToken = await user.getIdToken()
+      await fetch("/api/admin/run-notes-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, subjectId }),
+      })
+    } catch {
+      // The Firestore listener is the real source of truth for progress - a
+      // dropped response here isn't fatal, Resume can always kick it again.
+    } finally {
+      setIsTriggering(false)
+    }
   }
 
   async function startNewJob() {
@@ -51,93 +64,37 @@ export default function AiNotesGeneratorPage() {
       return
     }
     const chapters: ChapterProgress[] = titles.map((title) => ({ title, status: "pending" }))
+    const chainSecret = crypto.randomUUID()
 
     try {
-      await setDoc(jobRef, { subjectId, chapters, status: "running", updatedAt: serverTimestamp() })
-      setIsPausedLocal(false)
-      runLoop(chapters, 0)
+      await setDoc(jobRef, { subjectId, chapters, chainSecret, status: "running", updatedAt: serverTimestamp() })
+      triggerJob()
     } catch (err: any) {
       alert(`Could not start: ${err?.message || "unknown error"}. If this says "permission denied", the Firestore rule for aiNotesGenJob may not be published yet - check Firebase Console -> Firestore Database -> Rules.`)
     }
   }
 
-  // Deliberately sequential - one chapter fully finishes (all its topics generated)
-  // before the next one starts. Running chapters in parallel would multiply the
-  // concurrent Gemini load per chapter (each chapter already runs up to 4 topics at
-  // once internally) and risks both rate-limit errors and rushed, lower-quality output.
-  async function runLoop(chapters: ChapterProgress[], startIndex: number) {
-    if (isRunningLocal || !user || !jobRef) return
-    setIsRunningLocal(true)
-    const working = [...chapters]
-
-    for (let i = startIndex; i < working.length; i++) {
-      if (isPausedLocal) {
-        await updateJob({ status: "paused", chapters: working, updatedAt: serverTimestamp() })
-        setIsRunningLocal(false)
-        return
-      }
-      if (working[i].status === "done") continue
-
-      working[i] = { ...working[i], status: "running" }
-      await updateJob({ chapters: working, updatedAt: serverTimestamp() })
-
-      try {
-        const idToken = await user.getIdToken()
-        const res = await fetch("/api/admin/generate-chapter-notes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken, subjectId, chapterTitle: working[i].title }),
-        })
-        let data: any
-        try {
-          data = await res.json()
-        } catch {
-          data = { error: res.ok ? "Server returned a non-JSON response" : `Server error (status ${res.status}), likely a timeout - try again` }
-        }
-        if (data.success) {
-          working[i] = { ...working[i], status: "done", topicCount: data.topicCount, textbookId: data.textbookId, chapterId: data.chapterId }
-        } else {
-          working[i] = { ...working[i], status: "failed", error: data.error || "Generation failed" }
-        }
-      } catch (err: any) {
-        working[i] = { ...working[i], status: "failed", error: err.message || "Generation failed" }
-      }
-
-      await updateJob({ chapters: working, updatedAt: serverTimestamp() })
-    }
-
-    await updateJob({ status: "done", chapters: working, updatedAt: serverTimestamp() })
-    setIsRunningLocal(false)
-  }
-
-  function handlePause() {
-    setIsPausedLocal(true)
+  async function handlePause() {
+    if (!jobRef) return
+    await updateDoc(jobRef, { status: "paused" })
   }
 
   function handleResume() {
-    if (!job) return
-    setIsPausedLocal(false)
-    const chapters: ChapterProgress[] = job.chapters
-    const startIndex = chapters.findIndex((c: ChapterProgress) => c.status !== "done")
-    runLoop(chapters, startIndex === -1 ? chapters.length : startIndex)
-    updateJob({ status: "running" })
+    triggerJob()
   }
 
   async function handleRetryFailed() {
-    if (!job) return
-    setIsPausedLocal(false)
+    if (!job || !jobRef) return
     const chapters: ChapterProgress[] = job.chapters.map((c: ChapterProgress) =>
       c.status === "failed" ? { ...c, status: "pending" as const } : c
     )
-    await updateJob({ status: "running", chapters, updatedAt: serverTimestamp() })
-    runLoop(chapters, 0)
+    await updateDoc(jobRef, { status: "running", chapters, updatedAt: serverTimestamp() })
+    triggerJob()
   }
 
   async function handleClearJob() {
     if (!jobRef) return
     if (!confirm("Clear this job? Chapters already generated are NOT deleted, only the progress list.")) return
-    setIsPausedLocal(true)
-    setIsRunningLocal(false)
     await deleteDoc(jobRef)
     setChapterNamesInput("")
   }
@@ -152,7 +109,7 @@ export default function AiNotesGeneratorPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">AI Notes Generator</h1>
         <p className="text-muted-foreground mt-2">
-          No textbook or PDF needed - give it a subject and one or more chapter names (one per line), and Gemini writes colorful, topic-wise revision notes from its own medical knowledge, at the depth of standard Indian MBBS textbooks and the NMC curriculum. Each topic includes flowcharts for any process/pathway, tables for comparisons, and a short self-test at the end. Chapters are generated one at a time, in order, so each gets the model's full attention.
+          No textbook or PDF needed - give it a subject and one or more chapter names (one per line), and Gemini writes colorful, topic-wise revision notes from its own medical knowledge, at the depth of standard Indian MBBS textbooks and the NMC curriculum. Each topic includes flowcharts for any process/pathway, tables for comparisons, and a short self-test at the end. Chapters are generated one at a time, in order, so each gets the model's full attention - and the whole batch keeps running on the server even if you close this tab.
         </p>
       </div>
 
@@ -176,7 +133,7 @@ export default function AiNotesGeneratorPage() {
                 className="glass border-white/10 min-h-[140px]"
               />
             </div>
-            <Button onClick={startNewJob} disabled={!subjectId || !chapterNamesInput.trim()} className="w-full">
+            <Button onClick={startNewJob} disabled={!subjectId || !chapterNamesInput.trim() || isTriggering} className="w-full">
               Generate Notes
             </Button>
           </>
@@ -188,14 +145,14 @@ export default function AiNotesGeneratorPage() {
           <h2 className="text-lg font-semibold">Progress ({chapters.length} chapter{chapters.length === 1 ? "" : "s"})</h2>
           <p className="text-sm text-muted-foreground">
             {doneCount}/{chapters.length} done{failedCount > 0 ? `, ${failedCount} failed` : ""} &middot; job status: {job?.status}
-            {job?.status === "running" && " (this can take a couple of minutes per chapter)"}
+            {job?.status === "running" && " (running on the server - safe to close this tab, a couple of minutes per chapter)"}
           </p>
           <div className="flex gap-3 flex-wrap">
             {job?.status === "running" && (
               <Button onClick={handlePause} variant="secondary" className="flex-1">Pause</Button>
             )}
             {job?.status === "paused" && (
-              <Button onClick={handleResume} className="flex-1">Resume</Button>
+              <Button onClick={handleResume} disabled={isTriggering} className="flex-1">Resume</Button>
             )}
             {failedCount > 0 && job?.status !== "running" && (
               <Button onClick={handleRetryFailed} variant="secondary" className="flex-1">Retry {failedCount} Failed</Button>
