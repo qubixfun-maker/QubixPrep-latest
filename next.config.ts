@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: false,
   },
-  serverExternalPackages: ['@napi-rs/canvas', 'google-auth-library'],
+  serverExternalPackages: ['google-auth-library'],
   outputFileTracingIncludes: {
     '/api/admin/ai-ingest-textbook': ['./node_modules/@napi-rs/canvas*/**/*'],
     '/api/admin/parse-question-bank': ['./node_modules/@napi-rs/canvas*/**/*'],
