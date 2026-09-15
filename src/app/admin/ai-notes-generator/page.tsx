@@ -44,7 +44,7 @@ export default function AiNotesGeneratorPage() {
     if (!db || !subjectId || !jobRef) return
     const titles = chapterNamesInput
       .split("\n")
-      .map((t) => t.trim())
+      .map((t) => t.trim().replace(/^\d+[.)]\s*/, ""))
       .filter(Boolean)
     if (titles.length === 0) {
       alert("Enter at least one chapter name, one per line.")
@@ -52,9 +52,13 @@ export default function AiNotesGeneratorPage() {
     }
     const chapters: ChapterProgress[] = titles.map((title) => ({ title, status: "pending" }))
 
-    await setDoc(jobRef, { subjectId, chapters, status: "running", updatedAt: serverTimestamp() })
-    setIsPausedLocal(false)
-    runLoop(chapters, 0)
+    try {
+      await setDoc(jobRef, { subjectId, chapters, status: "running", updatedAt: serverTimestamp() })
+      setIsPausedLocal(false)
+      runLoop(chapters, 0)
+    } catch (err: any) {
+      alert(`Could not start: ${err?.message || "unknown error"}. If this says "permission denied", the Firestore rule for aiNotesGenJob may not be published yet - check Firebase Console -> Firestore Database -> Rules.`)
+    }
   }
 
   // Deliberately sequential - one chapter fully finishes (all its topics generated)
