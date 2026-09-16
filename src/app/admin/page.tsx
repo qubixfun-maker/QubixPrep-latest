@@ -1584,6 +1584,11 @@ export default function AdminDashboard() {
               <Network className="h-4 w-4" /> Mindmaps from Notes
             </Button>
           </Link>
+          <Link href="/admin/flashcards-from-notes">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10">
+              <Layers className="h-4 w-4" /> Flashcards from Notes
+            </Button>
+          </Link>
           <Link href="/admin/affiliates">
             <Button variant="outline" className="rounded-xl gap-2 glass border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
               <Gift className="h-4 w-4" /> Manage Affiliates
