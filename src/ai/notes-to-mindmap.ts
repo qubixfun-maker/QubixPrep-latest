@@ -53,9 +53,11 @@ function buildPrompt(node: HierarchyNode, subjectName: string): string {
 NOTES FOR THIS TOPIC:
 ${node.markdown}
 
+Note: the notes may contain fenced code blocks labeled \`\`\`flow (a step-by-step pathway/process, optionally split into labeled branches) and \`\`\`quiz (self-test questions). Treat a \`\`\`flow block as the structured source for "mechanism" - describe the pathway/sequence it shows in prose, don't quote its raw step lines verbatim. Ignore \`\`\`quiz blocks entirely, they're not content to summarize.
+
 TASK: Summarize these notes into a mindmap node:
 - "definition": a clear, concise 1-2 sentence definition/orientation for this topic, drawn from the notes.
-- "mechanism": if the notes describe a real mechanism/pathogenesis, a concise summary of it. Omit entirely if not applicable.
+- "mechanism": if the notes describe a real mechanism/pathogenesis/process (including one shown as a \`\`\`flow block), a concise prose summary of it. Omit entirely if not applicable.
 - "examples": the most important, illustrative facts from these notes (you decide which matter most), as a short, punchy 2-4 sentence set of examples. Prioritize memorable, distinctive, or exam-relevant details over generic ones.
 
 Output ONLY valid JSON, no markdown fences, no commentary:

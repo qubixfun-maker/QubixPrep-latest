@@ -1579,6 +1579,11 @@ export default function AdminDashboard() {
               <Trash2 className="h-4 w-4" /> Manage Notes
             </Button>
           </Link>
+          <Link href="/admin/mindmaps-from-notes">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-teal-500/30 text-teal-400 hover:bg-teal-500/10">
+              <Network className="h-4 w-4" /> Mindmaps from Notes
+            </Button>
+          </Link>
           <Link href="/admin/affiliates">
             <Button variant="outline" className="rounded-xl gap-2 glass border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
               <Gift className="h-4 w-4" /> Manage Affiliates
