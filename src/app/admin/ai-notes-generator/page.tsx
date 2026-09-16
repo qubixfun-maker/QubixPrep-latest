@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
 import { doc, collection, query, orderBy, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore"
 import Link from "next/link"
@@ -32,8 +32,35 @@ export default function AiNotesGeneratorPage() {
   const jobRef = useMemo(() => (!db || !subjectId) ? null : doc(db, "subjects", subjectId, "aiNotesGenJob", JOB_ID), [db, subjectId])
   const { data: job } = useDoc(jobRef)
 
-  const [isPausedLocal, setIsPausedLocal] = useState(false)
-  const [isRunningLocal, setIsRunningLocal] = useState(false)
+  // Plain refs, not state: these are read mid-loop for control flow, not rendered.
+  // As state, setIsPausedLocal(false) followed by an immediate runLoop() call would
+  // read the OLD value inside runLoop's closure until the next re-render - so a
+  // fresh job started right after a Pause could immediately see a stale "paused"
+  // signal and stop before processing anything. Refs update synchronously, so
+  // there's no such gap.
+  const pausedRef = useRef(false)
+  const runningRef = useRef(false)
+  // Guards the auto-resume effect below so it only fires once per page load, not
+  // every time the job doc updates (which happens constantly while a batch runs).
+  const autoResumedRef = useRef(false)
+
+  // If this page loads and finds a job already marked "running" in Firestore, but
+  // no local loop is actually active (e.g. the tab that was running it got closed,
+  // crashed, or lost its connection without cleanly writing "paused"), the job would
+  // otherwise be stuck forever - "running" but nothing is happening, and Resume only
+  // shows up for "paused" jobs. This picks such a job back up automatically.
+  useEffect(() => {
+    if (!job || autoResumedRef.current || runningRef.current) return
+    if (job.status !== "running") return
+    autoResumedRef.current = true
+    const chapters: ChapterProgress[] = job.chapters || []
+    const startIndex = chapters.findIndex((c) => c.status !== "done")
+    if (startIndex !== -1) {
+      pausedRef.current = false
+      runLoop(chapters, startIndex)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status])
 
   async function updateJob(fields: any) {
     if (!jobRef) return
@@ -54,7 +81,7 @@ export default function AiNotesGeneratorPage() {
 
     try {
       await setDoc(jobRef, { subjectId, chapters, status: "running", updatedAt: serverTimestamp() })
-      setIsPausedLocal(false)
+      pausedRef.current = false
       runLoop(chapters, 0)
     } catch (err: any) {
       alert(`Could not start: ${err?.message || "unknown error"}. If this says "permission denied", the Firestore rule for aiNotesGenJob may not be published yet - check Firebase Console -> Firestore Database -> Rules.`)
@@ -66,14 +93,14 @@ export default function AiNotesGeneratorPage() {
   // Vercel connection) simply pauses progress right where it is, rather than
   // continuing unattended on Vercel's servers.
   async function runLoop(chapters: ChapterProgress[], startIndex: number) {
-    if (isRunningLocal || !user || !jobRef) return
-    setIsRunningLocal(true)
+    if (runningRef.current || !user || !jobRef) return
+    runningRef.current = true
     const working = [...chapters]
 
     for (let i = startIndex; i < working.length; i++) {
-      if (isPausedLocal) {
+      if (pausedRef.current) {
         await updateJob({ status: "paused", chapters: working, updatedAt: serverTimestamp() })
-        setIsRunningLocal(false)
+        runningRef.current = false
         return
       }
       if (working[i].status === "done") continue
@@ -107,16 +134,16 @@ export default function AiNotesGeneratorPage() {
     }
 
     await updateJob({ status: "done", chapters: working, updatedAt: serverTimestamp() })
-    setIsRunningLocal(false)
+    runningRef.current = false
   }
 
   function handlePause() {
-    setIsPausedLocal(true)
+    pausedRef.current = true
   }
 
   function handleResume() {
     if (!job) return
-    setIsPausedLocal(false)
+    pausedRef.current = false
     const chapters: ChapterProgress[] = job.chapters
     const startIndex = chapters.findIndex((c: ChapterProgress) => c.status !== "done")
     runLoop(chapters, startIndex === -1 ? chapters.length : startIndex)
@@ -125,7 +152,7 @@ export default function AiNotesGeneratorPage() {
 
   async function handleRetryFailed() {
     if (!job) return
-    setIsPausedLocal(false)
+    pausedRef.current = false
     const chapters: ChapterProgress[] = job.chapters.map((c: ChapterProgress) =>
       c.status === "failed" ? { ...c, status: "pending" as const } : c
     )
@@ -136,8 +163,8 @@ export default function AiNotesGeneratorPage() {
   async function handleClearJob() {
     if (!jobRef) return
     if (!confirm("Clear this job? Chapters already generated are NOT deleted, only the progress list.")) return
-    setIsPausedLocal(true)
-    setIsRunningLocal(false)
+    pausedRef.current = true
+    runningRef.current = false
     await deleteDoc(jobRef)
     setChapterNamesInput("")
   }

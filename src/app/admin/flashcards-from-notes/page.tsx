@@ -63,8 +63,27 @@ export default function FlashcardsFromNotesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId, notes.length, chaptersWithDecks.size])
 
+
   const pausedRef = useRef(false)
   const runningRef = useRef(false)
+  const autoResumedRef = useRef(false)
+
+  // If this page loads and finds a job already marked "running" in Firestore, but no
+  // local loop is actually active (the tab that was running it closed, crashed, or
+  // lost connection without cleanly writing "paused"), pick it back up automatically
+  // instead of leaving it stuck forever with no Resume button showing.
+  useEffect(() => {
+    if (!job || autoResumedRef.current || runningRef.current) return
+    if (job.status !== "running") return
+    autoResumedRef.current = true
+    const chapters: ChapterProgress[] = job.chapters || []
+    const startIndex = chapters.findIndex((c) => c.status !== "done")
+    if (startIndex !== -1) {
+      pausedRef.current = false
+      runLoop(chapters, startIndex)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job?.status])
 
   async function updateJob(fields: any) {
     if (!jobRef) return
