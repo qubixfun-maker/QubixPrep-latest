@@ -291,31 +291,70 @@ export async function callClaudeOnly(
   return callGeminiNative(messages, maxTokens)
 }
 
-// Calls a Gemini model via the Gemini Developer API (generativelanguage.googleapis.com),
-// authenticated with a plain API key (GEMINI_API_KEY) instead of a Vertex AI service
-// account. Switched from Vertex to this because Vertex's service-account-key flow ran
-// into a Google Cloud organization policy (iam.disableServiceAccountKeyCreation) that
-// blocks creating new service account keys entirely on some accounts, with no easy
-// project-level override - a plain API key from aistudio.google.com/apikey has none of
-// that friction (no IAM, no org policy, no Cloud billing project needed for auth).
+// Calls Gemini via Vertex AI, authenticated with a service account JSON key
+// (GOOGLE_SERVICE_ACCOUNT_KEY, exchanged for a short-lived OAuth token) rather than a
+// plain Gemini Developer API key. This draws on Google Cloud Vertex AI billing/credits
+// instead of the separate Gemini Developer API "Prepay" balance, and lets gemini-2.5-pro
+// keep working past the Developer API's "not available to new users" restriction on
+// generateContent. Requires GOOGLE_CLOUD_PROJECT_ID and GOOGLE_SERVICE_ACCOUNT_KEY.
+//
+// Google's model lineup churns fast and different accounts/tiers get access to
+// different models (a fresh account has 404'd on both gemini-2.5-pro and a pinned
+// preview model in the past) - and gemini-2.5-pro itself is being shut down entirely
+// on Oct 16 2026. Rather than hardcode one model name that keeps breaking, this tries
+// an explicit override first (if GEMINI_NATIVE_MODEL is set), then gemini-2.5-pro, then
+// progressively lighter fallbacks. Only a 403/404 (model not found / not accessible to
+// this account) advances to the next candidate - any other error (rate limit, bad
+// request, server error) surfaces immediately instead of being masked by silently
+// cycling through models.
+const GEMINI_MODEL_FALLBACK_CHAIN = ['gemini-2.5-pro', 'gemini-3.1-pro-preview', 'gemini-2.5-flash']
+
+function geminiModelCandidates(): string[] {
+  const override = process.env.GEMINI_NATIVE_MODEL?.trim()
+  return override ? [override, ...GEMINI_MODEL_FALLBACK_CHAIN] : GEMINI_MODEL_FALLBACK_CHAIN
+}
+
+async function callGeminiNativeWithFallback(body: any): Promise<{ content: string; provider: string }> {
+  const candidates = geminiModelCandidates()
+  let lastError = ''
+
+  for (const model of candidates) {
+    try {
+      const data = await vertexGenerateContent(model, body.contents, body.generationConfig)
+      const content = (data.candidates?.[0]?.content?.parts || [])
+        .map((p: any) => p.text || '')
+        .join('')
+      if (content) return { content, provider: `Gemini (native, Vertex, ${model})` }
+      lastError = `Gemini (native, Vertex, ${model}) returned an empty response.`
+      continue // empty response is also worth trying the next candidate for
+    } catch (err: any) {
+      const message = err?.message || String(err)
+      lastError = message
+      // 403/404 means this account/key can't use this specific model - try the next one.
+      // Any other status (429 rate limit, 400 bad request, 5xx) won't be fixed by
+      // switching models, so stop and surface the real error instead of masking it.
+      const statusMatch = message.match(/failed \((\d+)\)/)
+      const status = statusMatch ? parseInt(statusMatch[1], 10) : 0
+      if (status !== 403 && status !== 404) {
+        throw new Error(lastError)
+      }
+    }
+  }
+
+  throw new Error(`All Gemini model candidates failed. Last error: ${lastError}`)
+}
+
 export async function callGeminiNative(
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   maxTokens: number = 2000,
   thinkingBudget?: number
 ): Promise<{ content: string; provider: string }> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
-
   // Gemini's native API uses "model" (not "assistant") for the assistant role, and
   // system prompts go in a separate top-level field, not the contents array.
   const systemParts = messages.filter((m) => m.role === 'system').map((m) => m.content)
   const contents = messages
     .filter((m) => m.role !== 'system')
     .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 
   // 2.5-series models spend part of maxOutputTokens on internal "thinking" before
   // writing the visible answer - for calls where the visible text budget is tight
@@ -327,33 +366,14 @@ export async function callGeminiNative(
     generationConfig.thinkingConfig = { thinkingBudget }
   }
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      ...(systemParts.length ? { systemInstruction: { parts: [{ text: systemParts.join('\n\n') }] } } : {}),
-      generationConfig,
-    }),
+  return callGeminiNativeWithFallback({
+    contents,
+    ...(systemParts.length ? { systemInstruction: { parts: [{ text: systemParts.join('\n\n') }] } } : {}),
+    generationConfig,
   })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Gemini native call failed (${res.status}): ${text.slice(0, 500)}`)
-  }
-
-  const data = await res.json()
-  const content = (data.candidates?.[0]?.content?.parts || [])
-    .map((p: any) => p.text || '')
-    .join('')
-
-  if (!content) {
-    throw new Error('Gemini (native) returned an empty response.')
-  }
-  return { content, provider: 'Gemini (native)' }
 }
 
-// Same API-key auth as callGeminiNative, but accepts one or more files (base64-encoded,
+// Same Vertex auth as callGeminiNative, but accepts one or more files (base64-encoded,
 // sent as inlineData parts - images or a single-page PDF) alongside the text prompt.
 // Gemini reads the file's actual content directly rather than needing a separate
 // OCR/rasterization step.
@@ -363,39 +383,14 @@ export async function callGeminiNativeMultimodal(
   maxTokens: number = 2000,
   mimeType: string = 'image/jpeg'
 ): Promise<{ content: string; provider: string }> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
-
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
-
   const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))
   const contents = [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents,
-      generationConfig: { maxOutputTokens: maxTokens },
-    }),
+  const { content, provider } = await callGeminiNativeWithFallback({
+    contents,
+    generationConfig: { maxOutputTokens: maxTokens },
   })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Gemini native multimodal call failed (${res.status}): ${text.slice(0, 500)}`)
-  }
-
-  const data = await res.json()
-  const content = (data.candidates?.[0]?.content?.parts || [])
-    .map((p: any) => p.text || '')
-    .join('')
-
-  if (!content) {
-    throw new Error('Gemini (native multimodal) returned an empty response.')
-  }
-  return { content, provider: 'Gemini (native, vision)' }
+  return { content, provider: `${provider}, vision` }
 }
 
 export function getGroqClient() {
