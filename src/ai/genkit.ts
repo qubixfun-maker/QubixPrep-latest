@@ -291,25 +291,22 @@ export async function callClaudeOnly(
   return callGeminiNative(messages, maxTokens)
 }
 
-// Calls a Gemini model via Vertex's NATIVE generateContent endpoint (not the
-// OpenAI-compat shim used elsewhere) - needed for features that pass system prompts
-// separately. Uses the same REGIONAL endpoint pattern as vertexGenerateContent() (this
-// app's other, already-working Gemini calls), and defaults to gemini-2.5-pro - a GA
-// model tier available on standard project access, including Google Cloud free-trial
-// projects. (Previously pointed at Gemini 3.x via a "global" bare-host endpoint, which
-// 404'd because that model tier isn't available on every project's access level.)
+// Calls a Gemini model via the Gemini Developer API (generativelanguage.googleapis.com),
+// authenticated with a plain API key (GEMINI_API_KEY) instead of a Vertex AI service
+// account. Switched from Vertex to this because Vertex's service-account-key flow ran
+// into a Google Cloud organization policy (iam.disableServiceAccountKeyCreation) that
+// blocks creating new service account keys entirely on some accounts, with no easy
+// project-level override - a plain API key from aistudio.google.com/apikey has none of
+// that friction (no IAM, no org policy, no Cloud billing project needed for auth).
 export async function callGeminiNative(
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   maxTokens: number = 2000,
   thinkingBudget?: number
 ): Promise<{ content: string; provider: string }> {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
-  if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
-  const token = await getVertexAccessToken()
-  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
 
   const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
-  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
 
   // Gemini's native API uses "model" (not "assistant") for the assistant role, and
   // system prompts go in a separate top-level field, not the contents array.
@@ -318,7 +315,7 @@ export async function callGeminiNative(
     .filter((m) => m.role !== 'system')
     .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
 
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 
   // 2.5-series models spend part of maxOutputTokens on internal "thinking" before
   // writing the visible answer - for calls where the visible text budget is tight
@@ -332,7 +329,7 @@ export async function callGeminiNative(
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents,
       ...(systemParts.length ? { systemInstruction: { parts: [{ text: systemParts.join('\n\n') }] } } : {}),
@@ -356,32 +353,29 @@ export async function callGeminiNative(
   return { content, provider: 'Gemini (native)' }
 }
 
-// Same regional native endpoint as callGeminiNative, but accepts one or more files
-// (base64-encoded, sent as inlineData parts - images or, for the notes-pdf-ingest
-// pipeline, a single-page PDF) alongside the text prompt. Gemini reads the file's
-// actual content directly rather than needing a separate OCR/rasterization step.
+// Same API-key auth as callGeminiNative, but accepts one or more files (base64-encoded,
+// sent as inlineData parts - images or a single-page PDF) alongside the text prompt.
+// Gemini reads the file's actual content directly rather than needing a separate
+// OCR/rasterization step.
 export async function callGeminiNativeMultimodal(
   prompt: string,
   imagesBase64: string[],
   maxTokens: number = 2000,
   mimeType: string = 'image/jpeg'
 ): Promise<{ content: string; provider: string }> {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
-  if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
-  const token = await getVertexAccessToken()
-  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
 
   const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
-  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
 
   const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))
   const contents = [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
 
-  const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents,
       generationConfig: { maxOutputTokens: maxTokens },
