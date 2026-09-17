@@ -307,7 +307,7 @@ export async function callClaudeOnly(
 // this account) advances to the next candidate - any other error (rate limit, bad
 // request, server error) surfaces immediately instead of being masked by silently
 // cycling through models.
-const GEMINI_MODEL_FALLBACK_CHAIN = ['gemini-2.5-pro', 'gemini-3.1-pro-preview', 'gemini-2.5-flash']
+const GEMINI_MODEL_FALLBACK_CHAIN = ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash']
 
 function geminiModelCandidates(): string[] {
   const override = process.env.GEMINI_NATIVE_MODEL?.trim()
