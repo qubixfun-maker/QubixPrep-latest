@@ -303,10 +303,19 @@ export async function callClaudeOnly(
 // preview model in the past) - and gemini-2.5-pro itself is being shut down entirely
 // on Oct 16 2026. Rather than hardcode one model name that keeps breaking, this tries
 // an explicit override first (if GEMINI_NATIVE_MODEL is set), then gemini-2.5-pro, then
-// progressively lighter fallbacks. Only a 403/404 (model not found / not accessible to
-// this account) advances to the next candidate - any other error (rate limit, bad
-// request, server error) surfaces immediately instead of being masked by silently
-// cycling through models.
+// progressively lighter fallbacks.
+//
+// 403/404 (model not found / not accessible to this account) advances straight to the
+// next candidate. 429 (RESOURCE_EXHAUSTED) is treated as retryable rather than fatal:
+// Vertex's per-project quota for generateContent is scoped per base model
+// (generate_content_requests_per_minute_per_project_per_base_model), so a 429 on one
+// model doesn't mean the next model in the chain is also exhausted - it has its own
+// separate quota bucket. This first retries the same model once with a short backoff
+// (catches a transient burst), then falls through to the next model on a second 429
+// rather than switching immediately, since a brand-new low-quota project can otherwise
+// burn through every candidate in under a second on a bulk run. Any other error (bad
+// request, server error) surfaces immediately instead of being masked by cycling
+// through models.
 const GEMINI_MODEL_FALLBACK_CHAIN = ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash']
 
 function geminiModelCandidates(): string[] {
@@ -314,28 +323,44 @@ function geminiModelCandidates(): string[] {
   return override ? [override, ...GEMINI_MODEL_FALLBACK_CHAIN] : GEMINI_MODEL_FALLBACK_CHAIN
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function callGeminiNativeWithFallback(body: any): Promise<{ content: string; provider: string }> {
   const candidates = geminiModelCandidates()
   let lastError = ''
 
   for (const model of candidates) {
-    try {
-      const data = await vertexGenerateContent(model, body.contents, body.generationConfig)
-      const content = (data.candidates?.[0]?.content?.parts || [])
-        .map((p: any) => p.text || '')
-        .join('')
-      if (content) return { content, provider: `Gemini (native, Vertex, ${model})` }
-      lastError = `Gemini (native, Vertex, ${model}) returned an empty response.`
-      continue // empty response is also worth trying the next candidate for
-    } catch (err: any) {
-      const message = err?.message || String(err)
-      lastError = message
-      // 403/404 means this account/key can't use this specific model - try the next one.
-      // Any other status (429 rate limit, 400 bad request, 5xx) won't be fixed by
-      // switching models, so stop and surface the real error instead of masking it.
-      const statusMatch = message.match(/failed \((\d+)\)/)
-      const status = statusMatch ? parseInt(statusMatch[1], 10) : 0
-      if (status !== 403 && status !== 404) {
+    // One retry on the same model for a 429, with a short backoff, before moving on -
+    // catches a transient burst without immediately burning through the whole chain.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const data = await vertexGenerateContent(model, body.contents, body.generationConfig)
+        const content = (data.candidates?.[0]?.content?.parts || [])
+          .map((p: any) => p.text || '')
+          .join('')
+        if (content) return { content, provider: `Gemini (native, Vertex, ${model})` }
+        lastError = `Gemini (native, Vertex, ${model}) returned an empty response.`
+        break // empty response - not worth retrying this model, move to the next
+      } catch (err: any) {
+        const message = err?.message || String(err)
+        lastError = message
+        const statusMatch = message.match(/failed \((\d+)\)/)
+        const status = statusMatch ? parseInt(statusMatch[1], 10) : 0
+
+        if (status === 429) {
+          if (attempt === 1) {
+            await sleep(8000) // give the per-minute quota a real chance to reset
+            continue // retry the same model once
+          }
+          break // still exhausted after retry - move to the next model (separate quota bucket)
+        }
+        if (status === 403 || status === 404) {
+          break // not accessible on this account - move to the next model
+        }
+        // Any other error (bad request, server error) - not fixed by retrying or
+        // switching models, surface it immediately.
         throw new Error(lastError)
       }
     }
