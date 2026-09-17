@@ -306,7 +306,7 @@ export async function callGeminiNative(
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
 
   // Gemini's native API uses "model" (not "assistant") for the assistant role, and
   // system prompts go in a separate top-level field, not the contents array.
@@ -366,7 +366,7 @@ export async function callGeminiNativeMultimodal(
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
 
-  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-2.5-pro').trim()
+  const model = (process.env.GEMINI_NATIVE_MODEL || 'gemini-3.1-pro-preview').trim()
 
   const imageParts = imagesBase64.map((data) => ({ inlineData: { mimeType, data } }))
   const contents = [{ role: 'user', parts: [...imageParts, { text: prompt }] }]
