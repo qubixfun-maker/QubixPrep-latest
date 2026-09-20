@@ -95,7 +95,7 @@ async function generateOneTopicNotes(subjectName: string, chapterTitle: string, 
   let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 6000, 1024)
+      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 9000, 1024)
       if (raw && raw.trim().length > 20) {
         return tryParseText(raw)
       }

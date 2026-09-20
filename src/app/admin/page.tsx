@@ -1594,6 +1594,11 @@ export default function AdminDashboard() {
               <HelpCircle className="h-4 w-4" /> QBank from Notes
             </Button>
           </Link>
+          <Link href="/admin/notes-repair">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
+              <AlertTriangle className="h-4 w-4" /> Fix Truncated Notes
+            </Button>
+          </Link>
           <Link href="/admin/affiliates">
             <Button variant="outline" className="rounded-xl gap-2 glass border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
               <Gift className="h-4 w-4" /> Manage Affiliates
