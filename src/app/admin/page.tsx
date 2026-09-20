@@ -1589,6 +1589,11 @@ export default function AdminDashboard() {
               <Layers className="h-4 w-4" /> Flashcards from Notes
             </Button>
           </Link>
+          <Link href="/admin/qbank-from-notes">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-orange-500/30 text-orange-400 hover:bg-orange-500/10">
+              <HelpCircle className="h-4 w-4" /> QBank from Notes
+            </Button>
+          </Link>
           <Link href="/admin/affiliates">
             <Button variant="outline" className="rounded-xl gap-2 glass border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10">
               <Gift className="h-4 w-4" /> Manage Affiliates
