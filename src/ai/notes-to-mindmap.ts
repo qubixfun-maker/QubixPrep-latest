@@ -2,15 +2,15 @@
 import { callAIWithProvider, callGeminiNative, callClaudeOnly } from '@/ai/genkit';
 
 /**
- * Generates mindmap data from already-generated NOTES (polished Markdown prose, with
- * the right format template - table, steps, etc. - already applied), rather than the
- * raw knowledge JSON. The model reads real, well-organized text and summarizes it into
- * a mindmap node, instead of parsing structured data.
- *
- * This creates a real dependency: notes must already be generated for a chapter before
- * its mindmap can be. If notes generation failed or is incomplete for a topic, mindmap
- * generation fails for that topic too - accepted tradeoff for reading better-organized
- * source material.
+ * Generates mindmap data for a chapter's notes topics. The notes are used as a
+ * REFERENCE ONLY (what to prioritize, what's already been taught) - the actual
+ * depth and structure of each branch is authored by Gemini itself, drawing on
+ * standard Indian MBBS textbook knowledge, the same way the mindmap BULK generator
+ * (ai-mindmap-data-generator.ts) builds a full recursive sub-tree per branch in one
+ * call. This fixes the old behavior where a node only got branches if the notes
+ * happened to already have nested subtopics (which AI Notes Generator's flat
+ * depth:0 topics never do) - now every topic gets real depth regardless of how
+ * flat the underlying notes are.
  */
 
 export type MindmapNode = {
@@ -28,7 +28,9 @@ type HierarchyNode = { name: string; markdown: string; children: HierarchyNode[]
 /**
  * Reconstructs the nested topic tree from the flat, depth-tagged list notes are stored
  * as - a standard "flatten with depth" tree reconstruction: each item attaches as a
- * child of the most recent item at (depth - 1).
+ * child of the most recent item at (depth - 1). With AI Notes Generator output this
+ * will almost always just produce a flat list of roots (all depth 0) - that's fine,
+ * each root still gets full model-authored depth below.
  */
 function reconstructHierarchy(flatTopics: NotesTopic[]): HierarchyNode[] {
   const roots: HierarchyNode[] = [];
@@ -47,36 +49,155 @@ function reconstructHierarchy(flatTopics: NotesTopic[]): HierarchyNode[] {
   return roots;
 }
 
-function buildPrompt(node: HierarchyNode, subjectName: string): string {
-  return `You are building ONE branch of a mindmap for a "${subjectName}" topic, from its already-written study notes below (these notes are already verified against the source textbook - use ONLY what's in them, do not add outside information).
-
-NOTES FOR THIS TOPIC:
-${node.markdown}
-
-Note: the notes may contain fenced code blocks labeled \`\`\`flow (a step-by-step pathway/process, optionally split into labeled branches) and \`\`\`quiz (self-test questions). Treat a \`\`\`flow block as the structured source for "mechanism" - describe the pathway/sequence it shows in prose, don't quote its raw step lines verbatim. Ignore \`\`\`quiz blocks entirely, they're not content to summarize.
-
-TASK: Summarize these notes into a mindmap node:
-- "definition": a clear, concise 1-2 sentence definition/orientation for this topic, drawn from the notes.
-- "mechanism": if the notes describe a real mechanism/pathogenesis/process (including one shown as a \`\`\`flow block), a concise prose summary of it. Omit entirely if not applicable.
-- "examples": the most important, illustrative facts from these notes (you decide which matter most), as a short, punchy 2-4 sentence set of examples. Prioritize memorable, distinctive, or exam-relevant details over generic ones.
-
-Output ONLY valid JSON, no markdown fences, no commentary:
-{"definition": "...", "mechanism": "...", "examples": "..."}
-
-Omit "mechanism" or "examples" entirely from the JSON if not applicable - never output them as null or empty string.`;
+// Flattens a node's own notes plus any real subtopic notes it already has (rare, but
+// possible from the other notes pipeline) into one reference block, so nothing written
+// in the actual notes is lost even though we no longer recurse into children separately.
+function collectReferenceMarkdown(node: HierarchyNode): string {
+  const parts = [node.markdown];
+  function walk(children: HierarchyNode[]) {
+    for (const child of children) {
+      parts.push(`\n--- Sub-topic in notes: "${child.name}" ---\n${child.markdown}`);
+      if (child.children.length > 0) walk(child.children);
+    }
+  }
+  walk(node.children);
+  return parts.join('\n');
 }
 
-function tryParseSummary(raw: string): { definition?: string; mechanism?: string; examples?: string } | null {
+// Salvages a truncated JSON object by discarding any incomplete trailing element and
+// closing the structure - a full recursive branch tree is a much bigger response than
+// the old flat 3-field summary, so truncation on a token-limit cutoff is more likely.
+// Ported from ai-mindmap-data-generator.ts (the bulk generator).
+function repairTruncatedJson(str: string): any | null {
+  const direct = repairByClosingBrackets(str);
+  if (direct) return direct;
+
+  let inString = false;
+  let escapeNext = false;
+  let lastElementEnd = -1;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === ',' || ch === '[' || ch === '{') lastElementEnd = i;
+  }
+  if (lastElementEnd === -1) return null;
+
+  const trimmed = str.slice(0, lastElementEnd);
+  return repairByClosingBrackets(trimmed);
+}
+
+function repairByClosingBrackets(str: string): any | null {
+  const stack: string[] = [];
+  let inString = false;
+  let escapeNext = false;
+  let lastSafeCut = -1;
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === '\\') { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+
+    if (ch === '{' || ch === '[') {
+      stack.push(ch === '{' ? '}' : ']');
+    } else if (ch === '}' || ch === ']') {
+      stack.pop();
+      if (stack.length > 0 && stack[stack.length - 1] === ']') {
+        lastSafeCut = i;
+      }
+    }
+  }
+
+  if (lastSafeCut === -1) return null;
+
+  const truncated = str.slice(0, lastSafeCut + 1);
+  const stack2: string[] = [];
+  let inString2 = false;
+  let escapeNext2 = false;
+  for (let i = 0; i <= lastSafeCut; i++) {
+    const ch = truncated[i];
+    if (escapeNext2) { escapeNext2 = false; continue; }
+    if (ch === '\\') { escapeNext2 = true; continue; }
+    if (ch === '"') { inString2 = !inString2; continue; }
+    if (inString2) continue;
+    if (ch === '{' || ch === '[') stack2.push(ch === '{' ? '}' : ']');
+    else if (ch === '}' || ch === ']') stack2.pop();
+  }
+
+  const closers = stack2.slice().reverse().join('');
+  const candidate = truncated + closers;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
+
+function tryParseNode(raw: string): MindmapNode | null {
   const clean = raw.replace(/```[a-zA-Z]*/g, '').replace(/```/g, '').trim();
   try {
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    if (parsed && parsed.name) return parsed;
   } catch {
     const match = clean.match(/\{[\s\S]*\}/);
     if (match) {
-      try { return JSON.parse(match[0]); } catch { /* fall through */ }
+      try {
+        const parsed = JSON.parse(match[0]);
+        if (parsed && parsed.name) return parsed;
+      } catch { /* fall through to repair */ }
     }
+    const repaired = repairTruncatedJson(clean);
+    if (repaired && repaired.name) return repaired;
   }
   return null;
+}
+
+function buildPrompt(node: HierarchyNode, subjectName: string): string {
+  const referenceMarkdown = collectReferenceMarkdown(node);
+
+  return `You are building ONE branch of an exam-oriented mind map for Indian MBBS students, for the "${subjectName}" topic "${node.name}".
+
+Below are this topic's already-written revision notes. Use them ONLY as a REFERENCE for what's already been taught and what to prioritize - do NOT limit the mind map to only what's written in them. Wherever a standard Indian MBBS textbook for ${subjectName} (e.g. Robbins/Harsh Mohan for Pathology, KD Tripathi for Pharmacology, BD Chaurasia/Gray's for Anatomy, Park's for Community Medicine, or the equivalent standard text for this subject) and the NMC competency-based curriculum would cover this topic in more depth or breadth than these notes do, draw on that standard textbook knowledge directly and build the mind map at that full depth - the notes are a starting point, not a ceiling.
+
+EXISTING NOTES FOR THIS TOPIC (reference only):
+${referenceMarkdown}
+
+TASK: Produce the full recursive sub-tree for the topic "${node.name}" - the same depth and completeness you would produce if you were building this branch directly from a standard textbook chapter, not just summarizing the notes above.
+
+STRUCTURE GUIDANCE:
+- Derive natural organizing sub-categories the way a standard textbook itself would structure this topic - do not force a fixed template, since different subjects and topics organize differently. For example, a pathology disease entry often naturally breaks into etiology / pathogenesis / morphology / clinical features / complications / investigations; a pharmacology drug entry often naturally breaks into mechanism of action / pharmacokinetics / adverse effects / clinical uses / contraindications; an anatomy structure often naturally breaks into origin / insertion / nerve supply / blood supply / clinical correlation. These are illustrative, not mandatory - follow whatever structure is standard for this actual topic and subject.
+- Go as deep as a standard Indian MBBS textbook genuinely covers this topic - multiple levels of nesting are expected for any topic with real depth, not just one flat layer of facts.
+- Leaves (deepest nodes, no further branches) should be concrete, exam-ready facts.
+
+CRITICAL - NAMED EPONYMS AND SPECIFIC TERMS: Wherever a specific eponym, sign, cell type, test, staging system, classification, or other precise term is relevant to this branch, give it its own leaf node using that exact name - do not paraphrase it away.
+
+CLINICAL VIGNETTES: If there is a clinical vignette or classic presentation relevant to this branch, capture it as its own sub-branch. Skip entirely if not applicable.
+
+RULES:
+- Every fact must be genuine, standard medical knowledge (from the notes above and/or standard Indian MBBS textbooks) - never invent details, numbers, or examples that aren't real.
+- Node names are short (2-6 words). Detail goes in definition/mechanism/examples fields, each 1-2 sentences (leaf definitions can run to 2-3 sentences when genuinely warranted).
+- Do not add a "branches" array to true leaf nodes.
+
+Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
+{
+  "name": "${node.name}",
+  "definition": "...",
+  "mechanism": "...",
+  "examples": "...",
+  "branches": [
+    {
+      "name": "...",
+      "definition": "...",
+      "branches": [
+        { "name": "...", "definition": "..." }
+      ]
+    }
+  ]
+}`;
 }
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
@@ -85,47 +206,44 @@ async function callModel(prompt: string, maxTokens: number, useClaude?: boolean,
   return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex);
 }
 
+// A full recursive tree is a much bigger response than the old 3-field summary -
+// matches the bulk generator's per-branch token budget (ai-mindmap-data-generator.ts
+// uses 8000 for the same "one branch, full depth" shape).
+const MAX_TOKENS = 8000;
+
 async function generateOneNode(
   node: HierarchyNode,
   subjectName: string,
   options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
 ): Promise<MindmapNode> {
   const prompt = buildPrompt(node, subjectName);
-  const MAX_ATTEMPTS = 2;
-  let summary: { definition?: string; mechanism?: string; examples?: string } | null = null;
+  const MAX_ATTEMPTS = 3;
+  let result: MindmapNode | null = null;
+  let lastRaw = '';
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const { content: raw } = await callModel(prompt, 2000, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
-      summary = tryParseSummary(raw);
-      if (summary) break;
+      const { content: raw } = await callModel(prompt, MAX_TOKENS, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
+      lastRaw = raw || '';
+      const parsed = tryParseNode(lastRaw);
+      if (parsed) { result = parsed; break; }
     } catch {
-      // retry, then fall through to a plain-text fallback below
+      // retry, then fall through to the plain-text fallback below
     }
   }
 
-  const branches = node.children.length > 0
-    ? await Promise.all(node.children.map((child) => generateOneNode(child, subjectName, options)))
-    : undefined;
-
-  if (!summary) {
+  if (!result) {
     // Graceful fallback: use the raw notes markdown directly rather than losing this
-    // branch entirely if the AI summarization failed after retries.
-    return {
-      name: node.name,
-      examples: node.markdown.slice(0, 300),
-      ...(branches ? { branches } : {}),
-    };
+    // branch entirely if the AI generation failed after retries.
+    return { name: node.name, examples: node.markdown.slice(0, 300) };
   }
 
-  return {
-    name: node.name,
-    ...(summary.definition ? { definition: summary.definition } : {}),
-    ...(summary.mechanism ? { mechanism: summary.mechanism } : {}),
-    ...(summary.examples ? { examples: summary.examples } : {}),
-    ...(branches ? { branches } : {}),
-  };
+  // Always keep our own node name (from the notes topic list) as the source of truth,
+  // in case the model didn't echo it back exactly.
+  return { ...result, name: node.name };
 }
+
+const TOP_LEVEL_CONCURRENCY = 3; // heavier calls now (deep trees) - pace them to avoid tripping per-minute quota
 
 export async function generateMindmapFromNotes(
   notesTopics: NotesTopic[],
@@ -134,7 +252,16 @@ export async function generateMindmapFromNotes(
   options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
 ): Promise<{ centralTopic: string; branches: MindmapNode[] }> {
   const hierarchy = reconstructHierarchy(notesTopics);
-  const branches = await Promise.all(hierarchy.map((node) => generateOneNode(node, subjectName, options)));
+  const branches: MindmapNode[] = new Array(hierarchy.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= hierarchy.length) return;
+      branches[i] = await generateOneNode(hierarchy[i], subjectName, options);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(TOP_LEVEL_CONCURRENCY, hierarchy.length) }, () => worker()));
   return { centralTopic, branches };
 }
 
