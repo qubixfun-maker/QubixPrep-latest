@@ -1,4 +1,3 @@
-'use server';
 import { callGeminiNative } from '@/ai/genkit';
 
 // Every well-formed topic (per chapter-notes-from-knowledge.ts's format rules) ends
