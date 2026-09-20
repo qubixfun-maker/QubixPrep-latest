@@ -24,6 +24,7 @@ export type GenerateQBankFromNotesInput = {
 
 export type GenerateQBankFromNotesOutput = {
   questions: QBankQuestion[]
+  requested: number
   error?: string
 }
 
@@ -74,7 +75,15 @@ SUBJECT SCOPE (critical - follow exactly):
 ${subjectScope}
 
 DIFFICULTY LEVEL (critical):
-Write at NEET-PG / INICET exam difficulty - application-based and scenario-based questions, not simple one-line recall. Frame as brief clinical vignettes wherever the topic supports it.
+Write at NEET-PG / INICET exam difficulty - application-based reasoning, not simple one-line recall.
+
+QUESTION FORMAT MIX (critical - do NOT default every question to a clinical vignette):
+Real NEET-PG/INICET papers mix several question formats. Across this set of ${count} questions, deliberately mix:
+- Direct factual/reasoning questions with no patient scenario at all (e.g. "Which of the following is true about X?", "All of the following are features of X EXCEPT", "X is caused by which of the following mechanisms?")
+- Comparison/classification questions (differentiating between related entities, staging or grading systems, distinguishing look-alike conditions or drugs)
+- Mechanism/process questions framed as reasoning, not recall ("By which mechanism does X lead to Y?")
+- Clinical vignette / case-based questions (a brief patient presentation leading to a diagnosis, next best step, or interpretation)
+No more than about HALF of the ${count} questions should be clinical vignettes. The rest must be genuinely non-scenario, direct-reasoning questions of the other types above. Do not open every question with a patient presentation - that is a format failure for this set.
 
 GOAL - MASTERY, NOT JUST TESTING (critical):
 This question set is a student's primary revision tool for this entire chapter, not just a quiz. Design the SET of ${count} questions to collectively sample every major subtopic covered in the notes above (and any standard-textbook subtopic the notes may have compressed or omitted), so that a student who works through all of them has effectively reviewed the whole chapter. Do not cluster all questions on one or two subtopics while ignoring the rest.
@@ -86,12 +95,13 @@ For every question, write a genuinely thorough explanation such that after readi
 - Where relevant, add the one clinical pearl, mnemonic, or distinguishing feature that would help the student recognize this fact again in a different question or a real vignette.
 Treat the explanation as a compact teaching paragraph (roughly 3-6 sentences), not a one-line answer key.
 
-Generate exactly ${count} high-yield multiple choice questions, strictly within the subject scope above. Vary the question type and which subtopic each one covers - do not repeat the same question format/structure or cluster on one subtopic across the set.
+Generate EXACTLY ${count} high-yield multiple choice questions - not fewer, not more - strictly within the subject scope above, following the format mix rule exactly. Vary the question type and which subtopic each one covers - do not repeat the same question format/structure or cluster on one subtopic across the set.
 
-Respond ONLY with a valid JSON array, no markdown, no extra text, no trailing commas, in this exact format:
+Respond ONLY with a valid JSON array of EXACTLY ${count} objects, no markdown, no extra text, no trailing commas, in this exact format:
 [{"topic_title":"${input.chapterTitle}","question_text":"...","option1":"...","option2":"...","option3":"...","option4":"...","correct_answer_index":0,"explanation":"..."}]
 
 Rules:
+- The array must contain exactly ${count} questions - count them before responding
 - correct_answer_index must be an integer 0-3
 - No markdown bold (**) inside any field
 - Vary the correct answer position, do not always pick 0
@@ -121,18 +131,22 @@ async function generateBatch(input: GenerateQBankFromNotesInput, count: number):
   }
 }
 
-// Same explanation-heavy mastery goal is easier for the model to sustain in smaller
-// batches (a giant single-shot request tends to let explanation quality drift down
-// toward the end) - so requests are split the same way the sibling generators do.
 const BATCH_SIZE = 8
+// Enough rounds to top up a shortfall (a malformed/truncated batch, a batch that came
+// back short of what was asked) until the exact requested count is reached, without
+// looping forever if the model is genuinely stuck.
+const MAX_ROUNDS = 8
 
 export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput): Promise<GenerateQBankFromNotesOutput> {
   const total = Math.min(Math.max(input.numQuestions, 5), 40)
   const allQuestions: QBankQuestion[] = []
   const errors: string[] = []
 
-  for (let done = 0; done < total; done += BATCH_SIZE) {
-    const batchCount = Math.min(BATCH_SIZE, total - done)
+  let round = 0
+  while (allQuestions.length < total && round < MAX_ROUNDS) {
+    round++
+    const shortfall = total - allQuestions.length
+    const batchCount = Math.min(BATCH_SIZE, shortfall)
     const result = await generateBatch(input, batchCount)
     if (result.questions.length > 0) {
       allQuestions.push(...result.questions)
@@ -141,8 +155,19 @@ export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput)
     }
   }
 
-  if (allQuestions.length === 0) {
-    return { questions: [], error: errors[0] || 'AI returned no usable questions for this chapter.' }
+  // A batch can occasionally come back with one or two extra/fewer than asked - trim
+  // to the exact requested count rather than over- or under-delivering by a couple.
+  const finalQuestions = allQuestions.slice(0, total)
+
+  if (finalQuestions.length === 0) {
+    return { questions: [], requested: total, error: errors[0] || 'AI returned no usable questions for this chapter.' }
   }
-  return { questions: allQuestions }
+  if (finalQuestions.length < total) {
+    return {
+      questions: finalQuestions,
+      requested: total,
+      error: `Only generated ${finalQuestions.length} of ${total} requested after ${MAX_ROUNDS} attempts - the model kept returning malformed output for the rest. Try regenerating this chapter.`,
+    }
+  }
+  return { questions: finalQuestions, requested: total }
 }
