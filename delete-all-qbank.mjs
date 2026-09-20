@@ -78,7 +78,6 @@ if (!DRY_RUN) {
     console.log(`\n[Neon] Deleted all ${neonRows.length} question(s).`)
   }
   if (supabase && sbRows.length > 0) {
-    // Supabase requires a filter for delete - id > 0 matches every row (ids are positive).
     const { error } = await supabase.from('questions').delete().gt('id', 0)
     if (error) {
       console.log(`\n[Supabase] Delete failed - ${error.message}`)

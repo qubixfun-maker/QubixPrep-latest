@@ -3,22 +3,16 @@ export const maxDuration = 280
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
-import { neon } from '@neondatabase/serverless'
+import { FieldValue } from 'firebase-admin/firestore'
 import { generateQBankFromNotes } from '@/ai/qbank-from-notes'
-
-function getNeon() {
-  const url = process.env.NEON_DATABASE_URL
-  return url ? neon(url) : null
-}
 
 /**
  * Generates a mastery-oriented MCQ set (one per chapter) by reading a chapter's
  * already-generated NOTES directly, the same way generate-flashcards-from-notes and
  * master-generate-mindmap do - so it works for AI Notes Generator chapters that have
- * no source textbook excerpt at all. Saved into the same `questions` table (Neon) the
- * regular QBank feature already reads from, keyed by subject_id + topic_title
- * (topic_title = chapter title), so it shows up in the app exactly like any other
- * chapter's question set.
+ * no source textbook excerpt at all. Saved to Firestore at
+ * subjects/{subjectId}/qbankQuestions/{id} - the same store /api/questions reads from -
+ * so it shows up in the app exactly like any other chapter's question set.
  *
  * Usage: POST { idToken, subjectId, textbookId, chapterId, chapterTitle, numQuestions }
  */
@@ -71,19 +65,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error || 'No questions generated' }, { status: 500 })
     }
 
-    const sql = getNeon()
-    if (!sql) {
-      return NextResponse.json({ error: 'NEON_DATABASE_URL not set' }, { status: 500 })
-    }
+    const questionsRef = db.collection('subjects').doc(subjectId).collection('qbankQuestions')
 
     // Clear any previously generated set for this chapter before inserting the fresh
     // one, so regenerating a chapter replaces rather than piles onto its old questions.
-    await sql`DELETE FROM questions WHERE (subject_id = ${subjectId} OR subject_id = ${subjectId.toLowerCase()}) AND topic_title = ${title}`
+    const existingSnap = await questionsRef.where('topic_title', '==', title).get()
+    if (!existingSnap.empty) {
+      const deleteBatch = db.batch()
+      existingSnap.docs.forEach((d) => deleteBatch.delete(d.ref))
+      await deleteBatch.commit()
+    }
 
-    await sql.transaction((t) => result.questions.map((q) => t`
-      INSERT INTO questions (subject_id, unit_title, topic_title, question_text, option1, option2, option3, option4, correct_answer_index, explanation)
-      VALUES (${subjectId}, ${unitName || null}, ${title}, ${q.question_text}, ${q.option1}, ${q.option2}, ${q.option3 || null}, ${q.option4 || null}, ${q.correct_answer_index}, ${q.explanation || ''})
-    `))
+    const insertBatch = db.batch()
+    for (const q of result.questions) {
+      const ref = questionsRef.doc()
+      insertBatch.set(ref, {
+        unit_title: unitName || null,
+        topic_title: title,
+        question_text: q.question_text,
+        option1: q.option1,
+        option2: q.option2,
+        option3: q.option3 || null,
+        option4: q.option4 || null,
+        correct_answer_index: q.correct_answer_index,
+        explanation: q.explanation || '',
+        createdAt: FieldValue.serverTimestamp(),
+      })
+    }
+    await insertBatch.commit()
 
     return NextResponse.json({ success: true, count: result.questions.length })
   } catch (e: any) {

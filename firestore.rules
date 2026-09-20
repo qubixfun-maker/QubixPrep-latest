@@ -52,6 +52,11 @@ service cloud.firestore {
         allow write, delete: if request.auth != null && 
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
+      match /qbankQuestions/{questionId} {
+        allow read: if true;
+        allow write, delete: if request.auth != null && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      }
       match /textNotes/{noteId} {
         allow read: if true;
         allow write, delete: if request.auth != null && 

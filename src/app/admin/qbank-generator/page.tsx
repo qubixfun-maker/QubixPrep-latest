@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { useUser, useDoc, useFirestore, useCollection } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
 import { generateQBankQuestions, type QBankQuestion } from "@/ai/flows/ai-qbank-generator"
-import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -92,8 +91,13 @@ export default function QBankGeneratorPage() {
         correct_answer_index: q.correct_answer_index,
         explanation: q.explanation
       }))
-      const { error } = await supabase.from('questions').insert(payload)
-      if (error) throw error
+      const res = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions: payload }),
+      })
+      const json = await res.json()
+      if (!res.ok || json.error) throw new Error(json.error || 'Failed to save questions')
       toast({ title: "Saved", description: `${payload.length} questions added to ${subject}.` })
       setGenerated([])
       setTopic("")
