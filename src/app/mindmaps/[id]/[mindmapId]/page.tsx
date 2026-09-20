@@ -34,9 +34,12 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
 
   const mm = mindmap as any
 
+  // Full-height, full-width layout so the mindmap canvas can actually fill the
+  // screen - previously this whole page was capped at max-w-5xl and the canvas
+  // itself was capped at a fixed vh, so on a wide/tall screen most of it sat unused.
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+    <div className="h-screen w-full flex flex-col p-3 md:p-6 gap-3 md:gap-4 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between shrink-0">
         <Link href={`/mindmaps/${subjectId}`} className={`text-xs font-bold uppercase tracking-widest ${color.text} flex items-center gap-1 hover:underline`}>
           <ChevronLeft className="h-3 w-3" /> Back
         </Link>
@@ -45,15 +48,15 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {mm.type === "radial" && mm.data ? (
-        <div className="flex justify-center overflow-x-auto py-4">
+        <div className="flex-1 min-h-0">
           <MindMapCanvas root={{ name: mm.data.centralTopic, branches: mm.data.branches }} />
         </div>
       ) : mm.imageUrl ? (
-        <div className="flex justify-center">
+        <div className="flex-1 min-h-0 flex items-center justify-center overflow-auto">
           <img src={mm.imageUrl} alt={mm.title} className="max-w-full rounded-2xl" />
         </div>
       ) : (
-        <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">This mind map has no content.</div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground rounded-2xl glass border-none">This mind map has no content.</div>
       )}
     </div>
   )

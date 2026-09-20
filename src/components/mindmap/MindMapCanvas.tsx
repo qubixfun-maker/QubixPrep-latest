@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useRef, useMemo, useCallback, useEffect } from "react"
-import styles from "./MindMapCanvas.module.css"
+import { useState, useRef } from "react"
 
 export type MindmapNode = {
   name: string
@@ -11,334 +10,138 @@ export type MindmapNode = {
   branches?: MindmapNode[]
 }
 
+type ColumnState = {
+  items: MindmapNode[]
+  selectedIndex: number | null
+  // Accent color inherited down from whichever top-level branch this column
+  // descends from, so the whole drill-down path stays visually tied to its origin.
+  color?: string
+}
+
 const COLORS = ["#7F77DD", "#1D9E75", "#D85A30", "#D4537E", "#378ADD", "#BA7517"]
 
-const ROOT_W = 200
-const ROOT_H = 64
-const BASE_NODE_H = 46
-
-type LaidOutNode = {
-  path: string
-  label: string
-  detail: string | null
-  x: number; y: number; w: number; h: number
-  side: "left" | "right"
-  depth: number
-  color: string
-  isRoot: boolean
-  hasChildren: boolean
-  isExpanded: boolean
-}
-
-type Line = { x1: number; y1: number; x2: number; y2: number; color: string; opacity: number }
-
-const MAX_DETAIL_CHARS = 220
-
-function nodeDetailText(node: MindmapNode): string | null {
-  const parts = [node.definition, node.mechanism, node.examples].filter(Boolean)
-  if (parts.length === 0) return null
-  const full = parts.join(" ")
-  return full.length > MAX_DETAIL_CHARS ? full.slice(0, MAX_DETAIL_CHARS).trim() + "..." : full
-}
-
-// Rough estimate of how tall a detail block will render at a given card width,
-// so card height scales with actual text length instead of a fixed guess.
-function estimateDetailHeight(text: string, width: number): number {
-  const usableWidth = Math.max(60, width - 24)
-  const avgCharWidth = 6.85 // recalibrated for the 13px detail font (was 11px)
-  const charsPerLine = Math.max(8, Math.floor(usableWidth / avgCharWidth))
-  const lines = Math.max(1, Math.ceil(text.length / charsPerLine))
-  return lines * 17 + 12
-}
-
-// Same idea, but for the node's own LABEL. This was previously missing entirely -
-// every collapsed node used a fixed BASE_NODE_H regardless of how many lines its own
-// title wrapped to, so any node with a longer name (very common - branch titles are
-// often full phrases) silently overlapped whatever sibling came after it. The label
-// font is slightly bigger/bolder than the detail text, hence the different avg width.
-function estimateLabelHeight(label: string, width: number, hasArrow: boolean): number {
-  const usableWidth = Math.max(50, width - 24 - (hasArrow ? 14 : 0))
-  const avgCharWidth = 7.4 // recalibrated for the 15px label font (was 13px)
-  const charsPerLine = Math.max(6, Math.floor(usableWidth / avgCharWidth))
-  const lines = Math.max(1, Math.ceil(label.length / charsPerLine))
-  return lines * 19 + 20 // line-height*lines + vertical padding
-}
-
-function layoutChildren(
-  parentNode: MindmapNode,
-  parentPath: string,
-  parentX: number, parentY: number, parentW: number, parentH: number,
-  side: "left" | "right",
-  depth: number,
-  color: string,
-  expandedPaths: Record<string, boolean>,
-  nodes: LaidOutNode[],
-  lines: Line[]
-) {
-  const branches = parentNode.branches || []
-  if (branches.length === 0) return
-
-  const childW = Math.max(110, 170 - depth * 12)
-  const vGap = Math.max(14, 22 - depth * 2)
-  const gap = Math.max(28, 40 - depth * 4)
-  const childX = side === "left" ? parentX - childW - gap : parentX + parentW + gap
-
-  const infos = branches.map((child, i) => {
-    const childPath = parentPath + "|" + i
-    const childExpanded = !!expandedPaths[childPath]
-    const childHasChildren = !!(child.branches && child.branches.length > 0)
-    const detail = nodeDetailText(child)
-    const showInlineDetail = childExpanded && !!detail && !childHasChildren
-    const showArrow = childHasChildren || !!detail
-    const labelH = estimateLabelHeight(child.name, childW, showArrow && !childExpanded)
-    const height = Math.max(BASE_NODE_H, labelH) + (showInlineDetail ? estimateDetailHeight(detail!, childW) : 0)
-    return { child, childPath, childExpanded, childHasChildren, detail, height }
-  })
-
-  const totalHeight = infos.reduce((sum, info) => sum + info.height, 0) + vGap * (infos.length - 1)
-  let currentY = parentY + parentH / 2 - totalHeight / 2
-
-  infos.forEach((info) => {
-    const childY = currentY
-
-    nodes.push({
-      path: info.childPath,
-      label: info.child.name,
-      detail: info.childExpanded ? info.detail : null,
-      x: childX, y: childY, w: childW, h: info.height,
-      side, depth, color,
-      isRoot: false,
-      hasChildren: info.childHasChildren || !!info.detail,
-      isExpanded: info.childExpanded,
-    })
-
-    const startEdgeX = side === "left" ? parentX : parentX + parentW
-    const startEdgeY = parentY + parentH / 2
-    const endEdgeX = side === "left" ? childX + childW : childX
-    const endEdgeY = childY + info.height / 2
-    lines.push({ x1: startEdgeX, y1: startEdgeY, x2: endEdgeX, y2: endEdgeY, color, opacity: Math.max(0.25, 0.55 - depth * 0.08) })
-
-    if (info.childExpanded && info.childHasChildren) {
-      layoutChildren(info.child, info.childPath, childX, childY, childW, info.height, side, depth + 1, color, expandedPaths, nodes, lines)
-    }
-
-    currentY += info.height + vGap
-  })
-}
-
-function computeLayout(root: MindmapNode, expandedPaths: Record<string, boolean>) {
-  const nodes: LaidOutNode[] = []
-  const lines: Line[] = []
-
-  const branches = root.branches || []
-  const rootX = 700
-  const rootY = 500
-
-  nodes.push({
-    path: "root", label: root.name, detail: null,
-    x: rootX, y: rootY, w: ROOT_W, h: ROOT_H,
-    side: "left", depth: -1, color: "var(--text-primary)",
-    isRoot: true, hasChildren: branches.length > 0, isExpanded: true,
-  })
-
-  const vGapTop = 22
-
-  // Precompute each top-level branch's own height first (same fix as
-  // layoutChildren below), so an expanded branch never overlaps its neighbor.
-  const branchInfos = branches.map((branch, i) => {
-    const side: "left" | "right" = i % 2 === 0 ? "left" : "right"
-    const path = "0|" + i
-    const color = COLORS[i % COLORS.length]
-    const isExpanded = !!expandedPaths[path]
-    const hasChildren = !!(branch.branches && branch.branches.length > 0)
-    const detail = nodeDetailText(branch)
-    const showInlineDetail = isExpanded && !!detail && !hasChildren
-    const showArrow = hasChildren || !!detail
-    const labelH = estimateLabelHeight(branch.name, 170, showArrow && !isExpanded)
-    const h = Math.max(BASE_NODE_H + 8, labelH) + (showInlineDetail ? estimateDetailHeight(detail!, 170) : 0)
-    return { branch, side, path, color, isExpanded, hasChildren, detail, h }
-  })
-
-  const leftInfos = branchInfos.filter((b) => b.side === "left")
-  const rightInfos = branchInfos.filter((b) => b.side === "right")
-
-  function positionSide(infos: typeof branchInfos) {
-    const totalHeight = infos.reduce((sum, b) => sum + b.h, 0) + vGapTop * (infos.length - 1)
-    let currentY = rootY + ROOT_H / 2 - totalHeight / 2
-    infos.forEach((info) => {
-      const x = info.side === "left" ? rootX - 210 : rootX + ROOT_W + 40
-      const y = currentY
-
-      nodes.push({
-        path: info.path, label: info.branch.name, detail: info.isExpanded ? info.detail : null,
-        x, y, w: 170, h: info.h,
-        side: info.side, depth: 0, color: info.color,
-        isRoot: false, hasChildren: info.hasChildren || !!info.detail, isExpanded: info.isExpanded,
-      })
-
-      const startEdgeX = info.side === "left" ? rootX : rootX + ROOT_W
-      const startEdgeY = rootY + ROOT_H / 2
-      const endEdgeX = info.side === "left" ? x + 170 : x
-      const endEdgeY = y + info.h / 2
-      lines.push({ x1: startEdgeX, y1: startEdgeY, x2: endEdgeX, y2: endEdgeY, color: info.color, opacity: 0.6 })
-
-      if (info.isExpanded && info.hasChildren) {
-        layoutChildren(info.branch, info.path, x, y, 170, info.h, info.side, 1, info.color, expandedPaths, nodes, lines)
-      }
-
-      currentY += info.h + vGapTop
-    })
-  }
-
-  positionSide(leftInfos)
-  positionSide(rightInfos)
-
-  // Bounds for the pannable canvas size
-  const allX = nodes.flatMap(n => [n.x, n.x + n.w])
-  const allY = nodes.flatMap(n => [n.y, n.y + n.h])
-  const minX = Math.min(...allX, 0) - 100
-  const maxX = Math.max(...allX, 1400) + 100
-  const minY = Math.min(...allY, 0) - 100
-  const maxY = Math.max(...allY, 1000) + 100
-
-  return { nodes, lines, bounds: { minX, maxX, minY, maxY } }
-}
-
 export default function MindMapCanvas({ root }: { root: MindmapNode }) {
-  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({})
-  const [pan, setPan] = useState({ x: -500, y: -350 })
-  const [zoom, setZoom] = useState(1)
+  const [columns, setColumns] = useState<ColumnState[]>([
+    { items: root.branches || [], selectedIndex: null },
+  ])
   const [isFullscreen, setIsFullscreen] = useState(false)
-
   const wrapRef = useRef<HTMLDivElement>(null)
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const dragRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const { nodes, lines, bounds } = useMemo(() => computeLayout(root, expandedPaths), [root, expandedPaths])
-
-  const toggleNode = useCallback((path: string, hasChildren: boolean) => {
-    if (!hasChildren) return
-    setExpandedPaths((prev) => {
-      const next = { ...prev }
-      if (next[path]) delete next[path]
-      else next[path] = true
+  function selectItem(colIndex: number, itemIndex: number, item: MindmapNode) {
+    setColumns((prev) => {
+      const next = prev.slice(0, colIndex + 1)
+      next[colIndex] = { ...next[colIndex], selectedIndex: itemIndex }
+      const hasChildren = !!(item.branches && item.branches.length > 0)
+      if (hasChildren) {
+        const inheritedColor = colIndex === 0 ? COLORS[itemIndex % COLORS.length] : next[colIndex].color
+        next.push({ items: item.branches!, selectedIndex: null, color: inheritedColor })
+      }
       return next
     })
-  }, [])
-
-  function handlePointerDown(e: React.PointerEvent) {
-    dragRef.current = { startX: e.clientX, startY: e.clientY, startPanX: pan.x, startPanY: pan.y }
-    setIsDragging(true)
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-  }
-  function handlePointerMove(e: React.PointerEvent) {
-    if (!dragRef.current) return
-    const dx = e.clientX - dragRef.current.startX
-    const dy = e.clientY - dragRef.current.startY
-    setPan({ x: dragRef.current.startPanX + dx / zoom, y: dragRef.current.startPanY + dy / zoom })
-  }
-  function handlePointerUp() {
-    dragRef.current = null
-    setIsDragging(false)
+    // Scroll the newly-opened column into view.
+    setTimeout(() => {
+      containerRef.current?.scrollTo({ left: containerRef.current.scrollWidth, behavior: "smooth" })
+    }, 50)
   }
 
-  function zoomIn() { setZoom((z) => Math.min(1.6, z + 0.15)) }
-  function zoomOut() { setZoom((z) => Math.max(0.4, z - 0.15)) }
-
-  // Real fullscreen via the browser Fullscreen API, so the mindmap can genuinely take
-  // over the whole screen on demand rather than permanently resizing the embedded box
-  // (which would look odd everywhere this component is used, e.g. inline admin previews).
   async function toggleFullscreen() {
     if (!wrapRef.current) return
     if (!document.fullscreenElement) {
       await wrapRef.current.requestFullscreen?.()
+      setIsFullscreen(true)
     } else {
       await document.exitFullscreen?.()
+      setIsFullscreen(false)
     }
   }
 
-  useEffect(() => {
-    function onChange() {
-      setIsFullscreen(!!document.fullscreenElement && document.fullscreenElement === wrapRef.current)
-    }
-    document.addEventListener("fullscreenchange", onChange)
-    return () => document.removeEventListener("fullscreenchange", onChange)
-  }, [])
-
-  const canvasW = bounds.maxX - bounds.minX
-  const canvasH = bounds.maxY - bounds.minY
+  if (!root.branches || root.branches.length === 0) {
+    return (
+      <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground rounded-2xl border bg-card/40">
+        This mind map has no branches yet.
+      </div>
+    )
+  }
 
   return (
-    <div ref={wrapRef} className={`${styles.wrap} ${isFullscreen ? styles.wrapFullscreen : ""}`}>
-      <div className={styles.toolbar}>
-        <button className={styles.zoomBtn} onClick={zoomOut} aria-label="Zoom out">-</button>
-        <span className={styles.zoomLabel}>{Math.round(zoom * 100)}%</span>
-        <button className={styles.zoomBtn} onClick={zoomIn} aria-label="Zoom in">+</button>
-        <button className={styles.zoomBtn} onClick={toggleFullscreen} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+    <div
+      ref={wrapRef}
+      className={`h-full w-full flex flex-col gap-2 ${isFullscreen ? "bg-background p-4" : ""}`}
+    >
+      <div className="flex justify-end shrink-0">
+        <button
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+          className="w-8 h-8 rounded-lg border flex items-center justify-center text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-colors"
+        >
           {isFullscreen ? "⤡" : "⤢"}
         </button>
       </div>
 
       <div
-        ref={viewportRef}
-        className={`${styles.viewport} ${isFullscreen ? styles.viewportFullscreen : ""} ${isDragging ? styles.dragging : ""}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        ref={containerRef}
+        className="flex-1 min-h-0 flex gap-3 overflow-x-auto overflow-y-hidden rounded-2xl border bg-card/40 p-3"
       >
-        <div
-          className={styles.canvas}
-          style={{
-            width: canvasW, height: canvasH,
-            transform: `translate(${pan.x - bounds.minX}px, ${pan.y - bounds.minY}px) scale(${zoom})`,
-            transformOrigin: "0 0",
-          }}
-        >
-          <svg className={styles.svg} width={canvasW} height={canvasH}>
-            {lines.map((l, i) => (
-              <path
-                key={i}
-                d={`M${l.x1 - bounds.minX} ${l.y1 - bounds.minY} C${(l.x1 + l.x2) / 2 - bounds.minX} ${l.y1 - bounds.minY} ${(l.x1 + l.x2) / 2 - bounds.minX} ${l.y2 - bounds.minY} ${l.x2 - bounds.minX} ${l.y2 - bounds.minY}`}
-                fill="none"
-                stroke={l.color}
-                strokeWidth={1.5}
-                opacity={l.opacity}
-              />
-            ))}
-          </svg>
+        {columns.map((col, colIndex) => (
+          <div
+            key={colIndex}
+            className="w-[300px] min-w-[280px] max-w-[320px] shrink-0 h-full overflow-y-auto flex flex-col gap-2 bg-card border rounded-xl p-3"
+          >
+            {col.items.map((item, itemIndex) => {
+              const isSelected = col.selectedIndex === itemIndex
+              const hasChildren = !!(item.branches && item.branches.length > 0)
+              const hasDetail = !!(item.definition || item.mechanism || item.examples)
+              const accentColor = colIndex === 0 ? COLORS[itemIndex % COLORS.length] : col.color
 
-          {nodes.map((n) => (
-            <div
-              key={n.path}
-              className={`${styles.node} ${n.isRoot ? styles.rootNode : ""}`}
-              style={{
-                left: n.x - bounds.minX, top: n.y - bounds.minY, width: n.w, height: n.h,
-                borderLeftWidth: n.isRoot ? undefined : 3,
-                borderLeftColor: n.isRoot ? undefined : n.color,
-                borderLeftStyle: n.isRoot ? undefined : "solid",
-              }}
-              onClick={(e) => { e.stopPropagation(); toggleNode(n.path, n.hasChildren) }}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              {n.isRoot ? (
-                <span className={styles.rootLabel}>{n.label}</span>
-              ) : (
-                <>
-                  <span className={styles.nodeLabel}>
-                    {n.label}
-                    {n.hasChildren && !n.isExpanded && <span className={styles.nodeArrow} />}
-                  </span>
-                  {n.detail && <div className={styles.nodeDetail}>{n.detail}</div>}
-                </>
-              )}
-            </div>
-          ))}
-        </div>
+              return (
+                <div
+                  key={itemIndex}
+                  onClick={() => selectItem(colIndex, itemIndex, item)}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                    isSelected
+                      ? "bg-accent/10 border-primary ring-1 ring-primary/40"
+                      : "border-border hover:border-primary/40 hover:bg-accent/5"
+                  }`}
+                  style={accentColor ? { borderLeftColor: accentColor, borderLeftWidth: 3, borderLeftStyle: "solid" } : undefined}
+                >
+                  <h3 className="font-semibold text-sm text-foreground">{item.name}</h3>
+
+                  {item.definition && (
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      <span className="font-semibold text-foreground/80">Definition: </span>{item.definition}
+                    </p>
+                  )}
+                  {item.mechanism && (
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      <span className="font-semibold text-foreground/80">Mechanism: </span>{item.mechanism}
+                    </p>
+                  )}
+                  {item.examples && (
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      <span className="font-semibold text-foreground/80">Examples: </span>{item.examples}
+                    </p>
+                  )}
+
+                  {hasChildren && (
+                    <div className="mt-2 text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center justify-between">
+                      <span>{item.branches!.length} subtopic{item.branches!.length === 1 ? "" : "s"}</span>
+                      <span>→</span>
+                    </div>
+                  )}
+                  {!hasChildren && !hasDetail && (
+                    <p className="text-xs text-muted-foreground/70 mt-2 italic">No further detail yet.</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ))}
       </div>
 
-      <p className={styles.hint}>Drag to move around - click a card to expand its branches{isFullscreen ? " - press Esc or the ⤡ button to exit fullscreen" : ""}</p>
+      <p className="text-xs text-muted-foreground text-center shrink-0">
+        Click a topic to open its sub-topics in a new column - scroll right to go deeper
+      </p>
     </div>
   )
 }
