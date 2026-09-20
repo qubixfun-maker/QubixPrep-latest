@@ -109,33 +109,77 @@ Rules:
 - Output must be complete, valid JSON - do not truncate`
 }
 
+// Finds each top-level {...} object in the string and parses it independently,
+// keeping whichever ones are complete/valid JSON. Used when the array as a whole
+// fails to parse (usually because the response was cut off mid-array by the token
+// cap) - this salvages every question that DID finish, instead of discarding the
+// whole batch over one unfinished trailing object.
+function extractCompleteObjects(str: string): any[] {
+  const results: any[] = []
+  let depth = 0
+  let start = -1
+  let inString = false
+  let escapeNext = false
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i]
+    if (escapeNext) { escapeNext = false; continue }
+    if (ch === '\\') { escapeNext = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+
+    if (ch === '{') {
+      if (depth === 0) start = i
+      depth++
+    } else if (ch === '}') {
+      depth--
+      if (depth === 0 && start !== -1) {
+        const candidate = str.slice(start, i + 1)
+        try {
+          results.push(JSON.parse(candidate))
+        } catch { /* this object was itself incomplete/malformed - skip it */ }
+        start = -1
+      }
+    }
+  }
+  return results
+}
+
 async function generateBatch(input: GenerateQBankFromNotesInput, count: number): Promise<{ questions: QBankQuestion[], rawError?: string }> {
   const prompt = buildPrompt(input, count)
 
   try {
-    const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 6000)
+    const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 8000, 1024)
     if (!raw) return { questions: [], rawError: 'Empty response from AI model' }
 
     let clean = raw.replace(/```json|```/g, '').trim()
     const firstBracket = clean.indexOf('[')
-    const lastBracket = clean.lastIndexOf(']')
-    if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-      clean = clean.slice(firstBracket, lastBracket + 1)
+    if (firstBracket !== -1) clean = clean.slice(firstBracket)
+
+    let parsed: any[] | null = null
+    try {
+      const lastBracket = clean.lastIndexOf(']')
+      const candidate = lastBracket !== -1 ? clean.slice(0, lastBracket + 1) : clean
+      const attempt = JSON.parse(candidate)
+      if (Array.isArray(attempt)) parsed = attempt
+    } catch { /* fall through to lenient per-object extraction below */ }
+
+    if (!parsed) {
+      parsed = extractCompleteObjects(clean)
     }
 
-    const parsed = JSON.parse(clean)
-    if (!Array.isArray(parsed)) return { questions: [], rawError: 'AI response was not a JSON array' }
+    if (!parsed || parsed.length === 0) return { questions: [], rawError: 'AI response was not a JSON array' }
     return { questions: parsed.map((q: QBankQuestion) => ({ ...q, topic_title: input.chapterTitle })) }
   } catch (err: any) {
     return { questions: [], rawError: err.message || 'Unknown error during generation' }
   }
 }
 
-const BATCH_SIZE = 8
-// Enough rounds to top up a shortfall (a malformed/truncated batch, a batch that came
-// back short of what was asked) until the exact requested count is reached, without
-// looping forever if the model is genuinely stuck.
-const MAX_ROUNDS = 8
+// Smaller batches than before (was 8) - each individual call has more token headroom
+// relative to how verbose these teach-not-justify explanations are, so truncation
+// (and the need for the salvage path above) should be rarer to begin with.
+const BATCH_SIZE = 6
+const MAX_ROUNDS = 10
 
 export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput): Promise<GenerateQBankFromNotesOutput> {
   const total = Math.min(Math.max(input.numQuestions, 5), 40)
@@ -155,8 +199,6 @@ export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput)
     }
   }
 
-  // A batch can occasionally come back with one or two extra/fewer than asked - trim
-  // to the exact requested count rather than over- or under-delivering by a couple.
   const finalQuestions = allQuestions.slice(0, total)
 
   if (finalQuestions.length === 0) {
