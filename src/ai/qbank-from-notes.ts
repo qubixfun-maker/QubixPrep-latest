@@ -145,10 +145,18 @@ function extractCompleteObjects(str: string): any[] {
   return results
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function generateBatch(input: GenerateQBankFromNotesInput, count: number): Promise<{ questions: QBankQuestion[], rawError?: string }> {
   const prompt = buildPrompt(input, count)
 
   try {
+    // A small fixed pace before every call, on top of the exponential backoff below
+    // for actual 429s - keeps the steady-state request rate gentler so rate limits
+    // are hit less often in the first place, not just recovered from after the fact.
+    await sleep(1000)
     const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 8000, 1024)
     if (!raw) return { questions: [], rawError: 'Empty response from AI model' }
 
@@ -181,10 +189,16 @@ async function generateBatch(input: GenerateQBankFromNotesInput, count: number):
 const BATCH_SIZE = 6
 const MAX_ROUNDS = 10
 
+function isRateLimitError(message: string | undefined): boolean {
+  if (!message) return false
+  return message.includes('429') || message.toLowerCase().includes('resource exhausted')
+}
+
 export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput): Promise<GenerateQBankFromNotesOutput> {
   const total = Math.min(Math.max(input.numQuestions, 5), 40)
   const allQuestions: QBankQuestion[] = []
   const errors: string[] = []
+  let consecutiveRateLimitHits = 0
 
   let round = 0
   while (allQuestions.length < total && round < MAX_ROUNDS) {
@@ -194,8 +208,19 @@ export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput)
     const result = await generateBatch(input, batchCount)
     if (result.questions.length > 0) {
       allQuestions.push(...result.questions)
+      consecutiveRateLimitHits = 0
     } else if (result.rawError) {
       errors.push(result.rawError)
+      if (isRateLimitError(result.rawError)) {
+        // Real quota wall, not a malformed-output issue - back off before the next
+        // round instead of immediately hammering the same limit again. Backoff grows
+        // with consecutive hits (8s, 16s, 32s, capped at 60s).
+        consecutiveRateLimitHits++
+        const waitMs = Math.min(60000, 8000 * Math.pow(2, consecutiveRateLimitHits - 1))
+        await sleep(waitMs)
+      } else {
+        consecutiveRateLimitHits = 0
+      }
     }
   }
 
