@@ -32,9 +32,9 @@ function buildPrompt(question: string, sectionType: SectionType, groundingText: 
     `- "${t.name}": structure as [${t.sections.join(' -> ')}] - use when: ${t.description}`
   ).join('\n');
 
-  return `You are writing a model exam answer for an MBBS student, using ONLY the source material given below - never invent facts, numbers, or examples beyond what's here.
+  return `You are writing a model exam answer for an MBBS student. Base your answer primarily on the source material below, since it reflects the student's own verified notes and its terminology/emphasis should be preferred wherever it applies. Where the source material doesn't fully cover some part of the question, use your own accurate medical knowledge to complete that part correctly - never leave a part of the question thin, vague, or skipped just because the notes don't mention it.
 
-SOURCE MATERIAL (the only source of truth - already written and verified from the textbook):
+SOURCE MATERIAL (the student's own notes - prefer this wherever it covers the topic):
 ${groundingText}
 
 QUESTION: ${question}
@@ -56,7 +56,7 @@ STEP 3 - Write the answer using real Markdown structure matching your chosen for
 - Use real numbered lists (1. 2. 3.) for sequences/steps.
 - Use "**bold**" for key terms worth highlighting.
 - HARD MINIMUM LENGTH: ${TARGET_WORDS[sectionType]}. This is a firm requirement - a short answer is an INCOMPLETE answer for this task, even if it sounds finished.
-- Use ONLY facts present in the source material above. If it doesn't fully cover some part of the question, cover that part as completely as the given material allows rather than inventing the rest or skipping it.
+- Prefer facts, terminology, and emphasis from the source material above wherever it covers the topic. Where it doesn't fully cover some part of the question, fill that part in with your own accurate medical knowledge so every part of the question gets a complete, correct answer - never leave a part thin, vague, or skipped just because the notes don't mention it.
 - Do not repeat the question back or add a preamble like "Answer:" - start directly with the content.
 - PACE YOURSELF: if you sense you're approaching your limit, do NOT start a new subtopic you won't have room to finish - wrap up cleanly instead. A shorter answer that ends properly is far better than one that cuts off mid-thought.
 
