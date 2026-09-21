@@ -206,29 +206,58 @@ async function callModel(prompt: string, maxTokens: number, useClaude?: boolean,
   return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex);
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(message: string | undefined): boolean {
+  if (!message) return false;
+  return message.includes('429') || message.toLowerCase().includes('resource exhausted');
+}
+
 // A full recursive tree is a much bigger response than the old 3-field summary -
 // matches the bulk generator's per-branch token budget (ai-mindmap-data-generator.ts
 // uses 8000 for the same "one branch, full depth" shape).
 const MAX_TOKENS = 8000;
+// Shared wall-clock budget across the WHOLE chapter (all top-level branches, all
+// workers) - without this, stacked backoff waits across several branches can push
+// total request time past the hosting platform's own timeout, which kills the
+// request mid-flight (a 504, all work lost) instead of returning cleanly with
+// whatever branches did finish.
+const DEADLINE_MS = 80000;
 
 async function generateOneNode(
   node: HierarchyNode,
   subjectName: string,
+  startTime: number,
   options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
 ): Promise<MindmapNode> {
   const prompt = buildPrompt(node, subjectName);
   const MAX_ATTEMPTS = 3;
   let result: MindmapNode | null = null;
-  let lastRaw = '';
+  let consecutiveRateLimitHits = 0;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (Date.now() - startTime > DEADLINE_MS) break; // shared budget spent - fall through to the plain-text fallback below
     try {
+      // A small fixed pace before every call, on top of the backoff below for
+      // actual 429s - important here since branches run with concurrency, so
+      // several of these can otherwise fire at once.
+      await sleep(1000);
       const { content: raw } = await callModel(prompt, MAX_TOKENS, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
-      lastRaw = raw || '';
-      const parsed = tryParseNode(lastRaw);
+      const parsed = tryParseNode(raw || '');
       if (parsed) { result = parsed; break; }
-    } catch {
-      // retry, then fall through to the plain-text fallback below
+      consecutiveRateLimitHits = 0;
+    } catch (err: any) {
+      if (isRateLimitError(err?.message)) {
+        // Real quota wall - back off before retrying instead of immediately hitting
+        // the same limit again. Capped low (15s) and clamped to whatever's left of
+        // the shared deadline, so one branch's backoff can't eat the whole budget.
+        consecutiveRateLimitHits++;
+        const waitMs = Math.min(15000, 4000 * Math.pow(2, consecutiveRateLimitHits - 1));
+        const remaining = DEADLINE_MS - (Date.now() - startTime);
+        await sleep(Math.max(0, Math.min(waitMs, remaining)));
+      }
     }
   }
 
@@ -243,7 +272,7 @@ async function generateOneNode(
   return { ...result, name: node.name };
 }
 
-const TOP_LEVEL_CONCURRENCY = 3; // heavier calls now (deep trees) - pace them to avoid tripping per-minute quota
+const TOP_LEVEL_CONCURRENCY = 2; // lowered from 3 - fewer simultaneous Vertex calls means a burst is less likely to trip the per-minute quota
 
 export async function generateMindmapFromNotes(
   notesTopics: NotesTopic[],
@@ -253,12 +282,14 @@ export async function generateMindmapFromNotes(
 ): Promise<{ centralTopic: string; branches: MindmapNode[] }> {
   const hierarchy = reconstructHierarchy(notesTopics);
   const branches: MindmapNode[] = new Array(hierarchy.length);
+  const startTime = Date.now();
   let nextIndex = 0;
   async function worker() {
     while (true) {
+      if (Date.now() - startTime > DEADLINE_MS) return; // shared budget spent - stop picking up new branches
       const i = nextIndex++;
       if (i >= hierarchy.length) return;
-      branches[i] = await generateOneNode(hierarchy[i], subjectName, options);
+      branches[i] = await generateOneNode(hierarchy[i], subjectName, startTime, options);
     }
   }
   await Promise.all(Array.from({ length: Math.min(TOP_LEVEL_CONCURRENCY, hierarchy.length) }, () => worker()));
@@ -290,5 +321,5 @@ export async function generateMindmapNodeForTopicNameFromNotes(
   const hierarchy = reconstructHierarchy(notesTopics);
   const node = findNodeByName(hierarchy, topicName);
   if (!node) return null;
-  return generateOneNode(node, subjectName, options);
+  return generateOneNode(node, subjectName, Date.now(), options);
 }
