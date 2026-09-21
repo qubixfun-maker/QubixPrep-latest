@@ -56,13 +56,23 @@ function isRateLimitError(message: string | undefined): boolean {
   return message.includes('429') || message.toLowerCase().includes('resource exhausted');
 }
 
-async function generateOneDeck(topicName: string, markdown: string): Promise<{ cards?: FlashcardPair[]; error?: string }> {
+// Shared wall-clock budget across the WHOLE chapter (all topics, all workers) - not
+// per-topic. Without this, stacked backoff waits across several topics can push the
+// total request time past the hosting platform's own timeout, which then kills the
+// request mid-flight (a 504, with all work lost and no answer returned) instead of
+// letting this function return cleanly with whatever it managed to generate.
+const DEADLINE_MS = 80000;
+
+async function generateOneDeck(topicName: string, markdown: string, startTime: number): Promise<{ cards?: FlashcardPair[]; error?: string }> {
   const prompt = buildPrompt(topicName, markdown);
   const MAX_ATTEMPTS = 3;
   let lastError = '';
   let consecutiveRateLimitHits = 0;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (Date.now() - startTime > DEADLINE_MS) {
+      return { error: `${lastError || 'Ran out of time before the request deadline'} (stopped early to avoid a platform timeout)` };
+    }
     try {
       // A small fixed pace before every call, on top of the backoff below for
       // actual 429s - especially important here since topics run with concurrency,
@@ -77,11 +87,12 @@ async function generateOneDeck(topicName: string, markdown: string): Promise<{ c
       lastError = err.message || 'Unknown error';
       if (isRateLimitError(lastError)) {
         // Real quota wall - back off before retrying instead of immediately hitting
-        // the same limit again. Backoff grows with consecutive hits (8s, 16s, capped
-        // by MAX_ATTEMPTS anyway).
+        // the same limit again. Capped low (15s) and clamped to whatever's left of
+        // the shared deadline, so one topic's backoff can't eat the whole budget.
         consecutiveRateLimitHits++;
-        const waitMs = Math.min(60000, 8000 * Math.pow(2, consecutiveRateLimitHits - 1));
-        await sleep(waitMs);
+        const waitMs = Math.min(15000, 4000 * Math.pow(2, consecutiveRateLimitHits - 1));
+        const remaining = DEADLINE_MS - (Date.now() - startTime);
+        await sleep(Math.max(0, Math.min(waitMs, remaining)));
       }
     }
   }
@@ -100,15 +111,17 @@ export async function generateFlashcardDecksFromNotes(
   // Lower concurrency than before (was 4) - fewer simultaneous Vertex calls means a
   // burst of parallel requests is less likely to trip the per-minute rate limit.
   const CONCURRENCY = 2;
+  const startTime = Date.now();
   const decks: (TopicFlashcards | null)[] = new Array(notesTopics.length).fill(null)
   const topicErrors: string[] = []
   let nextIndex = 0
   async function worker() {
     while (true) {
+      if (Date.now() - startTime > DEADLINE_MS) return // shared budget spent - stop picking up new topics
       const i = nextIndex++
       if (i >= notesTopics.length) return
       const topic = notesTopics[i]
-      const result = await generateOneDeck(topic.name, topic.markdown)
+      const result = await generateOneDeck(topic.name, topic.markdown, startTime)
       if (result.cards) decks[i] = { topicName: topic.name, cards: result.cards }
       else if (result.error) topicErrors.push(`${topic.name}: ${result.error}`)
     }
