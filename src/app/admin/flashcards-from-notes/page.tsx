@@ -161,7 +161,7 @@ export default function FlashcardsFromNotesPage() {
       }
       if (working[i].status === "done") continue
 
-      working[i] = { ...working[i], status: "running" }
+      working[i] = { ...working[i], status: "running", error: undefined }
       await updateJob({ chapters: working, updatedAt: serverTimestamp() })
 
       try {
@@ -213,7 +213,7 @@ export default function FlashcardsFromNotesPage() {
     if (!job) return
     pausedRef.current = false
     const chapters: ChapterProgress[] = job.chapters.map((c: ChapterProgress) =>
-      c.status === "failed" ? { ...c, status: "pending" as const } : c
+      c.status === "failed" ? { ...c, status: "pending" as const, error: undefined } : c
     )
     await updateJob({ status: "running", chapters, updatedAt: serverTimestamp() })
     runLoop(chapters, 0)
