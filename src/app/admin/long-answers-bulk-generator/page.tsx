@@ -322,6 +322,43 @@ export default function LongAnswersBulkGeneratorPage() {
     return chapters
   }
 
+  // Already-generated NOTES (from the AI Notes Generator / Fix Truncated Notes pipeline)
+  // are the richest source to ground an answer in - generateGroundedAnswer uses them to
+  // produce real Markdown (tables, subheadings, vignette cards) via the subject format
+  // templates, which is what gives the "wonderful presentation". This cache/lookup lets
+  // the run loop find a subject's notes by chapter title WITHOUT requiring a "Reference
+  // textbook" to be manually selected in Settings - notes are looked up per-subject
+  // across every textbook they were generated under.
+  const notesCacheRef = useRef<Record<string, any[]>>({})
+
+  async function getSubjectNotes(subjectId: string) {
+    if (notesCacheRef.current[subjectId]) return notesCacheRef.current[subjectId]
+    if (!db) return []
+    const snap = await getDocs(collection(db, 'subjects', subjectId, 'textNotes'))
+    const notes = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    notesCacheRef.current[subjectId] = notes
+    return notes
+  }
+
+  function findBestNotesMatch(queryTitle: string, notesList: any[]) {
+    const q = queryTitle.toLowerCase().trim()
+    if (!q) return null
+    let best: any = null
+    let bestScore = 0
+    for (const n of notesList) {
+      const title = (n.chapterTitle || "").toLowerCase().trim()
+      if (!title) continue
+      let score = 0
+      if (title === q) score += 20
+      if (title.includes(q)) score += 10
+      if (q.includes(title) && title.length > 3) score += 8
+      const qWords = q.split(/\s+/).filter(Boolean)
+      for (const w of qWords) if (w.length > 2 && title.includes(w)) score += 1
+      if (score > bestScore) { bestScore = score; best = n }
+    }
+    return bestScore > 0 ? best : null
+  }
+
   const [pauseSeconds, setPauseSeconds] = useState(60)
   const [questionPauseSeconds, setQuestionPauseSeconds] = useState(3)
   const [isStarting, setIsStarting] = useState(false)
@@ -415,39 +452,38 @@ export default function LongAnswersBulkGeneratorPage() {
       try {
         let result: { answer?: string; provider?: string; error?: string } = {}
         let precomputedAnswerHtml: string | null = null
-        if (textbookId) {
+
+        // ALWAYS check for already-generated notes for this subject + chapter FIRST,
+        // regardless of whether a "Reference textbook" was picked in Settings. Notes give
+        // the richly-formatted answer (real Markdown tables, subheadings, clinical-vignette
+        // cards - via generateGroundedAnswer + the subject format templates), which is the
+        // "wonderful presentation" outcome. The older AI-knowledge/textbook-excerpt paths
+        // below produce plain, unformatted text and are now only a fallback for chapters
+        // that genuinely have no notes yet.
+        let usedNotes = false
+        try {
+          const subjectNotes = await getSubjectNotes(item.subjectId)
+          const matchedNotes = findBestNotesMatch(item.chapterTitle, subjectNotes)
+          if (matchedNotes && (matchedNotes.topics || []).length > 0) {
+            const groundingText = (matchedNotes.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n')
+            const groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectName, { useGeminiNative: true })
+            if (groundedResult.answer) {
+              result = { answer: groundedResult.answer, provider: "Notes-based" }
+              precomputedAnswerHtml = knowledgeAnswerTextToHtml(groundedResult.answer)
+              usedNotes = true
+            }
+          }
+        } catch {
+          usedNotes = false
+        }
+
+        if (usedNotes) {
+          // result and precomputedAnswerHtml already set above
+        } else if (textbookId) {
           const chapters = await getTextbookChapters(textbookId)
           const matchedChapter = fuzzyMatchChapter(item.chapterTitle, chapters)
 
-          // Prefer already-generated NOTES over a fresh AI call on raw text - notes are
-          // already polished, well-organized prose (with the right format template
-          // already applied), so grounding the answer in them is more reliable than
-          // re-reading raw excerpt text each time. Falls back to the existing
-          // textbook/AI-knowledge paths unchanged for any chapter without notes yet.
-          let usedNotes = false
-          if (matchedChapter?.chapterId) {
-            try {
-              const notesDoc = await getDoc(doc(db!, 'subjects', item.subjectId, 'textNotes', `${textbookId}__${matchedChapter.chapterId}`))
-              if (notesDoc.exists()) {
-                const notesData = notesDoc.data() as any
-                const groundingText = (notesData.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n')
-                const subjectDoc = await getDoc(doc(db!, 'subjects', item.subjectId))
-                const subjectNameForAnswer = subjectDoc.exists() ? (subjectDoc.data() as any).name : item.subjectId
-                const groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectNameForAnswer, { useGeminiNative: true })
-                if (groundedResult.answer) {
-                  result = { answer: groundedResult.answer, provider: "Notes-based" }
-                  precomputedAnswerHtml = knowledgeAnswerTextToHtml(groundedResult.answer)
-                  usedNotes = true
-                }
-              }
-            } catch {
-              usedNotes = false
-            }
-          }
-
-          if (usedNotes) {
-            // result and precomputedAnswerHtml already set above
-          } else if (matchedChapter && matchedChapter.text) {
+          if (matchedChapter && matchedChapter.text) {
             const tb = textbooksList?.find((t: any) => t.id === textbookId)
             result = await generateProfPyqAnswerFromTextbook({
               subject: subjectName,
@@ -494,6 +530,7 @@ export default function LongAnswersBulkGeneratorPage() {
             type: item.questionType,
             question: item.question,
           })
+          if (result.provider) result.provider = result.provider + " (AI knowledge, no notes found)"
         }
 
         if (!result.answer) {
@@ -666,7 +703,8 @@ export default function LongAnswersBulkGeneratorPage() {
                 <CardHeader><CardTitle className="text-base">4. Settings</CardTitle></CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2 md:col-span-2">
-                    <Label>Reference textbook (optional)</Label>
+                    <Label>Reference textbook (fallback only)</Label>
+                    <p className="text-xs text-muted-foreground -mt-1">Already-generated Notes for a chapter are always used first (real tables, headers, vignette cards). This textbook is only used as a fallback for chapters with no notes yet - otherwise plain AI knowledge is used.</p>
                     <Select value={selectedTextbookId} onValueChange={setSelectedTextbookId}>
                       <SelectTrigger className="glass border-white/10"><SelectValue placeholder="None - use AI knowledge" /></SelectTrigger>
                       <SelectContent>

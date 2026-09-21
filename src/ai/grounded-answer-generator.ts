@@ -84,10 +84,13 @@ export async function generateGroundedAnswer(
   subjectName: string,
   options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
 ): Promise<GenerateAnswerOutput> {
-  // Generous headroom above the actual target length - a multi-part question needs real
-  // room to cover every clause in full without hitting the ceiling mid-sentence, and some
-  // models spend part of this budget on internal reasoning before the visible answer.
-  const maxTokens = sectionType === 'long-essays' ? 2500 : sectionType === 'short-essays' ? 1200 : 400;
+  // No artificial cap below the model's own output ceiling - previously this budget was
+  // set close to the target length, which is exactly what caused the earlier AI Notes
+  // truncation bug for chapters that genuinely needed more room. Gemini 2.5 Pro/Flash (the
+  // callGeminiNative fallback chain) has a hard output ceiling around 8192 tokens per
+  // response, so 8000 is effectively "no cap" - the answer will never be cut short by this
+  // budget, only by the model's own real maximum.
+  const maxTokens = 8000;
   const minWords = MIN_WORDS[sectionType];
 
   const MAX_ATTEMPTS = 3;

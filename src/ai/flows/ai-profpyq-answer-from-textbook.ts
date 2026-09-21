@@ -38,10 +38,14 @@ const MIN_WORDS: Record<string, number> = {
   long_answer: 200,
 };
 
+// No artificial cap below the model's own output ceiling - see the identical fix in
+// grounded-answer-generator.ts and ai-profpyq-answer-generator.ts. 8000 sits right under
+// the ~8192-token hard ceiling most Gemini models enforce per response, so this is
+// effectively "no cap" rather than a budget sized close to the target length.
 const MAX_TOKENS: Record<string, number> = {
-  short_answer: 800,
-  short_essay: 1500,
-  long_answer: 3000,
+  short_answer: 8000,
+  short_essay: 8000,
+  long_answer: 8000,
 };
 
 // Rough safety cap so we don't blow past a reasonable prompt size
