@@ -24,7 +24,7 @@ type ChapterProgress = {
   chapterId: string
   status: "pending" | "running" | "done" | "failed"
   branchCount?: number
-  error?: string
+  error?: string | null
 }
 
 export default function MindmapsFromNotesPage() {
@@ -158,7 +158,7 @@ export default function MindmapsFromNotesPage() {
       }
       if (working[i].status === "done") continue
 
-      working[i] = { ...working[i], status: "running", error: undefined }
+      working[i] = { ...working[i], status: "running", error: null }
       await updateJob({ chapters: working, updatedAt: serverTimestamp() })
 
       try {
@@ -211,7 +211,7 @@ export default function MindmapsFromNotesPage() {
     if (!job) return
     pausedRef.current = false
     const chapters: ChapterProgress[] = job.chapters.map((c: ChapterProgress) =>
-      c.status === "failed" ? { ...c, status: "pending" as const, error: undefined } : c
+      c.status === "failed" ? { ...c, status: "pending" as const, error: null } : c
     )
     await updateJob({ status: "running", chapters, updatedAt: serverTimestamp() })
     runLoop(chapters, 0)
