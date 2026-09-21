@@ -188,6 +188,12 @@ async function generateBatch(input: GenerateQBankFromNotesInput, count: number):
 // (and the need for the salvage path above) should be rarer to begin with.
 const BATCH_SIZE = 6
 const MAX_ROUNDS = 10
+// Hard wall-clock budget for the whole function - backoff waits on repeated 429s can
+// otherwise stack up to several minutes, which the hosting platform's own request
+// timeout then kills mid-flight (a 504, with the work lost and no answer returned).
+// This makes the function always return cleanly on its own terms well before that,
+// with whatever it managed to generate.
+const DEADLINE_MS = 80000
 
 function isRateLimitError(message: string | undefined): boolean {
   if (!message) return false
@@ -199,9 +205,10 @@ export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput)
   const allQuestions: QBankQuestion[] = []
   const errors: string[] = []
   let consecutiveRateLimitHits = 0
+  const startTime = Date.now()
 
   let round = 0
-  while (allQuestions.length < total && round < MAX_ROUNDS) {
+  while (allQuestions.length < total && round < MAX_ROUNDS && Date.now() - startTime < DEADLINE_MS) {
     round++
     const shortfall = total - allQuestions.length
     const batchCount = Math.min(BATCH_SIZE, shortfall)
@@ -213,11 +220,13 @@ export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput)
       errors.push(result.rawError)
       if (isRateLimitError(result.rawError)) {
         // Real quota wall, not a malformed-output issue - back off before the next
-        // round instead of immediately hammering the same limit again. Backoff grows
-        // with consecutive hits (8s, 16s, 32s, capped at 60s).
+        // round instead of immediately hammering the same limit again. Capped low
+        // enough (15s) that even several consecutive hits stay well inside the
+        // overall deadline above, rather than one hit eating most of the budget.
         consecutiveRateLimitHits++
-        const waitMs = Math.min(60000, 8000 * Math.pow(2, consecutiveRateLimitHits - 1))
-        await sleep(waitMs)
+        const waitMs = Math.min(15000, 4000 * Math.pow(2, consecutiveRateLimitHits - 1))
+        const remaining = DEADLINE_MS - (Date.now() - startTime)
+        await sleep(Math.max(0, Math.min(waitMs, remaining)))
       } else {
         consecutiveRateLimitHits = 0
       }
@@ -233,7 +242,7 @@ export async function generateQBankFromNotes(input: GenerateQBankFromNotesInput)
     return {
       questions: finalQuestions,
       requested: total,
-      error: `Only generated ${finalQuestions.length} of ${total} requested after ${MAX_ROUNDS} attempts - the model kept returning malformed output for the rest. Try regenerating this chapter.`,
+      error: `Only generated ${finalQuestions.length} of ${total} requested (stopped after ${round} rounds/${Math.round((Date.now() - startTime) / 1000)}s - either malformed output or ran out of time before the request deadline). Try regenerating this chapter.`,
     }
   }
   return { questions: finalQuestions, requested: total }
