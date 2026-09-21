@@ -15,6 +15,10 @@ service cloud.firestore {
       match /bookmarks/{docId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      match /feedProgress/{cardId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     match /subjects/{subjectId} {
       allow read: if true;

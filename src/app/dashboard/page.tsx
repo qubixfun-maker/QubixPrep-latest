@@ -22,7 +22,8 @@ import {
   Video,
   Network,
   Trophy,
-  Layers
+  Layers,
+  Flame
 } from "lucide-react"
 import Link from "next/link"
 
@@ -101,6 +102,9 @@ export default function Dashboard() {
               : "Start exploring notes, QBanks, videos, and AI tools built for NEET-PG."}
           </p>
           <div className="flex flex-wrap gap-4 pt-4">
+            <Button size="lg" asChild className="w-full md:w-auto rounded-xl gap-2 shadow-xl shadow-orange-500/30 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 border-none text-white">
+              <Link href="/feed"><Flame className="h-4 w-4" /> Study Feed</Link>
+            </Button>
             <Button size="lg" asChild className="w-full md:w-auto rounded-xl bg-primary hover:bg-primary/90 shadow-xl shadow-primary/30 gap-2">
               <Link href="/qbank"><Play className="h-4 w-4 fill-current" /> QBank Practice</Link>
             </Button>
