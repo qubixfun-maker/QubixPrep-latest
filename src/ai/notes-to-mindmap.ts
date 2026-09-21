@@ -293,6 +293,18 @@ export async function generateMindmapFromNotes(
     }
   }
   await Promise.all(Array.from({ length: Math.min(TOP_LEVEL_CONCURRENCY, hierarchy.length) }, () => worker()));
+  // If the shared deadline ran out before every index got claimed by a worker, those
+  // slots in the pre-allocated array are real `undefined` holes (never written at all) -
+  // Firestore rejects `undefined` anywhere in a document, so this crashed the whole save
+  // with no indication of which branch caused it. Fill any such holes with the same
+  // graceful plain-text fallback generateOneNode itself uses on failure, so a chapter
+  // that ran out of time still saves cleanly with every branch present (some just less
+  // AI-elaborated) instead of losing the whole mindmap to one unclaimed index.
+  for (let i = 0; i < branches.length; i++) {
+    if (!branches[i]) {
+      branches[i] = { name: hierarchy[i].name, examples: hierarchy[i].markdown.slice(0, 300) };
+    }
+  }
   return { centralTopic, branches };
 }
 
