@@ -47,19 +47,42 @@ function tryParseArray(raw: string): FlashcardPair[] | null {
   return null;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(message: string | undefined): boolean {
+  if (!message) return false;
+  return message.includes('429') || message.toLowerCase().includes('resource exhausted');
+}
+
 async function generateOneDeck(topicName: string, markdown: string): Promise<{ cards?: FlashcardPair[]; error?: string }> {
   const prompt = buildPrompt(topicName, markdown);
-  const MAX_ATTEMPTS = 2;
+  const MAX_ATTEMPTS = 3;
   let lastError = '';
+  let consecutiveRateLimitHits = 0;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
+      // A small fixed pace before every call, on top of the backoff below for
+      // actual 429s - especially important here since topics run with concurrency,
+      // so several of these can otherwise fire at once.
+      await sleep(1000);
       const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 2000, 256);
       const parsed = tryParseArray(raw);
       if (parsed && parsed.length > 0) return { cards: parsed };
       lastError = 'AI response was not a valid flashcard array';
+      consecutiveRateLimitHits = 0;
     } catch (err: any) {
       lastError = err.message || 'Unknown error';
+      if (isRateLimitError(lastError)) {
+        // Real quota wall - back off before retrying instead of immediately hitting
+        // the same limit again. Backoff grows with consecutive hits (8s, 16s, capped
+        // by MAX_ATTEMPTS anyway).
+        consecutiveRateLimitHits++;
+        const waitMs = Math.min(60000, 8000 * Math.pow(2, consecutiveRateLimitHits - 1));
+        await sleep(waitMs);
+      }
     }
   }
   return { error: `${lastError} (after ${MAX_ATTEMPTS} attempts)` };
@@ -74,8 +97,11 @@ export async function generateFlashcardDecksFromNotes(
 ): Promise<{ decks?: TopicFlashcards[]; error?: string }> {
   if (notesTopics.length === 0) return { error: 'This chapter has no notes topics.' };
 
-  const CONCURRENCY = 4;
+  // Lower concurrency than before (was 4) - fewer simultaneous Vertex calls means a
+  // burst of parallel requests is less likely to trip the per-minute rate limit.
+  const CONCURRENCY = 2;
   const decks: (TopicFlashcards | null)[] = new Array(notesTopics.length).fill(null)
+  const topicErrors: string[] = []
   let nextIndex = 0
   async function worker() {
     while (true) {
@@ -84,11 +110,16 @@ export async function generateFlashcardDecksFromNotes(
       const topic = notesTopics[i]
       const result = await generateOneDeck(topic.name, topic.markdown)
       if (result.cards) decks[i] = { topicName: topic.name, cards: result.cards }
+      else if (result.error) topicErrors.push(`${topic.name}: ${result.error}`)
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, notesTopics.length) }, () => worker()))
 
   const successfulDecks = decks.filter((d): d is TopicFlashcards => d !== null)
-  if (successfulDecks.length === 0) return { error: 'No decks could be generated from any topic.' }
+  if (successfulDecks.length === 0) {
+    // Surface the actual reason instead of a generic message - it's almost always a
+    // rate limit (429/RESOURCE_EXHAUSTED), and the vague message previously hid that.
+    return { error: topicErrors[0] || 'No decks could be generated from any topic.' }
+  }
   return { decks: successfulDecks }
 }
