@@ -22,6 +22,31 @@ import { useToast } from "@/hooks/use-toast"
 const JOB_ID = "current"
 const MAX_PAIRS = 10
 
+// Provider labels (e.g. "gemini-2.5-pro (AI knowledge, no notes found)") contain dots, and
+// Firestore treats "." as a nested-field separator in a dynamic update path like
+// `providerCounts.${label}` - so a raw label silently split into a nested object instead of
+// one flat counter, and the UI's {count} render crashed trying to display that object as a
+// React child. Sanitizing the label before it ever becomes a path segment is the actual fix;
+// flattenProviderCounts (below) is a defensive read-side repair for counts already corrupted
+// by the old, unsanitized writes sitting in Firestore.
+function sanitizeProviderKey(label: string): string {
+  return label.replace(/[.~*/[\]]/g, "_")
+}
+
+function flattenProviderCounts(input: Record<string, any> | undefined, prefix = ""): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (!input) return out
+  for (const [key, value] of Object.entries(input)) {
+    const label = prefix ? `${prefix}.${key}` : key
+    if (typeof value === "number") {
+      out[label] = value
+    } else if (value && typeof value === "object") {
+      Object.assign(out, flattenProviderCounts(value, label))
+    }
+  }
+  return out
+}
+
 function fuzzyMatchChapter(queryTitle: string, chapters: any[]) {
   const q = queryTitle.toLowerCase().trim()
   if (!q) return null
@@ -297,11 +322,11 @@ export default function LongAnswersBulkGeneratorPage() {
 
   // Already-generated NOTES (from the AI Notes Generator / Fix Truncated Notes pipeline)
   // are the richest source to ground an answer in - generateGroundedAnswer uses them to
-  // produce real Markdown (tables, subheadings, vignette cards) via the subject format
-  // templates, which is what gives the "wonderful presentation". This cache/lookup lets
-  // the run loop find a subject's notes by chapter title WITHOUT requiring a "Reference
-  // textbook" to be manually selected in Settings - notes are looked up per-subject
-  // across every textbook they were generated under.
+  // produce real Markdown (tables, subheadings, clinical-vignette cards - via the subject
+  // format templates), which is what gives the "wonderful presentation". This cache/lookup
+  // lets the run loop find a subject's notes by chapter title WITHOUT requiring a
+  // "Reference textbook" to be manually selected in Settings - notes are looked up
+  // per-subject across every textbook they were generated under.
   const notesCacheRef = useRef<Record<string, any[]>>({})
 
   async function getSubjectNotes(subjectId: string) {
@@ -573,7 +598,7 @@ export default function LongAnswersBulkGeneratorPage() {
         await updateJob({
           currentIndex: i + 1,
           completedCount: increment(1),
-          [`providerCounts.${result.provider || "unknown"}`]: increment(1),
+          [`providerCounts.${sanitizeProviderKey(result.provider || "unknown")}`]: increment(1),
           ...(notesWasEnrichedThisQuestion ? { notesEnrichedCount: increment(1) } : {}),
           updatedAt: serverTimestamp(),
         })
@@ -780,7 +805,7 @@ export default function LongAnswersBulkGeneratorPage() {
             {job.providerCounts && Object.keys(job.providerCounts).length > 0 && (
               <div className="space-y-1">
                 <p className="text-xs font-bold text-muted-foreground">Answers by provider (for quality spot-checking):</p>
-                {Object.entries(job.providerCounts).map(([provider, count]: any) => (
+                {Object.entries(flattenProviderCounts(job.providerCounts)).map(([provider, count]) => (
                   <p key={provider} className="text-xs text-muted-foreground">• {provider}: {count}</p>
                 ))}
               </div>
