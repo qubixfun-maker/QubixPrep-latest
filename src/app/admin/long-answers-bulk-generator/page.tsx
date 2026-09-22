@@ -9,6 +9,7 @@ import { generateProfPyqAnswerWithProvider } from "@/ai/flows/ai-profpyq-answer-
 import { generateProfPyqAnswerFromTextbook } from "@/ai/flows/ai-profpyq-answer-from-textbook"
 import { generateGroundedAnswer } from "@/ai/grounded-answer-generator"
 import { answerTextToHtml as knowledgeAnswerTextToHtml } from "@/ai/grounded-answer-utils"
+import { extractNotesAddendum } from "@/ai/notes-addendum-extractor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -443,6 +444,41 @@ export default function LongAnswersBulkGeneratorPage() {
               result = { answer: groundedResult.answer, provider: "Notes-based" }
               precomputedAnswerHtml = knowledgeAnswerTextToHtml(groundedResult.answer)
               usedNotes = true
+
+              // The grounded generator is allowed to fill gaps the notes don't cover with
+              // its own accurate medical knowledge - catch whatever it added here and fold
+              // it back into the matching topic's notes, so that knowledge becomes a
+              // permanent part of the student's notes instead of only ever existing inside
+              // this one generated answer. Best-effort: never lets a failure here affect
+              // the answer that was already generated and saved.
+              try {
+                const additions = await extractNotesAddendum(item.question, groundedResult.answer, matchedNotes.topics || [], subjectName)
+                if (additions.length > 0) {
+                  let notesChanged = false
+                  const updatedTopics = (matchedNotes.topics || []).map((t: any) => {
+                    const match = additions.find((a) => a.topicName.trim().toLowerCase() === (t.name || '').trim().toLowerCase())
+                    if (match) {
+                      notesChanged = true
+                      return { ...t, markdown: `${t.markdown}\n\n${match.additionMarkdown}`.trim() }
+                    }
+                    return t
+                  })
+                  if (notesChanged) {
+                    matchedNotes.topics = updatedTopics
+                    // Keep the in-memory cache in sync too, so later questions in this
+                    // same run see the enrichment instead of re-adding the same fact.
+                    const cachedList = notesCacheRef.current[item.subjectId]
+                    if (cachedList) {
+                      const idx = cachedList.findIndex((n: any) => n.id === matchedNotes.id)
+                      if (idx >= 0) cachedList[idx] = matchedNotes
+                    }
+                    await setDoc(doc(db!, 'subjects', item.subjectId, 'textNotes', matchedNotes.id), { topics: updatedTopics, updatedAt: serverTimestamp() }, { merge: true })
+                  }
+                }
+              } catch {
+                // Notes enrichment is best-effort - the answer above is already generated
+                // and will still be saved normally even if this step fails.
+              }
             }
           }
         } catch {
