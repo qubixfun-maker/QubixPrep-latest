@@ -115,7 +115,10 @@
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-primary/50;
 }
-/* Long Answers (essay Q&A) content styling - shared between admin preview and student-facing pages */
+/* Long Answers (essay Q&A) content styling - shared between admin preview and student-facing
+   pages. Deliberately matches the Notes prose look (primary-colored headers, plain bold text,
+   same connected-circle "flowchart" treatment for numbered steps) instead of its own separate
+   accent-colored decoration scheme, so long answers and notes read as one consistent system. */
 .qa-item {
   border-radius: 0 1rem 1rem 0;
   border-left: 3px solid hsl(var(--accent));
@@ -142,101 +145,94 @@
   margin-top: 0.35rem;
 }
 .qa-answer {
-  font-size: 0.875rem;
-  line-height: 1.7;
+  font-size: 0.9rem;
+  line-height: 1.75;
   color: hsl(var(--foreground) / 0.9);
 }
 .qa-answer h4 {
   font-weight: 700;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: hsl(var(--accent));
-  margin-top: 1rem;
-  margin-bottom: 0.4rem;
+  font-size: 1.05rem;
+  color: hsl(var(--primary));
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
 }
 .qa-answer h4:first-child {
   margin-top: 0;
 }
 .qa-answer p {
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.75rem;
 }
 .qa-answer strong {
-  color: hsl(var(--accent));
+  color: hsl(var(--foreground));
   font-weight: 700;
 }
-.qa-answer > ul,
-.qa-answer li > p + ul {
+/* Plain bulleted lists - same marker color as Notes */
+.qa-answer ul {
+  list-style: disc;
+  margin: 0.5rem 0 0.75rem 1.25rem;
+}
+.qa-answer ul li {
+  margin-bottom: 0.35rem;
+}
+.qa-answer ul li::marker {
+  color: hsl(var(--primary));
+}
+/* Numbered/step lists - the same connected-circle "flowchart" treatment used in Notes */
+.qa-answer ol {
   list-style: none;
-  margin: 0.6rem 0 0.75rem;
   padding: 0;
-  counter-reset: qa-counter;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  margin: 0.6rem 0 0.75rem;
+  counter-reset: qa-step;
 }
-.qa-answer > ul > li {
+.qa-answer ol li {
   position: relative;
-  padding-left: 2rem;
-  margin-bottom: 0;
-  counter-increment: qa-counter;
+  padding-left: 2.25rem;
+  padding-bottom: 1.15rem;
+  margin-left: 0.75rem;
+  border-left: 2px solid hsl(var(--primary) / 0.3);
+  counter-increment: qa-step;
 }
-.qa-answer > ul > li::before {
-  content: counter(qa-counter);
+.qa-answer ol li:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+.qa-answer ol li::before {
+  content: counter(qa-step);
   position: absolute;
-  left: 0;
-  top: 0.05rem;
-  width: 1.35rem;
-  height: 1.35rem;
+  left: -13px;
+  top: 0;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   font-size: 0.7rem;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.qa-answer li ul {
-  list-style: none;
-  margin: 0.4rem 0 0 0;
-  padding: 0;
-  counter-reset: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-.qa-answer li ul li {
-  position: relative;
-  padding-left: 1.1rem;
-  font-size: 0.85rem;
-  color: hsl(var(--muted-foreground));
-}
-.qa-answer li ul li::before {
-  content: "\2022";
-  position: absolute;
-  left: 0;
-  color: hsl(var(--muted-foreground));
-}
-.qa-answer ol {
-  margin: 0.4rem 0 0.6rem 1.25rem;
-}
-.qa-answer ol li::marker {
-  color: hsl(var(--accent));
-  font-weight: 700;
-}
-.qa-answer ol li {
-  margin-bottom: 0.35rem;
-}
 .qa-answer table {
   width: 100%;
   border-collapse: collapse;
-  margin: 0.6rem 0;
-  font-size: 0.8rem;
-}
-.qa-answer th, .qa-answer td {
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
   border: 1px solid hsl(var(--border));
-  padding: 0.4rem 0.6rem;
+}
+.qa-answer thead {
+  border-bottom: 1px solid hsl(var(--border));
+}
+.qa-answer th {
+  background: hsl(var(--foreground) / 0.05);
+  color: hsl(var(--foreground));
+  font-weight: 700;
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+}
+.qa-answer td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.6rem;
   text-align: left;
 }
 .qa-answer img {
@@ -244,129 +240,3 @@
   border-radius: 0.5rem;
   margin: 0.5rem 0;
 }
-
-/* Classification tree (e.g. Cell Injury -> Reversible/Irreversible -> Necrosis/Apoptosis) */
-.qa-tree {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  margin: 1rem 0;
-}
-.qa-tree-node {
-  background: hsl(var(--accent) / 0.15);
-  color: hsl(var(--accent));
-  border-radius: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-align: center;
-}
-.qa-tree-connector {
-  width: 2px;
-  height: 1rem;
-  background: hsl(var(--accent) / 0.4);
-}
-.qa-tree-branch {
-  display: flex;
-  gap: 2rem;
-  justify-content: center;
-  flex-wrap: wrap;
-  position: relative;
-  padding-top: 1rem;
-}
-.qa-tree-branch::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 25%;
-  right: 25%;
-  height: 2px;
-  background: hsl(var(--accent) / 0.4);
-}
-.qa-tree-child {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-  flex: 1;
-  min-width: 140px;
-  position: relative;
-}
-.qa-tree-child::before {
-  content: "";
-  position: absolute;
-  top: -1rem;
-  left: 50%;
-  width: 2px;
-  height: 1rem;
-  background: hsl(var(--accent) / 0.4);
-}
-.qa-tree-desc {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: hsl(var(--muted-foreground));
-  text-align: center;
-  max-width: 200px;
-}
-
-/* Summary/conclusion callout box */
-.qa-callout {
-  background: hsl(var(--accent) / 0.08);
-  border: 1px dashed hsl(var(--accent) / 0.4);
-  border-radius: 0.75rem;
-  padding: 0.9rem 1.1rem;
-  margin: 1rem 0 0.5rem;
-  font-size: 0.85rem;
-  font-style: italic;
-  color: hsl(var(--foreground) / 0.85);
-}
-
-/* Mechanism chain paragraphs - bold terms become connected box/chip shapes */
-.qa-chain {
-  line-height: 2.6;
-  margin: 0.85rem 0;
-}
-.qa-chain strong {
-  background: hsl(var(--accent) / 0.15);
-  color: hsl(var(--accent));
-  padding: 0.3rem 0.75rem;
-  border-radius: 0.5rem;
-  font-weight: 700;
-  display: inline-block;
-  margin: 0.15rem 0.1rem;
-  white-space: nowrap;
-}
-
-/* Two-tone accent-border section cards for long-answer content */
-.qa-section {
-  border-radius: 0.875rem;
-  padding: 1rem 1.1rem;
-  background: hsl(var(--card) / 0.5);
-  border-top: 3px solid;
-  border-left: 3px solid;
-}
-.qa-section h4 {
-  font-weight: 700;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin: 0 0 0.5rem;
-}
-.qa-section .qa-answer {
-  font-size: 0.875rem;
-}
-.qa-section .qa-answer p:first-child {
-  margin-top: 0;
-}
-.qa-section .qa-answer p:last-child {
-  margin-bottom: 0;
-}
-.qa-section-c1 { border-top-color: hsl(0 0% 90%); border-left-color: hsl(210 55% 85%); }
-.qa-section-c1 h4 { color: hsl(210 60% 78%); }
-.qa-section-c2 { border-top-color: hsl(210 55% 85%); border-left-color: hsl(165 40% 82%); }
-.qa-section-c2 h4 { color: hsl(165 45% 72%); }
-.qa-section-c3 { border-top-color: hsl(165 40% 82%); border-left-color: hsl(35 55% 84%); }
-.qa-section-c3 h4 { color: hsl(35 65% 75%); }
-.qa-section-c4 { border-top-color: hsl(35 55% 84%); border-left-color: hsl(340 45% 86%); }
-.qa-section-c4 h4 { color: hsl(340 50% 78%); }
