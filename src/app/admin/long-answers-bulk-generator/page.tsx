@@ -372,6 +372,7 @@ export default function LongAnswersBulkGeneratorPage() {
         completedCount: 0,
         failedQuestions: [],
         providerCounts: {},
+        notesEnrichedCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
@@ -399,7 +400,7 @@ export default function LongAnswersBulkGeneratorPage() {
   async function handleReset() {
     if (!confirm("Reset the job? This clears progress tracking (already-saved answers are NOT deleted).")) return
     isPausedRef.current = true
-    await updateJob({ status: "idle", queue: [], currentIndex: 0, completedCount: 0, failedQuestions: [], providerCounts: {} })
+    await updateJob({ status: "idle", queue: [], currentIndex: 0, completedCount: 0, failedQuestions: [], providerCounts: {}, notesEnrichedCount: 0 })
   }
 
   function sleep(ms: number) {
@@ -421,6 +422,8 @@ export default function LongAnswersBulkGeneratorPage() {
       const subject = subjects?.find((s: any) => s.id === item.subjectId)
       const subjectName = subject?.name || item.subjectId
       setCurrentLabel(`${subjectName} — ${item.chapterTitle} — ${item.question.slice(0, 50)}${item.question.length > 50 ? "..." : ""}`)
+
+      let notesWasEnrichedThisQuestion = false
 
       try {
         let result: { answer?: string; provider?: string; error?: string } = {}
@@ -473,6 +476,7 @@ export default function LongAnswersBulkGeneratorPage() {
                       if (idx >= 0) cachedList[idx] = matchedNotes
                     }
                     await setDoc(doc(db!, 'subjects', item.subjectId, 'textNotes', matchedNotes.id), { topics: updatedTopics, updatedAt: serverTimestamp() }, { merge: true })
+                    notesWasEnrichedThisQuestion = true
                   }
                 }
               } catch {
@@ -570,6 +574,7 @@ export default function LongAnswersBulkGeneratorPage() {
           currentIndex: i + 1,
           completedCount: increment(1),
           [`providerCounts.${result.provider || "unknown"}`]: increment(1),
+          ...(notesWasEnrichedThisQuestion ? { notesEnrichedCount: increment(1) } : {}),
           updatedAt: serverTimestamp(),
         })
       } catch (e: any) {
@@ -761,9 +766,15 @@ export default function LongAnswersBulkGeneratorPage() {
               <p className="text-sm text-center flex items-center justify-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> {currentLabel}</p>
             )}
 
-            <div className="p-3 rounded-xl glass border border-white/10 text-center">
-              <p className="text-2xl font-bold text-primary">{job.completedCount || 0}</p>
-              <p className="text-xs text-muted-foreground">Questions answered</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl glass border border-white/10 text-center">
+                <p className="text-2xl font-bold text-primary">{job.completedCount || 0}</p>
+                <p className="text-xs text-muted-foreground">Questions answered</p>
+              </div>
+              <div className="p-3 rounded-xl glass border border-emerald-500/20 text-center">
+                <p className="text-2xl font-bold text-emerald-400">{job.notesEnrichedCount || 0}</p>
+                <p className="text-xs text-muted-foreground">Notes topics enriched</p>
+              </div>
             </div>
 
             {job.providerCounts && Object.keys(job.providerCounts).length > 0 && (
