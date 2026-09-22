@@ -1,5 +1,6 @@
 'use server';
 import { callAI, callAIWithProvider } from '@/ai/genkit';
+import { allTemplatesForPrompt } from '@/ai/subject-templates';
 
 export type GenerateProfAnswerInput = {
   subject: string;
@@ -53,6 +54,11 @@ function buildPrompt(input: GenerateProfAnswerInput, elaborateFrom?: string): st
     ? `\n\nA PREVIOUS ATTEMPT AT THIS ANSWER WAS TOO SHORT AND IS REJECTED - DO NOT REPEAT IT:\n"${elaborateFrom}"\n\nWrite a genuinely more complete, elaborated answer that actually reaches the expected length for a "${input.type}" - add the missing structure/depth (relevant subheadings, mechanisms, examples, clinical correlation) rather than padding with repetition.`
     : '';
 
+  const templates = allTemplatesForPrompt(input.subject);
+  const templateBlock = templates.map((t) =>
+    `- "${t.name}": structure as [${t.sections.join(' -> ')}] - use when: ${t.description}`
+  ).join('\n');
+
   return `You are an expert medical educator writing a model answer for an Indian MBBS university professional exam ("Prof exam").
 
 Subject: ${input.subject}
@@ -62,7 +68,14 @@ Question: ${input.question}
 ${sourceBlock}
 ${elaborateBlock}
 
-Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. Use plain text with simple line breaks and dashes for lists where helpful (no markdown headers, no asterisks for bold).
+Choose the best presentation format for THIS SPECIFIC question - do not default to plain prose for every question:
+${templateBlock}
+- If the question asks to compare/differentiate/contrast two or more things, use a "Comparison Table" and render an ACTUAL Markdown table (using | pipes |), not prose describing a comparison.
+- If the question describes a clinical case/scenario, use clear "### " sub-headers for each part asked (e.g. "### Diagnosis", "### Etiopathogenesis").
+- If the question asks to describe a sequence/steps/mechanism, render an ACTUAL numbered list (1. 2. 3. ...) for the steps, not prose.
+- Otherwise use the subject's own default template, with a "### " sub-header per major part of the question.
+
+Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. Use real Markdown structure: "### " for sub-headers, real Markdown tables (| Column | Column |) for comparisons, real numbered lists (1. 2. 3.) for sequences/steps, "-" prefixed lines for plain lists, and "**bold**" for key terms.
 
 Respond with ONLY the answer text, nothing else - no preamble, no "Here is the answer", no quotation marks around it.`;
 }

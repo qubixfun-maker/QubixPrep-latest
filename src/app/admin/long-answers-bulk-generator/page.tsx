@@ -67,34 +67,6 @@ function rebuildHtml(items: QAItem[]): string {
 </div>`).join("\n")
 }
 
-function answerTextToHtml(text: string): string {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean)
-  const htmlParts: string[] = []
-  let listBuffer: string[] = []
-  function inlineFormat(s: string) {
-    return s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-  }
-  function flushList() {
-    if (listBuffer.length > 0) {
-      htmlParts.push(`<ul>${listBuffer.map((l) => `<li>${inlineFormat(l)}</li>`).join("")}</ul>`)
-      listBuffer = []
-    }
-  }
-  for (const line of lines) {
-    if (line.startsWith("## ")) {
-      flushList()
-      htmlParts.push(`<h4>${inlineFormat(line.replace(/^##\s*/, ""))}</h4>`)
-    } else if (line.startsWith("-") || line.startsWith("•")) {
-      listBuffer.push(line.replace(/^[-•]\s*/, ""))
-    } else {
-      flushList()
-      htmlParts.push(`<p>${inlineFormat(line)}</p>`)
-    }
-  }
-  flushList()
-  return htmlParts.join("\n")
-}
-
 function chapterIdFor(title: string) {
   // Strip everything except letters/digits before hyphenating - a raw title used
   // directly as both a Firestore document ID AND a URL path segment (parentheses,
@@ -545,7 +517,7 @@ export default function LongAnswersBulkGeneratorPage() {
         const existingItems = existingSnap.exists() && (existingSnap.data() as any).html
           ? parseQaItems((existingSnap.data() as any).html)
           : []
-        const newItem: QAItem = { questionHtml: item.question, answerHtml: precomputedAnswerHtml || answerTextToHtml(result.answer) }
+        const newItem: QAItem = { questionHtml: item.question, answerHtml: precomputedAnswerHtml || knowledgeAnswerTextToHtml(result.answer) }
         const combinedItems = [...existingItems, newItem]
         const finalHtml = rebuildHtml(combinedItems)
 

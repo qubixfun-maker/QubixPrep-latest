@@ -1,5 +1,6 @@
 'use server';
 import { callAIWithProvider } from '@/ai/genkit';
+import { allTemplatesForPrompt } from '@/ai/subject-templates';
 
 export type GenerateProfAnswerFromTextbookInput = {
   subject: string;
@@ -23,9 +24,9 @@ const LENGTH_GUIDE: Record<string, string> = {
 };
 
 const STRUCTURE_GUIDE: Record<string, string> = {
-  short_answer: "Use plain text with simple line breaks and dashes for lists where helpful. Use **bold** for 1-2 key terms only. No section headers needed for an answer this short.",
-  short_essay: "Structure the answer using short section headers on their own line, each prefixed with '## ' (e.g. '## Definition', '## Key features'), choosing headers relevant to the topic - skip any that don't apply to this question. Use '-' prefixed lines for lists within a section. Use **bold** for key terms and important facts.",
-  long_answer: "Structure the answer using short section headers on their own line, each prefixed with '## ' (e.g. '## Definition', '## Etiology', '## Clinical features', '## Investigations', '## Management', '## Complications'), choosing only headers relevant to this specific topic - skip any that don't apply. Use '-' prefixed lines for lists within a section. Use **bold** for key terms and important facts.",
+  short_answer: "Use plain text with simple line breaks and dashes for lists where helpful. Use **bold** for 1-2 key terms only. No section headers needed for an answer this short, unless the question compares two things - then render an ACTUAL Markdown table (| Column | Column |).",
+  short_essay: "Structure the answer using short section headers on their own line, each prefixed with '### ' (e.g. '### Definition', '### Key features'), choosing headers relevant to the topic - skip any that don't apply to this question. If the question asks to compare/differentiate two or more things, render an ACTUAL Markdown table (| Column | Column |) instead of prose. If it asks for a sequence/steps/mechanism, render an ACTUAL numbered list (1. 2. 3.). Use '-' prefixed lines for plain lists within a section. Use **bold** for key terms and important facts.",
+  long_answer: "Structure the answer using short section headers on their own line, each prefixed with '### ' (e.g. '### Definition', '### Etiology', '### Clinical features', '### Investigations', '### Management', '### Complications'), choosing only headers relevant to this specific topic - skip any that don't apply. If the question asks to compare/differentiate two or more things, render an ACTUAL Markdown table (| Column | Column |) instead of prose - never describe a comparison in prose. If it asks for a sequence/steps/mechanism, render an ACTUAL numbered list (1. 2. 3. ...) for the steps, not prose. Use '-' prefixed lines for plain lists within a section. Use **bold** for key terms and important facts.",
 };
 
 // Minimum word counts below which an answer is treated as too short and retried with
@@ -60,6 +61,11 @@ function buildPrompt(input: GenerateProfAnswerFromTextbookInput, excerpt: string
     ? `\n\nA PREVIOUS ATTEMPT WAS TOO SHORT AND IS REJECTED - DO NOT REPEAT IT:\n"${elaborateFrom}"\n\nWrite a genuinely more complete answer this time, reaching the expected length for a "${input.type}".`
     : '';
 
+  const templates = allTemplatesForPrompt(input.subject);
+  const templateBlock = templates.map((t) =>
+    `- "${t.name}": structure as [${t.sections.join(' -> ')}] - use when: ${t.description}`
+  ).join('\n');
+
   return `You are answering an exam question for a medical student, using the textbook excerpt below as your PRIMARY source.
 
 Subject: ${input.subject}
@@ -74,6 +80,12 @@ ${elaborateBlock}
 GROUNDING RULES:
 - Prioritize and prefer facts stated in the excerpt above - use its wording, emphasis, and specific details wherever it covers the question.
 - The excerpt is a full chapter, so it likely covers this specific question only briefly among much other content. If the excerpt's treatment of THIS SPECIFIC QUESTION is thin, elaborate using standard, well-established medical knowledge for the topic so the answer still reaches the expected length and depth below - do not write a thin answer just because the excerpt's coverage of this one question is thin. Never contradict the excerpt; only add accepted supplementary detail where it is genuinely sparse.
+
+PRESENTATION FORMAT - choose the best fit for THIS SPECIFIC question rather than defaulting to plain prose:
+${templateBlock}
+- If the question asks to compare/differentiate/contrast two or more things, use a "Comparison Table" and render an ACTUAL Markdown table (| Column | Column |).
+- If the question describes a clinical case/scenario, use clear "### " sub-headers for each part asked.
+- If the question asks to describe a sequence/steps/mechanism, render an ACTUAL numbered list (1. 2. 3. ...) for the steps, not prose.
 
 Write ${LENGTH_GUIDE[input.type] || LENGTH_GUIDE.short_answer}. ${STRUCTURE_GUIDE[input.type] || STRUCTURE_GUIDE.short_answer}
 
