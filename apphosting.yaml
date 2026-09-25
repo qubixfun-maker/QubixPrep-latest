@@ -2,6 +2,16 @@
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
-  maxInstances: 1
+  # Cloud Run instance sizing. 1 vCPU / 1GiB is plenty for this app and
+  # stays comfortably inside Cloud Run's always-free monthly quota.
+  cpu: 1
+  memoryMiB: 1024
+  # Timeout for a single request - matches the longest maxDuration used
+  # by your AI generation API routes (300s).
+  timeoutSeconds: 300
+  # Keep this at 0 so no instance runs (and no cost accrues) when nobody
+  # is using the site. Firebase spins one up on the next request.
+  minInstances: 0
+  # Cap how many instances can run at once - keeps cost bounded while
+  # you're on a free/no-budget setup.
+  maxInstances: 2
