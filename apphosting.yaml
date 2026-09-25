@@ -67,42 +67,6 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: NX_DAEMON
-    secret: NX_DAEMON
-    availability:
-      - RUNTIME
-  - variable: TURBO_CACHE
-    secret: TURBO_CACHE
-    availability:
-      - RUNTIME
-  - variable: TURBO_DOWNLOAD_LOCAL_ENABLED
-    secret: TURBO_DOWNLOAD_LOCAL_ENABLED
-    availability:
-      - RUNTIME
-  - variable: TURBO_REMOTE_ONLY
-    secret: TURBO_REMOTE_ONLY
-    availability:
-      - RUNTIME
-  - variable: TURBO_RUN_SUMMARY
-    secret: TURBO_RUN_SUMMARY
-    availability:
-      - RUNTIME
-  - variable: VERCEL
-    secret: VERCEL
-    availability:
-      - RUNTIME
-  - variable: VERCEL_ENV
-    secret: VERCEL_ENV
-    availability:
-      - RUNTIME
-  - variable: VERCEL_OIDC_TOKEN
-    secret: VERCEL_OIDC_TOKEN
-    availability:
-      - RUNTIME
-  - variable: VERCEL_TARGET_ENV
-    secret: VERCEL_TARGET_ENV
-    availability:
-      - RUNTIME
   - variable: GROQ_API_KEY
     secret: GROQ_API_KEY
     availability:
@@ -165,10 +129,6 @@ env:
       - RUNTIME
   - variable: ADMIN_BULK_SECRET
     secret: ADMIN_BULK_SECRET
-    availability:
-      - RUNTIME
-  - variable: GOOGLE_SERVICE_ACCOUNT_KEY_B64
-    secret: GOOGLE_SERVICE_ACCOUNT_KEY_B64
     availability:
       - RUNTIME
   - variable: GOOGLE_SERVICE_ACCOUNT_KEY_B64
