@@ -50,7 +50,12 @@ function getStaticProviders(): Provider[] {
 let cachedVertexToken: { token: string; expiresAt: number } | null = null
 
 async function getVertexAccessToken(): Promise<string | null> {
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+  // Accept either the raw JSON key (GOOGLE_SERVICE_ACCOUNT_KEY) or a base64-encoded
+  // version (GOOGLE_SERVICE_ACCOUNT_KEY_B64) - the base64 form avoids shell/dashboard
+  // quote-escaping issues when pasting a multi-line JSON key into an env var.
+  const rawKeyDirect = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
+  const rawKeyB64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_B64
+  const rawKey = rawKeyDirect || (rawKeyB64 ? Buffer.from(rawKeyB64, 'base64').toString('utf8') : undefined)
   if (!rawKey) return null
 
   if (cachedVertexToken && cachedVertexToken.expiresAt > Date.now() + 60_000) {

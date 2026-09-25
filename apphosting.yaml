@@ -15,3 +15,163 @@ runConfig:
   # Cap how many instances can run at once - keeps cost bounded while
   # you're on a free/no-budget setup.
   maxInstances: 2
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyCiMGWhYrtZw6VAX6GSFSqMXtD7HKBkqyM"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "qubixprep-latest.firebaseapp.com"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "qubixprep-latest"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "qubixprep-latest.firebasestorage.app"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "495147100790"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:495147100790:web:0eaffad3457819118dcd57"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: "G-JCZC694ZL0"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SUPABASE_URL
+    value: "https://brchhyvacvwnfjpqokvj.supabase.co"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJyY2hoeXZhY3Z3bmZqcHFva3ZqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MzYyNjIsImV4cCI6MjA5NjMxMjI2Mn0.Ow0U_W6JmDNRLxGOfk0A1Mu_8h7Z6YclO937WVcSbQk"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_RAZORPAY_KEY_ID
+    value: "rzp_live_T34J79TTt2biVQ"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NX_DAEMON
+    secret: NX_DAEMON
+    availability:
+      - RUNTIME
+  - variable: TURBO_CACHE
+    secret: TURBO_CACHE
+    availability:
+      - RUNTIME
+  - variable: TURBO_DOWNLOAD_LOCAL_ENABLED
+    secret: TURBO_DOWNLOAD_LOCAL_ENABLED
+    availability:
+      - RUNTIME
+  - variable: TURBO_REMOTE_ONLY
+    secret: TURBO_REMOTE_ONLY
+    availability:
+      - RUNTIME
+  - variable: TURBO_RUN_SUMMARY
+    secret: TURBO_RUN_SUMMARY
+    availability:
+      - RUNTIME
+  - variable: VERCEL
+    secret: VERCEL
+    availability:
+      - RUNTIME
+  - variable: VERCEL_ENV
+    secret: VERCEL_ENV
+    availability:
+      - RUNTIME
+  - variable: VERCEL_OIDC_TOKEN
+    secret: VERCEL_OIDC_TOKEN
+    availability:
+      - RUNTIME
+  - variable: VERCEL_TARGET_ENV
+    secret: VERCEL_TARGET_ENV
+    availability:
+      - RUNTIME
+  - variable: GROQ_API_KEY
+    secret: GROQ_API_KEY
+    availability:
+      - RUNTIME
+  - variable: RAZORPAY_KEY_ID
+    secret: RAZORPAY_KEY_ID
+    availability:
+      - RUNTIME
+  - variable: RAZORPAY_KEY_SECRET
+    secret: RAZORPAY_KEY_SECRET
+    availability:
+      - RUNTIME
+  - variable: FIREBASE_ADMIN_PROJECT_ID
+    secret: FIREBASE_ADMIN_PROJECT_ID
+    availability:
+      - RUNTIME
+  - variable: FIREBASE_ADMIN_CLIENT_EMAIL
+    secret: FIREBASE_ADMIN_CLIENT_EMAIL
+    availability:
+      - RUNTIME
+  - variable: FIREBASE_ADMIN_PRIVATE_KEY
+    secret: FIREBASE_ADMIN_PRIVATE_KEY
+    availability:
+      - RUNTIME
+  - variable: FIREBASE_SERVICE_ACCOUNT_JSON
+    secret: FIREBASE_SERVICE_ACCOUNT_JSON
+    availability:
+      - RUNTIME
+  - variable: RAZORPAY_WEBHOOK_SECRET
+    secret: RAZORPAY_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+  - variable: CEREBRAS_API_KEY
+    secret: CEREBRAS_API_KEY
+    availability:
+      - RUNTIME
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME
+  - variable: MISTRAL_API_KEY
+    secret: MISTRAL_API_KEY
+    availability:
+      - RUNTIME
+  - variable: OPENROUTER_API_KEY
+    secret: OPENROUTER_API_KEY
+    availability:
+      - RUNTIME
+  - variable: NEON_DATABASE_URL
+    secret: NEON_DATABASE_URL
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_CLOUD_PROJECT_ID
+    secret: GOOGLE_CLOUD_PROJECT_ID
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_CLOUD_LOCATION
+    secret: GOOGLE_CLOUD_LOCATION
+    availability:
+      - RUNTIME
+  - variable: ADMIN_BULK_SECRET
+    secret: ADMIN_BULK_SECRET
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_SERVICE_ACCOUNT_KEY_B64
+    secret: GOOGLE_SERVICE_ACCOUNT_KEY_B64
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_SERVICE_ACCOUNT_KEY_B64
+    secret: GOOGLE_SERVICE_ACCOUNT_KEY_B64
+    availability:
+      - RUNTIME
