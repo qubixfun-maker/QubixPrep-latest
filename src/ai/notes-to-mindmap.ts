@@ -205,12 +205,13 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
 // branches are structured organization/extraction, not frontier reasoning, and the
 // pricier model was driving most of the per-subject AI cost for this feature.
 const MINDMAP_MODEL = 'gemini-2.5-pro';
-// Disables the model's invisible internal "thinking" pass before it writes the
-// visible answer - that thinking still takes real wall-clock time even when the
-// visible output is short, and this task (organizing notes into a tree) doesn't
-// need deliberate reasoning. This does NOT reduce the output token ceiling below,
-// so full-depth topics still have all 8000 tokens of room to write their answer.
-const MINDMAP_THINKING_BUDGET = 0;
+// Left undefined (rather than 0) so the model uses its own default dynamic
+// thinking budget instead of skipping the internal reasoning pass entirely -
+// disabling thinking turned out to also shrink how deep gemini-2.5-pro actually
+// went on genuinely deep topics, even with a prompt explicitly asking for full
+// textbook depth. Cost/speed still comes from pinning the model itself below
+// (avoiding the pricier gemini-3.1-pro-preview), not from suppressing thinking.
+const MINDMAP_THINKING_BUDGET = undefined;
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
   if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens, MINDMAP_MODEL, MINDMAP_THINKING_BUDGET);
