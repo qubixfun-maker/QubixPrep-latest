@@ -173,7 +173,7 @@ async function runBranchExtraction(prompt: string, forceVertex?: boolean): Promi
     let lastError = 'Unknown error extracting branches';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 4000, forceVertex);
+        const { content: raw } = await callAIWithProvider([{ role: 'user', content: prompt }], 4000, forceVertex, 'gemini-2.5-pro', 0);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);
@@ -264,7 +264,7 @@ async function runBranchDetail(prompt: string, branchName: string, forceVertex?:
     let lastError = 'Unknown error generating branch detail';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000, forceVertex);
+        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000, forceVertex, 'gemini-2.5-pro', 0);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);

@@ -226,9 +226,11 @@ export async function callAI(
 export async function callAIWithProvider(
   messages: { role: "user" | "assistant" | "system"; content: string }[],
   maxTokens: number = 2000,
-  forceVertex: boolean = false
+  forceVertex: boolean = false,
+  modelOverride?: string,
+  thinkingBudget?: number
 ): Promise<{ content: string; provider: string }> {
-  return callGeminiNative(messages, maxTokens)
+  return callGeminiNative(messages, maxTokens, thinkingBudget, modelOverride)
 }
 
 // Calls Vertex AI only, with no fallback to other providers. Used for bulk generation
@@ -291,9 +293,11 @@ async function ensureVertexCredentialsFile(rawKey: string): Promise<string> {
 // that pass useClaude: true keep working, just served by Gemini now.
 export async function callClaudeOnly(
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
-  maxTokens: number = 2000
+  maxTokens: number = 2000,
+  modelOverride?: string,
+  thinkingBudget?: number
 ): Promise<{ content: string; provider: string }> {
-  return callGeminiNative(messages, maxTokens)
+  return callGeminiNative(messages, maxTokens, thinkingBudget, modelOverride)
 }
 
 // Calls Gemini via Vertex AI, authenticated with a service account JSON key
@@ -332,8 +336,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function callGeminiNativeWithFallback(body: any): Promise<{ content: string; provider: string }> {
-  const candidates = geminiModelCandidates()
+async function callGeminiNativeWithFallback(body: any, modelOverride?: string): Promise<{ content: string; provider: string }> {
+  const candidates = modelOverride ? [modelOverride] : geminiModelCandidates()
   let lastError = ''
 
   for (const model of candidates) {
@@ -377,7 +381,8 @@ async function callGeminiNativeWithFallback(body: any): Promise<{ content: strin
 export async function callGeminiNative(
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   maxTokens: number = 2000,
-  thinkingBudget?: number
+  thinkingBudget?: number,
+  modelOverride?: string
 ): Promise<{ content: string; provider: string }> {
   // Gemini's native API uses "model" (not "assistant") for the assistant role, and
   // system prompts go in a separate top-level field, not the contents array.
@@ -400,7 +405,7 @@ export async function callGeminiNative(
     contents,
     ...(systemParts.length ? { systemInstruction: { parts: [{ text: systemParts.join('\n\n') }] } } : {}),
     generationConfig,
-  })
+  }, modelOverride)
 }
 
 // Same Vertex auth as callGeminiNative, but accepts one or more files (base64-encoded,

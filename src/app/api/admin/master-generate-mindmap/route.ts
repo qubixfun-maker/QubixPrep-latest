@@ -15,7 +15,7 @@ import { generateMindmapFromNotes } from '@/ai/notes-to-mindmap'
  */
 export async function POST(req: NextRequest) {
   try {
-    const { idToken, subjectId, textbookId, chapterId, chapterTitle, useGeminiNative, useClaude } = await req.json()
+    const { idToken, subjectId, textbookId, chapterId, chapterTitle, useGeminiNative, useClaude, force } = await req.json()
 
     if (!idToken || !subjectId || !textbookId || !chapterId) {
       return NextResponse.json({ error: 'Missing idToken, subjectId, textbookId, or chapterId.' }, { status: 400 })
@@ -30,6 +30,22 @@ export async function POST(req: NextRequest) {
     }
 
     const docKey = `${textbookId}__${chapterId}`
+
+    // Idempotency guard: a chapter's mindmap is a real AI-billed generation (many
+    // Gemini calls, one per top-level topic). Without this check, re-running a job
+    // whose Firestore progress got reset (a retry-failed click, a fresh job that
+    // happens to include an already-done chapter, a stuck "running" job resumed from
+    // scratch) silently regenerates - and re-bills - chapters that already have a
+    // perfectly good saved mindmap. Skip unless the caller explicitly passes force:true.
+    const mmId = `${docKey}-mindmap`
+    if (!force) {
+      const existing = await db.collection('subjects').doc(subjectId).collection('mindmaps').doc(mmId).get()
+      if (existing.exists) {
+        const existingData = existing.data() as any
+        return NextResponse.json({ success: true, skipped: true, branchCount: existingData?.data?.branches?.length || 0 })
+      }
+    }
+
     const notesDoc = await db.collection('subjects').doc(subjectId).collection('textNotes').doc(docKey).get()
     if (!notesDoc.exists) {
       return NextResponse.json({ error: `No notes found for this chapter. Run Notes Bulk Generator first.` }, { status: 404 })
@@ -43,7 +59,6 @@ export async function POST(req: NextRequest) {
 
     const mindmapData = await generateMindmapFromNotes(notes.topics, centralTopic, subjectName, { useGeminiNative: !!useGeminiNative, useClaude: !!useClaude })
 
-    const mmId = `${docKey}-mindmap`
     await db.collection('subjects').doc(subjectId).collection('mindmaps').doc(mmId).set({
       id: mmId,
       subjectId,

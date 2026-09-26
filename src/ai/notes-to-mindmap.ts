@@ -166,11 +166,11 @@ Below are this topic's already-written revision notes. Use them ONLY as a REFERE
 EXISTING NOTES FOR THIS TOPIC (reference only):
 ${referenceMarkdown}
 
-TASK: Produce the full recursive sub-tree for the topic "${node.name}" - the same depth and completeness you would produce if you were building this branch directly from a standard textbook chapter, not just summarizing the notes above.
+TASK: Produce a well-organized sub-tree for the topic "${node.name}", typically about 3 levels deep (main sub-categories, their key points, and specific exam-ready facts) - focused and exam-relevant rather than an exhaustive textbook transcription.
 
 STRUCTURE GUIDANCE:
 - Derive natural organizing sub-categories the way a standard textbook itself would structure this topic - do not force a fixed template, since different subjects and topics organize differently. For example, a pathology disease entry often naturally breaks into etiology / pathogenesis / morphology / clinical features / complications / investigations; a pharmacology drug entry often naturally breaks into mechanism of action / pharmacokinetics / adverse effects / clinical uses / contraindications; an anatomy structure often naturally breaks into origin / insertion / nerve supply / blood supply / clinical correlation. These are illustrative, not mandatory - follow whatever structure is standard for this actual topic and subject.
-- Go as deep as a standard Indian MBBS textbook genuinely covers this topic - multiple levels of nesting are expected for any topic with real depth, not just one flat layer of facts.
+- Aim for about 3 levels of nesting for topics with real depth (fewer for simpler ones) - enough for genuinely useful exam revision without turning into an exhaustive textbook transcription.
 - Leaves (deepest nodes, no further branches) should be concrete, exam-ready facts.
 
 CRITICAL - NAMED EPONYMS AND SPECIFIC TERMS: Wherever a specific eponym, sign, cell type, test, staging system, classification, or other precise term is relevant to this branch, give it its own leaf node using that exact name - do not paraphrase it away.
@@ -200,10 +200,22 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
 }`;
 }
 
+// Mindmap generation is pinned to gemini-2.5-pro specifically (not the app-wide
+// fallback chain, which tries the pricier gemini-3.1-pro-preview first) - mindmap
+// branches are structured organization/extraction, not frontier reasoning, and the
+// pricier model was driving most of the per-subject AI cost for this feature.
+const MINDMAP_MODEL = 'gemini-2.5-pro';
+// Disables the model's invisible internal "thinking" pass before it writes the
+// visible answer - that thinking still takes real wall-clock time even when the
+// visible output is short, and this task (organizing notes into a tree) doesn't
+// need deliberate reasoning. This does NOT reduce the output token ceiling below,
+// so full-depth topics still have all 8000 tokens of room to write their answer.
+const MINDMAP_THINKING_BUDGET = 0;
+
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
-  if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens);
-  if (useGeminiNative) return callGeminiNative([{ role: 'user', content: prompt }], maxTokens);
-  return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex);
+  if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens, MINDMAP_MODEL, MINDMAP_THINKING_BUDGET);
+  if (useGeminiNative) return callGeminiNative([{ role: 'user', content: prompt }], maxTokens, MINDMAP_THINKING_BUDGET, MINDMAP_MODEL);
+  return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex, MINDMAP_MODEL, MINDMAP_THINKING_BUDGET);
 }
 
 function sleep(ms: number) {
@@ -242,8 +254,10 @@ async function generateOneNode(
     try {
       // A small fixed pace before every call, on top of the backoff below for
       // actual 429s - important here since branches run with concurrency, so
-      // several of these can otherwise fire at once.
-      await sleep(1000);
+      // several of these can otherwise fire at once. Shortened from 1000ms now that
+      // generation is pinned to one model (gemini-2.5-pro) with its own quota bucket,
+      // rather than potentially cycling across several models under load.
+      await sleep(300);
       const { content: raw } = await callModel(prompt, MAX_TOKENS, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
       const parsed = tryParseNode(raw || '');
       if (parsed) { result = parsed; break; }
@@ -272,7 +286,11 @@ async function generateOneNode(
   return { ...result, name: node.name };
 }
 
-const TOP_LEVEL_CONCURRENCY = 2; // lowered from 3 - fewer simultaneous Vertex calls means a burst is less likely to trip the per-minute quota
+// Raised from 2 now that generation is pinned to a single model (gemini-2.5-pro)
+// with its own dedicated quota bucket, instead of potentially cycling across several
+// models under load - more simultaneous branches means less total wall-clock time
+// per chapter, with the same per-call 429 backoff/retry logic still in place.
+const TOP_LEVEL_CONCURRENCY = 5;
 
 export async function generateMindmapFromNotes(
   notesTopics: NotesTopic[],
