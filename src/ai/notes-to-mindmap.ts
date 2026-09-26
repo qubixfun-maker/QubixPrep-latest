@@ -166,11 +166,11 @@ Below are this topic's already-written revision notes. Use them ONLY as a REFERE
 EXISTING NOTES FOR THIS TOPIC (reference only):
 ${referenceMarkdown}
 
-TASK: Produce a well-organized sub-tree for the topic "${node.name}", typically about 3 levels deep (main sub-categories, their key points, and specific exam-ready facts) - focused and exam-relevant rather than an exhaustive textbook transcription.
+TASK: Produce the full recursive sub-tree for the topic "${node.name}" - the same depth and completeness you would produce if you were building this branch directly from a standard textbook chapter, not just summarizing the notes above.
 
 STRUCTURE GUIDANCE:
 - Derive natural organizing sub-categories the way a standard textbook itself would structure this topic - do not force a fixed template, since different subjects and topics organize differently. For example, a pathology disease entry often naturally breaks into etiology / pathogenesis / morphology / clinical features / complications / investigations; a pharmacology drug entry often naturally breaks into mechanism of action / pharmacokinetics / adverse effects / clinical uses / contraindications; an anatomy structure often naturally breaks into origin / insertion / nerve supply / blood supply / clinical correlation. These are illustrative, not mandatory - follow whatever structure is standard for this actual topic and subject.
-- Aim for about 3 levels of nesting for topics with real depth (fewer for simpler ones) - enough for genuinely useful exam revision without turning into an exhaustive textbook transcription.
+- Go as deep as a standard Indian MBBS textbook genuinely covers this topic - multiple levels of nesting are expected for any topic with real depth, not just one flat layer of facts.
 - Leaves (deepest nodes, no further branches) should be concrete, exam-ready facts.
 
 CRITICAL - NAMED EPONYMS AND SPECIFIC TERMS: Wherever a specific eponym, sign, cell type, test, staging system, classification, or other precise term is relevant to this branch, give it its own leaf node using that exact name - do not paraphrase it away.
