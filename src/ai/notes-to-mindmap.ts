@@ -241,10 +241,11 @@ async function generateOneNode(
   subjectName: string,
   startTime: number,
   options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
-): Promise<MindmapNode> {
+): Promise<{ node: MindmapNode; provider?: string }> {
   const prompt = buildPrompt(node, subjectName);
   const MAX_ATTEMPTS = 3;
   let result: MindmapNode | null = null;
+  let provider: string | undefined;
   let consecutiveRateLimitHits = 0;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -254,9 +255,9 @@ async function generateOneNode(
       // actual 429s - important here since branches run with concurrency, so
       // several of these can otherwise fire at once.
       await sleep(1000);
-      const { content: raw } = await callModel(prompt, MAX_TOKENS, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
+      const { content: raw, provider: usedProvider } = await callModel(prompt, MAX_TOKENS, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
       const parsed = tryParseNode(raw || '');
-      if (parsed) { result = parsed; break; }
+      if (parsed) { result = parsed; provider = usedProvider; break; }
       consecutiveRateLimitHits = 0;
     } catch (err: any) {
       if (isRateLimitError(err?.message)) {
@@ -274,12 +275,12 @@ async function generateOneNode(
   if (!result) {
     // Graceful fallback: use the raw notes markdown directly rather than losing this
     // branch entirely if the AI generation failed after retries.
-    return { name: node.name, examples: node.markdown.slice(0, 300) };
+    return { node: { name: node.name, examples: node.markdown.slice(0, 300) }, provider: 'FALLBACK (no AI response)' };
   }
 
   // Always keep our own node name (from the notes topic list) as the source of truth,
   // in case the model didn't echo it back exactly.
-  return { ...result, name: node.name };
+  return { node: { ...result, name: node.name }, provider };
 }
 
 const TOP_LEVEL_CONCURRENCY = 2; // lowered from 3 - fewer simultaneous Vertex calls means a burst is less likely to trip the per-minute quota
@@ -289,9 +290,10 @@ export async function generateMindmapFromNotes(
   centralTopic: string,
   subjectName: string,
   options?: { useClaude?: boolean; useGeminiNative?: boolean; forceVertex?: boolean }
-): Promise<{ centralTopic: string; branches: MindmapNode[] }> {
+): Promise<{ centralTopic: string; branches: MindmapNode[]; providers: (string | undefined)[] }> {
   const hierarchy = reconstructHierarchy(notesTopics);
   const branches: MindmapNode[] = new Array(hierarchy.length);
+  const providers: (string | undefined)[] = new Array(hierarchy.length);
   const startTime = Date.now();
   let nextIndex = 0;
   async function worker() {
@@ -299,7 +301,9 @@ export async function generateMindmapFromNotes(
       if (Date.now() - startTime > DEADLINE_MS) return; // shared budget spent - stop picking up new branches
       const i = nextIndex++;
       if (i >= hierarchy.length) return;
-      branches[i] = await generateOneNode(hierarchy[i], subjectName, startTime, options);
+      const { node: generated, provider } = await generateOneNode(hierarchy[i], subjectName, startTime, options);
+      branches[i] = generated;
+      providers[i] = provider;
     }
   }
   await Promise.all(Array.from({ length: Math.min(TOP_LEVEL_CONCURRENCY, hierarchy.length) }, () => worker()));
@@ -313,9 +317,10 @@ export async function generateMindmapFromNotes(
   for (let i = 0; i < branches.length; i++) {
     if (!branches[i]) {
       branches[i] = { name: hierarchy[i].name, examples: hierarchy[i].markdown.slice(0, 300) };
+      providers[i] = 'FALLBACK (deadline exceeded, never attempted)';
     }
   }
-  return { centralTopic, branches };
+  return { centralTopic, branches, providers };
 }
 
 /** Recursively finds one hierarchy node by name. */
@@ -343,5 +348,6 @@ export async function generateMindmapNodeForTopicNameFromNotes(
   const hierarchy = reconstructHierarchy(notesTopics);
   const node = findNodeByName(hierarchy, topicName);
   if (!node) return null;
-  return generateOneNode(node, subjectName, Date.now(), options);
+  const { node: generated } = await generateOneNode(node, subjectName, Date.now(), options);
+  return generated;
 }

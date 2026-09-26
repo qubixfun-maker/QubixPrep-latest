@@ -66,11 +66,16 @@ export async function POST(req: NextRequest) {
       order: Date.now(),
       title: chapterTitle || notes.chapterTitle,
       type: 'radial',
-      data: mindmapData,
+      data: { centralTopic: mindmapData.centralTopic, branches: mindmapData.branches },
       tier: 'free',
       textbookId,
       chapterId,
       createdAt: new Date().toISOString(),
+      // Temporary debug field - which AI provider/model actually answered each
+      // top-level branch, so we can tell a real depth regression (frontier model
+      // failing over to a weaker one) from a prompt/config issue without digging
+      // through Cloud Run logs. Safe to remove once mindmap depth is confirmed fixed.
+      debugProviders: mindmapData.providers,
     })
 
     return NextResponse.json({ success: true, branchCount: mindmapData.branches.length })
