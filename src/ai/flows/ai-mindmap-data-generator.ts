@@ -264,7 +264,12 @@ async function runBranchDetail(prompt: string, branchName: string, forceVertex?:
     let lastError = 'Unknown error generating branch detail';
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000, forceVertex, 'gemini-2.5-pro', 0);
+        // Was pinned to gemini-2.5-pro with thinking disabled to save cost, but that
+        // combination reliably produced near-flat trees (depth ~2) instead of the deep
+        // recursive tree this call is supposed to produce - same regression confirmed
+        // in notes-to-mindmap.ts's equivalent call. Left on the normal fallback chain
+        // (gemini-3.1-pro-preview first) since this is the step that needs real depth.
+        const { content: raw, provider } = await callAIWithProvider([{ role: 'user', content: prompt }], 8000, forceVertex);
         if (!raw) { lastError = 'Empty response from AI model'; continue; }
 
         const parsed = tryParseJson(raw);

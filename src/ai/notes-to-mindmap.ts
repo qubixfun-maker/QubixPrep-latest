@@ -200,17 +200,14 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
 }`;
 }
 
-// Mindmap generation is pinned to gemini-2.5-pro specifically (not the app-wide
-// fallback chain, which tries the pricier gemini-3.1-pro-preview first) - mindmap
-// branches are structured organization/extraction, not frontier reasoning, and the
-// pricier model was driving most of the per-subject AI cost for this feature.
-const MINDMAP_MODEL = 'gemini-2.5-pro';
-// Left undefined (rather than 0) so the model uses its own default dynamic
-// thinking budget instead of skipping the internal reasoning pass entirely -
-// disabling thinking turned out to also shrink how deep gemini-2.5-pro actually
-// went on genuinely deep topics, even with a prompt explicitly asking for full
-// textbook depth. Cost/speed still comes from pinning the model itself below
-// (avoiding the pricier gemini-3.1-pro-preview), not from suppressing thinking.
+// Tried pinning this to gemini-2.5-pro to save cost (skipping the app-wide fallback
+// chain's pricier gemini-3.1-pro-preview first choice), with and without thinking
+// enabled - in both cases gemini-2.5-pro returned a valid but nearly flat JSON tree
+// (depth ~2, ~10 nodes) for every topic, versus depth 6-10 and hundreds of nodes from
+// the frontier model. So the pin itself, not the prompt or thinking budget, was the
+// actual regression. Left undefined here to use the normal fallback chain again
+// (gemini-3.1-pro-preview first, same as before any of this feature's cost work).
+const MINDMAP_MODEL = undefined;
 const MINDMAP_THINKING_BUDGET = undefined;
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
@@ -255,10 +252,8 @@ async function generateOneNode(
     try {
       // A small fixed pace before every call, on top of the backoff below for
       // actual 429s - important here since branches run with concurrency, so
-      // several of these can otherwise fire at once. Shortened from 1000ms now that
-      // generation is pinned to one model (gemini-2.5-pro) with its own quota bucket,
-      // rather than potentially cycling across several models under load.
-      await sleep(300);
+      // several of these can otherwise fire at once.
+      await sleep(1000);
       const { content: raw } = await callModel(prompt, MAX_TOKENS, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
       const parsed = tryParseNode(raw || '');
       if (parsed) { result = parsed; break; }
@@ -287,11 +282,7 @@ async function generateOneNode(
   return { ...result, name: node.name };
 }
 
-// Raised from 2 now that generation is pinned to a single model (gemini-2.5-pro)
-// with its own dedicated quota bucket, instead of potentially cycling across several
-// models under load - more simultaneous branches means less total wall-clock time
-// per chapter, with the same per-call 429 backoff/retry logic still in place.
-const TOP_LEVEL_CONCURRENCY = 5;
+const TOP_LEVEL_CONCURRENCY = 2; // lowered from 3 - fewer simultaneous Vertex calls means a burst is less likely to trip the per-minute quota
 
 export async function generateMindmapFromNotes(
   notesTopics: NotesTopic[],
