@@ -517,6 +517,34 @@ export default function LongAnswersBulkGeneratorPage() {
     await updateJob({ status: "idle", queue: [], currentIndex: 0, completedCount: 0, failedQuestions: [], providerCounts: {}, notesEnrichedCount: 0 })
   }
 
+  async function handleRetryFailed() {
+    if (!db || !job?.failedQuestions?.length) return
+    const retryQueue: QueueItem[] = job.failedQuestions.map((f: any) => ({
+      subjectId: f.subjectId,
+      chapterTitle: f.chapterTitle,
+      sectionType: f.sectionType,
+      questionType: f.questionType,
+      question: f.question,
+    }))
+    await setDoc(doc(db, "bulkLongAnswerJobs", JOB_ID), {
+      status: "running",
+      queue: retryQueue,
+      pauseSeconds,
+      questionPauseSeconds,
+      textbookId: job.textbookId || null,
+      currentIndex: 0,
+      completedCount: 0,
+      failedQuestions: [],
+      providerCounts: {},
+      notesEnrichedCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+    isPausedRef.current = false
+    toast({ title: "Retrying failed questions", description: retryQueue.length + " question(s) re-queued." })
+    runLoop(retryQueue, 0, pauseSeconds, questionPauseSeconds, job.textbookId || null)
+  }
+
   // false = answers come from Gemini knowledge (standard Indian textbooks); true = ground in saved notes.
   const USE_NOTES_GROUNDING = false
 
@@ -524,17 +552,35 @@ export default function LongAnswersBulkGeneratorPage() {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
+  const BULK_CONCURRENCY = 6
+
   async function runLoop(queue: QueueItem[], startIndex: number, pauseSecs: number, qPauseSecs: number, textbookId: string | null) {
     if (isRunningLocallyRef.current) return
     isRunningLocallyRef.current = true
+    void pauseSecs
 
-    for (let i = startIndex; i < queue.length; i++) {
-      if (isPausedRef.current) {
-        await updateJob({ status: "paused", currentIndex: i, updatedAt: serverTimestamp() })
-        isRunningLocallyRef.current = false
-        return
-      }
+    // One save lock per (subject+chapter+section) so concurrent workers answering into
+    // the same section never read-modify-write over each other.
+    const saveLocks = new Map<string, Promise<unknown>>()
+    async function withSaveLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+      const prev = saveLocks.get(key) || Promise.resolve()
+      let release: () => void = () => {}
+      const next = new Promise<void>((resolve) => { release = resolve })
+      saveLocks.set(key, prev.then(() => next))
+      await prev
+      try { return await fn() } finally { release() }
+    }
 
+    // frontier = lowest index not yet fully processed - used as the resume point when
+    // paused, since with concurrency later indices can finish before earlier ones.
+    const completedFlags: boolean[] = []
+    let frontier = startIndex
+    function markDone(idx: number) {
+      completedFlags[idx] = true
+      while (completedFlags[frontier]) frontier++
+    }
+
+    async function processOne(i: number) {
       const item = queue[i]
       const subject = subjects?.find((s: any) => s.id === item.subjectId)
       const subjectName = subject?.name || item.subjectId
@@ -670,43 +716,59 @@ export default function LongAnswersBulkGeneratorPage() {
         const chapterRef = doc(db!, 'subjects', item.subjectId, 'essayChapters', chapterIdVal)
         const sectionRef = doc(db!, 'subjects', item.subjectId, 'essayChapters', chapterIdVal, 'sections', item.sectionType)
 
-        const existingSnap = await getDoc(sectionRef)
-        const existingItems = existingSnap.exists() && (existingSnap.data() as any).html
-          ? parseQaItems((existingSnap.data() as any).html)
-          : []
-        const newItem: QAItem = { questionHtml: item.question, answerHtml: precomputedAnswerHtml || knowledgeAnswerTextToHtml(result.answer) }
-        const combinedItems = [...existingItems, newItem]
-        const finalHtml = rebuildHtml(combinedItems)
+        await withSaveLock(item.subjectId + "|" + chapterIdVal + "|" + item.sectionType, async () => {
+          const existingSnap = await getDoc(sectionRef)
+          const existingItems = existingSnap.exists() && (existingSnap.data() as any).html
+            ? parseQaItems((existingSnap.data() as any).html)
+            : []
+          const newItem: QAItem = { questionHtml: item.question, answerHtml: precomputedAnswerHtml || knowledgeAnswerTextToHtml(result.answer as string) }
+          const combinedItems = [...existingItems, newItem]
+          const finalHtml = rebuildHtml(combinedItems)
+  
+          await setDoc(chapterRef, { title: item.chapterTitle, subjectId: item.subjectId, updatedAt: serverTimestamp() }, { merge: true })
+          await setDoc(sectionRef, {
+            sectionType: item.sectionType,
+            html: finalHtml,
+            questionCount: combinedItems.length,
+            updatedAt: serverTimestamp(),
+          }, { merge: true })
+          await updateDoc(chapterRef, { [`sectionCounts.${item.sectionType}`]: combinedItems.length })
+        })
 
-        await setDoc(chapterRef, { title: item.chapterTitle, subjectId: item.subjectId, updatedAt: serverTimestamp() }, { merge: true })
-        await setDoc(sectionRef, {
-          sectionType: item.sectionType,
-          html: finalHtml,
-          questionCount: combinedItems.length,
-          updatedAt: serverTimestamp(),
-        }, { merge: true })
-        await updateDoc(chapterRef, { [`sectionCounts.${item.sectionType}`]: combinedItems.length })
-
+        markDone(i)
         await updateJob({
-          currentIndex: i + 1,
+          currentIndex: frontier,
           completedCount: increment(1),
           [`providerCounts.${sanitizeProviderKey(result.provider || "unknown")}`]: increment(1),
           ...(notesWasEnrichedThisQuestion ? { notesEnrichedCount: increment(1) } : {}),
           updatedAt: serverTimestamp(),
         })
       } catch (e: any) {
+        markDone(i)
         await updateJob({
-          currentIndex: i + 1,
-          failedQuestions: arrayUnion({ chapterTitle: item.chapterTitle, question: item.question.slice(0, 100), error: e.message || "Unknown error" }),
+          currentIndex: frontier,
+          failedQuestions: arrayUnion({ subjectId: item.subjectId, chapterTitle: item.chapterTitle, sectionType: item.sectionType, questionType: item.questionType, question: item.question, error: e.message || "Unknown error" }),
           updatedAt: serverTimestamp(),
         })
       }
+    }
 
-      if (i < queue.length - 1 && !isPausedRef.current) {
-        // No extra pause on chapter change - a flat per-question gap only.
-        void pauseSecs
+    let nextIdx = startIndex
+    const workerCount = Math.min(BULK_CONCURRENCY, Math.max(0, queue.length - startIndex))
+    const workers = Array.from({ length: workerCount }, () => (async () => {
+      while (!isPausedRef.current) {
+        const i = nextIdx++
+        if (i >= queue.length) return
+        await processOne(i)
         await sleep(qPauseSecs * 1000)
       }
+    })())
+    await Promise.all(workers)
+
+    if (isPausedRef.current && frontier < queue.length) {
+      await updateJob({ status: "paused", currentIndex: frontier, updatedAt: serverTimestamp() })
+      isRunningLocallyRef.current = false
+      return
     }
 
     await updateJob({ status: "done", updatedAt: serverTimestamp() })
@@ -917,7 +979,10 @@ export default function LongAnswersBulkGeneratorPage() {
 
             {job.failedQuestions && job.failedQuestions.length > 0 && (
               <div className="space-y-1">
-                <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> {job.failedQuestions.length} question(s) failed</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-destructive flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> {job.failedQuestions.length} question(s) failed</p>
+                  <Button size="sm" variant="outline" onClick={handleRetryFailed} disabled={job.status === "running"}>Retry Failed</Button>
+                </div>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {job.failedQuestions.map((f: any, i: number) => (
                     <p key={i} className="text-xs text-muted-foreground truncate">• {f.chapterTitle} — {f.question} — {f.error}</p>
