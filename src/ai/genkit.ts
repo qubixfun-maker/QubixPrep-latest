@@ -48,6 +48,11 @@ function getStaticProviders(): Provider[] {
 // Vertex AI uses a short-lived OAuth access token (not a static API key),
 // generated from a service account JSON key. Cached in-memory until near expiry.
 let cachedVertexToken: { token: string; expiresAt: number } | null = null
+// The real reason the last getVertexAccessToken() call failed (invalid key JSON,
+// bad private key signature, wrong project, etc) - callers that only get `null`
+// back (a deliberately loose return type, to avoid a breaking signature change)
+// can read this to surface the actual cause instead of a generic "unavailable".
+export let lastVertexTokenError: string | null = null
 
 async function getVertexAccessToken(): Promise<string | null> {
   // Accept either the raw JSON key (GOOGLE_SERVICE_ACCOUNT_KEY) or a base64-encoded
@@ -56,7 +61,7 @@ async function getVertexAccessToken(): Promise<string | null> {
   const rawKeyDirect = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
   const rawKeyB64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_B64
   const rawKey = rawKeyDirect || (rawKeyB64 ? Buffer.from(rawKeyB64, 'base64').toString('utf8') : undefined)
-  if (!rawKey) return null
+  if (!rawKey) { lastVertexTokenError = 'Neither GOOGLE_SERVICE_ACCOUNT_KEY nor GOOGLE_SERVICE_ACCOUNT_KEY_B64 is set.'; return null }
 
   if (cachedVertexToken && cachedVertexToken.expiresAt > Date.now() + 60_000) {
     return cachedVertexToken.token
@@ -70,15 +75,17 @@ async function getVertexAccessToken(): Promise<string | null> {
     })
     const client = await auth.getClient()
     const tokenResponse = await client.getAccessToken()
-    if (!tokenResponse.token) return null
+    if (!tokenResponse.token) { lastVertexTokenError = 'getAccessToken() returned no token, with no error thrown.'; return null }
 
     cachedVertexToken = {
       token: tokenResponse.token,
       // Vertex tokens last ~1hr; refresh a bit early to be safe.
       expiresAt: Date.now() + 50 * 60_000,
     }
+    lastVertexTokenError = null
     return tokenResponse.token
   } catch (err: any) {
+    lastVertexTokenError = err?.message || String(err)
     console.warn('[AI] Failed to get Vertex AI access token:', err?.message)
     return null
   }
@@ -109,7 +116,7 @@ async function vertexGenerateContent(model: string, contents: any[], generationC
   const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID
   if (!projectId) throw new Error('GOOGLE_CLOUD_PROJECT_ID not configured')
   const token = await getVertexAccessToken()
-  if (!token) throw new Error('Vertex AI access token unavailable (check GOOGLE_SERVICE_ACCOUNT_KEY)')
+  if (!token) throw new Error(`Vertex AI access token unavailable: ${lastVertexTokenError || '(no error captured)'}`)
   const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
 
   const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:generateContent`
