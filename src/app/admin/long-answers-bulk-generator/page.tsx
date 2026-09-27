@@ -769,6 +769,14 @@ export default function LongAnswersBulkGeneratorPage() {
                   {pair.isExtracting && <p className="text-xs text-primary flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> {pair.stage}</p>}
                   {pair.rawText && !pair.isExtracting && <p className="text-xs text-green-400">Text extracted ({pair.rawText.length.toLocaleString()} characters)</p>}
                   {pair.error && <p className="text-xs text-destructive">{pair.error}</p>}
+                  {pair.subjectId && savedBanks[pair.subjectId] && (
+                    <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-primary/10 border border-primary/30">
+                      <p className="text-xs text-primary">
+                        Saved extraction found: {savedBanks[pair.subjectId].chapterCount} chapter(s), {savedBanks[pair.subjectId].questionCount} question(s)
+                      </p>
+                      <Button size="sm" variant="outline" onClick={() => loadSavedBank(pair.subjectId)}>Load</Button>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -852,6 +860,10 @@ export default function LongAnswersBulkGeneratorPage() {
                   <div className="space-y-2">
                     <Label>Rest between chapters (seconds)</Label>
                     <Input type="number" min={5} max={600} value={pauseSeconds} onChange={(e) => setPauseSeconds(parseInt(e.target.value) || 60)} className="glass border-white/10" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Max questions this run (blank = all selected)</Label>
+                    <Input type="number" min={1} value={maxQuestionsThisRun} onChange={(e) => setMaxQuestionsThisRun(e.target.value === "" ? "" : (parseInt(e.target.value) || ""))} placeholder="e.g. 100" className="glass border-white/10" />
                   </div>
                 </CardContent>
               </Card>
