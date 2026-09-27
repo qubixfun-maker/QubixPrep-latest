@@ -77,6 +77,37 @@ async function callModel(prompt: string, maxTokens: number, useClaude?: boolean,
 // grounded-answer-utils.ts - a "use server" file may only export async functions as
 // runtime values, and these are deliberately synchronous pure string transforms.
 
+// Keeps only the notes topics that match the question, instead of sending the whole
+// chapter's notes with every question (the biggest input-token cost of bulk generation).
+// Falls back to a truncated copy of the full text when nothing matches.
+function selectRelevantGrounding(question: string, groundingText: string): string {
+  const MAX_CHARS = 12000
+  if (groundingText.length <= MAX_CHARS) return groundingText
+  const blocks = groundingText.split(/\n(?=## )/)
+  if (blocks.length < 2) return groundingText.slice(0, MAX_CHARS)
+  const stop = new Set(['what', 'with', 'that', 'this', 'from', 'write', 'short', 'note', 'notes', 'explain', 'describe', 'discuss', 'mention', 'define', 'give', 'list', 'about', 'their', 'which', 'these', 'those', 'briefly', 'enumerate', 'classify', 'differentiate', 'between'])
+  const words = Array.from(new Set(question.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter((w) => w.length > 3 && !stop.has(w))))
+  const scored = blocks.map((b, i) => {
+    const nl = b.indexOf('\n')
+    const title = (nl === -1 ? b : b.slice(0, nl)).toLowerCase()
+    const body = b.toLowerCase()
+    let score = 0
+    for (const w of words) { if (title.includes(w)) score += 5; if (body.includes(w)) score += 1 }
+    return { b, i, score }
+  })
+  scored.sort((a, b) => b.score - a.score || a.i - b.i)
+  const out: string[] = []
+  let total = 0
+  for (const x of scored) {
+    if (x.score === 0) break
+    if (total + x.b.length > MAX_CHARS && out.length > 0) continue
+    out.push(x.b.slice(0, MAX_CHARS))
+    total += x.b.length
+    if (total >= MAX_CHARS) break
+  }
+  return out.length ? out.join('\n\n') : groundingText.slice(0, MAX_CHARS)
+}
+
 export async function generateGroundedAnswer(
   question: string,
   sectionType: SectionType,
@@ -91,9 +122,10 @@ export async function generateGroundedAnswer(
   // response, so 8000 is effectively "no cap" - the answer will never be cut short by this
   // budget, only by the model's own real maximum.
   const maxTokens = 8000;
+  groundingText = selectRelevantGrounding(question, groundingText);
   const minWords = MIN_WORDS[sectionType];
 
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 2;
   let lastError = 'Unknown error';
   let bestAttempt = '';
   let bestAttemptWasTruncated = false;
