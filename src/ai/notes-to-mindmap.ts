@@ -247,9 +247,13 @@ async function generateOneNode(
   let result: MindmapNode | null = null;
   let provider: string | undefined;
   let consecutiveRateLimitHits = 0;
+  // Debug: every attempt's outcome (error message, or "no parseable JSON"), so a
+  // 100%-fallback result can be diagnosed from the saved doc instead of digging
+  // through Cloud Run logs.
+  const attemptLog: string[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (Date.now() - startTime > DEADLINE_MS) break; // shared budget spent - fall through to the plain-text fallback below
+    if (Date.now() - startTime > DEADLINE_MS) { attemptLog.push('deadline exceeded before this attempt'); break; }
     try {
       // A small fixed pace before every call, on top of the backoff below for
       // actual 429s - important here since branches run with concurrency, so
@@ -258,8 +262,10 @@ async function generateOneNode(
       const { content: raw, provider: usedProvider } = await callModel(prompt, MAX_TOKENS, options?.useClaude, options?.useGeminiNative, options?.forceVertex);
       const parsed = tryParseNode(raw || '');
       if (parsed) { result = parsed; provider = usedProvider; break; }
+      attemptLog.push(`attempt ${attempt} via ${usedProvider}: no parseable JSON, raw started with: ${(raw || '(empty)').slice(0, 150)}`);
       consecutiveRateLimitHits = 0;
     } catch (err: any) {
+      attemptLog.push(`attempt ${attempt} threw: ${err?.message || String(err)}`);
       if (isRateLimitError(err?.message)) {
         // Real quota wall - back off before retrying instead of immediately hitting
         // the same limit again. Capped low (15s) and clamped to whatever's left of
@@ -275,7 +281,7 @@ async function generateOneNode(
   if (!result) {
     // Graceful fallback: use the raw notes markdown directly rather than losing this
     // branch entirely if the AI generation failed after retries.
-    return { node: { name: node.name, examples: node.markdown.slice(0, 300) }, provider: 'FALLBACK (no AI response)' };
+    return { node: { name: node.name, examples: node.markdown.slice(0, 300) }, provider: `FALLBACK: ${attemptLog.join(' | ')}` };
   }
 
   // Always keep our own node name (from the notes topic list) as the source of truth,
