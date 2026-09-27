@@ -1,6 +1,81 @@
 'use server';
 import { callAIWithProvider, callGeminiNative, callClaudeOnly } from '@/ai/genkit';
 import { allTemplatesForPrompt } from '@/ai/subject-templates';
+import { GoogleAuth } from 'google-auth-library';
+void callGeminiNative;
+
+// Long answers call Gemini Pro DIRECTLY (no shared fallback chain), so no other model can ever
+// answer, and a busy (429) response is retried within seconds instead of after hidden waits.
+let proTokenCache: { token: string; expiresAt: number } | null = null;
+
+function loadServiceAccountKey(): any {
+  const norm = (v?: string): string | undefined => {
+    if (!v) return undefined;
+    const t = v.trim().replace(/^["']|["']$/g, '');
+    if (!t) return undefined;
+    if (t.startsWith('{')) return t;
+    try { return Buffer.from(t, 'base64').toString('utf8').trim(); } catch { return undefined; }
+  };
+  for (const v of [process.env.GOOGLE_SERVICE_ACCOUNT_KEY_B64, process.env.GOOGLE_SERVICE_ACCOUNT_KEY]) {
+    const s = norm(v);
+    if (!s) continue;
+    try { return JSON.parse(s); } catch { /* try the next candidate */ }
+  }
+  throw new Error('No valid Google service account key found in env');
+}
+
+async function getProToken(): Promise<string> {
+  if (proTokenCache && proTokenCache.expiresAt > Date.now() + 60_000) return proTokenCache.token;
+  const auth = new GoogleAuth({ credentials: loadServiceAccountKey(), scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+  const client = await auth.getClient();
+  const tr = await client.getAccessToken();
+  if (!tr.token) throw new Error('Could not get a Google access token');
+  proTokenCache = { token: tr.token, expiresAt: Date.now() + 50 * 60_000 };
+  return tr.token;
+}
+
+async function callProDirect(prompt: string, maxTokens: number): Promise<{ content: string; provider: string }> {
+  const model = process.env.LONG_ANSWER_MODEL || 'gemini-2.5-pro';
+  const project = process.env.GOOGLE_CLOUD_PROJECT_ID;
+  if (!project) throw new Error('GOOGLE_CLOUD_PROJECT_ID is not set');
+  const regional = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
+  let locations = ['global', regional];
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: maxTokens, temperature: 0.4, thinkingConfig: { thinkingBudget: 2048 } },
+  });
+  let lastErr = 'unknown error';
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const location = locations[attempt % locations.length];
+    const host = location === 'global' ? 'aiplatform.googleapis.com' : location + '-aiplatform.googleapis.com';
+    const url = 'https://' + host + '/v1/projects/' + project + '/locations/' + location + '/publishers/google/models/' + model + ':generateContent';
+    const backoff = () => new Promise((r) => setTimeout(r, Math.min(15000, 1500 * Math.pow(2, Math.floor(attempt / locations.length))) + Math.random() * 1000));
+    let res: Response;
+    try {
+      const token = await getProToken();
+      res = await fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(150000) });
+    } catch (e: any) {
+      lastErr = 'Network/auth error: ' + (e?.message || String(e));
+      await backoff();
+      continue;
+    }
+    if (res.ok) {
+      const json: any = await res.json();
+      const parts = json?.candidates?.[0]?.content?.parts || [];
+      const text = parts.filter((p: any) => !p.thought).map((p: any) => p.text || '').join('');
+      if (text.trim()) return { content: text, provider: 'Gemini (Vertex, ' + model + ', ' + location + ')' };
+      lastErr = 'Empty response (finishReason ' + (json?.candidates?.[0]?.finishReason || 'unknown') + ')';
+      continue;
+    }
+    const errText = (await res.text().catch(() => '')).slice(0, 300);
+    lastErr = 'Vertex ' + res.status + ': ' + errText;
+    if ([400, 403, 404].includes(res.status) && location === 'global') { locations = [regional]; continue; }
+    if (res.status === 429 || res.status === 500 || res.status === 503) { await backoff(); continue; }
+    throw new Error(lastErr);
+  }
+  throw new Error(lastErr + ' (after retries)');
+}
+
 
 /**
  * Generates a model answer to a real exam question, grounded strictly in already-
@@ -70,16 +145,7 @@ export type GenerateAnswerOutput = {
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
   if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens);
-  if (useGeminiNative) {
-    const wanted = process.env.LONG_ANSWER_MODEL || 'gemini-2.5-pro';
-    const res: any = await callGeminiNative([{ role: 'user', content: prompt }], maxTokens, 1024, wanted);
-    // Only the chosen Pro model may write answers - if the fallback chain switched to a cheaper
-    // model (e.g. because Pro was rate-limited), reject the answer instead of saving it.
-    if (!String(res?.provider || '').includes(wanted)) {
-      throw new Error('Non-Pro model answered (' + (res?.provider || 'unknown') + ') - rejected, only ' + wanted + ' is allowed for long answers');
-    }
-    return res;
-  }
+  if (useGeminiNative) return callProDirect(prompt, maxTokens);
   return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex);
 }
 // NOTE: HTML-formatting helpers (rebuildQaHtml, answerTextToHtml) moved to

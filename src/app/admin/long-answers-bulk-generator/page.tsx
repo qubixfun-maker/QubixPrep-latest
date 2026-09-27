@@ -441,7 +441,7 @@ export default function LongAnswersBulkGeneratorPage() {
 
     // Bulk questions run several at a time (BULK_CONCURRENCY workers). Saves to the same
     // section are serialized by withSaveLock so parallel answers never overwrite each other.
-    const BULK_CONCURRENCY = 5
+    const BULK_CONCURRENCY = 8
     void pauseSecs
     const saveLocks = new Map<string, Promise<unknown>>()
     async function withSaveLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
