@@ -58,10 +58,22 @@ async function getVertexAccessToken(): Promise<string | null> {
   // Accept either the raw JSON key (GOOGLE_SERVICE_ACCOUNT_KEY) or a base64-encoded
   // version (GOOGLE_SERVICE_ACCOUNT_KEY_B64) - the base64 form avoids shell/dashboard
   // quote-escaping issues when pasting a multi-line JSON key into an env var.
-  const rawKeyDirect = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-  const rawKeyB64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_B64
-  const rawKey = rawKeyDirect || (rawKeyB64 ? Buffer.from(rawKeyB64, 'base64').toString('utf8') : undefined)
-  if (!rawKey) { lastVertexTokenError = 'Neither GOOGLE_SERVICE_ACCOUNT_KEY nor GOOGLE_SERVICE_ACCOUNT_KEY_B64 is set.'; return null }
+  // Accept raw JSON or base64 in EITHER variable; prefer the _B64 secret, and only use
+  // a candidate that actually parses as JSON.
+  const normalizeKey = (v?: string): string | undefined => {
+    if (!v) return undefined
+    const t = v.trim().replace(/^["']|["']$/g, '')
+    if (!t) return undefined
+    if (t.startsWith('{')) return t
+    try { return Buffer.from(t, 'base64').toString('utf8').trim() } catch { return undefined }
+  }
+  const keyCandidates: Array<[string, string | undefined, string | undefined]> = [
+    ['B64', process.env.GOOGLE_SERVICE_ACCOUNT_KEY_B64, normalizeKey(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_B64)],
+    ['DIRECT', process.env.GOOGLE_SERVICE_ACCOUNT_KEY, normalizeKey(process.env.GOOGLE_SERVICE_ACCOUNT_KEY)],
+  ]
+  const rawKey = keyCandidates.map(c => c[2]).find(v => { if (!v) return false; try { JSON.parse(v); return true } catch { return false } })
+  const keyDiag = keyCandidates.map(([n, raw]) => raw ? n + ': len=' + raw.length + ' firstChar=' + raw.trim().charCodeAt(0) : n + ': unset').join('; ')
+  if (!rawKey) { lastVertexTokenError = 'No valid service account key found. ' + keyDiag; return null }
 
   if (cachedVertexToken && cachedVertexToken.expiresAt > Date.now() + 60_000) {
     return cachedVertexToken.token
