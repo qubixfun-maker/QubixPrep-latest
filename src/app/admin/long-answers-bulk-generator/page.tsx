@@ -358,7 +358,7 @@ export default function LongAnswersBulkGeneratorPage() {
   }
 
   const [pauseSeconds, setPauseSeconds] = useState(60)
-  const [questionPauseSeconds, setQuestionPauseSeconds] = useState(3)
+  const [questionPauseSeconds, setQuestionPauseSeconds] = useState(0.5)
   const [isStarting, setIsStarting] = useState(false)
 
   const isPausedRef = useRef(false)
@@ -439,39 +439,13 @@ export default function LongAnswersBulkGeneratorPage() {
     if (isRunningLocallyRef.current) return
     isRunningLocallyRef.current = true
 
-    // Bulk questions run several at a time (BULK_CONCURRENCY workers). Saves to the same
-    // section are serialized by withSaveLock so parallel answers never overwrite each other.
-    const BULK_CONCURRENCY = 8
-    void pauseSecs
-    const saveLocks = new Map<string, Promise<unknown>>()
-    async function withSaveLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
-      const prev = saveLocks.get(key) || Promise.resolve()
-      let release: () => void = () => {}
-      const next = new Promise<void>((resolve) => { release = resolve })
-      saveLocks.set(key, prev.then(() => next))
-      await prev
-      try { return await fn() } finally { release() }
-    }
-    const completedFlags: boolean[] = []
-    let frontier = startIndex
-    function markDone(idx: number): number {
-      completedFlags[idx] = true
-      while (completedFlags[frontier]) frontier++
-      return frontier
-    }
-    let nextIdx = startIndex
-    // Shared pacing: at most one question starts every START_INTERVAL_MS, and any rate-limit
-    // response pushes cooldownUntil out so ALL workers back off together (no retry storms).
-    const START_INTERVAL_MS = 3000
-    let cooldownUntil = 0
-    let lastStartAt = 0
-    async function paceStart() {
-      const now = Date.now()
-      const startAt = Math.max(now, cooldownUntil, lastStartAt + START_INTERVAL_MS)
-      lastStartAt = startAt
-      if (startAt > now) await sleep(startAt - now)
-    }
-    const processOne = async (i: number) => {
+    for (let i = startIndex; i < queue.length; i++) {
+      if (isPausedRef.current) {
+        await updateJob({ status: "paused", currentIndex: i, updatedAt: serverTimestamp() })
+        isRunningLocallyRef.current = false
+        return
+      }
+
       const item = queue[i]
       const subject = subjects?.find((s: any) => s.id === item.subjectId)
       const subjectName = subject?.name || item.subjectId
@@ -491,19 +465,12 @@ export default function LongAnswersBulkGeneratorPage() {
         // below produce plain, unformatted text and are now only a fallback for chapters
         // that genuinely have no notes yet.
         let usedNotes = false
-        let groundedFailure = ''
         try {
           const subjectNotes = await getSubjectNotes(item.subjectId)
           const matchedNotes: any = USE_NOTES_GROUNDING ? findBestNotesMatch(item.chapterTitle, subjectNotes) : { id: '', topics: [{ name: '', markdown: '' }] }
           if (matchedNotes && (matchedNotes.topics || []).length > 0) {
             const groundingText = USE_NOTES_GROUNDING ? (matchedNotes.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n') : ''
-            let groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectName, { useGeminiNative: true })
-            for (let rl = 1; rl <= 3 && !groundedResult.answer && /429|resource exhausted|quota|non-pro/i.test(groundedResult.error || ""); rl++) {
-              cooldownUntil = Math.max(cooldownUntil, Date.now() + 10000 * rl)
-              await paceStart()
-              groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectName, { useGeminiNative: true })
-            }
-            if (!groundedResult.answer) groundedFailure = groundedResult.error || 'no answer returned'
+            const groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectName, { useGeminiNative: true })
             if (groundedResult.answer) {
               result = { answer: groundedResult.answer, provider: USE_NOTES_GROUNDING ? "Notes-based" : "Gemini knowledge (standard textbooks)" }
               precomputedAnswerHtml = knowledgeAnswerTextToHtml(groundedResult.answer)
@@ -552,8 +519,6 @@ export default function LongAnswersBulkGeneratorPage() {
 
         if (usedNotes) {
           // result and precomputedAnswerHtml already set above
-        } else if (!USE_NOTES_GROUNDING) {
-          throw new Error("Pro-only generation failed: " + (groundedFailure || "no answer returned") + " - not falling back to any other model")
         } else if (textbookId) {
           const chapters = await getTextbookChapters(textbookId)
           const matchedChapter = fuzzyMatchChapter(item.chapterTitle, chapters)
@@ -612,7 +577,6 @@ export default function LongAnswersBulkGeneratorPage() {
           throw new Error(result.error || "No answer generated")
         }
 
-        await withSaveLock(item.subjectId + '/' + chapterIdFor(item.chapterTitle) + '/' + item.sectionType, async () => {
         const chapterIdVal = chapterIdFor(item.chapterTitle)
         const chapterRef = doc(db!, 'subjects', item.subjectId, 'essayChapters', chapterIdVal)
         const sectionRef = doc(db!, 'subjects', item.subjectId, 'essayChapters', chapterIdVal, 'sections', item.sectionType)
@@ -621,10 +585,8 @@ export default function LongAnswersBulkGeneratorPage() {
         const existingItems = existingSnap.exists() && (existingSnap.data() as any).html
           ? parseQaItems((existingSnap.data() as any).html)
           : []
-        const newItem: QAItem = { questionHtml: item.question, answerHtml: precomputedAnswerHtml || knowledgeAnswerTextToHtml(result.answer as string) }
-        const stripHtml = (h: string) => String(h || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
-        const alreadySaved = existingItems.some((it: any) => stripHtml(it.questionHtml) === stripHtml(item.question))
-        const combinedItems = alreadySaved ? existingItems : [...existingItems, newItem]
+        const newItem: QAItem = { questionHtml: item.question, answerHtml: precomputedAnswerHtml || knowledgeAnswerTextToHtml(result.answer) }
+        const combinedItems = [...existingItems, newItem]
         const finalHtml = rebuildHtml(combinedItems)
 
         await setDoc(chapterRef, { title: item.chapterTitle, subjectId: item.subjectId, updatedAt: serverTimestamp() }, { merge: true })
@@ -635,10 +597,9 @@ export default function LongAnswersBulkGeneratorPage() {
           updatedAt: serverTimestamp(),
         }, { merge: true })
         await updateDoc(chapterRef, { [`sectionCounts.${item.sectionType}`]: combinedItems.length })
-        })
 
         await updateJob({
-          currentIndex: markDone(i),
+          currentIndex: i + 1,
           completedCount: increment(1),
           [`providerCounts.${sanitizeProviderKey(result.provider || "unknown")}`]: increment(1),
           ...(notesWasEnrichedThisQuestion ? { notesEnrichedCount: increment(1) } : {}),
@@ -646,29 +607,17 @@ export default function LongAnswersBulkGeneratorPage() {
         })
       } catch (e: any) {
         await updateJob({
-          currentIndex: markDone(i),
+          currentIndex: i + 1,
           failedQuestions: arrayUnion({ chapterTitle: item.chapterTitle, question: item.question.slice(0, 100), error: e.message || "Unknown error" }),
           updatedAt: serverTimestamp(),
         })
       }
 
+      if (i < queue.length - 1 && !isPausedRef.current) {
+        // No extra pause on chapter change - a flat per-question gap only.
+        void pauseSecs
+        await sleep(qPauseSecs * 1000)
       }
-    const workers = Array.from({ length: Math.min(BULK_CONCURRENCY, Math.max(0, queue.length - startIndex)) }, (_, w) => (async () => {
-      void w
-      while (!isPausedRef.current) {
-        const i = nextIdx++
-        if (i >= queue.length) return
-        await paceStart()
-        await processOne(i)
-        void qPauseSecs
-      }
-    })())
-    await Promise.all(workers)
-
-    if (isPausedRef.current && frontier < queue.length) {
-      await updateJob({ status: "paused", currentIndex: frontier, updatedAt: serverTimestamp() })
-      isRunningLocallyRef.current = false
-      return
     }
 
     await updateJob({ status: "done", updatedAt: serverTimestamp() })
