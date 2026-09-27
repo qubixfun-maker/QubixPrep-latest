@@ -70,7 +70,16 @@ export type GenerateAnswerOutput = {
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
   if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens);
-  if (useGeminiNative) return callGeminiNative([{ role: 'user', content: prompt }], maxTokens, 1024, process.env.LONG_ANSWER_MODEL || 'gemini-2.5-pro');
+  if (useGeminiNative) {
+    const wanted = process.env.LONG_ANSWER_MODEL || 'gemini-2.5-pro';
+    const res: any = await callGeminiNative([{ role: 'user', content: prompt }], maxTokens, 1024, wanted);
+    // Only the chosen Pro model may write answers - if the fallback chain switched to a cheaper
+    // model (e.g. because Pro was rate-limited), reject the answer instead of saving it.
+    if (!String(res?.provider || '').includes(wanted)) {
+      throw new Error('Non-Pro model answered (' + (res?.provider || 'unknown') + ') - rejected, only ' + wanted + ' is allowed for long answers');
+    }
+    return res;
+  }
   return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex);
 }
 // NOTE: HTML-formatting helpers (rebuildQaHtml, answerTextToHtml) moved to
