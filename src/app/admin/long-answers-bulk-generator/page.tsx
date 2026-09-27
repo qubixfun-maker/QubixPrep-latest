@@ -460,6 +460,17 @@ export default function LongAnswersBulkGeneratorPage() {
       return frontier
     }
     let nextIdx = startIndex
+    // Shared pacing: at most one question starts every START_INTERVAL_MS, and any rate-limit
+    // response pushes cooldownUntil out so ALL workers back off together (no retry storms).
+    const START_INTERVAL_MS = 3000
+    let cooldownUntil = 0
+    let lastStartAt = 0
+    async function paceStart() {
+      const now = Date.now()
+      const startAt = Math.max(now, cooldownUntil, lastStartAt + START_INTERVAL_MS)
+      lastStartAt = startAt
+      if (startAt > now) await sleep(startAt - now)
+    }
     const processOne = async (i: number) => {
       const item = queue[i]
       const subject = subjects?.find((s: any) => s.id === item.subjectId)
@@ -488,7 +499,8 @@ export default function LongAnswersBulkGeneratorPage() {
             const groundingText = USE_NOTES_GROUNDING ? (matchedNotes.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n') : ''
             let groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectName, { useGeminiNative: true })
             for (let rl = 1; rl <= 3 && !groundedResult.answer && /429|resource exhausted|quota|non-pro/i.test(groundedResult.error || ""); rl++) {
-              await sleep(8000 * rl)
+              cooldownUntil = Math.max(cooldownUntil, Date.now() + 10000 * rl)
+              await paceStart()
               groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectName, { useGeminiNative: true })
             }
             if (!groundedResult.answer) groundedFailure = groundedResult.error || 'no answer returned'
@@ -642,12 +654,13 @@ export default function LongAnswersBulkGeneratorPage() {
 
       }
     const workers = Array.from({ length: Math.min(BULK_CONCURRENCY, Math.max(0, queue.length - startIndex)) }, (_, w) => (async () => {
-      await sleep(w * 1500)
+      void w
       while (!isPausedRef.current) {
         const i = nextIdx++
         if (i >= queue.length) return
+        await paceStart()
         await processOne(i)
-        await sleep(Math.min(qPauseSecs, 2) * 1000)
+        void qPauseSecs
       }
     })())
     await Promise.all(workers)

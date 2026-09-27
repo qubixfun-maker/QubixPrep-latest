@@ -167,6 +167,8 @@ export async function generateGroundedAnswer(
         : `Answer appears cut off mid-sentence despite reaching ${wordCount} words`;
     } catch (err: any) {
       lastError = err.message || 'Unknown error';
+      // Rate-limit / non-Pro rejections: stop retrying immediately - the caller backs off for everyone.
+      if (/429|resource exhausted|quota|non-pro/i.test(lastError)) break;
     }
   }
   // Return the longest attempt rather than nothing, matching the existing generator's
