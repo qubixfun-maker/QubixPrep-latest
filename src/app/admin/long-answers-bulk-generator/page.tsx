@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { doc, collection, query, orderBy, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore"
 import { ref as storageRef, uploadBytes } from "firebase/storage"
@@ -191,6 +191,66 @@ export default function LongAnswersBulkGeneratorPage() {
 
   const readyPairs = pairs.filter((p) => p.subjectId && p.pdfFile)
 
+  const [savedBanks, setSavedBanks] = useState<Record<string, { chapterCount: number; questionCount: number; updatedAt: any }>>({})
+
+  async function checkSavedBank(subjectId: string) {
+    if (!db || !subjectId) return
+    try {
+      const snap = await getDoc(doc(db, "extractedQuestionBanks", subjectId))
+      if (snap.exists()) {
+        const d: any = snap.data()
+        const chapters = d.chapters || []
+        const questionCount = chapters.reduce((sum: number, c: any) => sum + (c.longEssays?.length||0) + (c.shortEssays?.length||0) + (c.shortAnswers?.length||0), 0)
+        setSavedBanks((prev) => ({ ...prev, [subjectId]: { chapterCount: chapters.length, questionCount, updatedAt: d.updatedAt } }))
+      } else {
+        setSavedBanks((prev) => { const n = { ...prev }; delete n[subjectId]; return n })
+      }
+    } catch { /* best-effort */ }
+  }
+
+  async function saveExtractionBank(subjectId: string, subjectName: string, chaptersForSubject: ExtractedChapter[]) {
+    if (!db || !subjectId) return
+    try {
+      await setDoc(doc(db, "extractedQuestionBanks", subjectId), {
+        subjectId,
+        subjectName,
+        chapters: chaptersForSubject.map((c) => ({
+          key: c.key, title: c.title, longEssays: c.longEssays, shortEssays: c.shortEssays, shortAnswers: c.shortAnswers,
+        })),
+        updatedAt: serverTimestamp(),
+      })
+      checkSavedBank(subjectId)
+    } catch {
+      // Best-effort - never let a persistence failure interrupt extraction that already succeeded.
+    }
+  }
+
+  async function loadSavedBank(subjectId: string) {
+    if (!db) return
+    const snap = await getDoc(doc(db, "extractedQuestionBanks", subjectId))
+    if (!snap.exists()) return
+    const d: any = snap.data()
+    const subjectName = d.subjectName || subjects?.find((sub: any) => sub.id === subjectId)?.name || subjectId
+    const loaded: ExtractedChapter[] = (d.chapters || []).map((c: any, i: number) => ({
+      key: c.key || (subjectId + "-saved-" + i),
+      subjectId,
+      subjectName,
+      title: c.title,
+      longEssays: c.longEssays || [],
+      shortEssays: c.shortEssays || [],
+      shortAnswers: c.shortAnswers || [],
+      selected: true,
+    }))
+    setExtractedChapters((prev) => [...prev.filter((c) => c.subjectId !== subjectId), ...loaded])
+    toast({ title: "Loaded saved extraction", description: loaded.length + " chapter(s) for " + subjectName + "." })
+  }
+
+  const pairSubjectIdsKey = pairs.map((p) => p.subjectId).filter(Boolean).join(",")
+  useEffect(() => {
+    for (const id of new Set(pairSubjectIdsKey.split(",").filter(Boolean))) checkSavedBank(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairSubjectIdsKey])
+
   async function handleExtractAll() {
     if (!storage || !user || readyPairs.length === 0) return
     setIsExtractingAll(true)
@@ -269,6 +329,9 @@ export default function LongAnswersBulkGeneratorPage() {
             // Commit progress after every chapter so a later failure never loses
             // chapters that already succeeded.
             setExtractedChapters([...results])
+            // Also persist to Firestore per subject, so a lost tab/crash doesn't require
+            // re-uploading the PDF and re-running extraction from scratch.
+            await saveExtractionBank(pair.subjectId, subjectName, results.filter((r) => r.subjectId === pair.subjectId))
           } catch (chErr: any) {
             failedCount++
             toast({ variant: "destructive", title: `Skipped "${ch.title}"`, description: chErr.message })
@@ -357,6 +420,7 @@ export default function LongAnswersBulkGeneratorPage() {
     return bestScore > 0 ? best : null
   }
 
+  const [maxQuestionsThisRun, setMaxQuestionsThisRun] = useState<number | "">("")
   const [pauseSeconds, setPauseSeconds] = useState(60)
   const [questionPauseSeconds, setQuestionPauseSeconds] = useState(0.5)
   const [isStarting, setIsStarting] = useState(false)
@@ -374,11 +438,36 @@ export default function LongAnswersBulkGeneratorPage() {
     if (!db || selectedChapters.length === 0) return
     setIsStarting(true)
     try {
-      const queue: QueueItem[] = []
+      const fullQueue: QueueItem[] = []
       for (const ch of selectedChapters) {
-        ch.longEssays.forEach((q) => queue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "long-essays", questionType: "long_answer", question: q }))
-        ch.shortEssays.forEach((q) => queue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "short-essays", questionType: "short_essay", question: q }))
-        ch.shortAnswers.forEach((q) => queue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "short-answers", questionType: "short_answer", question: q }))
+        ch.longEssays.forEach((q) => fullQueue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "long-essays", questionType: "long_answer", question: q }))
+        ch.shortEssays.forEach((q) => fullQueue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "short-essays", questionType: "short_essay", question: q }))
+        ch.shortAnswers.forEach((q) => fullQueue.push({ subjectId: ch.subjectId, chapterTitle: ch.title, sectionType: "short-answers", questionType: "short_answer", question: q }))
+      }
+
+      // Skip questions that already have a saved answer (one read per unique chapter+section
+      // touched, not per question) - makes re-running a partly-answered subject safe, and
+      // lets "run only the next N" mean the next N NOT-yet-answered questions.
+      const normalizeQ = (t: string) => t.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().toLowerCase()
+      const answeredSets = new Map<string, Set<string>>()
+      for (const combo of new Set(fullQueue.map((it) => it.subjectId + "|" + it.chapterTitle + "|" + it.sectionType))) {
+        const [subjectId, chapterTitle, sectionType] = combo.split("|")
+        try {
+          const snap = await getDoc(doc(db, "subjects", subjectId, "essayChapters", chapterIdFor(chapterTitle), "sections", sectionType))
+          const items = snap.exists() ? parseQaItems((snap.data() as any).html || "") : []
+          answeredSets.set(combo, new Set(items.map((it) => normalizeQ(it.questionHtml))))
+        } catch {
+          answeredSets.set(combo, new Set())
+        }
+      }
+      let queue: QueueItem[] = fullQueue.filter((it) => {
+        const combo = it.subjectId + "|" + it.chapterTitle + "|" + it.sectionType
+        return !answeredSets.get(combo)?.has(normalizeQ(it.question))
+      })
+      const alreadyAnsweredCount = fullQueue.length - queue.length
+
+      if (maxQuestionsThisRun && Number(maxQuestionsThisRun) > 0) {
+        queue = queue.slice(0, Number(maxQuestionsThisRun))
       }
 
       if (queue.length === 0) {
@@ -402,7 +491,7 @@ export default function LongAnswersBulkGeneratorPage() {
         updatedAt: serverTimestamp(),
       })
 
-      toast({ title: "Job Started", description: `${queue.length} question(s) across ${new Set(queue.map(q => q.subjectId)).size} subject(s) queued.` })
+      toast({ title: "Job Started", description: queue.length + " question(s) queued" + (alreadyAnsweredCount > 0 ? " (" + alreadyAnsweredCount + " already answered, skipped)" : "") + "." })
       isPausedRef.current = false
       runLoop(queue, 0, pauseSeconds, questionPauseSeconds, selectedTextbookId !== "none" ? selectedTextbookId : null)
     } catch (e: any) {
