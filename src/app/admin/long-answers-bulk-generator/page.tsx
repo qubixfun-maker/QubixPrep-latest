@@ -428,6 +428,9 @@ export default function LongAnswersBulkGeneratorPage() {
     await updateJob({ status: "idle", queue: [], currentIndex: 0, completedCount: 0, failedQuestions: [], providerCounts: {}, notesEnrichedCount: 0 })
   }
 
+  // false = answers come from Gemini knowledge (standard Indian textbooks); true = ground in saved notes.
+  const USE_NOTES_GROUNDING = false
+
   function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
@@ -464,12 +467,12 @@ export default function LongAnswersBulkGeneratorPage() {
         let usedNotes = false
         try {
           const subjectNotes = await getSubjectNotes(item.subjectId)
-          const matchedNotes = findBestNotesMatch(item.chapterTitle, subjectNotes)
+          const matchedNotes: any = USE_NOTES_GROUNDING ? findBestNotesMatch(item.chapterTitle, subjectNotes) : { id: '', topics: [{ name: '', markdown: '' }] }
           if (matchedNotes && (matchedNotes.topics || []).length > 0) {
-            const groundingText = (matchedNotes.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n')
+            const groundingText = USE_NOTES_GROUNDING ? (matchedNotes.topics || []).map((t: any) => `## ${t.name}\n${t.markdown}`).join('\n\n') : ''
             const groundedResult = await generateGroundedAnswer(item.question, item.sectionType, groundingText, subjectName, { useGeminiNative: true })
             if (groundedResult.answer) {
-              result = { answer: groundedResult.answer, provider: "Notes-based" }
+              result = { answer: groundedResult.answer, provider: USE_NOTES_GROUNDING ? "Notes-based" : "Gemini knowledge (standard textbooks)" }
               precomputedAnswerHtml = knowledgeAnswerTextToHtml(groundedResult.answer)
               usedNotes = true
 
@@ -480,7 +483,7 @@ export default function LongAnswersBulkGeneratorPage() {
               // this one generated answer. Best-effort: never lets a failure here affect
               // the answer that was already generated and saved.
               try {
-                const additions = item.sectionType === 'long-essays' ? await extractNotesAddendum(item.question, groundedResult.answer, matchedNotes.topics || [], subjectName) : ([] as Awaited<ReturnType<typeof extractNotesAddendum>>)
+                const additions = !USE_NOTES_GROUNDING ? ([] as Awaited<ReturnType<typeof extractNotesAddendum>>) : item.sectionType === 'long-essays' ? await extractNotesAddendum(item.question, groundedResult.answer, matchedNotes.topics || [], subjectName) : ([] as Awaited<ReturnType<typeof extractNotesAddendum>>)
                 if (additions.length > 0) {
                   let notesChanged = false
                   const updatedTopics = (matchedNotes.topics || []).map((t: any) => {

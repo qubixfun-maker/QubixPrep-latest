@@ -70,7 +70,7 @@ export type GenerateAnswerOutput = {
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
   if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens);
-  if (useGeminiNative) return callGeminiNative([{ role: 'user', content: prompt }], maxTokens, 1024);
+  if (useGeminiNative) return callGeminiNative([{ role: 'user', content: prompt }], maxTokens, 1024, process.env.LONG_ANSWER_MODEL || 'gemini-2.5-pro');
   return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex);
 }
 // NOTE: HTML-formatting helpers (rebuildQaHtml, answerTextToHtml) moved to
@@ -108,6 +108,8 @@ function selectRelevantGrounding(question: string, groundingText: string): strin
   return out.length ? out.join('\n\n') : groundingText.slice(0, MAX_CHARS)
 }
 
+const KNOWLEDGE_ONLY_NOTE = '(No student notes are provided for this question. Answer entirely from your own accurate, up-to-date medical knowledge, using the standard Indian MBBS textbooks and the NMC curriculum as your reference for facts, terminology, classifications and exam emphasis - for example K. Park (PSM), BD Chaurasia and Vishram Singh (Anatomy), Guyton and AK Jain (Physiology), Harper and Satyanarayana (Biochemistry), Harsh Mohan and Robbins (Pathology), KD Tripathi (Pharmacology), Ananthanarayan (Microbiology), Reddy and Modi (Forensic Medicine), Bailey and Love and SRB (Surgery), Harrison and Davidson (Medicine), Dutta and Williams (Obstetrics and Gynaecology), Ghai and Nelson (Paediatrics), Khurana (Ophthalmology), Dhingra (ENT), Maheshwari and Apley (Orthopaedics). Do not invent facts, page numbers or citations. If you are unsure of an exact figure, give the standard accepted value or omit it.)'
+
 export async function generateGroundedAnswer(
   question: string,
   sectionType: SectionType,
@@ -123,6 +125,7 @@ export async function generateGroundedAnswer(
   // budget, only by the model's own real maximum.
   const maxTokens = 8000;
   groundingText = selectRelevantGrounding(question, groundingText);
+  if (!groundingText || !groundingText.trim()) groundingText = KNOWLEDGE_ONLY_NOTE;
   const minWords = MIN_WORDS[sectionType];
 
   const MAX_ATTEMPTS = 2;
