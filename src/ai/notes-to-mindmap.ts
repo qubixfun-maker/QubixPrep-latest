@@ -208,7 +208,7 @@ Output ONLY valid JSON for this ONE branch, no markdown fences, no commentary:
 // actual regression. Left undefined here to use the normal fallback chain again
 // (gemini-3.1-pro-preview first, same as before any of this feature's cost work).
 const MINDMAP_MODEL = undefined;
-const MINDMAP_THINKING_BUDGET = undefined;
+const MINDMAP_THINKING_BUDGET = 2048;
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
   if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens, MINDMAP_MODEL, MINDMAP_THINKING_BUDGET);
