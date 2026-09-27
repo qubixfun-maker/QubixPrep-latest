@@ -70,7 +70,7 @@ export type GenerateAnswerOutput = {
 
 async function callModel(prompt: string, maxTokens: number, useClaude?: boolean, useGeminiNative?: boolean, forceVertex?: boolean) {
   if (useClaude) return callClaudeOnly([{ role: 'user', content: prompt }], maxTokens);
-  if (useGeminiNative) return callGeminiNative([{ role: 'user', content: prompt }], maxTokens);
+  if (useGeminiNative) return callGeminiNative([{ role: 'user', content: prompt }], maxTokens, 1024);
   return callAIWithProvider([{ role: 'user', content: prompt }], maxTokens, forceVertex);
 }
 // NOTE: HTML-formatting helpers (rebuildQaHtml, answerTextToHtml) moved to

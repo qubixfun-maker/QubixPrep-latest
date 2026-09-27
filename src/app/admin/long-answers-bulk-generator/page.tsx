@@ -480,7 +480,7 @@ export default function LongAnswersBulkGeneratorPage() {
               // this one generated answer. Best-effort: never lets a failure here affect
               // the answer that was already generated and saved.
               try {
-                const additions = await extractNotesAddendum(item.question, groundedResult.answer, matchedNotes.topics || [], subjectName)
+                const additions = item.sectionType === 'long-essays' ? await extractNotesAddendum(item.question, groundedResult.answer, matchedNotes.topics || [], subjectName) : ([] as Awaited<ReturnType<typeof extractNotesAddendum>>)
                 if (additions.length > 0) {
                   let notesChanged = false
                   const updatedTopics = (matchedNotes.topics || []).map((t: any) => {
