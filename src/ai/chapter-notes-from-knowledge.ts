@@ -107,9 +107,15 @@ async function generateOneTopicNotes(subjectName: string, chapterTitle: string, 
   return `## ${topicName}\n\n*(Notes generation failed for this topic after retries: ${lastError})*`
 }
 
-export async function generateChapterNotesFromKnowledge(subjectName: string, chapterTitle: string): Promise<GenerateFromKnowledgeOutput> {
-  const { topics: topicNames, error: topicListError } = await generateTopicList(subjectName, chapterTitle)
-  if (!topicNames) return { error: `Could not generate a topic breakdown for this chapter. ${topicListError || ''}`.trim() }
+export async function generateChapterNotesFromKnowledge(subjectName: string, chapterTitle: string, topicNamesOverride?: string[]): Promise<GenerateFromKnowledgeOutput> {
+  let topicNames: string[]
+  if (topicNamesOverride && topicNamesOverride.length > 0) {
+    topicNames = topicNamesOverride
+  } else {
+    const { topics, error: topicListError } = await generateTopicList(subjectName, chapterTitle)
+    if (!topics) return { error: `Could not generate a topic breakdown for this chapter. ${topicListError || ''}`.trim() }
+    topicNames = topics
+  }
 
   const results: GeneratedTopic[] = new Array(topicNames.length)
   const CONCURRENCY = 4

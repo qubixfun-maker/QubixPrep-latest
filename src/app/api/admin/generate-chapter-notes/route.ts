@@ -22,10 +22,13 @@ function slugify(title: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { idToken, subjectId, chapterTitle } = await req.json()
+    const { idToken, subjectId, chapterTitle, topicNames } = await req.json()
     if (!idToken || !subjectId || !chapterTitle?.trim()) {
       return NextResponse.json({ error: 'Missing idToken, subjectId, or chapterTitle' }, { status: 400 })
     }
+    const topicNamesOverride: string[] | undefined = Array.isArray(topicNames)
+      ? topicNames.map((t) => String(t).trim()).filter(Boolean)
+      : undefined
 
     const decoded = await verifyIdToken(idToken)
     const db = getAdminFirestore()
@@ -37,7 +40,7 @@ export async function POST(req: NextRequest) {
     const subjectDoc = await db.collection('subjects').doc(subjectId).get()
     const subjectName = subjectDoc.exists ? (subjectDoc.data() as any)?.name || subjectId : subjectId
 
-    const result = await generateChapterNotesFromKnowledge(subjectName, chapterTitle.trim())
+    const result = await generateChapterNotesFromKnowledge(subjectName, chapterTitle.trim(), topicNamesOverride && topicNamesOverride.length > 0 ? topicNamesOverride : undefined)
     if (result.error || !result.topics) {
       return NextResponse.json({ error: result.error || 'Notes generation failed' }, { status: 500 })
     }

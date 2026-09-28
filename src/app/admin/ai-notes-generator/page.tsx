@@ -17,6 +17,35 @@ type ChapterProgress = {
   textbookId?: string
   chapterId?: string
   error?: string
+  topics?: string[]
+}
+
+// Chapter Names textarea accepts an optional, indented topic list under any chapter:
+//   Cardiology
+//     Heart failure
+//     Arrhythmias
+//   Neurology
+// A line with leading whitespace is a topic of the chapter above it; an unindented
+// line starts a new chapter. Chapters with no indented lines under them fall back to
+// letting Gemini pick the topic breakdown itself (unchanged existing behavior).
+function parseChaptersInput(text: string): { title: string; topics?: string[] }[] {
+  const chapters: { title: string; topics?: string[] }[] = []
+  for (const rawLine of text.split("\n")) {
+    if (!rawLine.trim()) continue
+    const isIndented = /^\s/.test(rawLine)
+    if (isIndented && chapters.length > 0) {
+      const topic = rawLine.trim().replace(/^[-*•]\s*/, "")
+      if (topic) {
+        const last = chapters[chapters.length - 1]
+        last.topics = last.topics || []
+        last.topics.push(topic)
+      }
+    } else {
+      const title = rawLine.trim().replace(/^\d+[.)]\s*/, "")
+      if (title) chapters.push({ title })
+    }
+  }
+  return chapters
 }
 
 export default function AiNotesGeneratorPage() {
@@ -69,15 +98,16 @@ export default function AiNotesGeneratorPage() {
 
   async function startNewJob() {
     if (!db || !subjectId || !jobRef) return
-    const titles = chapterNamesInput
-      .split("\n")
-      .map((t) => t.trim().replace(/^\d+[.)]\s*/, ""))
-      .filter(Boolean)
-    if (titles.length === 0) {
+    const parsedChapters = parseChaptersInput(chapterNamesInput)
+    if (parsedChapters.length === 0) {
       alert("Enter at least one chapter name, one per line.")
       return
     }
-    const chapters: ChapterProgress[] = titles.map((title) => ({ title, status: "pending" }))
+    const chapters: ChapterProgress[] = parsedChapters.map(({ title, topics }) => ({
+      title,
+      status: "pending",
+      ...(topics && topics.length > 0 ? { topics } : {}),
+    }))
 
     try {
       await setDoc(jobRef, { subjectId, chapters, status: "running", updatedAt: serverTimestamp() })
@@ -113,7 +143,12 @@ export default function AiNotesGeneratorPage() {
         const res = await fetch("/api/admin/generate-chapter-notes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken, subjectId, chapterTitle: working[i].title }),
+          body: JSON.stringify({
+            idToken,
+            subjectId,
+            chapterTitle: working[i].title,
+            topicNames: working[i].topics && working[i].topics!.length > 0 ? working[i].topics : undefined,
+          }),
         })
         let data: any
         try {
@@ -195,7 +230,7 @@ export default function AiNotesGeneratorPage() {
         {!hasActiveJob && (
           <>
             <div>
-              <Label className="text-sm font-medium block mb-1">Chapter Names (one per line)</Label>
+              <Label className="text-sm font-medium block mb-1">Chapter Names (one per line) - optionally indent lines under a chapter to give its exact topic list</Label>
               <Textarea
                 placeholder={"Cardiovascular Physiology\nRenal Physiology\nEndocrine Physiology"}
                 value={chapterNamesInput}
