@@ -107,6 +107,15 @@ service cloud.firestore {
       allow write, delete: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    match /osceStations/{stationId} {
+      allow read: if true;
+      allow write, delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /osceStationGenJob/{jobId} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
     match /dashboardBanners/{bannerId} {
       allow read: if true;
       allow write, delete: if request.auth != null && 
