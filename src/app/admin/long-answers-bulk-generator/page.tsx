@@ -220,8 +220,10 @@ export default function LongAnswersBulkGeneratorPage() {
         updatedAt: serverTimestamp(),
       })
       checkSavedBank(subjectId)
-    } catch {
-      // Best-effort - never let a persistence failure interrupt extraction that already succeeded.
+    } catch (e: any) {
+      // Best-effort - never let a persistence failure interrupt extraction that already succeeded,
+      // but surface it so a silent Firestore-rules problem doesn't look like nothing happened.
+      toast({ variant: "destructive", title: "Could not save extraction to Firestore", description: e?.message || "Unknown error" })
     }
   }
 
