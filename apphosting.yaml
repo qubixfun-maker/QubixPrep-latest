@@ -135,3 +135,7 @@ env:
     secret: GOOGLE_SERVICE_ACCOUNT_KEY_B64
     availability:
       - RUNTIME
+  - variable: PEXELS_API_KEY
+    secret: PEXELS_API_KEY
+    availability:
+      - RUNTIME

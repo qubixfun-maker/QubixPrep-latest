@@ -11,7 +11,7 @@ import { GraduationCap, BookOpen,
   Trophy,
   User,
   Zap,
-  ShoppingBag, Gift, Layers } from "lucide-react"
+  ShoppingBag, Gift, Layers, Flame, Stethoscope } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useDoc, useFirestore } from "@/firebase"
@@ -59,6 +59,8 @@ export function AppSidebar() {
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Clinical Cases", url: "/cases", icon: BrainCircuit },
+    { title: "Study Feed", url: "/feed", icon: Flame },
+    { title: "OSCE Stations", url: "/osce-stations", icon: Stethoscope },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit },
     // { title: "Video Lectures", url: "/videos", icon: Video },
     { title: "AI Tools", url: "/ai-tools", icon: BrainCircuit },
