@@ -48,7 +48,9 @@ import {
   ArrowRight,
   Gift,
   Zap,
-  BookOpenText
+  BookOpenText,
+  Stethoscope,
+  Flame
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -1657,6 +1659,16 @@ export default function AdminDashboard() {
           <Link href="/admin/analytics">
             <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
               <BarChart3 className="h-4 w-4" /> Analytics
+            </Button>
+          </Link>
+          <Link href="/admin/osce-station-generator">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-teal-500/30 text-teal-400 hover:bg-teal-500/10">
+              <Stethoscope className="h-4 w-4" /> OSCE Station Generator
+            </Button>
+          </Link>
+          <Link href="/feed">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-orange-500/30 text-orange-400 hover:bg-orange-500/10">
+              <Flame className="h-4 w-4" /> Study Feed
             </Button>
           </Link>
           <Button 
