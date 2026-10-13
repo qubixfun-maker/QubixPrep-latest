@@ -1661,9 +1661,9 @@ export default function AdminDashboard() {
               <BarChart3 className="h-4 w-4" /> Analytics
             </Button>
           </Link>
-          <Link href="/admin/osce-station-generator">
+          <Link href="/osce-stations">
             <Button variant="outline" className="rounded-xl gap-2 glass border-teal-500/30 text-teal-400 hover:bg-teal-500/10">
-              <Stethoscope className="h-4 w-4" /> OSCE Station Generator
+              <Stethoscope className="h-4 w-4" /> OSCE Stations (Live)
             </Button>
           </Link>
           <Link href="/feed">
