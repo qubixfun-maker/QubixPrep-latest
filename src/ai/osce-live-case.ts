@@ -40,7 +40,7 @@ export type CaseBrief = {
   imageSearchQuery: string;
 };
 
-export const TOTAL_VIVA_QUESTIONS = 4;
+const TOTAL_VIVA_QUESTIONS = 4;
 
 function caseBriefPrompt(specialty: string, topic: string): string {
   return `You are creating a single, complete, internally-consistent OSCE/clinical long-case for an Indian MBBS student, in the specialty "${specialty}", on the topic/condition "${topic}".
