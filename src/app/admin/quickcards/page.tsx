@@ -115,7 +115,9 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
   const nameRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [queue, setQueue] = useState<QueueItem[]>([])
   const [running, setRunning] = useState(false)
-  const [fillFeature, setFillFeature] = useState<string>(SORTED_FEATURES[0].slug)
+  // The section every photo in this batch goes into. Chosen by the admin, never guessed.
+  const [section, setSection] = useState<string>("")
+  const sectionFeature = section ? getFeature(section) ?? null : null
   const [fillStart, setFillStart] = useState("1")
 
   // Free the preview URLs when the page closes
@@ -159,10 +161,14 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
 
   /** Number the photos in order: C1, C2, C3 ... for every row that has no name yet. */
   function autoFill() {
-    const f = getFeature(fillFeature)
+    const f = sectionFeature
     const start = parseInt(fillStart, 10)
-    if (!f || !Number.isFinite(start) || start < 1) {
-      toast({ variant: "destructive", title: "Enter a start number", description: "For example 1 to begin at C1." })
+    if (!f) {
+      toast({ variant: "destructive", title: "Choose a section first" })
+      return
+    }
+    if (!Number.isFinite(start) || start < 1) {
+      toast({ variant: "destructive", title: "Enter a start number", description: "For example 1 to begin at card 1." })
       return
     }
     const prefix = f.prefixes[0]
@@ -186,7 +192,7 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
   const analysis = useMemo(() => {
     const seen = new Map<string, number>()
     queue.forEach((it) => {
-      const p = parseCardName(it.name)
+      const p = parseCardName(it.name, sectionFeature)
       if (p.ok && it.status !== "done") {
         const k = `${p.cardId}|${p.side}`
         seen.set(k, (seen.get(k) || 0) + 1)
@@ -194,13 +200,13 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
     })
     const rows = queue.map((it) => {
       if (it.status === "done") return { ok: true as const, parsed: null as ParsedCardFile | null, error: "" }
-      const p = parseCardName(it.name)
+      const p = parseCardName(it.name, sectionFeature)
       if (!p.ok) return { ok: false as const, parsed: null, error: it.name.trim() ? p.reason : "" }
       if ((seen.get(`${p.cardId}|${p.side}`) || 0) > 1) return { ok: false as const, parsed: null, error: "Same name used twice" }
       return { ok: true as const, parsed: p, error: "" }
     })
     return rows
-  }, [queue])
+  }, [queue, sectionFeature])
 
   async function uploadOne(i: number, item: QueueItem, p: ParsedCardFile) {
     if (!storage) throw new Error("Storage is not ready.")
@@ -238,6 +244,10 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
   }
 
   async function startUpload() {
+    if (!sectionFeature) {
+      toast({ variant: "destructive", title: "Choose a section first", description: "Pick which section these photos belong to." })
+      return
+    }
     if (analysis.some((a, i) => !a.ok && queue[i].status !== "done")) {
       toast({ variant: "destructive", title: "Fix the red rows first", description: "Every photo needs a valid, different name (or remove it)." })
       return
@@ -288,16 +298,25 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg"><Upload className="h-5 w-5 text-primary" /> Bulk upload</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Choose as many photos as you like (100+ is fine), then type the card name beside each one: <code>C7</code>, <code>M1</code>, back side <code>M1-back</code>.
-          The letters pick the feature ({CARD_FEATURES.map((f) => `${f.prefixes.join("/")} = ${f.name}`).join(", ")}).
-          Press Enter to jump to the next box. Re-uploading a name replaces that image.
+          1) Choose the section. 2) Choose as many photos as you like (100+ is fine). 3) Type the card number beside each photo: <code>7</code>, and for the back side <code>7-back</code>.
+          Press Enter to jump to the next box. Re-uploading a number replaces that image.
+          Sections with two or three letter codes ({CARD_FEATURES.filter((f) => f.prefixes.length > 1).map((f) => `${f.name}: ${f.prefixes.join("/")}`).join("; ")}) use the first letter by default; type the letter, like <code>K3</code>, to use another.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(e) => { onPick(e.target.files); e.target.value = "" }} />
+        <div className="space-y-1.5 max-w-sm">
+          <Label className="text-xs">Upload these photos to</Label>
+          <Select value={section} onValueChange={setSection} disabled={running}>
+            <SelectTrigger><SelectValue placeholder="Choose a section" /></SelectTrigger>
+            <SelectContent>
+              {SORTED_FEATURES.map((f) => <SelectItem key={f.slug} value={f.slug}>{f.name} ({f.prefixes.join("/")})</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex flex-wrap gap-3 items-end">
           <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={running}>Choose images</Button>
-          <Button onClick={startUpload} disabled={running || pending === 0} className="gap-2">
+          <Button onClick={startUpload} disabled={running || pending === 0 || !sectionFeature} className="gap-2">
             {running && <Loader2 className="h-4 w-4 animate-spin" />} Upload {pending > 0 ? `${pending} image${pending > 1 ? "s" : ""}` : ""}
           </Button>
           {queue.length > 0 && !running && <Button variant="ghost" onClick={clearAll}>Clear all</Button>}
@@ -306,20 +325,14 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
         {queue.length > 0 && (
           <div className="flex flex-wrap items-end gap-2 rounded-xl border border-white/10 p-3">
             <div className="space-y-1">
-              <Label className="text-xs">Quick-number the empty boxes</Label>
+              <Label className="text-xs">Quick-number the empty boxes, starting at</Label>
               <div className="flex gap-2">
-                <Select value={fillFeature} onValueChange={setFillFeature}>
-                  <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {SORTED_FEATURES.map((f) => <SelectItem key={f.slug} value={f.slug}>{f.name} ({f.prefixes[0]})</SelectItem>)}
-                  </SelectContent>
-                </Select>
                 <Input value={fillStart} onChange={(e) => setFillStart(e.target.value)} inputMode="numeric" className="w-20" aria-label="Start number" />
                 <Button variant="secondary" onClick={autoFill} disabled={running}>Fill in order</Button>
               </div>
             </div>
             <p className="text-xs text-muted-foreground flex-1 min-w-48">
-              Photos are listed in file-name order. This numbers the empty boxes one after another (C1, C2, C3 ...); you can still edit any box.
+              Photos are listed in file-name order. This numbers the empty boxes one after another (1, 2, 3 ...) in the chosen section; you can still edit any box.
             </p>
           </div>
         )}
@@ -345,8 +358,8 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
                       onChange={(e) => setName(it.key, e.target.value)}
                       onKeyDown={(e) => onNameKey(e, i)}
                       disabled={running || it.status === "done"}
-                      placeholder="Type name, e.g. C7 or M1-back"
-                      aria-label={`Card name for ${it.file.name}`}
+                      placeholder="Type number, e.g. 7 or 7-back"
+                      aria-label={`Card number for ${it.file.name}`}
                       className={`h-9 font-mono ${bad && it.name.trim() ? "border-destructive" : ""}`}
                     />
                     <p className="text-[11px] text-muted-foreground truncate">

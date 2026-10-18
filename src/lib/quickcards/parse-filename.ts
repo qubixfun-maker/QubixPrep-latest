@@ -43,16 +43,22 @@ export function parseCardFilename(fileName: string): ParsedCardFile | ParsedCard
 
 /**
  * Typed names, no extension needed: "c7", "M1 back", "pc 3", "M1-back" all work.
- * Used by the bulk upload when the admin types the name beside each photo.
+ * When the admin has chosen a section, the letters are optional: "7" means card 7 of that
+ * section (using its first letter code), and letters from a different section are rejected.
  */
-export function parseCardName(text: string): ParsedCardFile | ParsedCardFileError {
+export function parseCardName(text: string, section?: CardFeatureConfig | null): ParsedCardFile | ParsedCardFileError {
   const t = text.trim()
-  if (!t) return { ok: false, reason: 'Type a name like C7 or M1-back' }
-  const m = t.match(/^([A-Za-z]+)\s*(\d+)(?:\s*[-_ ]?\s*(back|b))?$/i)
-  if (!m) return { ok: false, reason: 'Use a name like C7 or M1-back' }
-  const prefix = m[1].toUpperCase()
+  if (!t) return { ok: false, reason: section ? 'Type a number like 7 or 7-back' : 'Type a name like C7 or M1-back' }
+  const m = t.match(/^([A-Za-z]*)\s*(\d+)(?:\s*[-_ ]?\s*(back|b))?$/i)
+  if (!m || (!m[1] && !section)) {
+    return { ok: false, reason: section ? 'Use a number like 7 or 7-back' : 'Use a name like C7 or M1-back' }
+  }
+  const prefix = (m[1] || section!.prefixes[0]).toUpperCase()
   const feature = FEATURE_BY_PREFIX[prefix]
   if (!feature) return { ok: false, reason: `Unknown prefix "${prefix}"` }
+  if (section && feature.slug !== section.slug) {
+    return { ok: false, reason: `${prefix} belongs to ${feature.name}, not ${section.name}` }
+  }
   const number = parseInt(m[2], 10)
   return { ok: true, feature, prefix, number, cardId: `${prefix}${number}`, side: m[3] ? 'back' : 'front' }
 }
