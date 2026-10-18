@@ -406,7 +406,7 @@ export default function ProfilePage() {
                     {isPro ? 'Clinician' : isBasic ? 'Scholar' : 'Explorer'}
                   </p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-                    {isPro ? '₹59/month' : isBasic ? '₹29/month' : 'Free forever'}
+                    {isPro ? 'Clinician member' : isBasic ? '₹999/year' : 'Free forever'}
                   </p>
                 </div>
                 <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${isPro ? 'bg-primary/20 text-primary' : isBasic ? 'bg-accent/20 text-accent' : 'bg-white/10 text-muted-foreground'}`}>

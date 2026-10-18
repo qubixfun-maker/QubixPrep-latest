@@ -219,7 +219,7 @@ export default function ProductsPage() {
         <h2 className="text-2xl font-bold">Curated Products</h2>
 
         {!isPro && !isAdmin ? (
-          <UpgradeGate type="ai" title="Clinician Plan Required" description="Upgrade to Clinician (₹59/mo) to access and purchase premium study products." />
+          <UpgradeGate type="ai" title="Clinician Plan Required" description="Premium study products are available to Clinician members." />
         ) : (
           <>
             <div className="flex flex-wrap gap-2">

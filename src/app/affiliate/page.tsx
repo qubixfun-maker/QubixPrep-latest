@@ -146,7 +146,7 @@ export default function AffiliatePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { icon: Link2, label: 'Share your link', desc: 'One link, unlimited referrals' },
-              { icon: Users, label: 'Friend subscribes', desc: 'Any plan, ₹29 or ₹59/month' },
+              { icon: Users, label: 'Friend subscribes', desc: 'The ₹999/year plan' },
               { icon: IndianRupee, label: 'You get paid', desc: 'Earn on every single referral' },
             ].map((s, i) => (
               <div key={i} className="glass rounded-2xl p-4 border border-white/5 space-y-2">

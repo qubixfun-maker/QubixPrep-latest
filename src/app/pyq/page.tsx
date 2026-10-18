@@ -116,7 +116,7 @@ export default function PYQPage() {
           <h1 className="text-4xl font-bold">PYQ Test Series</h1>
           <p className="text-muted-foreground text-lg">Year-wise previous year questions for NEET PG, INICET, USMLE & more</p>
         </div>
-        <UpgradeGate type="ai" title="Clinician Plan Required" description="Access the full PYQ Test Series with year-wise papers, subject filters, and 3 practice modes. Upgrade to Clinician at ₹59/month." />
+        <UpgradeGate type="ai" title="Clinician Plan Required" description="Access the full PYQ Test Series with year-wise papers, subject filters, and 3 practice modes. Available to Clinician members." />
       </div>
     )
   }

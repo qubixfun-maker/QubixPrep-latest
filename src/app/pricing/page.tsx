@@ -18,20 +18,12 @@ const PLANS = [
     cta: "Current Plan", razorpayPlanId: null,
   },
   {
-    id: "basic", name: "Scholar", price: 29, icon: Crown,
-    color: "text-accent", border: "border-accent/40", badge: "Most Popular",
+    id: "basic", name: "Scholar", price: 999, icon: Crown,
+    color: "text-accent", border: "border-accent/40", badge: "Yearly Plan",
     description: "Full content library unlocked",
-    features: ["Everything in Explorer", "Unlimited notes access", "All mindmaps", "Full QBank — all subjects", "Custom Test Series", "Video lectures (all)"],
+    features: ["Everything in Explorer", "Unlimited notes access", "All mindmaps", "Full QBank — all subjects", "Custom Test Series", "Video lectures (all)", "QuickCards — all sections"],
     locked: ["AI Tutor", "AI Summarizer", "AI Quiz Generator", "PDF AI Extraction"],
-    cta: "Upgrade to Scholar", razorpayPlanId: "basic",
-  },
-  {
-    id: "pro", name: "Clinician", price: 59, icon: Zap,
-    color: "text-primary", border: "border-primary/40", badge: "All Features",
-    description: "Everything + full AI suite",
-    features: ["Everything in Scholar", "AI Clinical Tutor", "AI Note Summarizer", "AI Quiz Generator", "PDF AI Extraction (Vision OCR)", "Priority support"],
-    locked: [],
-    cta: "Upgrade to Clinician", razorpayPlanId: "pro",
+    cta: "Subscribe for ₹999 / year", razorpayPlanId: "basic",
   },
 ]
 
@@ -43,7 +35,10 @@ export default function PricingPage() {
 
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile } = useDoc(profileRef)
-  const currentPlan = (profile as any)?.plan || "free"
+  const rawPlan = (profile as any)?.plan || "free"
+  // Clinician (pro) is no longer sold, but existing Clinician members keep their access and count as subscribed.
+  const isSubscribed = rawPlan === "basic" || rawPlan === "pro"
+  const currentPlan = rawPlan === "pro" ? "basic" : rawPlan
 
   async function handleUpgrade(plan: typeof PLANS[0]) {
     if (!user || !plan.razorpayPlanId) return
@@ -65,7 +60,7 @@ export default function PricingPage() {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         subscription_id: data.subscriptionId,
         name: 'QubixPrep',
-        description: `${plan.name} Plan - Monthly Subscription`,
+        description: `${plan.name} Plan - Yearly Subscription (₹${plan.price}/year)`,
         handler: async () => {
           toast({
             title: "Subscription Activated!",
@@ -98,11 +93,11 @@ export default function PricingPage() {
           Choose Your <span className="text-gradient">Learning Path</span>
         </h1>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-          Start free. Upgrade when you're ready. Cancel anytime — auto-renews monthly via Razorpay.
+          Start free. Upgrade when you're ready. One simple yearly plan — ₹999 per year, auto-renews via Razorpay.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
         {PLANS.map((plan) => {
           const Icon = plan.icon
           const isCurrent = currentPlan === plan.id
@@ -124,7 +119,7 @@ export default function PricingPage() {
                 <p className="text-muted-foreground text-sm">{plan.description}</p>
                 <div className="mt-4 flex items-end gap-1">
                   <span className="text-4xl font-bold">₹{plan.price}</span>
-                  {plan.price > 0 && <span className="text-muted-foreground mb-1">/month</span>}
+                  {plan.price > 0 && <span className="text-muted-foreground mb-1">/year</span>}
                   {plan.price === 0 && <span className="text-muted-foreground mb-1">forever</span>}
                 </div>
               </CardHeader>
@@ -151,7 +146,7 @@ export default function PricingPage() {
                   onClick={() => isUpgrade && handleUpgrade(plan)}
                 >
                   {loading === plan.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCurrent ? "✓ Current Plan" : plan.cta}
+                  {isCurrent ? (isSubscribed && rawPlan === "pro" ? "✓ Clinician member" : "✓ Current Plan") : plan.cta}
                 </Button>
               </CardContent>
             </Card>
@@ -160,7 +155,7 @@ export default function PricingPage() {
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        Payments secured by Razorpay · Auto-renews monthly · Cancel anytime from your profile
+        Payments secured by Razorpay · Auto-renews yearly · Cancel anytime from your profile
       </p>
     </div>
   )

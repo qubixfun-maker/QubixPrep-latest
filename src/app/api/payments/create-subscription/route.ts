@@ -3,14 +3,21 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from 'next/server'
 import Razorpay from 'razorpay'
 
-const PLAN_IDS: Record<string, string> = {
-  basic: 'plan_T4BoMfXV9XSdrd',
-  pro: 'plan_T4BpKr2lHqJuk9',
+// The only plan on sale: Scholar, Rs 999 per year. Create a plan in the Razorpay
+// dashboard (Billing period: Yearly, every 1 year, Rs 999) and put its ID in the
+// RAZORPAY_YEARLY_PLAN_ID environment variable. Old monthly plans are no longer sold.
+function getPlanIds(): Record<string, string> {
+  const yearly = process.env.RAZORPAY_YEARLY_PLAN_ID
+  return yearly ? { basic: yearly } : {}
 }
 
 export async function POST(req: Request) {
   const { planId, userId, email } = await req.json()
 
+  const PLAN_IDS = getPlanIds()
+  if (!process.env.RAZORPAY_YEARLY_PLAN_ID) {
+    return NextResponse.json({ error: 'The yearly plan is not set up yet. Please try again later.' }, { status: 503 })
+  }
   if (!planId || !userId || !PLAN_IDS[planId]) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
   }
@@ -28,7 +35,7 @@ export async function POST(req: Request) {
     const subscription = await razorpay.subscriptions.create({
       plan_id: PLAN_IDS[planId],
       customer_notify: 1,
-      total_count: 120,
+      total_count: 10, // 10 yearly renewals (Razorpay requires a count)
       notes: {
         userId,
         planId,

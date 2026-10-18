@@ -23,8 +23,8 @@ export function UpgradeGate({ type, title, description }: UpgradeGateProps) {
         </h3>
         <p className="text-muted-foreground max-w-sm">
           {description || (isAI 
-            ? 'Upgrade to Clinician (₹59/mo) to unlock AI Tools, AI Tutor, and PDF Extraction.'
-            : 'Upgrade to Scholar (₹29/mo) to unlock the full notes library, all mindmaps, and unlimited QBank.'
+            ? 'This feature is for Clinician members. Clinician is no longer sold; the Scholar plan (₹999/year) unlocks the full library.'
+            : 'Subscribe to Scholar (₹999/year) to unlock the full notes library, all mindmaps, unlimited QBank and QuickCards.'
           )}
         </p>
       </div>
