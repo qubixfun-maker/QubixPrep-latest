@@ -1656,6 +1656,11 @@ export default function AdminDashboard() {
               <BookOpenText className="h-4 w-4" /> Notes Image Generator
             </Button>
           </Link>
+          <Link href="/admin/quickcards">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-violet-500/30 text-violet-400 hover:bg-violet-500/10">
+              <BookOpenText className="h-4 w-4" /> QuickCards
+            </Button>
+          </Link>
           <Link href="/admin/analytics">
             <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
               <BarChart3 className="h-4 w-4" /> Analytics

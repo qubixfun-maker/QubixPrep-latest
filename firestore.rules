@@ -19,6 +19,10 @@ service cloud.firestore {
       match /feedProgress/{cardId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      match /quickCardState/{cardId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     match /subjects/{subjectId} {
       allow read: if true;
@@ -114,6 +118,17 @@ service cloud.firestore {
     }
     match /osceStationGenJob/{jobId} {
       allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /quickCards/{cardId} {
+      allow read: if resource.data.status == 'published' || (request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow create, update, delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /quickCardSettings/{slug} {
+      allow read: if true;
+      allow write: if request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     match /dashboardBanners/{bannerId} {

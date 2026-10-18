@@ -1,0 +1,2725 @@
+Total mindmaps for surgery: 389
+
+- id: ai-generated__abdominal-compartment-syndrome-mindmap
+  title/chapterTitle: Abdominal Compartment Syndrome
+  createdAt: "2026-09-27T23:54:29.233Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__abdominal-incisions-mindmap
+  title/chapterTitle: Abdominal Incisions
+  createdAt: "2026-09-27T23:56:27.029Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__abdominal-tuberculosis-mindmap
+  title/chapterTitle: Abdominal Tuberculosis
+  createdAt: "2026-09-27T23:58:19.311Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__abdominal-wound-dehiscence-mindmap
+  title/chapterTitle: Abdominal Wound Dehiscence
+  createdAt: "2026-09-28T00:00:10.253Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__aberrations-of-normal-development-and-involution-of-the-breast-andi-mindmap
+  title/chapterTitle: Aberrations of Normal Development and Involution of the Breast (ANDI)
+  createdAt: "2026-09-28T00:02:19.500Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__abscess-mindmap
+  title/chapterTitle: Abscess
+  createdAt: "2026-09-28T00:04:11.853Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acid-base-balance-mindmap
+  title/chapterTitle: Acid–Base Balance
+  createdAt: "2026-09-28T00:06:02.817Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__actinomycosis-mindmap
+  title/chapterTitle: Actinomycosis
+  createdAt: "2026-09-28T00:07:51.592Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acute-appendicitis-mindmap
+  title/chapterTitle: Acute Appendicitis
+  createdAt: "2026-09-28T00:09:31.186Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acute-arterial-occlusion-mindmap
+  title/chapterTitle: Acute Arterial Occlusion
+  createdAt: "2026-09-28T00:11:30.130Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acute-bacterial-mastitis-breast-abscess-puerperal-mastitis-mindmap
+  title/chapterTitle: Acute Bacterial Mastitis (Breast Abscess/Puerperal Mastitis)
+  createdAt: "2026-09-28T00:13:19.567Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acute-cholecystitis-mindmap
+  title/chapterTitle: Acute Cholecystitis
+  createdAt: "2026-09-28T00:15:14.357Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acute-complications-of-peptic-ulcer-mindmap
+  title/chapterTitle: Acute Complications of Peptic Ulcer
+  createdAt: "2026-09-28T00:17:05.534Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acute-pancreatitis-mindmap
+  title/chapterTitle: Acute Pancreatitis
+  createdAt: "2026-09-28T00:22:10.527Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__acute-parotitis-mindmap
+  title/chapterTitle: Acute Parotitis
+  createdAt: "2026-09-28T00:25:50.039Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__adenolymphoma-warthin-s-tumour-mindmap
+  title/chapterTitle: Adenolymphoma (Warthin's Tumour)
+  createdAt: "2026-09-28T00:26:00.693Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__aetiology-of-hernia-mindmap
+  title/chapterTitle: Aetiology of Hernia
+  createdAt: "2026-09-28T00:27:40.794Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__airway-management-in-anaesthesia-mindmap
+  title/chapterTitle: Airway Management in Anaesthesia
+  createdAt: "2026-09-28T00:30:59.567Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__amoebic-liver-abscess-mindmap
+  title/chapterTitle: Amoebic Liver Abscess
+  createdAt: "2026-09-28T00:32:48.845Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__amputation-mindmap
+  title/chapterTitle: Amputation
+  createdAt: "2026-09-28T00:33:29.512Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anal-incontinence-mindmap
+  title/chapterTitle: Anal Incontinence
+  createdAt: "2026-09-28T00:35:18.892Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anaplastic-carcinoma-mindmap
+  title/chapterTitle: Anaplastic Carcinoma
+  createdAt: "2026-09-28T00:37:02.351Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anatomy-of-the-inguinal-region-mindmap
+  title/chapterTitle: Anatomy of the Inguinal Region
+  createdAt: "2026-09-28T00:38:44.928Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anatomy-of-the-testis-and-epididymis-mindmap
+  title/chapterTitle: Anatomy of the Testis and Epididymis
+  createdAt: "2026-09-28T00:40:25.652Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__angiography-mindmap
+  title/chapterTitle: Angiography
+  createdAt: "2026-09-28T00:42:19.160Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__angiosarcoma-of-the-breast-mindmap
+  title/chapterTitle: Angiosarcoma of the Breast
+  createdAt: "2026-09-28T00:43:54.057Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anomalies-of-the-ureters-mindmap
+  title/chapterTitle: Anomalies of the Ureters
+  createdAt: "2026-09-28T00:45:48.514Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anomalies-of-the-urinary-bladder-and-urethra-mindmap
+  title/chapterTitle: Anomalies of the Urinary Bladder and Urethra
+  createdAt: "2026-09-28T00:47:46.410Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anorectal-anomalies-mindmap
+  title/chapterTitle: Anorectal Anomalies
+  createdAt: "2026-09-28T00:49:35.353Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anorectal-physiology-mindmap
+  title/chapterTitle: Anorectal Physiology
+  createdAt: "2026-09-28T00:51:23.830Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__anterior-mediastinal-masses-mindmap
+  title/chapterTitle: Anterior Mediastinal Masses
+  createdAt: "2026-09-28T00:53:07.572Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__appendicectomy-mindmap
+  title/chapterTitle: Appendicectomy
+  createdAt: "2026-09-28T00:55:07.626Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__arterial-ischaemic-ulcer-trophic-ulcer-mindmap
+  title/chapterTitle: Arterial/Ischaemic Ulcer, Trophic Ulcer
+  createdAt: "2026-09-28T00:56:55.152Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__asepsis-sterilization-and-disinfection-mindmap
+  title/chapterTitle: Asepsis, Sterilization and Disinfection
+  createdAt: "2026-09-28T00:58:36.098Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__axillary-vein-thrombosis-mindmap
+  title/chapterTitle: Axillary Vein Thrombosis
+  createdAt: "2026-09-28T01:00:27.416Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__barium-studies-mindmap
+  title/chapterTitle: Barium Studies
+  createdAt: "2026-09-28T01:02:37.412Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__barrett-s-oesophagus-mindmap
+  title/chapterTitle: Barrett's Oesophagus
+  createdAt: "2026-09-28T01:04:21.628Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__benign-lesions-in-the-oral-cavity-mindmap
+  title/chapterTitle: Benign Lesions in the Oral Cavity
+  createdAt: "2026-09-28T01:06:22.259Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__benign-prostatic-hyperplasia-bph-mindmap
+  title/chapterTitle: Benign Prostatic Hyperplasia (BPH)
+  createdAt: "2026-09-28T01:08:08.727Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__benign-tumours-of-the-liver-mindmap
+  title/chapterTitle: Benign Tumours of the Liver
+  createdAt: "2026-09-28T01:10:09.988Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__benign-tumours-soft-tissue-mindmap
+  title/chapterTitle: Benign Tumours (Soft Tissue)
+  createdAt: "2026-09-28T01:12:12.709Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__bilirubin-metabolism-mindmap
+  title/chapterTitle: Bilirubin Metabolism
+  createdAt: "2026-09-28T01:14:03.189Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__biohazard-disposal-biomedical-waste-management-mindmap
+  title/chapterTitle: Biohazard Disposal/Biomedical Waste Management
+  createdAt: "2026-09-28T01:15:51.900Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__blast-injuries-mindmap
+  title/chapterTitle: Blast Injuries
+  createdAt: "2026-09-28T01:17:42.274Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__blood-tests-urinary-tract-investigation-mindmap
+  title/chapterTitle: Blood Tests (Urinary Tract Investigation)
+  createdAt: "2026-09-28T01:19:41.993Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__blood-transfusion-mindmap
+  title/chapterTitle: Blood Transfusion
+  createdAt: "2026-09-28T01:21:38.813Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__blunt-abdominal-trauma-mindmap
+  title/chapterTitle: Blunt Abdominal Trauma
+  createdAt: "2026-09-28T01:23:35.907Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__blunt-trauma-to-the-chest-mindmap
+  title/chapterTitle: Blunt Trauma to the Chest
+  createdAt: "2026-09-28T01:25:23.080Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__breast-reconstruction-mindmap
+  title/chapterTitle: Breast Reconstruction
+  createdAt: "2026-09-28T01:27:21.230Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__bronchogenic-carcinoma-mindmap
+  title/chapterTitle: Bronchogenic Carcinoma
+  createdAt: "2026-09-28T01:29:23.737Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__bronchopleural-fistula-mindmap
+  title/chapterTitle: Bronchopleural Fistula
+  createdAt: "2026-09-28T01:31:22.590Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__burkitt-s-lymphoma-mindmap
+  title/chapterTitle: Burkitt's Lymphoma
+  createdAt: "2026-09-28T01:33:14.535Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__burns-mindmap
+  title/chapterTitle: Burns
+  createdAt: "2026-09-28T01:35:10.200Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-breast-mindmap
+  title/chapterTitle: Carcinoma Breast
+  createdAt: "2026-09-28T01:36:59.654Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-colon-mindmap
+  title/chapterTitle: Carcinoma Colon
+  createdAt: "2026-09-28T01:38:49.558Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-of-buccal-mucosa-mindmap
+  title/chapterTitle: Carcinoma of Buccal Mucosa
+  createdAt: "2026-09-28T01:40:36.022Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-of-lip-mindmap
+  title/chapterTitle: Carcinoma of Lip
+  createdAt: "2026-09-28T01:42:28.021Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-of-the-bladder-mindmap
+  title/chapterTitle: Carcinoma of the Bladder
+  createdAt: "2026-09-28T01:44:32.893Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-of-the-oesophagus-mindmap
+  title/chapterTitle: Carcinoma of the Oesophagus
+  createdAt: "2026-09-28T01:46:24.585Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-of-the-prostate-mindmap
+  title/chapterTitle: Carcinoma of the Prostate
+  createdAt: "2026-09-28T01:48:26.940Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-of-tongue-mindmap
+  title/chapterTitle: Carcinoma of Tongue
+  createdAt: "2026-09-28T01:50:12.087Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-rectum-mindmap
+  title/chapterTitle: Carcinoma Rectum
+  createdAt: "2026-09-28T01:52:10.350Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__carcinoma-stomach-mindmap
+  title/chapterTitle: Carcinoma Stomach
+  createdAt: "2026-09-28T01:53:57.759Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__causes-of-intestinal-obstruction-as-per-age-mindmap
+  title/chapterTitle: Causes of Intestinal Obstruction as per Age
+  createdAt: "2026-09-28T01:56:10.740Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__cervical-tuberculous-lymphadenitis-mindmap
+  title/chapterTitle: Cervical Tuberculous Lymphadenitis
+  createdAt: "2026-09-28T01:58:04.043Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__chest-trauma-mindmap
+  title/chapterTitle: Chest Trauma
+  createdAt: "2026-09-28T01:59:59.990Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__cholangiogram-ercp-mrcp-mindmap
+  title/chapterTitle: Cholangiogram/ERCP/MRCP
+  createdAt: "2026-09-28T02:02:04.711Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__chronic-cholecystitis-mindmap
+  title/chapterTitle: Chronic Cholecystitis
+  createdAt: "2026-09-28T02:04:17.055Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__chronic-complications-of-peptic-ulcer-mindmap
+  title/chapterTitle: Chronic Complications of Peptic Ulcer
+  createdAt: "2026-09-28T02:06:31.457Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__chronic-pancreatitis-mindmap
+  title/chapterTitle: Chronic Pancreatitis
+  createdAt: "2026-09-28T02:08:16.989Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__chronic-subdural-haematoma-mindmap
+  title/chapterTitle: Chronic Subdural Haematoma
+  createdAt: "2026-09-28T02:10:02.684Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__chronic-submandibular-sialadenitis-mindmap
+  title/chapterTitle: Chronic Submandibular Sialadenitis
+  createdAt: "2026-09-28T02:11:58.479Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__circumcision-mindmap
+  title/chapterTitle: Circumcision
+  createdAt: "2026-09-28T02:13:46.074Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__classification-of-hernia-mindmap
+  title/chapterTitle: Classification of Hernia
+  createdAt: "2026-09-28T02:15:45.542Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__classification-of-umbilical-disorders-mindmap
+  title/chapterTitle: Classification of Umbilical Disorders
+  createdAt: "2026-09-28T02:17:23.176Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__cleft-lip-and-cleft-palate-mindmap
+  title/chapterTitle: Cleft Lip and Cleft Palate
+  createdAt: "2026-09-28T02:19:17.554Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__clinical-examination-of-abdominal-wall-hernia-mindmap
+  title/chapterTitle: Clinical Examination of Abdominal Wall Hernia
+  createdAt: "2026-09-28T02:21:13.763Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__clinical-examination-of-thyroid-swelling-mindmap
+  title/chapterTitle: Clinical Examination of Thyroid Swelling
+  createdAt: "2026-09-28T02:27:00.578Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__clinical-examination-of-ulcer-mindmap
+  title/chapterTitle: Clinical Examination of Ulcer
+  createdAt: "2026-09-28T02:27:31.519Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__colon-screening-mindmap
+  title/chapterTitle: Colon Screening
+  createdAt: "2026-09-28T02:29:29.233Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__colonic-function-mindmap
+  title/chapterTitle: Colonic Function
+  createdAt: "2026-09-28T02:31:42.179Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__colostomy-mindmap
+  title/chapterTitle: Colostomy
+  createdAt: "2026-09-28T02:33:59.526Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__communication-and-counselling-mindmap
+  title/chapterTitle: Communication and Counselling
+  createdAt: "2026-09-28T02:35:57.986Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__compartment-syndrome-mindmap
+  title/chapterTitle: Compartment Syndrome
+  createdAt: "2026-09-28T02:37:47.668Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__complications-of-anaesthesia-mindmap
+  title/chapterTitle: Complications of Anaesthesia
+  createdAt: "2026-09-28T02:40:03.181Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__complications-of-gastrectomy-mindmap
+  title/chapterTitle: Complications of Gastrectomy
+  createdAt: "2026-09-28T02:42:16.220Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__complications-of-hernia-mindmap
+  title/chapterTitle: Complications of Hernia
+  createdAt: "2026-09-28T02:44:25.379Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__complications-of-thyroidectomy-mindmap
+  title/chapterTitle: Complications of Thyroidectomy
+  createdAt: "2026-09-28T02:46:30.979Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__computed-tomography-ct-mindmap
+  title/chapterTitle: Computed Tomography (CT)
+  createdAt: "2026-09-28T02:48:31.157Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__computerized-tomography-ct-scanning-mindmap
+  title/chapterTitle: Computerized Tomography (CT) Scanning
+  createdAt: "2026-09-28T02:50:26.025Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__congenital-abnormalities-av-fistula-haemangioma-mindmap
+  title/chapterTitle: Congenital Abnormalities (AV Fistula, Haemangioma)
+  createdAt: "2026-09-28T02:52:11.733Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__congenital-abnormalities-of-the-spleen-mindmap
+  title/chapterTitle: Congenital Abnormalities of the Spleen
+  createdAt: "2026-09-28T02:54:00.855Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__congenital-anomalies-of-breast-mindmap
+  title/chapterTitle: Congenital Anomalies of Breast
+  createdAt: "2026-09-28T02:55:49.973Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__congenital-anomalies-of-gallbladder-mindmap
+  title/chapterTitle: Congenital Anomalies of Gallbladder
+  createdAt: "2026-09-28T03:07:42.313Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__congenital-anomalies-of-the-pancreas-mindmap
+  title/chapterTitle: Congenital Anomalies of the Pancreas
+  createdAt: "2026-09-28T03:09:20.525Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__congenital-heart-disease-mindmap
+  title/chapterTitle: Congenital Heart Disease
+  createdAt: "2026-09-28T03:10:54.963Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__congenital-hydronephrosis-mindmap
+  title/chapterTitle: Congenital Hydronephrosis
+  createdAt: "2026-09-28T03:12:38.065Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__coronary-artery-bypass-surgery-mindmap
+  title/chapterTitle: Coronary Artery Bypass Surgery
+  createdAt: "2026-09-28T03:14:36.243Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__corrosive-oesophageal-stricture-mindmap
+  title/chapterTitle: Corrosive Oesophageal Stricture
+  createdAt: "2026-09-28T03:16:24.467Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__cyclical-mastalgia-with-nodularity-mindmap
+  title/chapterTitle: Cyclical Mastalgia with Nodularity
+  createdAt: "2026-09-28T03:18:37.386Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__cystic-swelling-mindmap
+  title/chapterTitle: Cystic Swelling
+  createdAt: "2026-09-28T03:20:41.248Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__cystic-swellings-in-the-scrotum-mindmap
+  title/chapterTitle: Cystic Swellings in the Scrotum
+  createdAt: "2026-09-28T03:23:02.221Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__cystic-swellings-of-breast-mindmap
+  title/chapterTitle: Cystic Swellings of Breast
+  createdAt: "2026-09-28T03:25:00.674Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__day-case-care-surgery-mindmap
+  title/chapterTitle: Day Case/Care Surgery
+  createdAt: "2026-09-28T03:27:10.960Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__deep-infections-hand-mindmap
+  title/chapterTitle: Deep Infections (Hand)
+  createdAt: "2026-09-28T03:29:52.171Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__deep-vein-thrombosis-dvt-mindmap
+  title/chapterTitle: Deep Vein Thrombosis (DVT)
+  createdAt: "2026-09-28T03:31:36.327Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__development-and-anomalies-appendix-mindmap
+  title/chapterTitle: Development and Anomalies (Appendix)
+  createdAt: "2026-09-28T03:33:19.905Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__development-of-genitourinary-tract-mindmap
+  title/chapterTitle: Development of Genitourinary Tract
+  createdAt: "2026-09-28T03:35:07.204Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__diabetic-foot-mindmap
+  title/chapterTitle: Diabetic Foot
+  createdAt: "2026-09-28T03:37:17.215Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__differential-diagnosis-of-acute-appendicitis-mindmap
+  title/chapterTitle: Differential Diagnosis of Acute Appendicitis
+  createdAt: "2026-09-28T03:38:57.181Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__differential-diagnosis-of-intestinal-obstruction-mindmap
+  title/chapterTitle: Differential Diagnosis of Intestinal Obstruction
+  createdAt: "2026-09-28T03:40:57.922Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__differential-diagnosis-of-midline-swellings-in-the-neck-mindmap
+  title/chapterTitle: Differential Diagnosis of Midline Swellings in the Neck
+  createdAt: "2026-09-28T03:42:57.281Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__differential-diagnosis-of-soft-tissue-sarcoma-mindmap
+  title/chapterTitle: Differential Diagnosis of Soft Tissue Sarcoma
+  createdAt: "2026-09-28T03:44:57.425Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__differential-diagnosis-of-swellings-in-the-carotid-triangle-mindmap
+  title/chapterTitle: Differential Diagnosis of Swellings in the Carotid Triangle
+  createdAt: "2026-09-28T03:46:27.963Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__differential-diagnosis-of-ulcer-penis-mindmap
+  title/chapterTitle: Differential Diagnosis of Ulcer Penis
+  createdAt: "2026-09-28T03:48:31.293Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__direct-hernia-mindmap
+  title/chapterTitle: Direct Hernia
+  createdAt: "2026-09-28T03:51:33.730Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__disorders-of-adrenal-cortex-mindmap
+  title/chapterTitle: Disorders of Adrenal Cortex
+  createdAt: "2026-09-28T03:52:10.517Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__disorders-of-augmented-breast-mindmap
+  title/chapterTitle: Disorders of Augmented Breast
+  createdAt: "2026-09-28T06:56:28.142Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__diverticular-disease-of-colon-mindmap
+  title/chapterTitle: Diverticular Disease of Colon
+  createdAt: "2026-09-28T07:14:07.551Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__doctor-patient-relationship-mindmap
+  title/chapterTitle: Doctor–Patient Relationship
+  createdAt: "2026-09-28T07:16:03.038Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__duct-papilloma-mindmap
+  title/chapterTitle: Duct Papilloma
+  createdAt: "2026-09-28T07:19:32.450Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__ectopic-testis-mindmap
+  title/chapterTitle: Ectopic Testis
+  createdAt: "2026-09-28T07:21:29.739Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__empyema-mindmap
+  title/chapterTitle: Empyema
+  createdAt: "2026-09-28T11:38:54.529Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__endocrine-tumours-of-the-pancreas-mindmap
+  title/chapterTitle: Endocrine Tumours of the Pancreas
+  createdAt: "2026-09-28T11:40:34.699Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__endoscopy-urology-mindmap
+  title/chapterTitle: Endoscopy (Urology)
+  createdAt: "2026-09-28T11:42:23.992Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__energy-sources-in-surgery-mindmap
+  title/chapterTitle: Energy Sources in Surgery
+  createdAt: "2026-09-28T11:44:20.467Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__epigastric-hernia-mindmap
+  title/chapterTitle: Epigastric Hernia
+  createdAt: "2026-09-28T11:46:16.716Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__ethics-in-general-surgery-mindmap
+  title/chapterTitle: Ethics in General Surgery
+  createdAt: "2026-09-28T11:47:56.825Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__examination-of-the-colon-mindmap
+  title/chapterTitle: Examination of the Colon
+  createdAt: "2026-09-28T11:50:02.224Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__excision-of-swellings-mindmap
+  title/chapterTitle: Excision of Swellings
+  createdAt: "2026-09-28T11:51:51.149Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__femoral-hernia-mindmap
+  title/chapterTitle: Femoral Hernia
+  createdAt: "2026-09-28T11:53:49.693Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__fibroadenoma-mindmap
+  title/chapterTitle: Fibroadenoma
+  createdAt: "2026-09-28T11:55:45.170Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__fluids-and-electrolytes-mindmap
+  title/chapterTitle: Fluids and Electrolytes
+  createdAt: "2026-09-28T11:57:28.686Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__foot-infections-mindmap
+  title/chapterTitle: Foot Infections
+  createdAt: "2026-09-28T11:59:11.490Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__fournier-s-gangrene-mindmap
+  title/chapterTitle: Fournier's Gangrene
+  createdAt: "2026-09-28T12:01:36.445Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__fracture-skull-mindmap
+  title/chapterTitle: Fracture Skull
+  createdAt: "2026-09-28T12:03:31.220Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__free-skin-grafting-mindmap
+  title/chapterTitle: Free Skin Grafting
+  createdAt: "2026-09-28T12:05:28.945Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__function-of-the-spleen-mindmap
+  title/chapterTitle: Function of the Spleen
+  createdAt: "2026-09-28T12:07:06.829Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__galactocele-mindmap
+  title/chapterTitle: Galactocele
+  createdAt: "2026-09-28T12:08:59.425Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__galactorrhoea-mindmap
+  title/chapterTitle: Galactorrhoea
+  createdAt: "2026-09-28T12:11:03.904Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gallbladder-physiology-mindmap
+  title/chapterTitle: Gallbladder Physiology
+  createdAt: "2026-09-28T12:13:06.373Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gallstone-disease-cholelithiasis-mindmap
+  title/chapterTitle: Gallstone Disease (Cholelithiasis)
+  createdAt: "2026-09-28T12:17:29.305Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gangrene-mindmap
+  title/chapterTitle: Gangrene
+  createdAt: "2026-09-28T12:19:32.653Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gas-gangrene-mindmap
+  title/chapterTitle: Gas Gangrene
+  createdAt: "2026-09-28T12:21:35.887Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gastric-physiology-mindmap
+  title/chapterTitle: Gastric Physiology
+  createdAt: "2026-09-28T12:23:29.347Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gastro-oesophageal-reflux-disease-mindmap
+  title/chapterTitle: Gastro-oesophageal Reflux Disease
+  createdAt: "2026-09-28T12:25:27.042Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__general-anaesthetic-agents-mindmap
+  title/chapterTitle: General Anaesthetic Agents
+  createdAt: "2026-09-28T12:27:03.079Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__goitre-mindmap
+  title/chapterTitle: Goitre
+  createdAt: "2026-09-28T12:29:05.488Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__graves-disease-mindmap
+  title/chapterTitle: Graves' Disease
+  createdAt: "2026-09-28T12:31:08.266Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gunshot-wounds-of-abdomen-mindmap
+  title/chapterTitle: Gunshot Wounds of Abdomen
+  createdAt: "2026-09-28T12:33:02.941Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__gynaecomastia-mindmap
+  title/chapterTitle: Gynaecomastia
+  createdAt: "2026-09-28T12:35:09.625Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__haematuria-mindmap
+  title/chapterTitle: Haematuria
+  createdAt: "2026-09-28T12:36:45.687Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__haemolytic-disorders-indications-for-splenectomy-mindmap
+  title/chapterTitle: Haemolytic Disorders (Indications for Splenectomy)
+  createdAt: "2026-09-28T12:38:30.033Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__haemorrhage-from-peptic-ulcer-mindmap
+  title/chapterTitle: Haemorrhage from Peptic Ulcer
+  createdAt: "2026-09-28T12:40:39.783Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__helicobacter-pylori-infection-mindmap
+  title/chapterTitle: Helicobacter pylori Infection
+  createdAt: "2026-09-28T12:42:05.736Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__hernia-repair-tapp-mesh-repair-mindmap
+  title/chapterTitle: Hernia Repair (TAPP/Mesh Repair)
+  createdAt: "2026-09-28T12:43:59.955Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__history-and-examination-urology-mindmap
+  title/chapterTitle: History and Examination (Urology)
+  createdAt: "2026-09-28T12:45:48.617Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__history-of-surgery-mindmap
+  title/chapterTitle: History of Surgery
+  createdAt: "2026-09-28T12:47:27.864Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__hodgkin-s-lymphoma-mindmap
+  title/chapterTitle: Hodgkin's Lymphoma
+  createdAt: "2026-09-28T12:49:03.543Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__horseshoe-kidney-mindmap
+  title/chapterTitle: Horseshoe Kidney
+  createdAt: "2026-09-28T12:51:27.177Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__hydatid-cyst-of-the-liver-mindmap
+  title/chapterTitle: Hydatid Cyst of the Liver
+  createdAt: "2026-09-28T12:53:19.244Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__hydrocoele-mindmap
+  title/chapterTitle: Hydrocoele
+  createdAt: "2026-09-28T12:55:07.231Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__hyperparathyroidism-mindmap
+  title/chapterTitle: Hyperparathyroidism
+  createdAt: "2026-09-28T12:56:40.235Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__hypertrophic-scar-and-keloid-mindmap
+  title/chapterTitle: Hypertrophic Scar and Keloid
+  createdAt: "2026-09-28T12:58:46.992Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__idiopathic-granulomatous-mastitis-igm-mindmap
+  title/chapterTitle: Idiopathic Granulomatous Mastitis (IGM)
+  createdAt: "2026-09-28T13:00:42.927Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__incidentaloma-mindmap
+  title/chapterTitle: Incidentaloma
+  createdAt: "2026-09-28T13:02:28.120Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__incision-and-drainage-i-d-mindmap
+  title/chapterTitle: Incision and Drainage (I&D)
+  createdAt: "2026-09-28T13:04:08.507Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__incisional-hernia-mindmap
+  title/chapterTitle: Incisional Hernia
+  createdAt: "2026-09-28T13:05:44.641Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__indirect-hernia-mindmap
+  title/chapterTitle: Indirect Hernia
+  createdAt: "2026-09-28T13:07:53.566Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__inflammatory-bowel-disease-mindmap
+  title/chapterTitle: Inflammatory Bowel Disease
+  createdAt: "2026-09-28T13:09:23.178Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__initial-management-of-trauma-victims-mindmap
+  title/chapterTitle: Initial Management of Trauma Victims
+  createdAt: "2026-09-28T13:11:12.227Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__injury-to-the-aorta-mindmap
+  title/chapterTitle: Injury to the Aorta
+  createdAt: "2026-09-28T13:12:55.583Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__injury-to-the-diaphragm-mindmap
+  title/chapterTitle: Injury to the Diaphragm
+  createdAt: "2026-09-28T13:15:56.372Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__injury-to-trachea-and-bronchi-mindmap
+  title/chapterTitle: Injury to Trachea and Bronchi
+  createdAt: "2026-09-28T13:17:40.232Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__interstitial-cell-tumours-mindmap
+  title/chapterTitle: Interstitial Cell Tumours
+  createdAt: "2026-09-28T13:19:54.597Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__interventional-radiology-mindmap
+  title/chapterTitle: Interventional Radiology
+  createdAt: "2026-09-28T13:21:48.987Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__intestinal-anastomoses-mindmap
+  title/chapterTitle: Intestinal Anastomoses
+  createdAt: "2026-09-28T13:23:28.560Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__intestinal-fistulas-mindmap
+  title/chapterTitle: Intestinal Fistulas
+  createdAt: "2026-09-28T13:25:33.400Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__intra-abdominal-sepsis-mindmap
+  title/chapterTitle: Intra-abdominal Sepsis
+  createdAt: "2026-09-28T13:27:35.465Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__intracranial-haematomas-mindmap
+  title/chapterTitle: Intracranial Haematomas
+  createdAt: "2026-09-28T13:29:23.658Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__intravenous-anaesthetic-agents-mindmap
+  title/chapterTitle: Intravenous Anaesthetic Agents
+  createdAt: "2026-09-28T13:31:01.972Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__intussusception-and-midgut-volvulus-mindmap
+  title/chapterTitle: Intussusception and Midgut Volvulus
+  createdAt: "2026-09-28T13:33:03.502Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__investigation-and-interpretation-mindmap
+  title/chapterTitle: Investigation and Interpretation
+  createdAt: "2026-09-28T13:34:52.061Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__investigation-and-management-of-the-unknown-primary-with-metastasis-in-the-neck-mindmap
+  title/chapterTitle: Investigation and Management of the Unknown Primary with Metastasis in the Neck
+  createdAt: "2026-09-28T13:37:06.327Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__investigation-haematuria-mindmap
+  title/chapterTitle: Investigation (Haematuria)
+  createdAt: "2026-09-28T13:38:52.120Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__laparoscopic-surgery-mindmap
+  title/chapterTitle: Laparoscopic Surgery
+  createdAt: "2026-09-28T13:40:47.740Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__leprosy-hansen-s-disease-mindmap
+  title/chapterTitle: Leprosy (Hansen's Disease)
+  createdAt: "2026-09-28T13:42:56.549Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__liver-resection-mindmap
+  title/chapterTitle: Liver Resection
+  createdAt: "2026-09-28T13:45:09.127Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__liver-transplantation-mindmap
+  title/chapterTitle: Liver Transplantation
+  createdAt: "2026-09-28T13:46:59.357Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__local-anaesthetic-mindmap
+  title/chapterTitle: Local Anaesthetic
+  createdAt: "2026-09-28T13:49:00.211Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__lower-gastrointestinal-bleeding-mindmap
+  title/chapterTitle: Lower Gastrointestinal Bleeding
+  createdAt: "2026-09-28T13:50:47.616Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__ludwig-angina-mindmap
+  title/chapterTitle: Ludwig Angina
+  createdAt: "2026-09-28T13:52:15.002Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__lymph-node-secondaries-metastases-in-the-head-and-neck-mindmap
+  title/chapterTitle: Lymph Node Secondaries (Metastases) in the Head and Neck
+  createdAt: "2026-09-28T13:54:47.704Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__lymphoedema-mindmap
+  title/chapterTitle: Lymphoedema
+  createdAt: "2026-09-28T13:56:28.712Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__magnetic-resonance-imaging-mri-mindmap
+  title/chapterTitle: Magnetic Resonance Imaging (MRI)
+  createdAt: "2026-09-28T13:58:35.882Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__male-breast-carcinoma-mindmap
+  title/chapterTitle: Male Breast Carcinoma
+  createdAt: "2026-09-28T14:01:57.250Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__malignant-melanoma-mindmap
+  title/chapterTitle: Malignant Melanoma
+  createdAt: "2026-09-28T14:03:44.413Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__malignant-salivary-gland-tumour-mindmap
+  title/chapterTitle: Malignant Salivary Gland Tumour
+  createdAt: "2026-09-28T14:06:12.893Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__malignant-tumours-soft-tissue-mindmap
+  title/chapterTitle: Malignant Tumours (Soft Tissue)
+  createdAt: "2026-09-28T14:08:42.453Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__management-of-ulcer-mindmap
+  title/chapterTitle: Management of Ulcer
+  createdAt: "2026-09-28T14:10:43.415Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__meckel-s-diverticulum-mindmap
+  title/chapterTitle: Meckel's Diverticulum
+  createdAt: "2026-09-28T14:12:57.148Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__median-mental-cyst-mindmap
+  title/chapterTitle: Median Mental Cyst
+  createdAt: "2026-09-28T14:15:00.214Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__mediastinal-emphysema-mindmap
+  title/chapterTitle: Mediastinal Emphysema
+  createdAt: "2026-09-28T14:16:58.703Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__medicolegal-aspects-of-donation-mindmap
+  title/chapterTitle: Medicolegal Aspects of Donation
+  createdAt: "2026-09-28T14:19:13.426Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__medullary-carcinoma-of-the-thyroid-mct-mindmap
+  title/chapterTitle: Medullary Carcinoma of the Thyroid (MCT)
+  createdAt: "2026-09-28T14:23:09.330Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__melanocytic-tumour-mindmap
+  title/chapterTitle: Melanocytic Tumour
+  createdAt: "2026-09-28T14:24:59.136Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__mesenteric-vascular-occlusion-mindmap
+  title/chapterTitle: Mesenteric Vascular Occlusion
+  createdAt: "2026-09-28T14:27:01.911Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__mesentery-mindmap
+  title/chapterTitle: Mesentery
+  createdAt: "2026-09-28T14:29:18.364Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__metabolic-response-to-injury-mindmap
+  title/chapterTitle: Metabolic Response to Injury
+  createdAt: "2026-09-28T14:31:18.203Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__microstomia-and-macrostomia-mindmap
+  title/chapterTitle: Microstomia and Macrostomia
+  createdAt: "2026-09-28T14:33:26.858Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__micturating-cystourethrogram-mcu-mindmap
+  title/chapterTitle: Micturating Cystourethrogram (MCU)
+  createdAt: "2026-09-28T14:35:30.988Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__middle-mediastinal-masses-mindmap
+  title/chapterTitle: Middle Mediastinal Masses
+  createdAt: "2026-09-28T14:37:02.366Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__minor-salivary-gland-tumour-mindmap
+  title/chapterTitle: Minor Salivary Gland Tumour
+  createdAt: "2026-09-28T14:39:13.147Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__missile-wounds-of-abdomen-mindmap
+  title/chapterTitle: Missile Wounds of Abdomen
+  createdAt: "2026-09-28T14:40:46.434Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__mondor-s-disease-mindmap
+  title/chapterTitle: Mondor's Disease
+  createdAt: "2026-09-28T14:42:37.002Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__monitoring-in-anaesthesia-mindmap
+  title/chapterTitle: Monitoring in Anaesthesia
+  createdAt: "2026-09-28T14:44:25.958Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__motility-disorders-of-the-pharynx-and-oesophagus-mindmap
+  title/chapterTitle: Motility Disorders of the Pharynx and Oesophagus
+  createdAt: "2026-09-28T14:46:26.198Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__mucocele-of-the-appendix-mindmap
+  title/chapterTitle: Mucocele of the Appendix
+  createdAt: "2026-09-28T14:48:16.973Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__multinodular-goitre-mindmap
+  title/chapterTitle: Multinodular Goitre
+  createdAt: "2026-09-28T14:50:14.181Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__muscle-relaxants-mindmap
+  title/chapterTitle: Muscle Relaxants
+  createdAt: "2026-09-28T14:51:48.465Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__myocardial-injury-mindmap
+  title/chapterTitle: Myocardial Injury
+  createdAt: "2026-09-28T14:53:36.824Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__natural-orifice-transluminal-endoscopic-surgery-notes-mindmap
+  title/chapterTitle: Natural Orifice Transluminal Endoscopic Surgery (NOTES)
+  createdAt: "2026-09-28T14:55:39.143Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__needles-and-sutures-mindmap
+  title/chapterTitle: Needles and Sutures
+  createdAt: "2026-09-28T14:57:38.375Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__neonatal-intestinal-obstruction-mindmap
+  title/chapterTitle: Neonatal Intestinal Obstruction
+  createdAt: "2026-09-28T14:59:40.013Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__neoplasm-of-the-appendix-mindmap
+  title/chapterTitle: Neoplasm of the Appendix
+  createdAt: "2026-09-28T15:01:05.684Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__neural-tumours-mindmap
+  title/chapterTitle: Neural Tumours
+  createdAt: "2026-09-28T15:03:17.433Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__non-hodgkin-s-lymphoma-nhl-mindmap
+  title/chapterTitle: Non-Hodgkin's Lymphoma (NHL)
+  createdAt: "2026-09-28T15:05:24.798Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__nutrition-in-surgical-patients-mindmap
+  title/chapterTitle: Nutrition in Surgical Patients
+  createdAt: "2026-09-28T15:07:07.109Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__obstructive-jaundice-mindmap
+  title/chapterTitle: Obstructive Jaundice
+  createdAt: "2026-09-28T15:09:10.946Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__odontomes-mindmap
+  title/chapterTitle: Odontomes
+  createdAt: "2026-09-28T15:11:20.312Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__oncology-concise-concept-of-chemotherapy-mindmap
+  title/chapterTitle: Oncology: Concise Concept of Chemotherapy
+  createdAt: "2026-09-28T15:13:09.969Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__oncoplastic-breast-conservation-surgery-mindmap
+  title/chapterTitle: Oncoplastic Breast Conservation Surgery
+  createdAt: "2026-09-28T15:14:41.009Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__open-cholecystectomy-mindmap
+  title/chapterTitle: Open Cholecystectomy
+  createdAt: "2026-09-28T15:16:24.853Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__operative-surgery-mindmap
+  title/chapterTitle: Operative Surgery
+  createdAt: "2026-09-28T15:18:30.800Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__opsi-overwhelming-post-splenectomy-infection-mindmap
+  title/chapterTitle: OPSI (Overwhelming Post-splenectomy Infection)
+  createdAt: "2026-09-28T15:20:30.026Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__oral-cavity-mindmap
+  title/chapterTitle: Oral Cavity
+  createdAt: "2026-09-28T15:22:37.420Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__other-causes-of-obstructive-jaundice-mindmap
+  title/chapterTitle: Other Causes of Obstructive Jaundice
+  createdAt: "2026-09-28T15:24:46.365Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__other-cystic-disease-of-liver-mindmap
+  title/chapterTitle: Other Cystic Disease of Liver
+  createdAt: "2026-09-28T15:26:43.354Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__other-malignant-skin-tumours-mindmap
+  title/chapterTitle: Other Malignant Skin Tumours
+  createdAt: "2026-09-28T15:28:24.323Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__other-regional-techniques-mindmap
+  title/chapterTitle: Other Regional Techniques
+  createdAt: "2026-09-28T15:30:27.542Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__other-special-types-of-pyogenic-infections-mindmap
+  title/chapterTitle: Other Special Types of Pyogenic Infections
+  createdAt: "2026-09-28T15:32:02.511Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__other-tumours-of-the-stomach-mindmap
+  title/chapterTitle: Other Tumours of the Stomach
+  createdAt: "2026-09-28T15:33:33.214Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__other-types-of-breast-abscess-mindmap
+  title/chapterTitle: Other Types of Breast Abscess
+  createdAt: "2026-09-28T15:35:28.980Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__pain-management-mindmap
+  title/chapterTitle: Pain Management
+  createdAt: "2026-09-28T15:37:05.549Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__paraganglionic-syndromes-pns-mindmap
+  title/chapterTitle: Paraganglionic Syndromes (PNS)
+  createdAt: "2026-09-28T15:39:03.628Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__paralytic-ileus-mindmap
+  title/chapterTitle: Paralytic Ileus
+  createdAt: "2026-09-28T15:40:46.611Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__paraphimosis-mindmap
+  title/chapterTitle: Paraphimosis
+  createdAt: "2026-09-28T15:42:19.235Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__parathyroid-glands-mindmap
+  title/chapterTitle: Parathyroid Glands
+  createdAt: "2026-09-28T15:44:08.905Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__pathophysiology-and-mechanism-of-head-injuries-mindmap
+  title/chapterTitle: Pathophysiology and Mechanism of Head Injuries
+  createdAt: "2026-09-28T15:45:33.087Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__penetrating-thoracic-wounds-mindmap
+  title/chapterTitle: Penetrating Thoracic Wounds
+  createdAt: "2026-09-28T15:47:36.920Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__peptic-ulcer-disease-mindmap
+  title/chapterTitle: Peptic Ulcer Disease
+  createdAt: "2026-09-28T15:49:13.079Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__perioperative-care-mindmap
+  title/chapterTitle: Perioperative Care
+  createdAt: "2026-09-28T15:50:59.886Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__peripheral-aneurysm-mindmap
+  title/chapterTitle: Peripheral Aneurysm
+  createdAt: "2026-09-28T15:53:05.356Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__peripheral-nerve-anastomoses-mindmap
+  title/chapterTitle: Peripheral Nerve Anastomoses
+  createdAt: "2026-09-28T15:55:21.660Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__peritoneum-mindmap
+  title/chapterTitle: Peritoneum
+  createdAt: "2026-09-28T15:57:09.859Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__peyronie-s-disease-mindmap
+  title/chapterTitle: Peyronie's Disease
+  createdAt: "2026-09-28T15:59:06.776Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__phimosis-mindmap
+  title/chapterTitle: Phimosis
+  createdAt: "2026-09-28T16:01:02.864Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__phyllodes-tumour-mindmap
+  title/chapterTitle: Phyllodes Tumour
+  createdAt: "2026-09-28T16:02:46.132Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__physiology-of-neuromuscular-junction-mindmap
+  title/chapterTitle: Physiology of Neuromuscular Junction
+  createdAt: "2026-09-28T16:05:34.451Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__plain-x-rays-mindmap
+  title/chapterTitle: Plain X-rays
+  createdAt: "2026-09-28T16:07:38.810Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__pleomorphic-adenoma-of-parotid-gland-mixed-tumour-mindmap
+  title/chapterTitle: Pleomorphic Adenoma of Parotid Gland (Mixed Tumour)
+  createdAt: "2026-09-28T16:09:54.099Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__polycystic-kidney-mindmap
+  title/chapterTitle: Polycystic Kidney
+  createdAt: "2026-09-28T16:11:49.613Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__positron-emission-tomography-pet-scan-mindmap
+  title/chapterTitle: Positron Emission Tomography (PET Scan)
+  createdAt: "2026-09-28T16:13:44.957Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__post-thrombotic-ulcer-mindmap
+  title/chapterTitle: Post-thrombotic Ulcer
+  createdAt: "2026-09-28T16:15:34.140Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__posterior-mediastinal-masses-mindmap
+  title/chapterTitle: Posterior Mediastinal Masses
+  createdAt: "2026-09-28T16:17:20.139Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__postoperative-complications-mindmap
+  title/chapterTitle: Postoperative Complications
+  createdAt: "2026-09-28T16:19:18.959Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__postoperative-complications-salivary-gland-surgery-mindmap
+  title/chapterTitle: Postoperative Complications (Salivary Gland Surgery)
+  createdAt: "2026-09-28T16:21:13.738Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__premalignant-lesions-of-the-skin-mindmap
+  title/chapterTitle: Premalignant Lesions of the Skin
+  createdAt: "2026-09-28T16:22:49.055Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__preoperative-assessment-and-premedication-mindmap
+  title/chapterTitle: Preoperative Assessment and Premedication
+  createdAt: "2026-09-28T16:24:34.017Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__pressure-sore-mindmap
+  title/chapterTitle: Pressure Sore
+  createdAt: "2026-09-28T16:27:30.944Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__primary-congenital-lymphoedema-mindmap
+  title/chapterTitle: Primary (Congenital) Lymphoedema
+  createdAt: "2026-09-28T16:29:47.406Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__primary-liver-cancer-hepatocellular-carcinoma-mindmap
+  title/chapterTitle: Primary Liver Cancer (Hepatocellular Carcinoma)
+  createdAt: "2026-09-28T16:31:57.846Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__principles-and-steps-of-clinical-research-in-general-surgery-mindmap
+  title/chapterTitle: Principles and Steps of Clinical Research in General Surgery
+  createdAt: "2026-09-28T16:34:04.974Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__principles-of-safe-general-surgery-mindmap
+  title/chapterTitle: Principles of Safe General Surgery
+  createdAt: "2026-09-28T16:36:40.272Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__principles-of-transplantation-mindmap
+  title/chapterTitle: Principles of Transplantation
+  createdAt: "2026-09-28T16:39:31.489Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__prolapse-rectum-mindmap
+  title/chapterTitle: Prolapse Rectum
+  createdAt: "2026-09-28T16:41:12.826Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__prophylactic-and-therapeutic-antibiotics-in-surgery-mindmap
+  title/chapterTitle: Prophylactic and Therapeutic Antibiotics in Surgery
+  createdAt: "2026-09-28T16:43:30.112Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__prostatitis-mindmap
+  title/chapterTitle: Prostatitis
+  createdAt: "2026-09-28T16:45:14.587Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__pseudocyst-of-pancreas-mindmap
+  title/chapterTitle: Pseudocyst of Pancreas
+  createdAt: "2026-09-28T16:47:31.330Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__pulmonary-aspergilloma-mindmap
+  title/chapterTitle: Pulmonary Aspergilloma
+  createdAt: "2026-09-28T16:49:51.826Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__pyogenic-liver-abscess-mindmap
+  title/chapterTitle: Pyogenic Liver Abscess
+  createdAt: "2026-09-28T16:52:26.727Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__radiation-mindmap
+  title/chapterTitle: Radiation
+  createdAt: "2026-09-28T16:54:37.798Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__radiotherapy-sources-and-methods-of-delivery-mindmap
+  title/chapterTitle: Radiotherapy – Sources and Methods of Delivery
+  createdAt: "2026-09-28T16:57:01.430Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__raised-intracranial-pressure-mindmap
+  title/chapterTitle: Raised Intracranial Pressure
+  createdAt: "2026-09-28T16:58:36.620Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__rare-abdominal-wall-swellings-mindmap
+  title/chapterTitle: Rare Abdominal Wall Swellings
+  createdAt: "2026-09-28T17:00:20.242Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__rare-breast-cancers-mindmap
+  title/chapterTitle: Rare Breast Cancers
+  createdAt: "2026-09-28T17:01:53.394Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__rare-causes-of-salivary-gland-enlargement-mindmap
+  title/chapterTitle: Rare Causes of Salivary Gland Enlargement
+  createdAt: "2026-09-28T17:04:05.528Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__rare-external-hernia-mindmap
+  title/chapterTitle: Rare External Hernia
+  createdAt: "2026-09-28T17:06:03.711Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__rare-ulcers-mindmap
+  title/chapterTitle: Rare Ulcers
+  createdAt: "2026-09-28T17:07:59.734Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__recurrent-hernia-mindmap
+  title/chapterTitle: Recurrent Hernia
+  createdAt: "2026-09-28T17:10:13.393Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-angiography-mindmap
+  title/chapterTitle: Renal Angiography
+  createdAt: "2026-09-28T17:12:27.620Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-cell-carcinoma-rcc-mindmap
+  title/chapterTitle: Renal Cell Carcinoma (RCC)
+  createdAt: "2026-09-28T17:14:33.214Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-imaging-mindmap
+  title/chapterTitle: Renal Imaging
+  createdAt: "2026-09-28T17:16:37.966Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-mass-in-the-surgical-ward-mindmap
+  title/chapterTitle: Renal Mass in the Surgical Ward
+  createdAt: "2026-09-28T17:18:34.910Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-neoplasms-mindmap
+  title/chapterTitle: Renal Neoplasms
+  createdAt: "2026-09-28T17:20:15.174Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-stones-mindmap
+  title/chapterTitle: Renal Stones
+  createdAt: "2026-09-28T17:23:07.154Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-transplantation-mindmap
+  title/chapterTitle: Renal Transplantation
+  createdAt: "2026-09-28T17:25:17.319Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__renal-tuberculosis-mindmap
+  title/chapterTitle: Renal Tuberculosis
+  createdAt: "2026-09-28T17:27:13.606Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__retroperitoneal-abscess-mindmap
+  title/chapterTitle: Retroperitoneal Abscess
+  createdAt: "2026-09-28T17:29:11.022Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__retrosternal-goitre-mindmap
+  title/chapterTitle: Retrosternal Goitre
+  createdAt: "2026-09-28T17:31:46.818Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__robotic-surgery-mindmap
+  title/chapterTitle: Robotic Surgery
+  createdAt: "2026-09-28T17:34:04.425Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__rupture-of-the-spleen-mindmap
+  title/chapterTitle: Rupture of the Spleen
+  createdAt: "2026-09-28T17:36:15.576Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__rupture-of-the-urinary-bladder-mindmap
+  title/chapterTitle: Rupture of the Urinary Bladder
+  createdAt: "2026-09-28T17:37:58.007Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__s-zary-syndrome-mindmap
+  title/chapterTitle: Sézary Syndrome
+  createdAt: "2026-09-28T17:39:53.804Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__salivary-gland-tumour-mindmap
+  title/chapterTitle: Salivary Gland Tumour
+  createdAt: "2026-09-28T17:41:54.198Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__scoring-system-appendicitis-mindmap
+  title/chapterTitle: Scoring System (Appendicitis)
+  createdAt: "2026-09-28T17:43:57.467Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__secondary-lymphoedema-acquired-mindmap
+  title/chapterTitle: Secondary Lymphoedema (Acquired)
+  createdAt: "2026-09-28T17:45:59.741Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__shock-and-haemorrhage-mindmap
+  title/chapterTitle: Shock and Haemorrhage
+  createdAt: "2026-09-28T17:47:52.770Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__sils-single-incision-laparoscopic-surgery-mindmap
+  title/chapterTitle: SILS (Single Incision Laparoscopic Surgery)
+  createdAt: "2026-09-28T17:50:10.828Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__skin-closure-techniques-mindmap
+  title/chapterTitle: Skin Closure Techniques
+  createdAt: "2026-09-28T17:52:05.308Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__small-bowel-tumours-mindmap
+  title/chapterTitle: Small Bowel Tumours
+  createdAt: "2026-09-28T17:54:23.439Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__soft-tissue-sarcoma-sts-mindmap
+  title/chapterTitle: Soft Tissue Sarcoma (STS)
+  createdAt: "2026-09-28T17:55:56.007Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__solitary-nodule-thyroid-mindmap
+  title/chapterTitle: Solitary Nodule Thyroid
+  createdAt: "2026-09-28T17:57:39.845Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__special-types-of-peritonitis-mindmap
+  title/chapterTitle: Special Types of Peritonitis
+  createdAt: "2026-09-28T17:59:24.496Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__specimens-mindmap
+  title/chapterTitle: Specimens
+  createdAt: "2026-09-28T18:01:10.782Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__spinal-and-epidural-anaesthesia-mindmap
+  title/chapterTitle: Spinal and Epidural Anaesthesia
+  createdAt: "2026-09-28T18:03:13.521Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__splenectomy-for-other-conditions-mindmap
+  title/chapterTitle: Splenectomy for Other Conditions
+  createdAt: "2026-09-28T18:05:06.482Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__squamous-cell-carcinoma-bcc-epitheliomas-mindmap
+  title/chapterTitle: Squamous Cell Carcinoma, BCC/Epitheliomas
+  createdAt: "2026-09-28T18:06:51.833Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__staplers-in-surgery-mindmap
+  title/chapterTitle: Staplers in Surgery
+  createdAt: "2026-09-28T18:08:44.368Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__superficial-infections-hand-mindmap
+  title/chapterTitle: Superficial Infections (Hand)
+  createdAt: "2026-09-28T18:10:21.284Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgery-for-hydrocoele-mindmap
+  title/chapterTitle: Surgery for Hydrocoele
+  createdAt: "2026-09-28T18:12:33.996Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-anal-canal-mindmap
+  title/chapterTitle: Surgical Anatomy of Anal Canal
+  createdAt: "2026-09-28T18:14:13.660Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-breast-mindmap
+  title/chapterTitle: Surgical Anatomy of Breast
+  createdAt: "2026-09-28T18:16:10.758Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-colon-mindmap
+  title/chapterTitle: Surgical Anatomy of Colon
+  createdAt: "2026-09-28T18:18:09.254Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-kidney-mindmap
+  title/chapterTitle: Surgical Anatomy of Kidney
+  createdAt: "2026-09-28T18:19:56.023Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-mediastinum-and-mediastinal-tumours-mindmap
+  title/chapterTitle: Surgical Anatomy of Mediastinum and Mediastinal Tumours
+  createdAt: "2026-09-28T18:21:36.274Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-appendix-mindmap
+  title/chapterTitle: Surgical Anatomy of the Appendix
+  createdAt: "2026-09-28T18:23:14.819Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-bladder-mindmap
+  title/chapterTitle: Surgical Anatomy of the Bladder
+  createdAt: "2026-09-28T18:25:00.037Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-gallbladder-and-bile-duct-mindmap
+  title/chapterTitle: Surgical Anatomy of the Gallbladder and Bile Duct
+  createdAt: "2026-09-28T18:26:46.719Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-liver-mindmap
+  title/chapterTitle: Surgical Anatomy of the Liver
+  createdAt: "2026-09-28T18:29:33.503Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-parotid-gland-mindmap
+  title/chapterTitle: Surgical Anatomy of the Parotid Gland
+  createdAt: "2026-09-28T18:31:27.082Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-penis-mindmap
+  title/chapterTitle: Surgical Anatomy of the Penis
+  createdAt: "2026-09-28T18:33:19.389Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-rectum-mindmap
+  title/chapterTitle: Surgical Anatomy of the Rectum
+  createdAt: "2026-09-28T18:35:08.490Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-spleen-mindmap
+  title/chapterTitle: Surgical Anatomy of the Spleen
+  createdAt: "2026-09-28T18:37:09.928Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-the-submandibular-salivary-gland-mindmap
+  title/chapterTitle: Surgical Anatomy of the Submandibular Salivary Gland
+  createdAt: "2026-09-28T18:39:11.457Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-of-thyroid-gland-mindmap
+  title/chapterTitle: Surgical Anatomy of Thyroid Gland
+  createdAt: "2026-09-28T18:40:57.069Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-prostate-seminal-vesicles-mindmap
+  title/chapterTitle: Surgical Anatomy (Prostate/Seminal Vesicles)
+  createdAt: "2026-09-28T18:42:56.581Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-anatomy-stomach-mindmap
+  title/chapterTitle: Surgical Anatomy (Stomach)
+  createdAt: "2026-09-28T18:45:09.313Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-audit-mindmap
+  title/chapterTitle: Surgical Audit
+  createdAt: "2026-09-28T18:47:08.339Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-complications-of-enteric-fever-mindmap
+  title/chapterTitle: Surgical Complications of Enteric Fever
+  createdAt: "2026-09-28T18:48:41.268Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-emphysema-mindmap
+  title/chapterTitle: Surgical Emphysema
+  createdAt: "2026-09-28T18:51:51.826Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__surgical-site-infections-ssis-mindmap
+  title/chapterTitle: Surgical Site Infections (SSIs)
+  createdAt: "2026-09-28T18:53:52.525Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__suture-materials-mindmap
+  title/chapterTitle: Suture Materials
+  createdAt: "2026-09-28T18:55:35.995Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__swellings-in-submandibular-triangle-mindmap
+  title/chapterTitle: Swellings in Submandibular Triangle
+  createdAt: "2026-09-28T18:57:21.927Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tendon-transfer-mindmap
+  title/chapterTitle: Tendon Transfer
+  createdAt: "2026-09-28T18:58:58.419Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__testicular-tumours-mindmap
+  title/chapterTitle: Testicular Tumours
+  createdAt: "2026-09-28T19:00:59.480Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tetanus-mindmap
+  title/chapterTitle: Tetanus
+  createdAt: "2026-09-28T19:03:00.050Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__thoracic-outlet-syndrome-mindmap
+  title/chapterTitle: Thoracic Outlet Syndrome
+  createdAt: "2026-09-28T19:04:51.100Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__thyroid-function-tests-mindmap
+  title/chapterTitle: Thyroid Function Tests
+  createdAt: "2026-09-28T19:06:56.980Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__thyroid-physiology-mindmap
+  title/chapterTitle: Thyroid Physiology
+  createdAt: "2026-09-28T19:08:27.670Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__thyroidectomy-mindmap
+  title/chapterTitle: Thyroidectomy
+  createdAt: "2026-09-28T19:10:05.738Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__thyroiditis-mindmap
+  title/chapterTitle: Thyroiditis
+  createdAt: "2026-09-28T19:11:43.891Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__torsion-testis-mindmap
+  title/chapterTitle: Torsion Testis
+  createdAt: "2026-09-28T19:13:52.110Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__toxic-goitre-thyrotoxicosis-mindmap
+  title/chapterTitle: Toxic Goitre – Thyrotoxicosis
+  createdAt: "2026-09-28T19:16:08.811Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tracheo-oesophageal-fistula-tof-mindmap
+  title/chapterTitle: Tracheo-oesophageal Fistula (TOF)
+  createdAt: "2026-09-28T19:19:38.574Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tracheostomy-mindmap
+  title/chapterTitle: Tracheostomy
+  createdAt: "2026-09-28T19:21:39.964Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__transilluminant-swellings-in-the-neck-mindmap
+  title/chapterTitle: Transilluminant Swellings in the Neck
+  createdAt: "2026-09-28T19:26:00.623Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__transmissible-viral-infections-mindmap
+  title/chapterTitle: Transmissible Viral Infections
+  createdAt: "2026-09-28T19:27:52.433Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__traumatic-ulcer-mindmap
+  title/chapterTitle: Traumatic Ulcer
+  createdAt: "2026-09-28T19:29:21.757Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tropical-ulcer-mindmap
+  title/chapterTitle: Tropical Ulcer
+  createdAt: "2026-09-28T19:31:04.404Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tumours-of-the-adrenal-gland-mindmap
+  title/chapterTitle: Tumours of the Adrenal Gland
+  createdAt: "2026-09-28T19:33:22.178Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tumours-of-the-large-intestine-mindmap
+  title/chapterTitle: Tumours of the Large Intestine
+  createdAt: "2026-09-28T19:34:55.099Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__tumours-of-the-peritoneum-mindmap
+  title/chapterTitle: Tumours of the Peritoneum
+  createdAt: "2026-09-28T19:36:35.402Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__types-of-anaesthesia-mindmap
+  title/chapterTitle: Types of Anaesthesia
+  createdAt: "2026-09-28T19:41:05.054Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__ultrasonography-mindmap
+  title/chapterTitle: Ultrasonography
+  createdAt: "2026-09-28T19:42:44.381Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__umbilical-fistula-mindmap
+  title/chapterTitle: Umbilical Fistula
+  createdAt: "2026-09-28T19:44:14.426Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__umbilical-hernia-mindmap
+  title/chapterTitle: Umbilical Hernia
+  createdAt: "2026-09-28T19:46:12.738Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__umbilical-inflammation-mindmap
+  title/chapterTitle: Umbilical Inflammation
+  createdAt: "2026-09-28T19:47:49.225Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__ureteric-stone-mindmap
+  title/chapterTitle: Ureteric Stone
+  createdAt: "2026-09-28T19:49:32.466Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__urinary-tract-infections-mindmap
+  title/chapterTitle: Urinary Tract Infections
+  createdAt: "2026-09-28T19:51:05.198Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__urine-examination-mindmap
+  title/chapterTitle: Urine Examination
+  createdAt: "2026-09-28T19:52:44.666Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__useful-tips-in-a-case-of-soft-tissue-sarcoma-mindmap
+  title/chapterTitle: Useful Tips in a Case of Soft Tissue Sarcoma
+  createdAt: "2026-09-28T19:54:46.227Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__vagotomy-and-gastrojejunostomy-mindmap
+  title/chapterTitle: Vagotomy and Gastrojejunostomy
+  createdAt: "2026-09-28T19:56:57.265Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__varicocele-mindmap
+  title/chapterTitle: Varicocele
+  createdAt: "2026-09-28T19:58:40.302Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__varicose-veins-mindmap
+  title/chapterTitle: Varicose Veins
+  createdAt: "2026-09-28T20:00:29.905Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__vascular-trauma-mindmap
+  title/chapterTitle: Vascular Trauma
+  createdAt: "2026-09-28T20:01:59.798Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__vasculitic-syndromes-mindmap
+  title/chapterTitle: Vasculitic Syndromes
+  createdAt: "2026-09-28T20:03:44.825Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__vasectomy-mindmap
+  title/chapterTitle: Vasectomy
+  createdAt: "2026-09-28T20:05:53.346Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__venous-ulcer-mindmap
+  title/chapterTitle: Venous Ulcer
+  createdAt: "2026-09-28T20:07:57.186Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__vesical-calculus-mindmap
+  title/chapterTitle: Vesical Calculus
+  createdAt: "2026-09-28T20:09:38.513Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__vincent-s-angina-mindmap
+  title/chapterTitle: Vincent's Angina
+  createdAt: "2026-09-28T20:11:35.525Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__virtual-colonoscopy-mindmap
+  title/chapterTitle: Virtual Colonoscopy
+  createdAt: "2026-09-28T20:13:09.376Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__volkmann-type-of-gangrene-mindmap
+  title/chapterTitle: Volkmann Type of Gangrene
+  createdAt: "2026-09-28T20:15:10.825Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__volvulus-of-the-stomach-mindmap
+  title/chapterTitle: Volvulus of the Stomach
+  createdAt: "2026-09-28T20:17:08.870Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__well-differentiated-carcinoma-thyroid-mindmap
+  title/chapterTitle: Well-differentiated Carcinoma (Thyroid)
+  createdAt: "2026-09-28T20:18:45.007Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__wilms-tumour-nephroblastoma-mindmap
+  title/chapterTitle: Wilms' Tumour (Nephroblastoma)
+  createdAt: "2026-09-28T20:20:32.716Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__wound-mindmap
+  title/chapterTitle: Wound
+  createdAt: "2026-09-28T20:22:41.491Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__x-ray-kub-kidney-ureter-bladder-mindmap
+  title/chapterTitle: X-ray KUB (Kidney, Ureter, Bladder)
+  createdAt: "2026-09-28T20:24:39.619Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+
+- id: ai-generated__zollinger-ellison-syndrome-mindmap
+  title/chapterTitle: Zollinger–Ellison Syndrome
+  createdAt: "2026-09-28T20:26:34.583Z"
+  updatedAt: undefined
+  generatedAt: undefined
+  timestamp: undefined
+

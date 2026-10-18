@@ -16,6 +16,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useUser, useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
+import { QuickCardsMenuItems } from "@/components/quickcards/menu-items"
 
 import {
   Sidebar,
@@ -116,6 +117,7 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <QuickCardsMenuItems pathname={pathname} onNavigate={closeOnMobile} />
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/profile"} tooltip="Profile" className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary">
                   <Link href="/profile" onClick={closeOnMobile}>
