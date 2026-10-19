@@ -47,6 +47,8 @@ type QueueItem = {
   file: File
   previewUrl: string
   name: string
+  /** Name shown to students (front side only). Starts as the file name, editable. */
+  title: string
   status: "idle" | "uploading" | "done" | "failed"
   message?: string
 }
@@ -108,6 +110,17 @@ export default function AdminQuickCardsPage() {
 /* Bulk upload                                                         */
 /* ------------------------------------------------------------------ */
 
+/** "Acute Kidney Disease Guide.png" -> "Acute Kidney Disease Guide" (underscores from file systems become spaces/colons). */
+function titleFromFileName(fileName: string): string {
+  return fileName
+    .replace(/\.[A-Za-z0-9]+$/, "")
+    .replace(/_\s+/g, ": ")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200)
+}
+
 function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () => void; onJump: (slug: string) => void }) {
   const storage = useStorage()
   const { toast } = useToast()
@@ -136,6 +149,7 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
         file,
         previewUrl: URL.createObjectURL(file),
         name: guess.ok ? (guess.side === "back" ? `${guess.cardId}-back` : guess.cardId) : "",
+        title: titleFromFileName(file.name),
         status: "idle" as const,
       }
     })
@@ -144,6 +158,10 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
 
   function setName(key: string, name: string) {
     setQueue((q) => q.map((it) => (it.key === key ? { ...it, name, status: it.status === "failed" ? "idle" : it.status } : it)))
+  }
+
+  function setTitle(key: string, title: string) {
+    setQueue((q) => q.map((it) => (it.key === key ? { ...it, title } : it)))
   }
 
   function removeItem(key: string) {
@@ -236,6 +254,7 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
       path,
       thumbPath,
       blurData,
+      title: p.side === "front" ? item.title : undefined,
     })
   }
 
@@ -299,7 +318,7 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
         <CardTitle className="flex items-center gap-2 text-lg"><Upload className="h-5 w-5 text-primary" /> Bulk upload</CardTitle>
         <p className="text-sm text-muted-foreground">
           1) Choose the section. 2) Choose as many photos as you like (100+ is fine). 3) Type the card number beside each photo: <code>7</code>, and for the back side <code>7-back</code>.
-          Press Enter to jump to the next box. Re-uploading a number replaces that image.
+          Press Enter to jump to the next box. The second box is the name students will see; it starts as the file name and you can change it. Re-uploading a number replaces that image.
           Sections with two or three letter codes ({CARD_FEATURES.filter((f) => f.prefixes.length > 1).map((f) => `${f.name}: ${f.prefixes.join("/")}`).join("; ")}) use the first letter by default; type the letter, like <code>K3</code>, to use another.
         </p>
       </CardHeader>
@@ -362,6 +381,16 @@ function BulkUpload({ user, onUploaded, onJump }: { user: any; onUploaded: () =>
                       aria-label={`Card number for ${it.file.name}`}
                       className={`h-9 font-mono ${bad && it.name.trim() ? "border-destructive" : ""}`}
                     />
+                    {(a.parsed ? a.parsed.side === "front" : true) && (
+                      <Input
+                        value={it.title}
+                        onChange={(e) => setTitle(it.key, e.target.value)}
+                        disabled={running || it.status === "done"}
+                        placeholder="Name shown to students"
+                        aria-label={`Name shown to students for ${it.file.name}`}
+                        className="h-8 text-xs"
+                      />
+                    )}
                     <p className="text-[11px] text-muted-foreground truncate">
                       {it.file.name}
                       {a.parsed ? ` → ${a.parsed.feature.name} · ${a.parsed.side}` : ""}

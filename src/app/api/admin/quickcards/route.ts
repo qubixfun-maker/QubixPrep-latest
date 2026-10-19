@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     switch (body.action) {
       // Called after the browser has uploaded the image(s) to Storage
       case 'upsert-image': {
-        const { cardId, feature, side, path, thumbPath, blurData } = body
+        const { cardId, feature, side, path, thumbPath, blurData, title } = body
         const cfg = getFeature(feature)
         if (!cfg || typeof cardId !== 'string' || !cardId) throw new HttpError(400, 'Invalid feature or card ID.')
         if (side !== 'front' && side !== 'back') throw new HttpError(400, 'Invalid side.')
@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
           await ref.set({
             feature,
             cardId,
-            title: cardId,
+            // Name shown to students. Falls back to the card ID if none was given.
+            title: typeof title === 'string' && title.trim() ? title.trim().slice(0, 200) : cardId,
             tags: [],
             audience: cfg.audience,
             imagePaths: { front: '', ...imagePaths },

@@ -194,10 +194,8 @@ export default function QuickCardsFeaturePage({ params }: { params: Promise<{ sl
                   )}
                 </div>
                 <div className="p-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-xs font-bold text-primary">{c.cardId}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{c.title}</p>
+                  <span className="font-mono text-[10px] font-bold text-primary">{c.cardId}</span>
+                  {c.title && c.title !== c.cardId && <p className="text-xs font-medium leading-snug line-clamp-2">{c.title}</p>}
                 </div>
                 <div className="absolute top-2 right-2 flex gap-1">
                   {st?.bookmarked && <span className="rounded-full bg-black/60 p-1"><Bookmark className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" /></span>}
