@@ -23,6 +23,15 @@ service cloud.firestore {
       match /quickCardState/{cardId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // Case Presentation: saved case sheets. Only subscribers (Scholar / Clinician) and admins can create or edit.
+      match /caseSheets/{sheetId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin" ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.plan in ["basic", "pro"]
+        );
+      }
     }
     match /subjects/{subjectId} {
       allow read: if true;
