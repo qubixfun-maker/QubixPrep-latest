@@ -5,9 +5,41 @@ import { ArrowLeft, Printer, Copy, Presentation as PresentIcon, ChevronLeft, Che
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { CaseDef, Answers } from "@/lib/casepres/types"
-import { buildDocument, openingStatement, docToText, type DocSection, type DocLine } from "@/lib/casepres/format"
+import { StudyPanel } from "./study-panel"
+import { buildDocument, openingStatement, docToText, type DocSection, type DocLine, type ExamItem } from "@/lib/casepres/format"
 
-function Line({ l, big }: { l: DocLine; big?: boolean }) {
+function PresentRow({ i, big }: { i: ExamItem; big?: boolean }) {
+  return (
+    <li className={cn("rounded-lg border border-teal-100 bg-teal-50/50 px-3 py-2", big ? "text-lg" : "text-[15px]")}>
+      <div className="font-semibold text-teal-900">{i.label}{i.detail && <span className="font-normal text-slate-800">: {i.detail}</span>}</div>
+      {i.meaning && <div className={cn("text-slate-600 leading-relaxed mt-0.5", big ? "text-base" : "text-sm")}>{i.meaning}</div>}
+      {i.photo && <img src={i.photo} alt={i.label} className="mt-2 max-h-48 rounded-lg border border-slate-200" />}
+    </li>
+  )
+}
+
+function TestCard({ i, explain, big }: { i: ExamItem; explain: boolean; big?: boolean }) {
+  const pos = i.tone === "pos"
+  return (
+    <li className={cn("rounded-xl border px-4 py-3", pos ? "border-teal-200 bg-teal-50/60" : "border-slate-200 bg-slate-50")}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={cn("font-semibold text-slate-900", big ? "text-lg" : "text-[15px]")}>{i.test?.name}</span>
+        <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide", pos ? "bg-teal-600 text-white" : "bg-slate-300 text-slate-800")}>{i.result}</span>
+      </div>
+      {i.detail && <div className={cn("text-slate-800 mt-1", big ? "text-base" : "text-sm")}>{i.detail}</div>}
+      {i.photo && <img src={i.photo} alt={i.label} className="mt-2 max-h-48 rounded-lg border border-slate-200" />}
+      {i.meaning && <div className={cn("mt-1.5 text-slate-900 leading-relaxed", big ? "text-base" : "text-sm")}><b>Interpretation: </b>{i.meaning}</div>}
+      {explain && i.test?.how && (
+        <div className={cn("mt-2 space-y-1 text-slate-600 leading-relaxed border-t border-slate-200/80 pt-2", big ? "text-base" : "text-sm")}>
+          <div><b className="text-slate-700">Method: </b>{i.test.how}</div>
+          {i.test.why && <div><b className="text-slate-700">Why we do it: </b>{i.test.why}</div>}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function Line({ l, big, explain }: { l: DocLine; big?: boolean; explain: boolean }) {
   const t = big ? "text-lg" : "text-[15px]"
   switch (l.k) {
     case "kv":
@@ -18,7 +50,7 @@ function Line({ l, big }: { l: DocLine; big?: boolean }) {
         </div>
       )
     case "para":
-      return <p className={cn("text-slate-800 leading-relaxed py-1", t)}>{l.text}</p>
+      return <p className={cn("text-slate-800 leading-[1.75] py-1 text-justify", t)}>{l.text}</p>
     case "list":
       return (
         <ol className={cn("space-y-1.5 py-1", t)}>
@@ -29,6 +61,29 @@ function Line({ l, big }: { l: DocLine; big?: boolean }) {
             </li>
           ))}
         </ol>
+      )
+    case "exam":
+      return (
+        <div className="py-2 space-y-3">
+          {l.present.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-teal-700 mb-1.5">{l.label}: present</div>
+              <ul className="space-y-1.5">{l.present.map((i) => <PresentRow key={i.label} i={i} big={big} />)}</ul>
+            </div>
+          )}
+          {l.tests.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5">Tests and signs</div>
+              <ul className="space-y-2">{l.tests.map((i) => <TestCard key={i.label} i={i} explain={explain} big={big} />)}</ul>
+            </div>
+          )}
+          {l.absent.length > 0 && (
+            <div className={cn("text-slate-600 leading-relaxed", big ? "text-base" : "text-sm")}>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 mr-2">{l.label}: absent / normal</span>
+              {l.absent.join(", ")}
+            </div>
+          )}
+        </div>
       )
     case "present":
       return (
@@ -62,7 +117,7 @@ function Line({ l, big }: { l: DocLine; big?: boolean }) {
   }
 }
 
-function SectionBlock({ s, n, big }: { s: DocSection; n: number; big?: boolean }) {
+function SectionBlock({ s, n, big, explain }: { s: DocSection; n: number; big?: boolean; explain: boolean }) {
   return (
     <section className="break-inside-avoid-page">
       <div className="flex items-center gap-3 mb-2">
@@ -76,10 +131,10 @@ function SectionBlock({ s, n, big }: { s: DocSection; n: number; big?: boolean }
               <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{l.label}</div>
               <div className={cn("text-slate-900", big ? "text-lg" : "text-[15px]")}>{l.value}</div>
             </div>
-          ) : <Line key={i} l={l} big={big} />)}
+          ) : <Line key={i} l={l} big={big} explain={explain} />)}
         </div>
       ) : (
-        <div className="pl-0 sm:pl-11">{s.lines.map((l, i) => <Line key={i} l={l} big={big} />)}</div>
+        <div className="pl-0 sm:pl-11">{s.lines.map((l, i) => <Line key={i} l={l} big={big} explain={explain} />)}</div>
       )}
     </section>
   )
@@ -91,6 +146,7 @@ export function CasePresentation({ caseDef, answers, onBack }: { caseDef: CaseDe
   const [slides, setSlides] = useState(false)
   const [i, setI] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [explain, setExplain] = useState(true)
   const today = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })
   const total = sections.length + 1
 
@@ -127,6 +183,10 @@ export function CasePresentation({ caseDef, answers, onBack }: { caseDef: CaseDe
       <div className="no-print flex flex-wrap items-center gap-2 mb-4">
         <Button variant="outline" onClick={onBack} className="gap-2"><ArrowLeft className="h-4 w-4" /> Back to edit</Button>
         <div className="flex-1" />
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          <input type="checkbox" checked={explain} onChange={(e) => setExplain(e.target.checked)} className="h-4 w-4 accent-teal-600" />
+          Show test methods
+        </label>
         <Button variant="outline" onClick={copy} className="gap-2">{copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}{copied ? "Copied" : "Copy text"}</Button>
         <Button variant="outline" onClick={() => window.print()} className="gap-2"><Printer className="h-4 w-4" /> Print / PDF</Button>
         <Button onClick={() => { setI(0); setSlides(true) }} className="gap-2"><PresentIcon className="h-4 w-4" /> Slide mode</Button>
@@ -142,11 +202,13 @@ export function CasePresentation({ caseDef, answers, onBack }: { caseDef: CaseDe
           <blockquote className="border-l-4 border-teal-600 bg-teal-50/60 rounded-r-xl px-5 py-4 text-lg leading-relaxed text-slate-900 font-medium">
             {opening}
           </blockquote>
-          {sections.map((s, n) => <SectionBlock key={s.id} s={s} n={n + 1} />)}
+          {sections.map((s, n) => <SectionBlock key={s.id} s={s} n={n + 1} explain={explain} />)}
           {sections.length === 0 && <p className="text-slate-500">Nothing filled in yet. Go back and answer a few questions.</p>}
         </div>
         <footer className="px-6 sm:px-10 py-4 border-t border-slate-200 text-xs text-slate-500">Prepared with QubixPrep for study and presentation practice.</footer>
       </article>
+
+      <StudyPanel caseDef={caseDef} answers={answers} />
 
       {slides && (
         <div className="no-print fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col">
@@ -164,7 +226,7 @@ export function CasePresentation({ caseDef, answers, onBack }: { caseDef: CaseDe
                     <p className="mt-8 text-xl sm:text-2xl leading-relaxed text-slate-800">{opening}</p>
                   </div>
                 ) : (
-                  <SectionBlock s={sections[i - 1]} n={i} big />
+                  <SectionBlock s={sections[i - 1]} n={i} big explain={explain} />
                 )}
               </div>
             </div>

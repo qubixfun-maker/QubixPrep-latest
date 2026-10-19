@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import type { Field, Answers, SymptomAnswer } from "@/lib/casepres/types"
 import { resolveAttr } from "@/lib/casepres/dsl"
 import { VITAL_FIELDS, calcBmi } from "@/lib/casepres/format"
+import { findKb, DEFAULT_DETAIL } from "@/lib/casepres/clinical"
 
 type Setter = (id: string, value: any) => void
 
@@ -71,7 +72,7 @@ export function ChipPicker({ options, value, multi, onChange, allowCustom = true
 const strArr = (v: any): string[] => (Array.isArray(v) ? v : v ? [String(v)] : [])
 
 /** Tap once = present, twice = absent, thrice = clear. */
-function FindingsPicker({ field, value, onChange }: { field: Extract<Field, { t: "findings" }>; value: Record<string, "p" | "a">; onChange: (v: Record<string, "p" | "a">) => void }) {
+function FindingsPicker({ field, value, onChange, details, onDetails, photos, onPhotos, budget }: { field: Extract<Field, { t: "findings" }>; value: Record<string, "p" | "a">; onChange: (v: Record<string, "p" | "a">) => void; details: Record<string, string>; onDetails: (v: Record<string, string>) => void; photos: Record<string, string>; onPhotos: (v: Record<string, string>) => void; budget: number }) {
   const v = value || {}
   const custom = Object.keys(v).filter((k) => !field.options.includes(k))
   const all = [...field.options, ...custom]
@@ -112,6 +113,98 @@ function FindingsPicker({ field, value, onChange }: { field: Extract<Field, { t:
         {Object.keys(v).length > 0 && <button type="button" onClick={clear} className="underline hover:text-foreground">Clear</button>}
       </div>
       <AddOwn placeholder="Add a finding that isn't listed (marked present)" onAdd={(t) => onChange({ ...v, [t]: "p" })} />
+      <Elaborate value={v} details={details} onDetails={onDetails} photos={photos} onPhotos={onPhotos} budget={budget} />
+    </div>
+  )
+}
+
+/** For every present finding: explain it, and let the student describe site / extent. Tests show method, purpose and meaning. */
+function resizePhoto(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const max = 640
+      const k = Math.min(1, max / Math.max(img.width, img.height))
+      const cv = document.createElement("canvas")
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k)
+      cv.getContext("2d")!.drawImage(img, 0, 0, cv.width, cv.height)
+      URL.revokeObjectURL(url)
+      let q = 0.7, out = cv.toDataURL("image/jpeg", q)
+      while (out.length > 90000 && q > 0.3) { q -= 0.1; out = cv.toDataURL("image/jpeg", q) }
+      resolve(out)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")) }
+    img.src = url
+  })
+}
+
+function PhotoButton({ label, photos, onPhotos, budget }: { label: string; photos: Record<string, string>; onPhotos: (v: Record<string, string>) => void; budget: number }) {
+  const [err, setErr] = useState("")
+  const cur = photos[label]
+  return (
+    <div className="flex items-center gap-3">
+      {cur && <img src={cur} alt={label} className="h-16 w-16 rounded-lg object-cover border border-white/10" />}
+      <label className="cursor-pointer rounded-full border border-white/10 px-3 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-white/30">
+        {cur ? "Change photo" : "Add photo"}
+        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+          const f = e.target.files?.[0]; e.target.value = ""
+          if (!f) return
+          try {
+            const d = await resizePhoto(f)
+            if (d.length > budget + (cur ? cur.length : 0)) { setErr("Photo limit reached. Remove another photo first."); return }
+            setErr(""); onPhotos({ ...photos, [label]: d })
+          } catch { setErr("Could not read that image.") }
+        }} />
+      </label>
+      {cur && <button type="button" onClick={() => { const n = { ...photos }; delete n[label]; onPhotos(n) }} className="text-xs text-muted-foreground hover:text-foreground">Remove</button>}
+      {err && <span className="text-xs text-red-400">{err}</span>}
+    </div>
+  )
+}
+
+function Elaborate({ value, details, onDetails, photos, onPhotos, budget }: { value: Record<string, "p" | "a">; details: Record<string, string>; onDetails: (v: Record<string, string>) => void; photos: Record<string, string>; onPhotos: (v: Record<string, string>) => void; budget: number }) {
+  const shown = Object.entries(value).filter(([label, s]) => s === "p" || (s === "a" && findKb(label)?.how))
+  if (!shown.length) return null
+  return (
+    <div className="mt-4 space-y-2">
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">Elaborate your findings</div>
+      {shown.map(([label, s]) => {
+        const kb = findKb(label)
+        const isTest = !!kb?.how
+        const d = details[label] || ""
+        return (
+          <div key={label} className={cn("rounded-xl border p-3 space-y-2", s === "p" ? "border-primary/30 bg-primary/5" : "border-white/10")}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-medium">{isTest ? kb!.name || label : label}</div>
+              {isTest && <span className={cn("text-xs rounded-full px-2 py-0.5", s === "p" ? "bg-primary text-primary-foreground" : "bg-white/10")}>{s === "p" ? kb!.pt || "Positive" : kb!.at || "Negative"}</span>}
+            </div>
+            {isTest ? (
+              <div className="text-xs text-muted-foreground space-y-1 leading-relaxed">
+                <div><b className="text-foreground">Method: </b>{kb!.how}</div>
+                {kb!.why && <div><b className="text-foreground">Why we do it: </b>{kb!.why}</div>}
+                {(s === "p" ? kb!.p : kb!.a) && <div className="text-foreground"><b>Interpretation: </b>{s === "p" ? kb!.p : kb!.a}</div>}
+              </div>
+            ) : (
+              kb?.p && <div className="text-xs text-muted-foreground leading-relaxed"><b className="text-foreground">What it means: </b>{kb.p}</div>
+            )}
+            {s === "p" && (
+              <>
+                <Input value={d} onChange={(e) => onDetails({ ...details, [label]: e.target.value })} placeholder={isTest ? "What did you observe? (optional)" : kb?.detail || DEFAULT_DETAIL} className="h-9 text-sm" />
+                <PhotoButton label={label} photos={photos} onPhotos={onPhotos} budget={budget} />
+                {kb?.chips && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {kb.chips.map((c) => (
+                      <button key={c} type="button" onClick={() => onDetails({ ...details, [label]: d && !d.includes(c) ? `${d}; ${c}` : d || c })}
+                        className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:border-white/30 text-left">{c}</button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -237,7 +330,7 @@ export function FieldView({ field, answers, set }: { field: Field; answers: Answ
     case "choice":
       return wrap(<ChipPicker options={field.options} value={strArr(v)} multi={field.multi} onChange={(n) => set(field.id, field.multi ? n : n[0] ?? "")} />)
     case "findings":
-      return wrap(<FindingsPicker field={field} value={v || {}} onChange={(n) => set(field.id, n)} />)
+      return wrap(<FindingsPicker field={field} value={v || {}} onChange={(n) => set(field.id, n)} details={answers[field.id + "__d"] || {}} onDetails={(n) => set(field.id + "__d", n)} photos={answers[field.id + "__p"] || {}} onPhotos={(n) => set(field.id + "__p", n)} budget={photoBudget(answers)} />)
     case "complaints":
       return wrap(<ComplaintsPicker field={field} value={v || {}} onChange={(n) => set(field.id, n)} />)
     case "symptom":
@@ -245,4 +338,11 @@ export function FieldView({ field, answers, set }: { field: Field; answers: Answ
     case "vitals":
       return wrap(<VitalsBlock field={field} value={v || {}} onChange={(n) => set(field.id, n)} />)
   }
+}
+
+const PHOTO_LIMIT = 700000
+function photoBudget(answers: Record<string, any>) {
+  let used = 0
+  for (const k of Object.keys(answers)) if (k.endsWith("__p")) for (const v of Object.values(answers[k] || {})) used += String(v).length
+  return Math.max(0, PHOTO_LIMIT - used)
 }

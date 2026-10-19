@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight, Presentation, Save, Loader2, Check } from "l
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { CaseDef, Answers } from "@/lib/casepres/types"
-import { isFieldFilled } from "@/lib/casepres/format"
+import { isFieldFilled, buildSection } from "@/lib/casepres/format"
+import { diagnosisHints } from "@/lib/casepres/insights"
 import { FieldView } from "./fields"
 
 export function CaseForm({ caseDef, answers, setField, onPresent, saveState }: {
@@ -19,6 +20,13 @@ export function CaseForm({ caseDef, answers, setField, onPresent, saveState }: {
   const sec = caseDef.sections[idx]
   const filled = useMemo(() => caseDef.sections.map((s) => s.fields.some((f) => isFieldFilled(f, answers))), [caseDef, answers])
   const done = filled.filter(Boolean).length
+  const story = useMemo(() => {
+    if (sec.id !== "hpi") return ""
+    const d = buildSection(sec, answers, caseDef)
+    return d.lines.filter((l) => l.k === "para").map((l: any) => l.text).join(" ")
+  }, [sec, answers, caseDef])
+  const isClosing = sec.fields.some((f) => f.id === "provDx")
+  const hints = useMemo(() => (isClosing ? diagnosisHints(caseDef, answers) : []), [isClosing, caseDef, answers])
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }) }, [idx])
 
   return (
@@ -49,6 +57,26 @@ export function CaseForm({ caseDef, answers, setField, onPresent, saveState }: {
           {sec.fields.map((f) => <FieldView key={f.id} field={f} answers={answers} set={setField} />)}
         </div>
       </div>
+
+      {story && (
+        <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Live preview: how your history will be presented</div>
+          <p className="text-sm leading-relaxed">{story}</p>
+        </div>
+      )}
+
+      {hints.length > 0 && (
+        <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-4 space-y-2">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Suggested diagnosis from your findings (study aid)</div>
+          {hints.map((h) => (
+            <div key={h.dx} className="flex items-start justify-between gap-3">
+              <div className="text-sm"><b>{h.dx}</b><div className="text-muted-foreground text-xs mt-0.5">{h.why}</div></div>
+              <button type="button" onClick={() => { const cur = String(answers.provDx || "").trim(); setField("provDx", cur ? cur + "; " + h.dx : h.dx) }}
+                className="shrink-0 rounded-full border border-white/20 px-3 py-1 text-xs hover:border-white/50">Use</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="fixed bottom-0 inset-x-0 z-30 border-t border-white/10 bg-background/90 backdrop-blur">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-2">
