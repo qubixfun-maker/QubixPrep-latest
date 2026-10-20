@@ -59,9 +59,11 @@ export function JellySettings() {
         <p className="font-bold uppercase tracking-widest text-primary">Voice</p>
         <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={j.voiceOn} onChange={(e) => j.setVoiceOn(e.target.checked)} /> Jelly speaks her answers</label>
         <div className="flex gap-1.5">
+          <button onClick={() => j.saveProfile({ voiceKid: true })}
+            className={`flex-1 rounded-lg border px-2 py-1 ${p.voiceKid !== false ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-muted-foreground hover:bg-white/5"}`}>Playful kid</button>
           {(["female", "male"] as const).map((g) => (
-            <button key={g} onClick={() => j.saveProfile({ voiceGender: g })}
-              className={`flex-1 rounded-lg border px-2 py-1 capitalize ${(p.voiceGender || "female") === g ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-muted-foreground hover:bg-white/5"}`}>{g} voice</button>
+            <button key={g} onClick={() => j.saveProfile({ voiceKid: false, voiceGender: g })}
+              className={`flex-1 rounded-lg border px-2 py-1 capitalize ${p.voiceKid === false && (p.voiceGender || "female") === g ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-muted-foreground hover:bg-white/5"}`}>{g}</button>
           ))}
         </div>
         <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={j.conversation} onChange={(e) => j.setConversation(e.target.checked)} /> Conversation mode (she listens again after speaking)</label>

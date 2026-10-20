@@ -132,6 +132,7 @@ export function JellyProvider({ children }: { children: React.ReactNode }) {
       lang: ref.current.speechLang,
       gender: ref.current.profile.voiceGender || "female",
       variant: 1,
+      kid: ref.current.profile.voiceKid !== false,
       getToken: () => u.getIdToken(),
       onStart: () => setSpeaking(true),
       onEnd: () => { setSpeaking(false); if (listenAfter && ref.current.conversation && ref.current.voiceOn) setTimeout(() => micStart.current(), 250) },

@@ -20,7 +20,7 @@ function browserVoice(lang: string, gender: Gender): SpeechSynthesisVoice | null
   return pool.find((v) => want.test(v.name)) || pool.find((v) => !other.test(v.name)) || pool[0]
 }
 
-function browserSpeak(text: string, lang: string, gender: Gender): Promise<void> {
+function browserSpeak(text: string, lang: string, gender: Gender, kid = false): Promise<void> {
   return new Promise((resolve) => {
     try {
       if (!window.speechSynthesis) return resolve()
@@ -28,7 +28,8 @@ function browserSpeak(text: string, lang: string, gender: Gender): Promise<void>
       u.lang = lang
       const v = browserVoice(lang, gender)
       if (v) u.voice = v
-      u.pitch = gender === "male" ? 0.8 : 1.15 // makes the gender audible even when only one voice exists
+      u.pitch = kid ? 1.7 : gender === "male" ? 0.8 : 1.15 // makes the gender audible even when only one voice exists
+      if (kid) u.rate = 1.1
       u.onend = () => resolve()
       u.onerror = () => resolve()
       window.speechSynthesis.speak(u)
@@ -40,7 +41,7 @@ export type Speaker = { push: (t: string) => void; end: () => void; stop: () => 
 let current: Speaker | null = null
 export const stopSpeaking = () => { current?.stop(); current = null }
 
-export function createSpeaker(o: { lang: string; gender: Gender; variant?: number; getToken: () => Promise<string>; onStart?: () => void; onEnd?: () => void }): Speaker {
+export function createSpeaker(o: { lang: string; gender: Gender; variant?: number; kid?: boolean; getToken: () => Promise<string>; onStart?: () => void; onEnd?: () => void }): Speaker {
   stopSpeaking()
   let buf = ""; let first = true; let playing = false; let stopped = false; let ended = false; let finished = false; let audio: HTMLAudioElement | null = null
   const jobs: { text: string; url: Promise<string | null> }[] = []
@@ -49,7 +50,7 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
     try {
       const res = await fetch("/api/osce-stations/tts", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken: await o.getToken(), text, lang: o.lang, gender: o.gender, variant: o.variant || 0 }),
+        body: JSON.stringify({ idToken: await o.getToken(), text, lang: o.lang, gender: o.gender, variant: o.variant || 0, kid: !!o.kid }),
       })
       if (!res.ok) return null
       return URL.createObjectURL(await res.blob())
@@ -69,7 +70,7 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
       const j = jobs.shift()!
       const url = await j.url
       if (stopped) break
-      if (url) await play(url); else await browserSpeak(j.text, o.lang, o.gender)
+      if (url) await play(url); else await browserSpeak(j.text, o.lang, o.gender, o.kid)
     }
     playing = false
     if (stopped || (ended && !jobs.length)) finish()

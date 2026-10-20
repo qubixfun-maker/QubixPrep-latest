@@ -15,6 +15,7 @@ export type JellyProfile = {
   persona?: string
   voiceOn?: boolean
   voiceGender?: 'female' | 'male'
+  voiceKid?: boolean
   notes: string[]
   weak: Weak
 }

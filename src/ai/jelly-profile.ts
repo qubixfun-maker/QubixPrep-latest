@@ -35,6 +35,7 @@ export async function saveProfile(uid: string, patch: any) {
   if ('depth' in patch && ['brief', 'balanced', 'detailed'].includes(patch.depth)) out.depth = patch.depth
   if ('persona' in patch && ['jarvis', 'friend', 'teacher', 'examiner', 'mentor'].includes(patch.persona)) out.persona = patch.persona
   if ('voiceOn' in patch) out.voiceOn = !!patch.voiceOn
+  if ('voiceKid' in patch) out.voiceKid = !!patch.voiceKid
   if ('voiceGender' in patch && ['female', 'male'].includes(patch.voiceGender)) out.voiceGender = patch.voiceGender
   if (Array.isArray(patch.notes)) out.notes = patch.notes.map((n: unknown) => clean(n, 140)).filter(Boolean).slice(0, 12)
   if (Object.keys(out).length) await prof(uid).set(out, { merge: true })
