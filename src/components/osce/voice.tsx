@@ -29,7 +29,7 @@ function browserSpeak(text: string, lang: string, gender: Gender, kid = false): 
       const v = browserVoice(lang, gender)
       if (v) u.voice = v
       u.pitch = kid ? 1.7 : gender === "male" ? 0.8 : 1.15 // makes the gender audible even when only one voice exists
-      if (kid) u.rate = 1.1
+      u.rate = kid ? 1.15 : 1.05
       u.onend = () => resolve()
       u.onerror = () => resolve()
       window.speechSynthesis.speak(u)
@@ -43,7 +43,7 @@ export const stopSpeaking = () => { current?.stop(); current = null }
 
 export function createSpeaker(o: { lang: string; gender: Gender; variant?: number; kid?: boolean; getToken: () => Promise<string>; onStart?: () => void; onEnd?: () => void }): Speaker {
   stopSpeaking()
-  let buf = ""; let first = true; let playing = false; let stopped = false; let ended = false; let finished = false; let audio: HTMLAudioElement | null = null
+  let buf = ""; let first = true; let playing = false; let stopped = false; let ended = false; let finished = false; const live = new Set<HTMLAudioElement>()
   const jobs: { text: string; url: Promise<string | null> }[] = []
 
   const fetchAudio = async (text: string): Promise<string | null> => {
@@ -57,10 +57,14 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
     } catch { return null }
   }
   const play = (url: string) => new Promise<void>((resolve) => {
-    audio = new Audio(url)
-    audio.onended = () => resolve(); audio.onerror = () => resolve()
-    audio.play().catch(() => resolve())
-  }).finally(() => URL.revokeObjectURL(url))
+    const a = new Audio(url)
+    live.add(a)
+    let done = false
+    const fin = () => { if (done) return; done = true; clearInterval(iv); resolve() }
+    const iv = setInterval(() => { if (a.duration && a.duration - a.currentTime < 0.12) fin() }, 30)
+    a.onended = () => { live.delete(a); fin() }; a.onerror = () => { live.delete(a); fin() }
+    a.play().catch(fin)
+  }).finally(() => setTimeout(() => URL.revokeObjectURL(url), 3000))
 
   const finish = () => { if (finished) return; finished = true; o.onEnd?.() }
   const pump = async () => {
@@ -80,13 +84,14 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
   const sp: Speaker = {
     push(t) {
       buf += t
-      const re = first ? /[.!?।॥,;]\s/g : /[.!?।॥]\s/g
+      const re = /[.!?।॥]\s/g
       let cut = -1; let m: RegExpExecArray | null
       while ((m = re.exec(buf))) cut = m.index + 1
+      if (cut < 0 && first && buf.length > 80) { const c = buf.lastIndexOf(", "); if (c > 30) cut = c + 1 }
       if (cut > (first ? 20 : 40)) { splitSentences(buf.slice(0, cut)).forEach(enqueue); buf = buf.slice(cut); first = false }
     },
     end() { splitSentences(buf).forEach(enqueue); buf = ""; ended = true; if (!playing && !jobs.length) finish() },
-    stop() { stopped = true; jobs.length = 0; try { audio?.pause() } catch {} try { window.speechSynthesis?.cancel() } catch {} finish() },
+    stop() { stopped = true; jobs.length = 0; live.forEach((a) => { try { a.pause() } catch {} }); live.clear(); try { window.speechSynthesis?.cancel() } catch {} finish() },
   }
   current = sp
   return sp

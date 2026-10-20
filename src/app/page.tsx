@@ -76,6 +76,7 @@ export default function Dashboard() {
   const profileRef = useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user])
   const { data: profile } = useDoc(profileRef)
   const streak = (profile as any)?.streakCount || 0
+  const isAdminUser = (profile as any)?.role === "admin"
 
   const [completed, setCompleted] = useState<number | null>(null)
   useEffect(() => {
@@ -120,8 +121,7 @@ export default function Dashboard() {
       try {
         const snap = await getDoc(doc(db, "users", user.uid))
         if (on) {
-          if (snap.exists() && (snap.data() as any).role === "admin") router.push("/admin")
-          else setCheckingRole(false)
+          setCheckingRole(false)
         }
       } catch (e) {
         console.error("Error fetching user role:", e)
@@ -206,6 +206,7 @@ export default function Dashboard() {
           <h1 className="mt-1 mb-1.5 text-[clamp(26px,3vw,38px)] font-black leading-[1.08] tracking-tight">{greeting}, {firstName}! <span>👋</span></h1>
           <p className="text-sm text-muted-foreground">A little progress every day adds up. Ready for today&apos;s round?</p>
         </div>
+        {isAdminUser && <Link href="/admin" className="shrink-0 whitespace-nowrap rounded-xl bg-[#29233c] px-3.5 py-2.5 text-[13px] font-extrabold text-white shadow-md">⚙️ Admin dashboard</Link>}
         {dateText && <div className="hidden sm:block whitespace-nowrap rounded-xl border border-border bg-card px-3 py-2.5 text-[13px] font-bold text-muted-foreground">📅 {dateText}</div>}
       </div>
 

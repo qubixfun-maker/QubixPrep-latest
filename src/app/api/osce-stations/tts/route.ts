@@ -14,12 +14,16 @@ const KID: Record<string, string> = {
 }
 const cache = new Map<string, Buffer>()
 
-async function synth(token: string, text: string, lang: string, gender: 'male' | 'female', name?: string, kid = false) {
+const RATE = 1.12
+function tidy(t: string) {
+  return t.replace(/[*_#`~>|]/g, ' ').replace(/\(([^)]{1,40})\)/g, ', $1,').replace(/\s[-–—]\s/g, ', ').replace(/\s*\n+\s*/g, '. ').replace(/\s{2,}/g, ' ').trim()
+}
+async function synth(token: string, text: string, lang: string, gender: 'male' | 'female', name?: string, kid = false, pitched = false) {
   const voice: any = { languageCode: lang, ...(name ? { name } : { ssmlGender: gender.toUpperCase() }) }
   return fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: { text }, voice, audioConfig: { audioEncoding: 'MP3', ...(kid ? { pitch: 7, speakingRate: 1.1 } : {}) } }),
+    body: JSON.stringify({ input: { text }, voice, audioConfig: { audioEncoding: 'MP3', speakingRate: kid ? 1.15 : RATE, ...(pitched ? { pitch: 5 } : {}) } }),
   })
 }
 
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bad request' }, { status: 400 })
     }
     await verifyIdToken(idToken)
-    const clean = String(text).slice(0, 600)
+    const clean = tidy(String(text)).slice(0, 600)
     const v = Math.abs(Number(variant) || 0) % 3
     const key = `${lang}|${kid ? 'kid' : gender}|${v}|${clean}`
     let audio = cache.get(key)
@@ -41,9 +45,10 @@ export async function POST(req: NextRequest) {
       const token = await getVertexAccessToken()
       if (!token) return NextResponse.json({ error: 'No Google token' }, { status: 503 })
       let res = kid
-        ? await synth(token, clean, lang, 'female', KID[lang], true)
+        ? await synth(token, clean, lang, 'female', `${lang}-Chirp3-HD-Leda`, true)
         : await synth(token, clean, lang, gender, `${lang}-Chirp3-HD-${VOICE[gender][v]}`)
-      if (!res.ok && kid) res = await synth(token, clean, lang, 'female', undefined, true)
+      if (!res.ok && kid) res = await synth(token, clean, lang, 'female', KID[lang], true, true)
+      if (!res.ok && kid) res = await synth(token, clean, lang, 'female', undefined, true, true)
       if (!res.ok) res = await synth(token, clean, lang, gender)
       if (!res.ok) return NextResponse.json({ error: `TTS ${res.status}: ${(await res.text()).slice(0, 200)}` }, { status: 503 })
       audio = Buffer.from((await res.json()).audioContent, 'base64')
