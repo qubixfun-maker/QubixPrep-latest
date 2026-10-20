@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { LayoutShell } from '@/components/layout/layout-shell';
+import { JellyProvider } from '@/components/jelly/JellyProvider';
 import { PwaInstallPrompt } from '@/components/pwa-install-prompt';
 import { ServiceWorkerRegister } from '@/components/service-worker-register';
 
@@ -43,9 +44,11 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-primary/30 selection:text-white">
         <FirebaseClientProvider>
-          <LayoutShell>
-            {children}
-          </LayoutShell>
+          <JellyProvider>
+            <LayoutShell>
+              {children}
+            </LayoutShell>
+          </JellyProvider>
           <Toaster />
           <PwaInstallPrompt />
           <ServiceWorkerRegister />

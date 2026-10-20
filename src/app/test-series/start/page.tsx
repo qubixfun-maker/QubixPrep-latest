@@ -29,6 +29,7 @@ import { usePlan } from "@/hooks/use-plan"
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { analyzeTestPerformance } from "@/ai/flows/ai-performance-analyzer"
 import { useRequireAuth } from "@/hooks/use-require-auth"
+import { useJelly } from "@/components/jelly/jelly-store"
 
 function QuizSessionContent() {
   const { user } = useUser()
@@ -50,6 +51,14 @@ function QuizSessionContent() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
+
+  const jelly = useJelly()
+  useEffect(() => {
+    const q = mode === 'practice' ? questions[currentIndex] : null
+    if (!q) { jelly.setContext(null); return }
+    jelly.setContext({ kind: "mcq", question: q.question_text, options: [q.option1, q.option2, q.option3, q.option4], correctIndex: q.correct_answer_index, selectedIndex: selectedOption, explanation: q.explanation, topic: q.topic_title || q.subject })
+  }, [questions, currentIndex, selectedOption, jelly.setContext])
+  useEffect(() => () => jelly.setContext(null), [])
   const [score, setScore] = useState(0)
   const [finished, setFinished] = useState(false)
   const [showReview, setShowReview] = useState(false)
@@ -185,6 +194,7 @@ function QuizSessionContent() {
       setLockedAnswers(prev => ({ ...prev, [currentIndex]: idx }))
       setAnswers(prev => ({ ...prev, [currentIndex]: idx }))
       if (idx === currentQ.correct_answer_index) setScore(s => s + 1)
+      jelly.react({ type: "answer", correct: idx === currentQ.correct_answer_index })
     } else {
       setAnswers(prev => ({ ...prev, [currentIndex]: idx }))
     }
@@ -195,7 +205,7 @@ function QuizSessionContent() {
       goToQuestion(currentIndex + 1)
     } else {
       if (mode === 'exam') handleSubmitExam()
-      else setFinished(true)
+      else { setFinished(true); jelly.react({ type: "finish", score, total: questions.length }) }
     }
   }
 

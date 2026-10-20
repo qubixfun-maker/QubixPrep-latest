@@ -37,6 +37,7 @@ import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
 import { useRequireAuth } from '@/hooks/use-require-auth'
+import { useJelly } from "@/components/jelly/jelly-store"
 
 export default function QuizSubjectCurriculumPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
@@ -57,6 +58,14 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   const [selectedOption, setSelectedOption] = useState<number | null>(null)
   const [sessionAnswers, setSessionAnswers] = useState<Record<number, number>>({})
   const [showExplanation, setShowExplanation] = useState(false)
+
+  const jelly = useJelly()
+  useEffect(() => {
+    const q = selectedTopicQuestions?.[currentIndex]
+    if (!q) { jelly.setContext(null); return }
+    jelly.setContext({ kind: "mcq", question: q.question_text, options: [q.option1, q.option2, q.option3, q.option4], correctIndex: q.correct_answer_index, selectedIndex: selectedOption, explanation: q.explanation, topic: q.topic_title })
+  }, [selectedTopicQuestions, currentIndex, selectedOption, jelly.setContext])
+  useEffect(() => () => jelly.setContext(null), [])
   const [score, setScore] = useState(0)
   const [quizFinished, setQuizFinished] = useState(false)
   const [reviewMode, setReviewMode] = useState(false)
@@ -235,6 +244,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
       setSessionAnswers(prev => ({ ...prev, [currentIndex]: optionIndex }))
       setShowExplanation(true)
       if (optionIndex === currentQ.correct_answer_index) setScore(s => s + 1)
+      jelly.react({ type: "answer", correct: optionIndex === currentQ.correct_answer_index })
     }
 
     const nextQuestion = () => {
@@ -245,6 +255,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
         setAiExplanation(null)
       } else {
         setQuizFinished(true)
+        jelly.react({ type: "finish", score, total: selectedTopicQuestions.length })
       }
     }
 

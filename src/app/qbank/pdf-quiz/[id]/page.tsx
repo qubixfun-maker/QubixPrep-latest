@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { useRequireAuth } from "@/hooks/use-require-auth"
+import { useJelly } from "@/components/jelly/jelly-store"
 
 export default function PdfQuizPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: qbankId } = use(params)
@@ -42,6 +43,17 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [showExplanation, setShowExplanation] = useState(false)
+
+  const jelly = useJelly()
+  useEffect(() => {
+    const q = questions[currentIndex]
+    if (!q) { jelly.setContext(null); return }
+    const keys = ["a", "b", "c", "d"]
+    const correctIndex = keys.indexOf(String(q.correct_answer || "").toLowerCase())
+    if (correctIndex < 0) { jelly.setContext(null); return }
+    jelly.setContext({ kind: "mcq", question: q.question_text, options: [q.option_a, q.option_b, q.option_c, q.option_d].map((o: any) => o || ""), correctIndex, selectedIndex: selectedOption ? keys.indexOf(selectedOption.toLowerCase()) : null, explanation: q.explanation, topic: qbank?.subject })
+  }, [questions, currentIndex, selectedOption, jelly.setContext])
+  useEffect(() => () => jelly.setContext(null), [])
   const [score, setScore] = useState(0)
   const [finished, setFinished] = useState(false)
   
@@ -113,6 +125,7 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
     const isCorrect = option?.toLowerCase() === currentQ.correct_answer?.toLowerCase()
     
     if (isCorrect) setScore(s => s + 1)
+    if (option !== null) jelly.react({ type: "answer", correct: !!isCorrect })
 
     // Save attempt
     if (user) {
