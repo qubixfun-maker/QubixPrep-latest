@@ -211,7 +211,7 @@ export function CasePresentation({ caseDef, answers, onBack }: { caseDef: CaseDe
       <StudyPanel caseDef={caseDef} answers={answers} />
 
       {slides && (
-        <div className="no-print fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col">
+        <div className="keep-dark no-print fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <div className="text-sm text-slate-300">{caseDef.title} · {i + 1} / {total}</div>
             <button onClick={() => setSlides(false)} className="p-2 rounded-lg hover:bg-white/10" aria-label="Close"><X className="h-5 w-5" /></button>

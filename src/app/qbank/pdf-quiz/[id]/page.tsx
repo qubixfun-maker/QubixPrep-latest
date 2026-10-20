@@ -195,7 +195,7 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
               <Link href="/qbank" className="w-full">
                 <Button className="w-full h-14 rounded-xl text-lg font-bold bg-primary hover:bg-primary/90">Back to Hub</Button>
               </Link>
-              <Button variant="ghost" onClick={() => window.location.reload()} className="w-full text-muted-foreground hover:text-white">Restart Simulation</Button>
+              <Button variant="ghost" onClick={() => window.location.reload()} className="w-full text-muted-foreground hover:text-foreground">Restart Simulation</Button>
             </div>
           </CardContent>
         </Card>
@@ -215,7 +215,7 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
     <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8">
       <header className="flex items-center justify-between">
         <Link href="/qbank">
-          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-white group">
+          <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground group">
             <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" /> Exit Simulation
           </Button>
         </Link>
@@ -270,7 +270,7 @@ export default function PdfQuizPage({ params }: { params: Promise<{ id: string }
                     className={`p-6 rounded-2xl border text-left transition-all flex items-center justify-between group ${styles}`}
                   >
                     <div className="flex items-center gap-5">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold uppercase transition-all shadow-inner ${isSelected ? 'bg-white/20 scale-110' : 'bg-white/5 text-muted-foreground group-hover:text-white'}`}>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold uppercase transition-all shadow-inner ${isSelected ? 'bg-white/20 scale-110' : 'bg-white/5 text-muted-foreground group-hover:text-foreground'}`}>
                         {opt.key}
                       </div>
                       <span className="text-base font-medium leading-snug">{opt.val}</span>

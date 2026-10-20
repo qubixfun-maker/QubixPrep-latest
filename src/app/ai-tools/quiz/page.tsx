@@ -141,7 +141,7 @@ export default function QuizGeneratorPage() {
                     className={`h-11 px-5 rounded-xl text-sm font-bold transition-all ${
                       numQuestions === count
                         ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                        : 'glass border border-white/10 text-muted-foreground hover:text-white hover:border-primary/40'
+                        : 'glass border border-white/10 text-muted-foreground hover:text-foreground hover:border-primary/40'
                     }`}
                   >
                     {count}
@@ -158,7 +158,7 @@ export default function QuizGeneratorPage() {
                   className={`h-14 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                     mode === "practice"
                       ? 'bg-accent text-background shadow-lg shadow-accent/30'
-                      : 'glass border border-white/10 text-muted-foreground hover:text-white hover:border-accent/40'
+                      : 'glass border border-white/10 text-muted-foreground hover:text-foreground hover:border-accent/40'
                   }`}
                 >
                   <BookOpen className="h-4 w-4" /> Practice
@@ -168,7 +168,7 @@ export default function QuizGeneratorPage() {
                   className={`h-14 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                     mode === "exam"
                       ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                      : 'glass border border-white/10 text-muted-foreground hover:text-white hover:border-primary/40'
+                      : 'glass border border-white/10 text-muted-foreground hover:text-foreground hover:border-primary/40'
                   }`}
                 >
                   <Timer className="h-4 w-4" /> Exam

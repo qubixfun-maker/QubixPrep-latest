@@ -2,15 +2,16 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { useUser, useCollection, useFirestore } from "@/firebase"
-import { doc, getDoc, collection } from "firebase/firestore"
+import { useUser, useCollection, useDoc, useFirestore } from "@/firebase"
+import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore"
 import { usePlan } from "@/hooks/use-plan"
+import { useFeatureSettings } from "@/hooks/use-quickcards"
+import { SORTED_FEATURES } from "@/lib/quickcards/cardFeatures"
+import { getFeatureIcon } from "@/components/quickcards/icons"
+import { useJelly } from "@/components/jelly/jelly-store"
+import { JellyAvatar } from "@/components/jelly/JellyAvatar"
 import { Button } from "@/components/ui/button"
-import {
-  BrainCircuit, Loader2, Database, Layers,
-  Trophy, Search, Crown, Star, Zap, CheckCircle2,
-  ShoppingBag, ArrowRight, Users, Sparkles, FileDown,
-} from "lucide-react"
+import { Loader2, CheckCircle2, ArrowRight, Sparkles } from "lucide-react"
 import Link from "next/link"
 
 type DailyQuestion = {
@@ -25,70 +26,119 @@ type DailyQuestion = {
   explanation: string
 }
 
+type Feature = {
+  name: string; href: string; micro: string; title: string; tagline: string; emoji: string
+  bg: string; fg: string; chip: string; chipKind: "free" | "pro"; body: string; foot: string
+}
+
+const FEATURES: Feature[] = [
+  { name: "Smart Notes", href: "/notes", micro: "LEARN · HIGH YIELD", title: "Notes that\nmake sense", tagline: "Big concepts, made simpler.", emoji: "📚", bg: "#dcecff", fg: "#254e83", chip: "FREE START", chipKind: "free", body: "Subject-wise notes, diagrams and exam pearls.", foot: "5 free per subject" },
+  { name: "Question Bank", href: "/qbank", micro: "PRACTISE · MCQS", title: "Train your\nexam brain", tagline: "One question at a time.", emoji: "🎯", bg: "#ffe2d3", fg: "#8b4429", chip: "FREE START", chipKind: "free", body: "Topic-wise MCQs with explanations and insights.", foot: "10 free per subject" },
+  { name: "Flashcards", href: "/flashcards", micro: "REMEMBER · RECALL", title: "Make it\nstick!", tagline: "Little cards, mighty memory.", emoji: "🃏", bg: "#d8f4e9", fg: "#286c58", chip: "LEARN FREE", chipKind: "free", body: "Quick active recall decks for every subject.", foot: "Revise by subject" },
+  { name: "Mind Maps", href: "/mindmaps", micro: "CONNECT · VISUALISE", title: "See the\nbig picture", tagline: "Ideas connect. It clicks.", emoji: "🗺️", bg: "#eee5ff", fg: "#6243b4", chip: "3 FREE / SUBJECT", chipKind: "free", body: "Visual pathways from core concepts to details.", foot: "Explore a topic" },
+  { name: "QuickCards", href: "/quickcards", micro: "QUICK REVISION · PRO", title: "Rapid-fire\nrevision", tagline: "Exam-ready, at a glance.", emoji: "⚡", bg: "#fff0bf", fg: "#805716", chip: "🔒 SCHOLAR", chipKind: "pro", body: "Dense decks: ECG, drugs, fluids, OPD and more.", foot: "Reference sections" },
+  { name: "Clinical Cases", href: "/cases", micro: "THINK · DIAGNOSE", title: "Think like\na clinician", tagline: "Clues, reasoning, decisions.", emoji: "🩺", bg: "#d9f1f8", fg: "#245f78", chip: "TRY A CASE", chipKind: "free", body: "Build clinical reasoning with patient scenarios.", foot: "Start a case" },
+  { name: "OSCE Stations", href: "/osce-stations", micro: "SPEAK · PERFORM", title: "Practice the\nreal thing", tagline: "Meet your virtual patient.", emoji: "🗣️", bg: "#ffe0ec", fg: "#8d3c61", chip: "🔒 SCHOLAR", chipKind: "pro", body: "History, examination, viva and scored feedback.", foot: "100 ready cases" },
+  { name: "PYQ Series", href: "/pyq", micro: "PAST PAPERS · PATTERNS", title: "Study what\nshows up", tagline: "Learn from past questions.", emoji: "📄", bg: "#e4efda", fg: "#41633a", chip: "EXPLORE", chipKind: "free", body: "Year-wise NEET-PG, INI-CET and USMLE practice.", foot: "Browse question sets" },
+  { name: "Jelly AI", href: "/jelly", micro: "YOUR AI STUDY BUDDY", title: "Ask away.\nJelly knows.", tagline: "Doubts, quizzes, plans, viva.", emoji: "👻", bg: "#e8e0ff", fg: "#5b43a0", chip: "SCHOLAR", chipKind: "pro", body: "Explain, quiz, practise viva or plan your week.", foot: "Chat with Jelly" },
+]
+
+const SUBJECT_STYLES: { match: RegExp; emoji: string; bg: string; label: string }[] = [
+  { match: /anat/i, emoji: "🦴", bg: "#fff0e6", label: "STRUCTURE & FORM" },
+  { match: /physio/i, emoji: "❤️", bg: "#e4f5f0", label: "HOW THE BODY WORKS" },
+  { match: /bio.?chem/i, emoji: "🧬", bg: "#eae6ff", label: "MOLECULES & METABOLISM" },
+  { match: /patho/i, emoji: "🔬", bg: "#ffe6ed", label: "DISEASE MECHANISMS" },
+  { match: /pharm/i, emoji: "💊", bg: "#fff2cb", label: "DRUGS & ACTIONS" },
+  { match: /micro/i, emoji: "🦠", bg: "#dff0ff", label: "MICROBES & IMMUNITY" },
+  { match: /forensic/i, emoji: "⚖️", bg: "#efe9e0", label: "MEDICINE & LAW" },
+  { match: /surg/i, emoji: "🔪", bg: "#ffe4e1", label: "OPERATIVE CARE" },
+  { match: /med/i, emoji: "🩺", bg: "#d9f1f8", label: "CLINICAL PRACTICE" },
+  { match: /pead|paed/i, emoji: "🧸", bg: "#fff0bf", label: "CHILD HEALTH" },
+  { match: /obs|gyn/i, emoji: "🤰", bg: "#ffe0ec", label: "WOMEN'S HEALTH" },
+]
+const FALLBACK_BG = ["#fff0e6", "#e4f5f0", "#eae6ff", "#ffe6ed", "#fff2cb", "#dff0ff"]
+const QC_TINTS = ["#e8e0ff", "#d9f1f8", "#ffe4d6", "#ffe0ec", "#e4f5f0", "#fff0bf", "#eae6ff", "#dff0ff"]
+
+function subjectStyle(name: string, i: number) {
+  const hit = SUBJECT_STYLES.find((s) => s.match.test(name))
+  return hit || { emoji: "📘", bg: FALLBACK_BG[i % FALLBACK_BG.length], label: "SUBJECT" }
+}
+
 export default function Dashboard() {
   const { user, loading } = useUser()
   const db = useFirestore()
   const router = useRouter()
-  const { isFree, isBasic, isPro, canAccessContent, canAccessAI, loading: planLoading } = usePlan()
+  const jelly = useJelly()
+  const { isFree, isBasic, isPro, canAccessContent, loading: planLoading } = usePlan()
+  const { settings: qcSettings } = useFeatureSettings()
   const [checkingRole, setCheckingRole] = useState(true)
-  const [subjects, setSubjects] = useState<any[]>([])
 
-  const subjectsQuery = useMemo(() => db ? collection(db, 'subjects') : null, [db])
-  const { data: rawSubjects, loading: subjectsLoading } = useCollection(subjectsQuery)
+  const profileRef = useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user])
+  const { data: profile } = useDoc(profileRef)
+  const streak = (profile as any)?.streakCount || 0
 
-  const bannersQuery = useMemo(() => db ? collection(db, 'dashboardBanners') : null, [db])
+  const [completed, setCompleted] = useState<number | null>(null)
+  useEffect(() => {
+    let on = true
+    async function load() {
+      if (!db || !user) return
+      try {
+        const snap = await getDocs(query(collection(db, "users", user.uid, "progress"), where("completed", "==", true)))
+        if (on) setCompleted(snap.size)
+      } catch { if (on) setCompleted(0) }
+    }
+    load()
+    return () => { on = false }
+  }, [db, user])
+
+  const subjectsQuery = useMemo(() => (db ? collection(db, "subjects") : null), [db])
+  const { data: rawSubjects } = useCollection(subjectsQuery)
+  const subjects = useMemo(() => {
+    const list = ((rawSubjects as any[]) || []).filter((s) => s?.name)
+    return list.sort((a, b) => String(a.name).localeCompare(String(b.name)))
+  }, [rawSubjects])
+
+  const bannersQuery = useMemo(() => (db ? collection(db, "dashboardBanners") : null), [db])
   const { data: rawBanners } = useCollection(bannersQuery)
   const activeBanners = useMemo(() => {
     const list = ((rawBanners as any[]) || []).filter((b) => b.enabled !== false)
     return list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   }, [rawBanners])
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
-
+  const [bannerIdx, setBannerIdx] = useState(0)
   useEffect(() => {
     if (activeBanners.length <= 1) return
-    const interval = setInterval(() => {
-      setCurrentBannerIndex((i) => (i + 1) % activeBanners.length)
-    }, 7000)
-    return () => clearInterval(interval)
+    const t = setInterval(() => setBannerIdx((i) => (i + 1) % activeBanners.length), 7000)
+    return () => clearInterval(t)
   }, [activeBanners.length])
 
   useEffect(() => {
-    if (rawSubjects) setSubjects(rawSubjects)
-  }, [rawSubjects])
-
-  useEffect(() => {
-    let isMounted = true
+    let on = true
     async function checkUserRole() {
       if (loading) return
       if (!user) { setCheckingRole(false); return }
       if (!db) return
       try {
-        const userRef = doc(db, 'users', user.uid)
-        const docSnap = await getDoc(userRef)
-        if (isMounted) {
-          if (docSnap.exists() && (docSnap.data() as any).role === 'admin') {
-            router.push("/admin")
-          } else {
-            setCheckingRole(false)
-          }
+        const snap = await getDoc(doc(db, "users", user.uid))
+        if (on) {
+          if (snap.exists() && (snap.data() as any).role === "admin") router.push("/admin")
+          else setCheckingRole(false)
         }
-      } catch (error) {
-        console.error("Error fetching user role:", error)
-        if (isMounted) setCheckingRole(false)
+      } catch (e) {
+        console.error("Error fetching user role:", e)
+        if (on) setCheckingRole(false)
       }
     }
     checkUserRole()
-    return () => { isMounted = false }
+    return () => { on = false }
   }, [user, loading, router, db])
 
-  const [clock, setClock] = useState("--:--:--")
+  const [greeting, setGreeting] = useState("Hello")
+  const [dateText, setDateText] = useState("")
   useEffect(() => {
-    function tick() {
-      setClock(new Date().toLocaleTimeString('en-IN', { hour12: false }))
-    }
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => clearInterval(t)
+    const now = new Date()
+    const h = now.getHours()
+    setGreeting(h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening")
+    setDateText(now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" }))
   }, [])
 
   const [countdown, setCountdown] = useState("--:--:--")
@@ -98,9 +148,9 @@ export default function Dashboard() {
       const midnight = new Date(now)
       midnight.setHours(24, 0, 0, 0)
       const diff = Math.floor((midnight.getTime() - now.getTime()) / 1000)
-      const h = String(Math.floor(diff / 3600)).padStart(2, '0')
-      const m = String(Math.floor((diff % 3600) / 60)).padStart(2, '0')
-      const s = String(diff % 60).padStart(2, '0')
+      const h = String(Math.floor(diff / 3600)).padStart(2, "0")
+      const m = String(Math.floor((diff % 3600) / 60)).padStart(2, "0")
+      const s = String(diff % 60).padStart(2, "0")
       setCountdown(`${h}:${m}:${s}`)
     }
     tick()
@@ -111,176 +161,187 @@ export default function Dashboard() {
   const [dq, setDq] = useState<DailyQuestion | null>(null)
   const [dqLoading, setDqLoading] = useState(true)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
-
   useEffect(() => {
-    let isMounted = true
+    let on = true
     async function fetchDaily() {
       try {
-        const res = await fetch('/api/daily-question')
+        const res = await fetch("/api/daily-question")
         const data = await res.json()
-        if (isMounted) setDq(data.question || null)
-      } catch (e) {
-        if (isMounted) setDq(null)
-      } finally {
-        if (isMounted) setDqLoading(false)
-      }
+        if (on) setDq(data.question || null)
+      } catch { if (on) setDq(null) }
+      finally { if (on) setDqLoading(false) }
     }
     fetchDaily()
-    return () => { isMounted = false }
+    return () => { on = false }
   }, [])
 
   if (loading || checkingRole || planLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
+      <div className="h-[70vh] flex items-center justify-center">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
       </div>
     )
   }
 
-  const firstName = user?.displayName?.split(' ')[0] || 'Doctor'
+  const firstName = user?.displayName?.split(" ")[0] || "future doctor"
+  const planLabel = isPro ? "Clinician" : isBasic ? "Scholar" : "Explorer"
+  const weekDays = Math.min(streak, 7)
+  const ringPct = Math.round((weekDays / 7) * 100)
+  const visibleQc = SORTED_FEATURES.filter((f) => qcSettings[f.slug]?.visible !== false)
 
-  const planLabel = isFree ? 'Explorer' : isBasic ? 'Scholar' : 'Clinician'
-  const PlanIcon = isPro ? Crown : isBasic ? Star : Zap
+  const rawOptions = dq
+    ? [dq.option1, dq.option2, dq.option3, dq.option4].map((text, idx) => ({ text, idx })).filter((o) => !!o.text)
+    : []
 
-  const tools = [
-    {
-      title: "QBank",
-      desc: "Subject-wise case vignettes with instant explanations.",
-      href: "/qbank",
-      icon: Database,
-      tone: "violet" as const,
-      locked: false,
-      badge: "Free",
-    },
-    {
-      title: "PYQ Series",
-      desc: "Real exam questions sorted by year and subject.",
-      href: "/pyq",
-      icon: Trophy,
-      tone: "blue" as const,
-      locked: false,
-      badge: "Free",
-    },
-    {
-      title: "Custom Quiz",
-      desc: "Pick topics, set a timer, simulate real exam pressure.",
-      href: "/test-series",
-      icon: BrainCircuit,
-      tone: "coral" as const,
-      locked: !canAccessContent,
-      badge: "Scholar",
-    },
-    {
-      title: "AI Tutor",
-      desc: "Ask about any case — concise, exam-focused answers.",
-      href: "/ai-tools",
-      icon: BrainCircuit,
-      tone: "violet" as const,
-      locked: !canAccessAI,
-      badge: "Clinician",
-    },
-    {
-      title: "Flashcards",
-      desc: "Quick recall practice, by subject.",
-      href: "/flashcards",
-      icon: Layers,
-      tone: "blue" as const,
-      locked: false,
-      badge: "Free",
-    },
-    {
-      title: "Smart Search",
-      desc: "Search across every subject and note.",
-      href: "/search",
-      icon: Search,
-      tone: "coral" as const,
-      locked: false,
-      badge: "Free",
-    },
-    {
-      title: "Affiliate Program",
-      desc: "Refer friends and earn ₹29-59 for every subscription.",
-      href: "/affiliate",
-      icon: Users,
-      tone: "gold" as const,
-      locked: false,
-      badge: "Free",
-    },
-  ]
-
-  const toneClasses: Record<string, string> = {
-    violet: "bg-primary/15 text-primary",
-    blue: "bg-accent/15 text-accent",
-    coral: "bg-orange-400/15 text-orange-400",
-    gold: "bg-yellow-400/15 text-yellow-400",
-  }
-
-  const rawOptions = dq ? [
-    { text: dq.option1, idx: 0 },
-    { text: dq.option2, idx: 1 },
-    { text: dq.option3, idx: 2 },
-    { text: dq.option4, idx: 3 },
-  ].filter(o => !!o.text) : []
-
-  function selectOption(idx: number) {
-    if (selectedIdx !== null) return
-    setSelectedIdx(idx)
-  }
+  const askJelly = () => { if (jelly.active) jelly.setOpen(true); else router.push("/jelly") }
+  const goTo = (href: string) => router.push(!user ? "/signup" : href)
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
+    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8 space-y-7">
 
-      <div className="flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-500">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Good to see you, {firstName}</h1>
-          <p className="text-xs text-muted-foreground mt-1">Ready to pick up where the syllabus left off?</p>
+      {/* Heading */}
+      <div className="flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Your medical prep command center</div>
+          <h1 className="mt-1 mb-1.5 text-[clamp(26px,3vw,38px)] font-black leading-[1.08] tracking-tight">{greeting}, {firstName}! <span>👋</span></h1>
+          <p className="text-sm text-muted-foreground">A little progress every day adds up. Ready for today&apos;s round?</p>
         </div>
-        <div className="hidden sm:flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-          {clock}
-        </div>
+        {dateText && <div className="hidden sm:block whitespace-nowrap rounded-xl border border-border bg-card px-3 py-2.5 text-[13px] font-bold text-muted-foreground">📅 {dateText}</div>}
       </div>
 
-      <div className="glass rounded-3xl p-5 md:p-6 border border-white/10 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-orange-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />
-            Case of the day
+      {/* Hero */}
+      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(250px,.8fr)]">
+        <div className="relative flex min-h-[210px] items-center justify-between gap-4 overflow-hidden rounded-[25px] bg-[#e8e0ff] p-6">
+          <div className="relative z-10 min-w-0">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Today&apos;s mission ✨</div>
+            <h2 className="my-2 text-[23px] font-black leading-tight tracking-tight">Small steps. Big doctor energy.</h2>
+            <p className="mb-4 max-w-[320px] text-sm text-[#635985]">
+              {streak > 0 ? `You're on a ${streak}-day streak. Answer today's case to keep it going!` : "Answer today's case to start your streak."}
+            </p>
+            <button
+              onClick={() => document.getElementById("case-of-the-day")?.scrollIntoView({ behavior: "smooth" })}
+              className="rounded-[13px] bg-primary px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-primary/30"
+            >
+              Take today&apos;s case →
+            </button>
           </div>
-          <div className="text-[11px] font-mono text-muted-foreground">
-            Next case in <span className="text-foreground font-semibold">{countdown}</span>
+          <div className="relative z-10 grid h-[110px] w-[110px] shrink-0 place-items-center rounded-full sm:h-[124px] sm:w-[124px]" style={{ background: `conic-gradient(#7552ee 0 ${ringPct}%, #ffffffa8 ${ringPct}%)` }}>
+            <div className="absolute inset-[10px] rounded-full bg-[#e8e0ff]" />
+            <div className="relative text-center">
+              <b className="block text-2xl font-black">{weekDays}/7</b>
+              <span className="text-[10px] font-extrabold text-[#665b8e]">DAY STREAK</span>
+            </div>
           </div>
+          <span className="qp-twinkle absolute right-[34%] top-5 text-[22px] text-primary">✦</span>
         </div>
 
-        {dqLoading ? (
-          <div className="h-32 flex items-center justify-center">
-            <Loader2 className="h-5 w-5 text-primary animate-spin" />
+        <div className="relative flex items-center gap-2 overflow-hidden rounded-[25px] border border-border bg-card p-5">
+          <div className="relative z-10 min-w-0 flex-1">
+            <span className="rounded-full bg-[#fff0d9] px-2 py-1 text-[10px] font-black text-[#a15e19]">JELLY SAYS HI!</span>
+            <h3 className="mb-1 mt-3 text-lg font-bold leading-tight">Let&apos;s crack one more topic 💜</h3>
+            <p className="mb-3 text-xs text-muted-foreground">Stuck on something? Ask for an explanation or a quick quiz.</p>
+            <button onClick={askJelly} className="text-sm font-extrabold text-primary">Ask Jelly →</button>
           </div>
+          <div className="relative z-10 shrink-0">
+            <JellyAvatar mood="idle" size={104} />
+          </div>
+        </div>
+      </section>
+
+      {/* Stats */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { bg: "#fff0dc", icon: "🔥", value: `${streak} ${streak === 1 ? "day" : "days"}`, label: "Study streak" },
+          { bg: "#e7f8e9", icon: "✅", value: completed === null ? "…" : String(completed), label: "Items completed" },
+          { bg: "#e8e0ff", icon: "📚", value: String(subjects.length), label: "Subjects to explore" },
+          { bg: "#ffe4ef", icon: "🎓", value: planLabel, label: "Your plan" },
+        ].map((s) => (
+          <div key={s.label} className="flex min-w-0 items-center gap-3 rounded-[18px] border border-border bg-card p-3.5">
+            <div className="grid h-[43px] w-[43px] shrink-0 place-items-center rounded-[14px] text-[22px]" style={{ background: s.bg }}>{s.icon}</div>
+            <div className="min-w-0">
+              <b className="block truncate text-[21px] leading-tight tracking-tight">{s.value}</b>
+              <small className="text-[11px] text-muted-foreground">{s.label}</small>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Banners (managed from the admin panel) */}
+      {activeBanners.length > 0 && (() => {
+        const banner = activeBanners[bannerIdx % activeBanners.length]
+        const headlineStart = (banner.headline || "").replace(banner.headlineHighlight || "", "").trim()
+        return (
+          <div key={banner.id} className="space-y-2">
+            <Link href={banner.buttonLink || "/products"} className="block">
+              <div className="group relative overflow-hidden rounded-[25px] border border-primary/25 bg-gradient-to-br from-primary/15 via-secondary to-card p-6 md:p-8 transition-all hover:border-primary/50">
+                <div className="relative flex flex-col justify-between gap-6 md:flex-row md:items-center">
+                  <div className="max-w-xl space-y-3">
+                    {banner.badgeText && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                        <Sparkles className="h-3 w-3" /> {banner.badgeText}
+                      </span>
+                    )}
+                    <h3 className="text-xl font-bold leading-tight md:text-2xl">
+                      {headlineStart} <span className="text-primary">{banner.headlineHighlight}</span>
+                    </h3>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                      {(banner.bullets || []).map((b: string, i: number) => (
+                        <span key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground md:text-sm">
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" /> {b}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <Button className="shrink-0 gap-2 rounded-xl font-bold shadow-lg shadow-primary/30">
+                    {banner.buttonText || "Learn More"} <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Link>
+            {activeBanners.length > 1 && (
+              <div className="flex justify-center gap-1.5">
+                {activeBanners.map((_: any, i: number) => (
+                  <button key={i} aria-label={`Banner ${i + 1}`} onClick={() => setBannerIdx(i)}
+                    className={`h-1.5 rounded-full transition-all ${i === bannerIdx % activeBanners.length ? "w-6 bg-primary" : "w-1.5 bg-primary/25"}`} />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Case of the day */}
+      <section id="case-of-the-day" className="scroll-mt-24 rounded-[25px] border border-border bg-card p-5 md:p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-accent">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+            Case of the day
+          </div>
+          <div className="font-mono text-[11px] text-muted-foreground">
+            Next case in <span className="font-semibold text-foreground">{countdown}</span>
+          </div>
+        </div>
+        {dqLoading ? (
+          <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
         ) : !dq ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">No question available right now — check back once QBank has content for today.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">No question available right now — check back once QBank has content for today.</p>
         ) : (
           <>
-            <div className="inline-block text-[10px] uppercase tracking-wider font-bold text-accent bg-accent/10 px-2.5 py-1 rounded-md mb-3">
-              {dq.topic_title}
-            </div>
-            <p className="text-sm md:text-[15px] leading-relaxed font-medium mb-4">{dq.question_text}</p>
+            <div className="mb-3 inline-block rounded-md bg-secondary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary">{dq.topic_title}</div>
+            <p className="mb-4 text-sm font-medium leading-relaxed md:text-[15px]">{dq.question_text}</p>
             <div className="flex flex-col gap-2">
               {rawOptions.map((opt) => {
-                const isSelected = selectedIdx !== null
+                const answered = selectedIdx !== null
                 const isCorrect = opt.idx === dq.correct_answer_index
-                const isChosenWrong = isSelected && selectedIdx === opt.idx && !isCorrect
-                let stateClasses = "border-white/10 hover:border-white/20 hover:bg-white/5"
-                if (isSelected && isCorrect) stateClasses = "border-green-400/60 bg-green-400/10"
-                else if (isChosenWrong) stateClasses = "border-red-400/60 bg-red-400/10"
-                else if (isSelected) stateClasses = "border-white/5 opacity-50"
+                const wrong = answered && selectedIdx === opt.idx && !isCorrect
+                let cls = "border-border bg-card hover:border-primary/40 hover:bg-secondary"
+                if (answered && isCorrect) cls = "border-green-500/60 bg-green-500/10"
+                else if (wrong) cls = "border-red-500/60 bg-red-500/10"
+                else if (answered) cls = "border-border opacity-50"
                 return (
-                  <button
-                    key={opt.idx}
-                    onClick={() => selectOption(opt.idx)}
-                    disabled={isSelected}
-                    className={`flex items-center gap-3 text-left px-4 py-3 rounded-xl border text-[13px] transition-all ${stateClasses}`}
-                  >
-                    <span className={`h-6 w-6 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 ${isSelected && isCorrect ? 'bg-green-400 text-green-950' : isChosenWrong ? 'bg-red-400 text-red-950' : 'bg-white/5 text-muted-foreground'}`}>
+                  <button key={opt.idx} onClick={() => { if (!answered) setSelectedIdx(opt.idx) }} disabled={answered}
+                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-[13px] transition-all ${cls}`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${answered && isCorrect ? "bg-green-500 text-white" : wrong ? "bg-red-500 text-white" : "bg-muted text-muted-foreground"}`}>
                       {String.fromCharCode(65 + opt.idx)}
                     </span>
                     {opt.text}
@@ -289,108 +350,120 @@ export default function Dashboard() {
               })}
             </div>
             {selectedIdx !== null && (
-              <div className="mt-4 p-4 rounded-xl bg-primary/8 border border-primary/20 text-[12.5px] leading-relaxed text-muted-foreground animate-in fade-in slide-in-from-top-1 duration-300">
-                {dq.explanation}
-              </div>
+              <div className="mt-4 rounded-xl border border-primary/20 bg-secondary p-4 text-[12.5px] leading-relaxed text-muted-foreground">{dq.explanation}</div>
             )}
           </>
         )}
-      </div>
+      </section>
 
-      {activeBanners.length > 0 && (() => {
-        const banner = activeBanners[currentBannerIndex % activeBanners.length]
-        const headlineStart = (banner.headline || "").replace(banner.headlineHighlight || "", "").trim()
-        return (
-          <div key={banner.id} className="space-y-2 animate-in fade-in duration-500">
-            <Link href={banner.buttonLink || "/products"} className="block">
-              <div className="relative overflow-hidden rounded-3xl border border-primary/30 p-6 md:p-8 group transition-all hover:border-primary/50" style={{ background: "linear-gradient(135deg, rgba(124,58,237,0.18), rgba(168,85,247,0.08) 40%, rgba(0,0,0,0) 70%)" }}>
-                <div className="absolute -top-16 -right-16 h-56 w-56 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-10 left-1/3 h-40 w-40 rounded-full bg-purple-400/10 blur-3xl pointer-events-none" />
-
-                <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="space-y-3 max-w-xl">
-                    {banner.badgeText && (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] font-bold uppercase tracking-widest">
-                        <Sparkles className="h-3 w-3" /> {banner.badgeText}
-                      </span>
-                    )}
-
-                    <h3 className="text-xl md:text-2xl font-bold leading-tight">
-                      {headlineStart}{" "}
-                      <span className="text-primary">{banner.headlineHighlight}</span>
-                    </h3>
-
-                    <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                      {(banner.bullets || []).map((b: string, i: number) => (
-                        <span key={i} className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
-                          <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" /> {b}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Button className="rounded-xl gap-2 font-bold shrink-0 shadow-lg shadow-primary/30 hover:shadow-primary/50 transition-all group-hover:scale-[1.03]">
-                    {banner.buttonText || "Learn More"} <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </div>
-              </div>
-            </Link>
-
-            {activeBanners.length > 1 && (
-              <div className="flex justify-center gap-1.5">
-                {activeBanners.map((_: any, i: number) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentBannerIndex(i)}
-                    className={`h-1.5 rounded-full transition-all ${i === currentBannerIndex % activeBanners.length ? "w-6 bg-primary" : "w-1.5 bg-white/20"}`}
-                  />
-                ))}
-              </div>
-            )}
+      {/* Feature cards */}
+      <section>
+        <div className="mb-3.5 flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-[21px] font-black tracking-tight">Pick your next adventure 🚀</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Big goals begin with one tap. Choose how you want to learn.</p>
           </div>
-        )
-      })()}
-
-      <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500 delay-200">
-        <h2 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest px-1">Study tools</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {tools.map((t) => (
-            <Link key={t.title} href={!user ? '/signup' : t.locked ? '/pricing' : t.href}>
-              <div className={`group glass rounded-2xl p-4 border border-white/5 hover:border-white/15 hover:bg-white/5 transition-all h-full ${t.locked ? 'opacity-70' : ''}`}>
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`p-2.5 rounded-xl ${toneClasses[t.tone]} transition-transform group-hover:scale-110`}>
-                    <t.icon className="h-4 w-4" />
-                  </div>
-                  {t.locked ? (
-                    <span className="text-[9px] font-bold text-muted-foreground bg-white/5 rounded-full px-2 py-0.5">{t.badge}</span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-green-400 bg-green-400/10 rounded-full px-2 py-0.5">
-                      <CheckCircle2 className="h-2.5 w-2.5" /> {t.badge}
-                    </span>
-                  )}
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 md:gap-4 lg:grid-cols-3">
+          {FEATURES.map((f, i) => (
+            <article key={f.name} role="link" tabIndex={0} onClick={() => goTo(f.href)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goTo(f.href) } }}
+              className="group cursor-pointer overflow-hidden rounded-[22px] border border-border bg-card transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+              <div className="relative flex h-[120px] items-center justify-between overflow-hidden p-3 md:h-[150px] md:px-5 md:py-[18px]" style={{ background: f.bg, color: f.fg }}>
+                <div className="relative z-10 max-w-[70%] md:max-w-[65%]">
+                  <div className="text-[9px] font-black uppercase tracking-[0.12em] opacity-80 md:text-[10px]">{f.micro}</div>
+                  <h3 className="my-1.5 whitespace-pre-line text-[20px] font-black leading-[1.03] tracking-tight md:my-[7px] md:text-[25px]">{f.title}</h3>
+                  <p className="hidden text-[11px] opacity-80 sm:block">{f.tagline}</p>
                 </div>
-                <p className="font-semibold text-sm">{t.title}</p>
-                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{t.desc}</p>
+                <div className="qp-float relative z-10 text-[53px] leading-none drop-shadow-md md:text-[73px]" style={{ animationDelay: `${-(i % 3) * 1.1}s` }}>{f.emoji}</div>
+                <span className="qp-twinkle absolute right-[43%] top-4 text-[20px]">✦</span>
               </div>
-            </Link>
+              <div className="p-3 md:px-4 md:pb-4 md:pt-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[9px] font-black md:text-[10px] ${f.chipKind === "pro" ? "bg-[#fff0c7] text-[#96600b]" : "bg-[#e6f6ed] text-[#28744d]"}`}>
+                    {f.name === "QuickCards" && canAccessContent ? "UNLOCKED" : f.chip}
+                  </span>
+                  <span className="text-muted-foreground">↗</span>
+                </div>
+                <h4 className="mb-1 mt-2.5 text-[13px] font-bold md:text-[15px]">{f.name}</h4>
+                <p className="min-h-[34px] text-[11px] text-muted-foreground md:text-xs">{f.body}</p>
+                <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-muted-foreground"><span>{f.foot}</span><span>→</span></div>
+              </div>
+            </article>
           ))}
         </div>
-      </div>
+      </section>
 
-      {isFree && (
-        <div className="relative overflow-hidden rounded-2xl glass border border-dashed border-primary/20 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-500 delay-300">
-          <div>
-            <p className="font-bold text-sm">Explorer plan</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Upgrade to Scholar or Clinician to unlock Custom Quiz and AI Tutor.</p>
+      {/* Subjects */}
+      {subjects.length > 0 && (
+        <section>
+          <div className="mb-3.5 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-[21px] font-black tracking-tight">Explore your subjects 🧬</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Tap a subject to jump into notes, MCQs and revision.</p>
+            </div>
+            <Link href="/notes" className="text-sm font-extrabold text-primary">All subjects ↗</Link>
           </div>
-          <Link href="/pricing" className="shrink-0">
-            <Button size="sm" className="bg-primary hover:bg-primary/90 rounded-xl gap-2 shadow-lg shadow-primary/20">
-              <ArrowRight className="h-3.5 w-3.5" /> View plans
-            </Button>
-          </Link>
-        </div>
+          <div className="grid grid-cols-2 gap-2.5 md:gap-4 lg:grid-cols-3">
+            {subjects.slice(0, 6).map((s: any, i: number) => {
+              const st = subjectStyle(String(s.name), i)
+              return (
+                <Link key={s.id} href={`/notes/${s.id}`}
+                  className="relative min-h-[170px] overflow-hidden rounded-[22px] border border-border p-4 transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10 md:min-h-[185px]" style={{ background: st.bg }}>
+                  <div className="relative z-10 text-[10px] font-black uppercase tracking-[0.1em] text-[#82798f]">{st.label}</div>
+                  <div className="qp-float absolute right-1.5 top-1 text-[56px] opacity-90 md:text-[67px]">{st.emoji}</div>
+                  <h3 className="relative z-10 mb-0.5 mt-3 text-[15px] font-bold md:text-[17px]">{s.name}</h3>
+                  <p className="relative z-10 text-xs text-muted-foreground">Notes · QBank</p>
+                  <div className="absolute inset-x-4 bottom-3.5 flex justify-between text-[11px] font-extrabold text-[#655b7b]"><span>Open</span><span>→</span></div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
       )}
 
+      {/* QuickCards */}
+      {visibleQc.length > 0 && (
+        <section>
+          <div className="mb-3.5 flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-[21px] font-black tracking-tight">QuickCards · rapid revision ⚡</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Exam-ready reference decks, designed for fast recall.</p>
+            </div>
+            {!canAccessContent && <span className="rounded-full bg-[#fff0c7] px-2 py-1 text-[10px] font-black text-[#96600b]">🔒 SCHOLAR</span>}
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 md:gap-3">
+            {visibleQc.map((f, i) => {
+              const Icon = getFeatureIcon(f.icon)
+              return (
+                <Link key={f.slug} href={`/quickcards/${f.slug}`} className="flex items-center gap-2.5 rounded-[17px] border border-border bg-card p-3 text-left transition-transform hover:-translate-y-0.5 md:p-4">
+                  <span className="grid h-[35px] w-[35px] shrink-0 place-items-center rounded-[14px] text-foreground md:h-[43px] md:w-[43px]" style={{ background: QC_TINTS[i % QC_TINTS.length] }}>
+                    <Icon className="h-[18px] w-[18px] md:h-5 md:w-5" />
+                  </span>
+                  <span className="min-w-0">
+                    <b className="block truncate text-[13px]">{f.name}</b>
+                    <small className="line-clamp-1 text-[11px] text-muted-foreground">{f.description}</small>
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Upgrade */}
+      {isFree && (
+        <section className="relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl bg-[#29233c] p-5 text-white sm:flex-row sm:items-center md:px-6">
+          <div className="text-[43px] leading-none">👑</div>
+          <div>
+            <h3 className="mb-1 text-xl font-bold">Ready to unlock your full potential?</h3>
+            <p className="text-xs text-[#d1c9e7]">Full notes, every mind map, unlimited QBank, OSCE and your Jelly AI companion.</p>
+          </div>
+          <Link href="/pricing" className="shrink-0 rounded-[13px] bg-[#ffb17e] px-4 py-3 text-sm font-black text-[#4d2c21] sm:ml-auto">
+            Explore Scholar · ₹999/year →
+          </Link>
+        </section>
+      )}
     </div>
   )
 }

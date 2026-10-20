@@ -90,7 +90,7 @@ export function CardViewer({ cards, index, urls, states, onIndexChange, onClose,
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col" role="dialog" aria-label={`${card.cardId} ${card.title}`}>
+    <div className="keep-dark fixed inset-0 z-[100] bg-black/95 flex flex-col" role="dialog" aria-label={`${card.cardId} ${card.title}`}>
       <div className="flex items-center gap-2 px-3 py-2 text-white">
         <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10"><X className="h-5 w-5" /></Button>
         <div className="flex-1 min-w-0">

@@ -70,7 +70,7 @@ export default function VideoLibraryPage() {
                     <div className="p-4 rounded-2xl bg-secondary/10 text-secondary">
                       <Icon className="h-8 w-8" />
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-all">
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-secondary group-hover:text-foreground transition-all">
                       <PlayCircle className="h-6 w-6" />
                     </div>
                   </CardHeader>

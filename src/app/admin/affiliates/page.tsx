@@ -104,7 +104,7 @@ export default function AdminAffiliatesPage() {
 
       <div className="flex gap-2">
         {(['payouts', 'affiliates', 'referrals', 'product-referrals'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${activeTab === tab ? 'bg-primary text-white' : 'glass text-muted-foreground hover:text-white'}`}>
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${activeTab === tab ? 'bg-primary text-white' : 'glass text-muted-foreground hover:text-foreground'}`}>
             {tab}{tab === 'payouts' && pendingPayouts.length > 0 && <span className="ml-1.5 bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[9px]">{pendingPayouts.length}</span>}
           </button>
         ))}

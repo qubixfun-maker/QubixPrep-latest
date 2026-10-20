@@ -152,7 +152,7 @@ export default function QBankGeneratorPage() {
                   key={count}
                   onClick={() => setNumQuestions(count)}
                   className={`h-9 px-4 rounded-lg text-sm font-bold transition-all ${
-                    numQuestions === count ? 'bg-primary text-white' : 'glass border border-white/10 text-muted-foreground hover:text-white'
+                    numQuestions === count ? 'bg-primary text-white' : 'glass border border-white/10 text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {count}

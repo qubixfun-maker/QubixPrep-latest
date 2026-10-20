@@ -402,7 +402,7 @@ export default function ProfilePage() {
             <CardContent className="space-y-4">
               <div className={`p-4 rounded-2xl border flex items-center justify-between ${isPro ? 'bg-primary/10 border-primary/20' : isBasic ? 'bg-accent/10 border-accent/20' : 'bg-white/5 border-white/10'}`}>
                 <div>
-                  <p className={`text-xl font-bold ${isPro ? 'text-primary' : isBasic ? 'text-accent' : 'text-white'}`}>
+                  <p className={`text-xl font-bold ${isPro ? 'text-primary' : isBasic ? 'text-accent' : 'text-foreground'}`}>
                     {isPro ? 'Clinician' : isBasic ? 'Scholar' : 'Explorer'}
                   </p>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">

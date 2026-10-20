@@ -218,7 +218,7 @@ function QuizSessionContent() {
       return (
         <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-6 animate-in fade-in duration-500">
           <div className="flex items-center justify-between">
-            <Button variant="ghost" size="sm" onClick={() => setShowReview(false)} className="gap-2 text-muted-foreground hover:text-white px-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowReview(false)} className="gap-2 text-muted-foreground hover:text-foreground px-2">
               <ArrowLeft className="h-4 w-4" /> Back to Results
             </Button>
             <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Review Answers</h2>
@@ -340,7 +340,7 @@ function QuizSessionContent() {
 
             <div className="pt-4 md:pt-6 flex flex-col gap-3">
               <Button onClick={() => window.location.reload()} className="w-full h-12 md:h-14 rounded-xl text-base md:text-lg font-bold">Restart Test</Button>
-              <Button variant="ghost" onClick={() => router.push('/test-series')} className="w-full h-12 rounded-xl text-muted-foreground hover:text-white">Back to Simulation Hub</Button>
+              <Button variant="ghost" onClick={() => router.push('/test-series')} className="w-full h-12 rounded-xl text-muted-foreground hover:text-foreground">Back to Simulation Hub</Button>
             </div>
           </CardContent>
         </Card>
@@ -354,7 +354,7 @@ function QuizSessionContent() {
   return (
     <div className="max-w-4xl mx-auto p-3 md:p-12 space-y-4 md:space-y-8 pb-24 md:pb-8">
       <header className="flex items-center justify-between gap-2">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/test-series')} className="gap-1.5 md:gap-2 text-muted-foreground hover:text-white px-2 md:px-3 text-xs md:text-sm">
+        <Button variant="ghost" size="sm" onClick={() => router.push('/test-series')} className="gap-1.5 md:gap-2 text-muted-foreground hover:text-foreground px-2 md:px-3 text-xs md:text-sm">
           <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">End Session</span>
         </Button>
         <div className="flex items-center gap-2 md:gap-6">

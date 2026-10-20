@@ -24,6 +24,7 @@ const FILTERS = ["All", "Note", "Video", "Mindmap", "QBank"] as const
 
 export default function SearchPage() {
   const [query, setQuery] = useState("")
+  useEffect(() => { try { const q = new URLSearchParams(window.location.search).get("q"); if (q) setQuery(q) } catch {} }, [])
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const [activeFilter, setActiveFilter] = useState<typeof FILTERS[number]>("All")
   const [results, setResults] = useState<SearchResult[]>([])

@@ -185,15 +185,15 @@ export function MyPdfQbanks() {
             <div className="space-y-3">
                <div className="flex gap-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-accent mt-1.5 shrink-0" />
-                  <p><span className="text-white font-bold">OCR Bypass:</span> Vision-based extraction allows processing of encrypted PDFs where normal text selection is blocked.</p>
+                  <p><span className="text-foreground font-bold">OCR Bypass:</span> Vision-based extraction allows processing of encrypted PDFs where normal text selection is blocked.</p>
                </div>
                <div className="flex gap-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-accent mt-1.5 shrink-0" />
-                  <p><span className="text-white font-bold">Smart Merge:</span> Automatically links question vignettes with their solutions across different pages.</p>
+                  <p><span className="text-foreground font-bold">Smart Merge:</span> Automatically links question vignettes with their solutions across different pages.</p>
                </div>
                <div className="flex gap-3">
                   <div className="w-1.5 h-1.5 rounded-full bg-accent mt-1.5 shrink-0" />
-                  <p><span className="text-white font-bold">Data Privacy:</span> Extracted questions are visible only to you and never added to the global curriculum.</p>
+                  <p><span className="text-foreground font-bold">Data Privacy:</span> Extracted questions are visible only to you and never added to the global curriculum.</p>
                </div>
             </div>
             <div className="pt-4 mt-4 border-t border-white/5 flex items-center justify-between text-white font-bold">

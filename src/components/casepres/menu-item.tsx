@@ -11,7 +11,7 @@ export function CasePresentationMenuItem({ pathname, onNavigate }: { pathname: s
         asChild
         isActive={pathname.startsWith("/case-presentation")}
         tooltip="Case Presentation"
-        className="mx-2 px-4 h-12 rounded-xl transition-all hover:bg-white/5 hover:text-accent data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+        className="mx-2 px-3 h-10 rounded-xl font-semibold text-sidebar-foreground transition-all hover:bg-secondary hover:text-primary data-[active=true]:bg-secondary data-[active=true]:text-primary"
       >
         <Link href="/case-presentation" onClick={onNavigate}>
           <ClipboardList className="h-5 w-5" />

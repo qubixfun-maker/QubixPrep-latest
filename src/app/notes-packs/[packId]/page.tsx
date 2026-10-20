@@ -108,7 +108,7 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
   return (
     <div className="h-screen w-screen flex flex-col bg-black">
       <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-white/10 shrink-0">
-        <p className="text-sm font-medium text-white truncate">{title}</p>
+        <p className="text-sm font-medium text-foreground truncate">{title}</p>
         <div className="flex items-center gap-3 shrink-0 ml-3">
           <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
             Open Directly

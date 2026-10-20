@@ -75,7 +75,7 @@ export default function MindmapsSubjectPage({ params }: { params: Promise<{ id: 
                             {isLocked ? <Lock className="h-5 w-5" style={{ color: '#ece6ff' }} /> : <Network className="h-5 w-5" style={{ color: '#ece6ff' }} />}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-bold truncate text-white">{mm.title}</p>
+                            <p className="font-bold truncate text-foreground">{mm.title}</p>
                             <p className="text-xs text-gray-400 mt-1">{isLocked ? 'Upgrade to unlock' : 'Tap to view'}</p>
                           </div>
                         </div>

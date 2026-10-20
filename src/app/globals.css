@@ -4,38 +4,39 @@
 
 @layer base {
   :root {
-    --background: 220 20% 98%;
-    --foreground: 240 10% 12%;
+    /* playful-theme */
+    --background: 41 69% 95%;
+    --foreground: 252 24% 19%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 12%;
+    --card-foreground: 252 24% 19%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 12%;
-    --primary: 256 58% 55%;
+    --popover-foreground: 252 24% 19%;
+    --primary: 254 82% 63%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 95%;
-    --secondary-foreground: 240 10% 12%;
-    --muted: 220 15% 95%;
-    --muted-foreground: 220 10% 45%;
-    --accent: 215 90% 55%;
+    --secondary: 256 100% 95%;
+    --secondary-foreground: 252 24% 19%;
+    --muted: 41 45% 92%;
+    --muted-foreground: 246 9% 43%;
+    --accent: 24 80% 52%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 88%;
-    --input: 220 15% 90%;
-    --ring: 256 58% 55%;
-    --radius: 0.75rem;
-    --sidebar-background: 220 20% 98%;
-    --sidebar-foreground: 240 10% 20%;
-    --sidebar-primary: 256 58% 55%;
+    --border: 36 39% 89%;
+    --input: 36 39% 89%;
+    --ring: 254 82% 63%;
+    --radius: 1rem;
+    --sidebar-background: 40 100% 99%;
+    --sidebar-foreground: 252 14% 42%;
+    --sidebar-primary: 254 82% 63%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 95%;
-    --sidebar-accent-foreground: 240 10% 12%;
-    --sidebar-border: 220 15% 88%;
-    --sidebar-ring: 256 58% 55%;
-    --chart-1: 256 58% 55%;
+    --sidebar-accent: 256 100% 95%;
+    --sidebar-accent-foreground: 254 82% 63%;
+    --sidebar-border: 36 39% 89%;
+    --sidebar-ring: 254 82% 63%;
+    --chart-1: 254 82% 63%;
     --chart-2: 215 90% 55%;
     --chart-3: 165 45% 45%;
-    --chart-4: 35 70% 50%;
+    --chart-4: 24 80% 52%;
     --chart-5: 340 60% 55%;
   }
 
@@ -240,3 +241,26 @@
   border-radius: 0.5rem;
   margin: 0.5rem 0;
 }
+
+/* ---- playful theme helpers ---- */
+.glass { box-shadow: 0 8px 24px hsl(252 30% 20% / 0.05); }
+
+/* Older pages were written for a dark background and use white-with-opacity utilities.
+   Map them onto the light palette. Dark overlays opt out with the class keep-dark. */
+.border-white\/5:not(.keep-dark *), .border-white\/10:not(.keep-dark *), .border-white\/15:not(.keep-dark *),
+.border-white\/20:not(.keep-dark *), .border-white\/30:not(.keep-dark *), .ring-white\/10:not(.keep-dark *) { border-color: hsl(var(--border)); }
+.divide-white\/5:not(.keep-dark *) > :not([hidden]) ~ :not([hidden]),
+.divide-white\/10:not(.keep-dark *) > :not([hidden]) ~ :not([hidden]) { border-color: hsl(var(--border)); }
+.bg-white\/5:not(.keep-dark *) { background-color: hsl(var(--muted) / 0.7); }
+.bg-white\/10:not(.keep-dark *), .bg-white\/15:not(.keep-dark *) { background-color: hsl(var(--muted)); }
+.bg-white\/20:not(.keep-dark *), .bg-white\/25:not(.keep-dark *) { background-color: hsl(var(--secondary)); }
+.hover\:bg-white\/5:not(.keep-dark *):hover, .hover\:bg-white\/10:not(.keep-dark *):hover,
+.hover\:bg-white\/15:not(.keep-dark *):hover, .hover\:bg-white\/20:not(.keep-dark *):hover { background-color: hsl(var(--secondary)); }
+.hover\:border-white\/15:not(.keep-dark *):hover, .hover\:border-white\/20:not(.keep-dark *):hover,
+.hover\:border-white\/30:not(.keep-dark *):hover { border-color: hsl(var(--primary) / 0.4); }
+
+@keyframes qpFloat { 0%,100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+@keyframes qpTwinkle { 0%,100% { opacity: .4; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
+.qp-float { animation: qpFloat 4s ease-in-out infinite; }
+.qp-twinkle { animation: qpTwinkle 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .qp-float, .qp-twinkle { animation: none; } }

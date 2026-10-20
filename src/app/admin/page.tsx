@@ -2824,7 +2824,7 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-4">
               <Loader2 className="h-8 w-8 text-primary animate-spin shrink-0" />
               <div>
-                <p className="text-white font-bold text-lg">AI is fixing your CSV</p>
+                <p className="text-foreground font-bold text-lg">AI is fixing your CSV</p>
                 <p className="text-muted-foreground text-sm">{aiFixProgress.message || 'Analysing questions...'}</p>
               </div>
             </div>
@@ -2939,7 +2939,7 @@ export default function AdminDashboard() {
                             })
                           }}
                           disabled={idx === 0}
-                          className="p-0.5 text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                          className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
                         >
                           <ChevronUp className="h-3 w-3" />
                         </button>
@@ -2955,7 +2955,7 @@ export default function AdminDashboard() {
                             })
                           }}
                           disabled={idx === csvParsedTopics.length - 1}
-                          className="p-0.5 text-muted-foreground hover:text-white disabled:opacity-20 transition-colors"
+                          className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
                         >
                           <ChevronDown className="h-3 w-3" />
                         </button>
@@ -3031,7 +3031,7 @@ export default function AdminDashboard() {
             <div>
               <h3 className="font-bold text-base">Move Topic to Unit</h3>
               <p className="text-xs text-muted-foreground mt-1">
-                Moving <span className="text-white font-semibold">{reassignTopic.topic}</span> from <span className="text-muted-foreground">{reassignTopic.currentUnit}</span>
+                Moving <span className="text-foreground font-semibold">{reassignTopic.topic}</span> from <span className="text-muted-foreground">{reassignTopic.currentUnit}</span>
               </p>
             </div>
             <div className="space-y-2">

@@ -275,7 +275,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={previousQuestion}
             disabled={currentIndex === 0}
-            className="gap-2 text-muted-foreground hover:text-white disabled:opacity-30">
+            className="gap-2 text-muted-foreground hover:text-foreground disabled:opacity-30">
             <ArrowLeft className="h-4 w-4" /> Prev
           </Button>
           <div className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
@@ -393,7 +393,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                           className="group flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
                         >
                           <div className="flex items-center gap-4">
-                             <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                             <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-foreground transition-colors">
                                <FileText className="h-5 w-5" />
                              </div>
                              <div>
@@ -440,7 +440,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                         className="group flex items-center justify-between p-5 rounded-2xl bg-white/5 border border-white/5 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
                       >
                         <div className="flex items-center gap-4">
-                           <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                           <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-foreground transition-colors">
                              <FileText className="h-5 w-5" />
                            </div>
                            <div>
