@@ -7,6 +7,7 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar"
 import { useTrackPageView } from "@/hooks/use-track-page-view"
 import { useUser } from "@/firebase"
 import { usePlan } from "@/hooks/use-plan"
+import { TopSearchProvider, useTopSearchState } from "@/components/layout/top-search"
 import dynamic from "next/dynamic"
 const AppSidebar = dynamic(() => import("@/components/layout/app-sidebar").then(mod => mod.AppSidebar), { ssr: false })
 
@@ -24,6 +25,8 @@ function TopBar() {
   const { isPro, isBasic } = usePlan()
   const router = useRouter()
   const [q, setQ] = useState("")
+  const ts = useTopSearchState()
+  const scoped = ts?.placeholder ?? null
   const planLabel = isPro ? "Clinician" : isBasic ? "Scholar" : "Explorer"
   const initial = (user?.displayName || user?.email || "D").trim().charAt(0).toUpperCase()
 
@@ -37,14 +40,14 @@ function TopBar() {
         <Menu className="h-5 w-5" />
       </button>
       <form
-        onSubmit={(e) => { e.preventDefault(); if (q.trim()) router.push(`/search?q=${encodeURIComponent(q.trim())}`) }}
+        onSubmit={(e) => { e.preventDefault(); if (!scoped && q.trim()) router.push(`/search?q=${encodeURIComponent(q.trim())}`) }}
         className="flex max-w-md flex-1 items-center gap-2 rounded-[14px] border border-border bg-card px-3.5 py-2.5 text-muted-foreground"
       >
         <Search className="h-4 w-4 shrink-0" />
         <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search subjects, topics, tools…"
+          value={scoped ? ts!.query : q}
+          onChange={(e) => (scoped ? ts!.setQuery(e.target.value) : setQ(e.target.value))}
+          placeholder={scoped || "Search all of QubixPrep…"}
           className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
         />
       </form>
@@ -89,6 +92,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     )
   }
   return (
+    <TopSearchProvider>
     <SidebarProvider defaultOpen={true}>
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
@@ -101,5 +105,6 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       </div>
       <MobileNav />
     </SidebarProvider>
+    </TopSearchProvider>
   )
 }

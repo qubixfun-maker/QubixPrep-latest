@@ -1,5 +1,7 @@
 
 "use client"
+import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo, useState, useEffect } from "react"
 import { useCollection, useFirestore } from "@/firebase"
@@ -34,6 +36,7 @@ const SUBJECT_ORDER = [
 export default function QBankPage() {
   const db = useFirestore()
   const [subjects, setSubjects] = useState<any[]>([]);
+  const [search] = useTopSearch("Search question banks…")
   const subjectsQuery = useMemo(() => (!db ? null : collection(db, 'subjects')), [db])
   const { data, loading } = useCollection(subjectsQuery)
 
@@ -64,10 +67,6 @@ export default function QBankPage() {
       </div>
 
       <div className="space-y-8">
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search question banks..." className="pl-10 rounded-xl glass border-white/10" />
-        </div>
 
         {loading ? (
           <div className="h-64 flex items-center justify-center">
@@ -75,26 +74,10 @@ export default function QBankPage() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {subjects?.map((subject: any) => {
+            {subjects?.filter((s: any) => !search.trim() || String(s.name).toLowerCase().includes(search.trim().toLowerCase())).map((subject: any) => {
               const Icon = ICON_MAP[subject.name] || Database
               return (
-                <Link key={subject.id} href={`/qbank/${subject.id}`}>
-                  <Card className="glass border-none group cursor-pointer hover:bg-white/5 transition-all duration-300 relative overflow-hidden h-full flex flex-col">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                    <CardHeader className="flex flex-row items-start justify-between p-8">
-                      <div className="p-4 rounded-2xl bg-primary/10 text-primary">
-                        <Icon className="h-8 w-8" />
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1" />
-                    </CardHeader>
-                    <CardContent className="px-8 pb-8 flex-1">
-                      <CardTitle className="text-2xl font-bold mb-2">{subject.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                        Master clinical concepts with board-standard MCQs for {subject.name}.
-                      </p>
-                    </CardContent>
-                  </Card>
-                </Link>
+                <SubjectArtCard key={subject.id} href={`/qbank/${subject.id}`} name={subject.name} subtitle="Board-standard MCQs, subject by subject." />
               )
             })}
             {!loading && (!subjects || subjects.length === 0) && (

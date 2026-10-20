@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import {
   BookOpen, GraduationCap, Layers, Network, Flame, Database, Trophy, BrainCircuit, Stethoscope,
-  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus,
+  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -56,6 +56,7 @@ export function AppSidebar() {
   const learn: Item[] = [
     { title: "Dashboard", url: "/", icon: Zap },
     { title: "Notes", url: "/notes", icon: BookOpen },
+    { title: "Top 100 Topics", url: "/top-100", icon: Star },
     { title: "Long Answers", url: "/long-answers", icon: GraduationCap },
     { title: "Flashcards", url: "/flashcards", icon: Layers },
     { title: "Mind Maps", url: "/mindmaps", icon: Network },

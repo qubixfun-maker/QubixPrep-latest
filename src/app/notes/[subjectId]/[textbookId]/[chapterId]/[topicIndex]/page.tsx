@@ -9,6 +9,7 @@ import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
+import { Top100Toggle } from "@/components/top100/Top100Toggle"
 
 const LATEX_SYMBOL_MAP: [RegExp, string][] = [
   [/\\rightarrow/g, '→'],
@@ -203,21 +204,22 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
         </Link>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{topic?.name || 'Topic'}</h1>
         <p className="text-muted-foreground mt-2">{(notes as any)?.chapterTitle || ''} &middot; {subject ? (subject as any).name : ''}</p>
+        {topic && <Top100Toggle subjectId={subjectId} subjectName={subject ? (subject as any).name : subjectId} textbookId={textbookId} chapterId={chapterId} topicIndex={parseInt(topicIndex, 10)} name={topic.name} chapterTitle={(notes as any)?.chapterTitle || ''} />}
       </div>
 
       {topic ? (
         <div
-          className={`rounded-2xl glass border ${color.border} p-6 md:p-8 prose prose-invert max-w-none
+          className={`rounded-2xl glass border ${color.border} p-6 md:p-8 prose max-w-none [--tw-prose-body:#2b2740] [--tw-prose-bullets:#7552ee] [--tw-prose-counters:#7552ee] text-[15.5px] leading-7
             prose-headings:font-bold prose-headings:text-foreground
             prose-h1:text-2xl md:prose-h1:text-3xl
-            prose-h2:text-xl prose-h2:text-primary prose-h2:mt-8 prose-h2:mb-3
-            prose-h3:text-lg prose-h3:text-primary/90
-            prose-strong:text-foreground
+            prose-h2:text-xl prose-h2:text-white prose-h2:bg-gradient-to-r prose-h2:from-[#7552ee] prose-h2:to-[#9b7bff] prose-h2:rounded-xl prose-h2:px-4 prose-h2:py-2.5 prose-h2:mt-9 prose-h2:mb-4 prose-h2:shadow-md prose-h2:shadow-primary/25
+            prose-h3:text-lg prose-h3:text-[#8a4b0b] prose-h3:bg-[#fff0d9] prose-h3:border-l-4 prose-h3:border-[#f4a36d] prose-h3:rounded-lg prose-h3:px-3.5 prose-h3:py-2 prose-h3:mt-7 prose-h3:mb-3 prose-h4:text-base prose-h4:text-[#17543f] prose-h4:bg-[#d8f4e9] prose-h4:border-l-4 prose-h4:border-[#40b89a] prose-h4:rounded-lg prose-h4:px-3 prose-h4:py-1.5 prose-h4:mt-5 prose-h4:mb-2
+            prose-strong:text-[#4326b5] prose-strong:font-bold
             prose-a:text-primary prose-a:no-underline hover:prose-a:underline
-            prose-blockquote:border-l-primary/50 prose-blockquote:text-muted-foreground prose-blockquote:not-italic
+            prose-blockquote:border-l-[#f4a36d] prose-blockquote:bg-[#fff0d9] prose-blockquote:text-[#5a3a12] prose-blockquote:rounded-xl prose-blockquote:px-4 prose-blockquote:py-1 prose-blockquote:not-italic
             prose-table:border prose-table:border-white/10 prose-table:text-sm
             prose-thead:border-b prose-thead:border-white/20
-            prose-th:border prose-th:border-white/10 prose-th:bg-white/5 prose-th:p-2 prose-th:text-foreground
+            prose-th:border prose-th:border-white/10 prose-th:bg-[#eee8ff] prose-th:p-2 prose-th:text-[#4326b5]
             prose-td:border prose-td:border-white/10 prose-td:p-2
             prose-ul:marker:text-primary
             [&_ol]:list-none [&_ol]:pl-0 [&_ol]:[counter-reset:step]

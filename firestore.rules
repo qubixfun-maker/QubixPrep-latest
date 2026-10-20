@@ -150,6 +150,11 @@ service cloud.firestore {
       allow write, delete: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    match /top100/{topicId} {
+      allow read: if true;
+      allow write, delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
     match /notePacks/{packId} {
       allow read: if true;
       allow write, delete: if request.auth != null && 

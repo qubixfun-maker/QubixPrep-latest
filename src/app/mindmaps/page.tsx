@@ -1,4 +1,6 @@
 "use client"
+import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo, useState } from "react"
 import { useCollection, useFirestore } from "@/firebase"
@@ -13,7 +15,7 @@ import { getSubjectYear } from "@/lib/subject-year"
 
 export default function MindmapsSubjectsPage() {
   const db = useFirestore()
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useTopSearch("Search subjects in Mind Maps…")
   const subjectsQuery = useMemo(() => (!db ? null : collection(db, 'subjects')), [db])
   const { data: subjects, loading } = useCollection(subjectsQuery)
 
@@ -47,10 +49,6 @@ export default function MindmapsSubjectsPage() {
           <h1 className="text-4xl font-bold tracking-tight">Mindmaps</h1>
           <p className="text-muted-foreground text-lg">Visual chapter breakdowns, by subject.</p>
         </div>
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search subjects..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl glass border-white/10" />
-        </div>
       </div>
 
       {loading ? (
@@ -64,21 +62,7 @@ export default function MindmapsSubjectsPage() {
                 {group.items.map((subject: any) => {
                   const color = getSubjectColor(subject.name)
                   return (
-                    <Link key={subject.id} href={`/mindmaps/${subject.id}`}>
-                      <Card className={`${color.bg} ${color.border} border group cursor-pointer hover:scale-[1.02] transition-all duration-300 relative overflow-hidden h-full flex flex-col`}>
-                        <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full ${color.glow} opacity-20 blur-2xl group-hover:opacity-30 transition-opacity`} />
-                        <CardHeader className="flex flex-row items-start justify-between p-8 relative">
-                          <div className={`p-4 rounded-2xl ${color.bgSolid} ${color.text}`}>
-                            <Network className="h-8 w-8" />
-                          </div>
-                          <ChevronRight className={`h-5 w-5 ${color.text} group-hover:translate-x-1 transition-transform`} />
-                        </CardHeader>
-                        <CardContent className="px-8 pb-8 flex-1 relative">
-                          <h2 className="text-2xl font-bold mb-2">{subject.name}</h2>
-                          <p className="text-sm text-muted-foreground">Explore chapters as visual mind maps.</p>
-                        </CardContent>
-                      </Card>
-                    </Link>
+                    <SubjectArtCard key={subject.id} href={`/mindmaps/${subject.id}`} name={subject.name} subtitle="Explore chapters as visual mind maps." />
                   )
                 })}
               </div>

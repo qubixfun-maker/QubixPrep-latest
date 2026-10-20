@@ -10,6 +10,7 @@ import { SORTED_FEATURES } from "@/lib/quickcards/cardFeatures"
 import { getFeatureIcon } from "@/components/quickcards/icons"
 import { useJelly } from "@/components/jelly/jelly-store"
 import { JellyAvatar } from "@/components/jelly/JellyAvatar"
+import { QuickDeckCard } from "@/components/quickcards/QuickDeckCard"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle2, ArrowRight, Sparkles } from "lucide-react"
 import Link from "next/link"
@@ -33,6 +34,7 @@ type Feature = {
 
 const FEATURES: Feature[] = [
   { name: "Smart Notes", href: "/notes", micro: "LEARN · HIGH YIELD", title: "Notes that\nmake sense", tagline: "Big concepts, made simpler.", emoji: "📚", bg: "#dcecff", fg: "#254e83", chip: "FREE START", chipKind: "free", body: "Subject-wise notes, diagrams and exam pearls.", foot: "5 free per subject" },
+  { name: "100 Must-Know Topics", href: "/top-100", micro: "HIGH YIELD · FREE", title: "The 100 that\nmatter most", tagline: "Start with what is tested.", emoji: "⭐", bg: "#e7f6c9", fg: "#4a6a12", chip: "FREE FOR ALL", chipKind: "free", body: "Hand-picked must-know topics, with full notes.", foot: "Open the list" },
   { name: "Question Bank", href: "/qbank", micro: "PRACTISE · MCQS", title: "Train your\nexam brain", tagline: "One question at a time.", emoji: "🎯", bg: "#ffe2d3", fg: "#8b4429", chip: "FREE START", chipKind: "free", body: "Topic-wise MCQs with explanations and insights.", foot: "10 free per subject" },
   { name: "Flashcards", href: "/flashcards", micro: "REMEMBER · RECALL", title: "Make it\nstick!", tagline: "Little cards, mighty memory.", emoji: "🃏", bg: "#d8f4e9", fg: "#286c58", chip: "LEARN FREE", chipKind: "free", body: "Quick active recall decks for every subject.", foot: "Revise by subject" },
   { name: "Mind Maps", href: "/mindmaps", micro: "CONNECT · VISUALISE", title: "See the\nbig picture", tagline: "Ideas connect. It clicks.", emoji: "🗺️", bg: "#eee5ff", fg: "#6243b4", chip: "3 FREE / SUBJECT", chipKind: "free", body: "Visual pathways from core concepts to details.", foot: "Explore a topic" },
@@ -395,34 +397,6 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* Subjects */}
-      {subjects.length > 0 && (
-        <section>
-          <div className="mb-3.5 flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-[21px] font-black tracking-tight">Explore your subjects 🧬</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Tap a subject to jump into notes, MCQs and revision.</p>
-            </div>
-            <Link href="/notes" className="text-sm font-extrabold text-primary">All subjects ↗</Link>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 md:gap-4 lg:grid-cols-3">
-            {subjects.slice(0, 6).map((s: any, i: number) => {
-              const st = subjectStyle(String(s.name), i)
-              return (
-                <Link key={s.id} href={`/notes/${s.id}`}
-                  className="relative min-h-[170px] overflow-hidden rounded-[22px] border border-border p-4 transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10 md:min-h-[185px]" style={{ background: st.bg }}>
-                  <div className="relative z-10 text-[10px] font-black uppercase tracking-[0.1em] text-[#82798f]">{st.label}</div>
-                  <div className="qp-float absolute right-1.5 top-1 text-[56px] opacity-90 md:text-[67px]">{st.emoji}</div>
-                  <h3 className="relative z-10 mb-0.5 mt-3 text-[15px] font-bold md:text-[17px]">{s.name}</h3>
-                  <p className="relative z-10 text-xs text-muted-foreground">Notes · QBank</p>
-                  <div className="absolute inset-x-4 bottom-3.5 flex justify-between text-[11px] font-extrabold text-[#655b7b]"><span>Open</span><span>→</span></div>
-                </Link>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
       {/* QuickCards */}
       {visibleQc.length > 0 && (
         <section>
@@ -433,21 +407,10 @@ export default function Dashboard() {
             </div>
             {!canAccessContent && <span className="rounded-full bg-[#fff0c7] px-2 py-1 text-[10px] font-black text-[#96600b]">🔒 SCHOLAR</span>}
           </div>
-          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 md:gap-3">
-            {visibleQc.map((f, i) => {
-              const Icon = getFeatureIcon(f.icon)
-              return (
-                <Link key={f.slug} href={`/quickcards/${f.slug}`} className="flex items-center gap-2.5 rounded-[17px] border border-border bg-card p-3 text-left transition-transform hover:-translate-y-0.5 md:p-4">
-                  <span className="grid h-[35px] w-[35px] shrink-0 place-items-center rounded-[14px] text-foreground md:h-[43px] md:w-[43px]" style={{ background: QC_TINTS[i % QC_TINTS.length] }}>
-                    <Icon className="h-[18px] w-[18px] md:h-5 md:w-5" />
-                  </span>
-                  <span className="min-w-0">
-                    <b className="block truncate text-[13px]">{f.name}</b>
-                    <small className="line-clamp-1 text-[11px] text-muted-foreground">{f.description}</small>
-                  </span>
-                </Link>
-              )
-            })}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {visibleQc.map((f, i) => (
+              <QuickDeckCard key={f.slug} slug={f.slug} name={f.name} description={f.description} tags={f.tags} index={i} />
+            ))}
           </div>
         </section>
       )}

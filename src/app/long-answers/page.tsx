@@ -1,4 +1,6 @@
 "use client"
+import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo, useState, useEffect } from "react"
 import { useCollection, useFirestore } from "@/firebase"
@@ -21,7 +23,7 @@ const SUBJECT_ORDER = [
 export default function LongAnswersSubjectsPage() {
   const db = useFirestore()
   const [subjects, setSubjects] = useState<any[]>([])
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useTopSearch("Search subjects in Long Answers…")
   const subjectsQuery = useMemo(() => (!db ? null : collection(db, 'subjects')), [db])
   const { data, loading } = useCollection(subjectsQuery)
 
@@ -54,10 +56,6 @@ export default function LongAnswersSubjectsPage() {
           <h1 className="text-4xl font-bold tracking-tight">Long Answers</h1>
           <p className="text-muted-foreground text-lg">Essay-style questions with model answers, by subject.</p>
         </div>
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search subjects..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl glass border-white/10" />
-        </div>
       </div>
 
       {loading ? (
@@ -67,21 +65,7 @@ export default function LongAnswersSubjectsPage() {
           {filtered.map((subject: any) => {
             const color = getSubjectColor(subject.name)
             return (
-              <Link key={subject.id} href={`/long-answers/${subject.id}`}>
-                <Card className={`${color.bg} ${color.border} border group cursor-pointer hover:scale-[1.02] transition-all duration-300 relative overflow-hidden h-full flex flex-col`}>
-                  <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full ${color.glow} opacity-20 blur-2xl group-hover:opacity-30 transition-opacity`} />
-                  <CardHeader className="flex flex-row items-start justify-between p-8 relative">
-                    <div className={`p-4 rounded-2xl ${color.bgSolid} ${color.text}`}>
-                      <GraduationCap className="h-8 w-8" />
-                    </div>
-                    <ChevronRight className={`h-5 w-5 ${color.text} group-hover:translate-x-1 transition-transform`} />
-                  </CardHeader>
-                  <CardContent className="px-8 pb-8 flex-1 relative">
-                    <h2 className="text-2xl font-bold mb-2">{subject.name}</h2>
-                    <p className="text-sm text-muted-foreground">Long essays, short essays &amp; short answers.</p>
-                  </CardContent>
-                </Card>
-              </Link>
+              <SubjectArtCard key={subject.id} href={`/long-answers/${subject.id}`} name={subject.name} subtitle="Long essays, short essays &amp; short answers." />
             )
           })}
         </div>

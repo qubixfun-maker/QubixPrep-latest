@@ -122,18 +122,27 @@
    accent-colored decoration scheme, so long answers and notes read as one consistent system. */
 .qa-item {
   border-radius: 0 1rem 1rem 0;
-  border-left: 3px solid hsl(var(--accent));
+  border-left: 5px solid hsl(var(--primary));
+  background: hsl(var(--card));
+  border-top: 1px solid hsl(var(--border));
+  border-right: 1px solid hsl(var(--border));
+  border-bottom: 1px solid hsl(var(--border));
+  box-shadow: 0 8px 24px hsl(252 30% 20% / 0.06);
   padding: 1.25rem;
   margin-bottom: 1rem;
 }
 .qa-question {
-  font-weight: 700;
+  background: hsl(var(--secondary));
+  color: #2f1d86;
+  border-radius: 0.85rem;
+  padding: 0.75rem 1rem;
+  font-weight: 800;
   font-size: 0.95rem;
   line-height: 1.5;
   margin-bottom: 0.75rem;
 }
 .qa-number {
-  color: hsl(0 0% 95%);
+  color: hsl(var(--primary));
   margin-right: 0.4rem;
 }
 .qa-repeat {
@@ -151,12 +160,20 @@
   color: hsl(var(--foreground) / 0.9);
 }
 .qa-answer h4 {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: hsl(var(--primary));
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
+  /* long-answers-polish */
+  font-weight: 800;
+  font-size: 1rem;
+  color: #fff;
+  background: linear-gradient(90deg, #7552ee, #9b7bff);
+  padding: 0.5rem 0.95rem;
+  border-radius: 0.8rem;
+  box-shadow: 0 6px 14px hsl(254 82% 63% / 0.22);
+  margin-top: 1.4rem;
+  margin-bottom: 0.7rem;
 }
+.qa-answer h4:nth-of-type(4n+2) { background: linear-gradient(90deg, #f08a4b, #f4b06d); box-shadow: 0 6px 14px rgb(240 138 75 / 0.25); }
+.qa-answer h4:nth-of-type(4n+3) { background: linear-gradient(90deg, #2fb08f, #5dd0b2); box-shadow: 0 6px 14px rgb(47 176 143 / 0.25); }
+.qa-answer h4:nth-of-type(4n) { background: linear-gradient(90deg, #e0558f, #f58bb6); box-shadow: 0 6px 14px rgb(224 85 143 / 0.25); }
 .qa-answer h4:first-child {
   margin-top: 0;
 }
@@ -164,7 +181,7 @@
   margin-bottom: 0.75rem;
 }
 .qa-answer strong {
-  color: hsl(var(--foreground));
+  color: #4326b5;
   font-weight: 700;
 }
 /* Plain bulleted lists - same marker color as Notes */
@@ -224,8 +241,8 @@
   border-bottom: 1px solid hsl(var(--border));
 }
 .qa-answer th {
-  background: hsl(var(--foreground) / 0.05);
-  color: hsl(var(--foreground));
+  background: #eee8ff;
+  color: #4326b5;
   font-weight: 700;
   border: 1px solid hsl(var(--border));
   padding: 0.5rem 0.6rem;

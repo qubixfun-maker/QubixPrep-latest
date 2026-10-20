@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { use, useMemo, useState, useCallback } from "react"
 import Link from "next/link"
@@ -37,7 +38,7 @@ export default function QuickCardsFeaturePage({ params }: { params: Promise<{ sl
   const states = useCardStates()
 
   const [tab, setTab] = useState<"all" | "mine">("all")
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useTopSearch("Search cards in this deck…")
   const [audience, setAudience] = useState<"all" | "MBBS" | "NEET-PG">("all")
   const [tag, setTag] = useState<string>("")
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
@@ -137,10 +138,7 @@ export default function QuickCardsFeaturePage({ params }: { params: Promise<{ sl
           <Button size="sm" variant={tab === "all" ? "default" : "ghost"} onClick={() => setTab("all")}>All cards</Button>
           <Button size="sm" variant={tab === "mine" ? "default" : "ghost"} onClick={() => setTab("mine")} className="gap-1"><Bookmark className="h-3.5 w-3.5" /> My cards</Button>
         </div>
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="Search cards" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
+        <div className="flex-1" />
         <div className="inline-flex rounded-xl border border-white/10 p-1">
           {(["all", "MBBS", "NEET-PG"] as const).map((a) => (
             <Button key={a} size="sm" variant={audience === a ? "secondary" : "ghost"} onClick={() => setAudience(a)}>{a === "all" ? "Both" : a}</Button>

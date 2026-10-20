@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo, useState } from "react"
 import { useCollection, useFirestore } from "@/firebase"
@@ -19,7 +20,7 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 export default function CasesHubPage() {
   const db = useFirestore()
   const { canAccessContent, loading: planLoading } = usePlan()
-  const [search, setSearch] = useState("")
+  const [search, setSearch] = useTopSearch("Search clinical cases…")
 
   const casesRef = useMemo(() => (!db ? null : collection(db, 'cases')), [db])
   const { data: cases, loading } = useCollection(casesRef)
@@ -48,10 +49,6 @@ export default function CasesHubPage() {
         <p className="text-muted-foreground text-lg">Solve real patient scenarios. Build clinical reasoning, not just recall.</p>
       </div>
 
-      <div className="relative w-full md:w-80">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search cases..." className="pl-10 rounded-xl glass border-white/10" value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
 
       {loading ? (
         <div className="h-64 flex items-center justify-center">

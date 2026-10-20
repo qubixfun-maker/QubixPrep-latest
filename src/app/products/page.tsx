@@ -136,7 +136,7 @@ export default function ProductsPage() {
         <p className="text-muted-foreground text-lg">Premium study materials curated for NEET PG & USMLE</p>
       </div>
 
-      <div className="space-y-4">
+      <div className={(isAdmin || purchasedNotePacks.length > 0 ? "" : "hidden ") + "space-y-4"}>
         <div className="space-y-1">
           <h2 className="text-2xl font-bold flex items-center gap-2"><FileDown className="h-6 w-6 text-primary" /> Year Notes</h2>
           <p className="text-sm text-muted-foreground">Complete year-wise notes, one-time purchase. Viewable only inside the app.</p>
