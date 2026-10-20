@@ -1,5 +1,5 @@
 'use server';
-import { callGeminiNative } from '@/ai/genkit';
+import { osceCall } from '@/ai/osce-ai';
 
 function tryParseJson(raw: string): any | null {
   const cleaned = raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
@@ -42,7 +42,7 @@ export type CaseBrief = {
 
 const TOTAL_VIVA_QUESTIONS = 4;
 
-function caseBriefPrompt(specialty: string, topic: string): string {
+function caseBriefPrompt(specialty: string, topic: string, extra = ''): string {
   return `You are creating a single, complete, internally-consistent OSCE/clinical long-case for an Indian MBBS student, in the specialty "${specialty}", on the topic/condition "${topic}".
 
 Invent one realistic patient and case, exactly as it would appear in a real Indian medical college clinical long-case examination. Be clinically accurate and internally consistent - vitals, history, exam findings, and investigations must all plausibly support the same diagnosis.
@@ -80,21 +80,21 @@ Return ONLY a JSON object, no commentary, no markdown fences, matching EXACTLY t
   "imageSearchQuery": "a short (2-5 word) web image search query for a clinical photo related to this disease/condition"
 }
 
-Make the case specific, plausible, and fully internally consistent - a student who takes a thorough history and examination should be able to correctly arrive at "${topic}" as the diagnosis.`;
+Make the case specific, plausible, and fully internally consistent - a student who takes a thorough history and examination should be able to correctly arrive at "${topic}" as the diagnosis.${extra ? '\n\n' + extra : ''}`;
 }
 
 export type GenerateCaseBriefOutput = { brief?: CaseBrief; error?: string };
 
-export async function generateCaseBrief(specialty: string, topic: string): Promise<GenerateCaseBriefOutput> {
+export async function generateCaseBrief(specialty: string, topic: string, extra = ''): Promise<GenerateCaseBriefOutput> {
   const MAX_ATTEMPTS = 2;
   let lastError = '';
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
-      const { content: raw } = await callGeminiNative(
-        [{ role: 'user', content: caseBriefPrompt(specialty, topic) }],
+      const { content: raw } = await osceCall(
+        [{ role: 'user', content: caseBriefPrompt(specialty, topic, extra) }],
         4000,
         1024,
-        'gemini-2.5-pro'
+        'smart'
       );
       const parsed = tryParseJson(raw);
       if (
@@ -151,11 +151,11 @@ export type InCharacterReplyOutput = { reply?: string; error?: string };
 
 export async function generateInCharacterReply(brief: CaseBrief, transcript: string, utterance: string, language: string): Promise<InCharacterReplyOutput> {
   try {
-    const { content: raw } = await callGeminiNative(
+    const { content: raw } = await osceCall(
       [{ role: 'user', content: inCharacterPrompt(brief, transcript, utterance, language) }],
       400,
       0,
-      'gemini-2.5-flash'
+      'fast'
     );
     const reply = stripQuotes(raw);
     if (!reply) return { error: 'Empty reply' };
@@ -201,11 +201,11 @@ export type FinalAssessmentOutput = {
 
 export async function generateFinalAssessment(brief: CaseBrief, transcript: string, studentPresentation: string, language: string): Promise<FinalAssessmentOutput> {
   try {
-    const { content: raw } = await callGeminiNative(
+    const { content: raw } = await osceCall(
       [{ role: 'user', content: assessmentPrompt(brief, transcript, studentPresentation, language) }],
       1200,
       512,
-      'gemini-2.5-pro'
+      'smart'
     );
     const parsed = tryParseJson(raw);
     if (!parsed || typeof parsed.historyScore !== 'number') {
@@ -275,11 +275,11 @@ export async function generateExaminerChatReply(
   language: string
 ): Promise<ExaminerChatReplyOutput> {
   try {
-    const { content: raw } = await callGeminiNative(
+    const { content: raw } = await osceCall(
       [{ role: 'user', content: examinerChatPrompt(brief, caseTranscript, studentPresentation, assessmentFeedback, chatTranscript, studentMessage, language) }],
       350,
       0,
-      'gemini-2.5-flash'
+      'fast'
     );
     const reply = stripQuotes(raw);
     if (!reply) return { error: 'Empty reply' };
@@ -339,11 +339,11 @@ export async function generateVivaTurn(
   language: string
 ): Promise<VivaTurnOutput> {
   try {
-    const { content: raw } = await callGeminiNative(
+    const { content: raw } = await osceCall(
       [{ role: 'user', content: vivaTurnPrompt(brief, caseTranscript, studentPresentation, vivaTranscript, studentAnswer, questionNumber, language) }],
       350,
       0,
-      'gemini-2.5-flash'
+      'fast'
     );
     const message = stripQuotes(raw);
     if (!message) return { error: 'Empty reply' };
@@ -370,11 +370,11 @@ export type VivaResultOutput = { assessment?: { score: number; feedback: string 
 
 export async function generateVivaResult(brief: CaseBrief, vivaTranscript: string, language: string): Promise<VivaResultOutput> {
   try {
-    const { content: raw } = await callGeminiNative(
+    const { content: raw } = await osceCall(
       [{ role: 'user', content: vivaResultPrompt(brief, vivaTranscript, language) }],
       400,
       256,
-      'gemini-2.5-pro'
+      'smart'
     );
     const parsed = tryParseJson(raw);
     if (!parsed || typeof parsed.score !== 'number') {

@@ -54,7 +54,7 @@ let cachedVertexToken: { token: string; expiresAt: number } | null = null
 // can read this to surface the actual cause instead of a generic "unavailable".
 export let lastVertexTokenError: string | null = null
 
-async function getVertexAccessToken(): Promise<string | null> {
+export async function getVertexAccessToken(): Promise<string | null> {
   // Accept either the raw JSON key (GOOGLE_SERVICE_ACCOUNT_KEY) or a base64-encoded
   // version (GOOGLE_SERVICE_ACCOUNT_KEY_B64) - the base64 form avoids shell/dashboard
   // quote-escaping issues when pasting a multi-line JSON key into an env var.

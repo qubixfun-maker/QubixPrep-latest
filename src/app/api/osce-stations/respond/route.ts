@@ -1,31 +1,29 @@
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { verifyIdToken } from '@/lib/firebase-admin'
-import { generateInCharacterReply, type CaseBrief } from '@/ai/osce-live-case'
+import { answer } from '@/ai/osce-engine'
+import type { OsceBrief } from '@/lib/osce/shared'
 
 export async function POST(req: NextRequest) {
+  const enc = new TextEncoder()
   try {
-    const { idToken, brief, transcript, utterance, language } = await req.json()
+    const { idToken, brief, history, utterance, language } = await req.json()
     if (!idToken || !brief || !utterance?.trim()) {
-      return NextResponse.json({ error: 'Missing idToken, brief, or utterance' }, { status: 400 })
+      return new Response(JSON.stringify({ error: 'Missing idToken, brief, or utterance' }), { status: 400 })
     }
-
     await verifyIdToken(idToken)
-
-    const { reply, error } = await generateInCharacterReply(
-      brief as CaseBrief,
-      typeof transcript === 'string' ? transcript : '',
-      utterance.trim(),
-      typeof language === 'string' && language.trim() ? language.trim() : 'English'
-    )
-    if (!reply) {
-      return NextResponse.json({ error: error || 'Could not get a response right now. Please try again.' }, { status: 500 })
-    }
-
-    return NextResponse.json({ reply })
+    const gen = answer(brief as OsceBrief, typeof history === 'string' ? history : '', utterance.trim(), typeof language === 'string' && language.trim() ? language.trim() : 'English')
+    const stream = new ReadableStream({
+      async start(c) {
+        try { for await (const e of gen) c.enqueue(enc.encode(JSON.stringify(e) + '\n')) }
+        catch (e: any) { c.enqueue(enc.encode(JSON.stringify({ t: 'err', x: e.message || 'Failed' }) + '\n')) }
+        c.close()
+      },
+    })
+    return new Response(stream, { headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' } })
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || 'Failed to get response' }, { status: 500 })
+    return new Response(JSON.stringify({ error: e.message || 'Failed to get response' }), { status: 500 })
   }
 }

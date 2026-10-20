@@ -1,19 +1,21 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useUser } from "@/firebase"
 import {
-  Loader2, Stethoscope, Mic, Square, Clock, Globe, Trophy, Sparkles
+  Loader2, Stethoscope, Clock, Globe, Trophy, Sparkles, VolumeX, SkipForward, BookOpen, CheckCircle2, Shuffle
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { VoiceOrTextInput, createSpeaker, stopSpeaking, type Speaker } from "@/components/osce/voice"
+import { type OsceBrief, type VivaItem, type Gender, LANG_CODES, TOTAL_VIVA, roleOf, kindOf, localAnswer, looksLikeSkip } from "@/lib/osce/shared"
+import { LIB_SEEDS, LIB_SUBJECTS } from "@/lib/osce/library"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
 import { UpgradeGate } from "@/components/upgrade-gate"
-import type { CaseBrief } from "@/ai/osce-live-case"
 
-type LogEntry = { speaker: "you" | "patient" | "system"; text: string }
+type LogEntry = { speaker: "you" | "patient" | "examiner" | "system"; text: string }
 type ChatMsg = { speaker: "you" | "examiner"; text: string }
 
 type Assessment = {
@@ -34,7 +36,6 @@ type Phase =
   | "setup" | "generating" | "encounter" | "presentation" | "assessing"
   | "feedback" | "viva" | "viva-grading" | "done"
 
-const TOTAL_VIVA_QUESTIONS = 4
 
 const LANGUAGES = [
   { label: "English", value: "English", speechLang: "en-IN" },
@@ -61,89 +62,6 @@ const QUICK_ACTIONS = [
   "Relevant investigations",
 ]
 
-function speak(text: string, lang: string, onEnd?: () => void) {
-  try {
-    if (typeof window === "undefined" || !window.speechSynthesis) { onEnd?.(); return }
-    window.speechSynthesis.cancel()
-    const u = new SpeechSynthesisUtterance(text)
-    u.lang = lang
-    u.rate = 1
-    const voices = window.speechSynthesis.getVoices()
-    const match = voices.find((v) => v.lang === lang) || voices.find((v) => v.lang?.startsWith(lang.split("-")[0]))
-    if (match) u.voice = match
-    u.onend = () => onEnd?.()
-    u.onerror = () => onEnd?.()
-    window.speechSynthesis.speak(u)
-  } catch { onEnd?.() }
-}
-
-function useSpeechRecognition(onResult: (transcript: string) => void, lang: string) {
-  const recognitionRef = useRef<any>(null)
-  const [listening, setListening] = useState(false)
-  const [supported, setSupported] = useState(true)
-
-  useEffect(() => {
-    const Ctor = (typeof window !== "undefined") && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-    if (!Ctor) { setSupported(false); return }
-    const recog = new Ctor()
-    recog.lang = lang
-    recog.continuous = false
-    recog.interimResults = false
-    recog.maxAlternatives = 1
-    recog.onresult = (e: any) => {
-      const transcript = e.results?.[0]?.[0]?.transcript || ""
-      if (transcript.trim()) onResult(transcript.trim())
-    }
-    recog.onend = () => setListening(false)
-    recog.onerror = () => setListening(false)
-    recognitionRef.current = recog
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang])
-
-  const start = useCallback(() => {
-    if (!recognitionRef.current) return
-    try { recognitionRef.current.start(); setListening(true) } catch {}
-  }, [])
-
-  const stop = useCallback(() => {
-    if (!recognitionRef.current) return
-    try { recognitionRef.current.stop() } catch {}
-  }, [])
-
-  return { start, stop, listening, supported }
-}
-
-function VoiceOrTextInput({ onSubmit, disabled, lang, placeholder }: {
-  onSubmit: (text: string) => void; disabled?: boolean; lang: string; placeholder?: string
-}) {
-  const [typed, setTyped] = useState("")
-  const { start, stop, listening, supported } = useSpeechRecognition((t) => onSubmit(t), lang)
-
-  return (
-    <div className="space-y-2">
-      {supported && (
-        <Button
-          disabled={disabled}
-          onClick={() => (listening ? stop() : start())}
-          className={`w-full gap-2 ${listening ? "bg-red-500 hover:bg-red-600" : ""}`}
-        >
-          {listening ? <><Square className="h-4 w-4" /> Listening... tap to stop</> : <><Mic className="h-4 w-4" /> Tap to speak</>}
-        </Button>
-      )}
-      <div className="flex gap-2">
-        <Input
-          placeholder={placeholder || "Or type here..."}
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          disabled={disabled}
-          onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { onSubmit(typed.trim()); setTyped("") } }}
-        />
-        <Button disabled={disabled || !typed.trim()} onClick={() => { onSubmit(typed.trim()); setTyped("") }}>Send</Button>
-      </div>
-    </div>
-  )
-}
-
 function DoctorAvatar({ speaking }: { speaking: boolean }) {
   return (
     <div className="flex items-center justify-center py-2">
@@ -167,9 +85,34 @@ export default function OsceStationsPage() {
   const speechLang = LANGUAGES.find((l) => l.value === language)?.speechLang || "en-IN"
   const [speaking, setSpeaking] = useState(false)
 
-  const [brief, setBrief] = useState<CaseBrief | null>(null)
+  const [brief, setBrief] = useState<OsceBrief | null>(null)
+  const speakerRef = useRef<Speaker | null>(null)
+  const examinerGender = useRef<Gender>(Math.random() < 0.5 ? "male" : "female")
+  const [handsFree, setHandsFree] = useState(false)
+  const handsFreeRef = useRef(false)
+  const [autoKey, setAutoKey] = useState(0)
+  const [vivaPlan, setVivaPlan] = useState<VivaItem[] | undefined>(undefined)
   const [log, setLog] = useState<LogEntry[]>([])
   const [busy, setBusy] = useState(false)
+
+  const [mode, setMode] = useState<"library" | "new">("library")
+  const [libSubject, setLibSubject] = useState(LIB_SUBJECTS[0].key)
+  const [ready, setReady] = useState<string[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [libBusy, setLibBusy] = useState<string | null>(null)
+  const [libMsg, setLibMsg] = useState<string | null>(null)
+
+  async function libCall(body: any) {
+    const idToken = await user!.getIdToken()
+    const res = await fetch("/api/osce-stations/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, ...body }) })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || "Library request failed")
+    return data
+  }
+  useEffect(() => {
+    if (!user) return
+    libCall({ action: "list" }).then((d) => { setReady(d.ready || []); setIsAdmin(!!d.admin) }).catch(() => {})
+  }, [user])
 
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageCredit, setImageCredit] = useState<string | null>(null)
@@ -185,6 +128,25 @@ export default function OsceStationsPage() {
   const [vivaQuestionNumber, setVivaQuestionNumber] = useState(1)
   const [vivaBusy, setVivaBusy] = useState(false)
   const [vivaResult, setVivaResult] = useState<VivaResult | null>(null)
+
+  const role = brief ? roleOf(brief) : null
+
+  /** Starts a speaker with the right voice: the patient/informant in the chosen local language, the examiner in English. */
+  function startSpeaker(who: "patient" | "examiner", then?: () => void): Speaker {
+    const isPatient = who === "patient" && role
+    const sp = createSpeaker({
+      lang: isPatient ? speechLang : "en-IN",
+      gender: isPatient ? role!.gender : examinerGender.current,
+      variant: isPatient ? (brief?.patient?.name?.length || 0) : 0,
+      getToken: () => user!.getIdToken(),
+      onStart: () => setSpeaking(true),
+      onEnd: () => { setSpeaking(false); then?.(); if (handsFreeRef.current) setAutoKey((k) => k + 1) },
+    })
+    speakerRef.current = sp
+    return sp
+  }
+  function sayExaminer(text: string) { const sp = startSpeaker("examiner"); sp.push(text); sp.end() }
+  function silence() { stopSpeaking(); setSpeaking(false) }
 
   function appendLog(entry: LogEntry) {
     setLog((l) => [...l, entry])
@@ -210,7 +172,8 @@ export default function OsceStationsPage() {
   }
 
   function resetToSetup() {
-    try { window.speechSynthesis?.cancel() } catch {}
+    silence()
+    setVivaPlan(undefined)
     setPhase("setup")
     setBrief(null)
     setLog([])
@@ -254,23 +217,110 @@ export default function OsceStationsPage() {
     }
   }
 
+  function enterCase(b: OsceBrief, spec: string, top: string) {
+    setSpecialty(spec)
+    setTopic(top)
+    setBrief(b)
+    setLog([{ speaker: "system", text: "You are in the examination room. Begin by introducing yourself, then take a full history and examination." }])
+    setImageUrl(null)
+    setImageCredit(null)
+    setStudentPresentation("")
+    setAssessment(null)
+    setExaminerChat([])
+    setVivaLog([])
+    setVivaResult(null)
+    setVivaPlan(b.viva)
+    setPhase("encounter")
+    fetch(`/api/topic-image?topic=${encodeURIComponent(b.imageSearchQuery || b.topic)}&subject=${encodeURIComponent(spec)}`)
+      .then((r) => r.json()).then((d) => { if (d.url) { setImageUrl(d.url); setImageCredit(d.photographer || null) } }).catch(() => {})
+  }
+
+  async function startLibrary(id: string, hideTopic = false) {
+    if (!user || libBusy) return
+    const seed = LIB_SEEDS.find((s) => s.id === id)
+    if (!seed) return
+    setSetupError(null)
+    setLibBusy(id)
+    try {
+      const d = await libCall({ action: "get", id })
+      setReady((r) => (r.includes(id) ? r : [...r, id]))
+      enterCase(d.brief, seed.label, hideTopic ? "Diagnosis not shown" : seed.topic)
+    } catch (e: any) {
+      setSetupError(e.message || "Could not open this case - please try again.")
+    } finally {
+      setLibBusy(null)
+    }
+  }
+
+  function surprise() {
+    const pool = LIB_SEEDS.filter((s) => s.subject === libSubject)
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    if (pick) startLibrary(pick.id, true)
+  }
+
+  async function seedAll() {
+    setLibMsg("Preparing cases...")
+    try {
+      for (let i = 0; i < 40; i++) {
+        const d = await libCall({ action: "seed", limit: 4 })
+        setReady(d.ready || [])
+        setLibMsg(`${(d.ready || []).length} of ${LIB_SEEDS.length} ready${d.failed ? `, ${d.failed} failed in the last round` : ""}`)
+        if (!d.remaining || !d.made) break
+      }
+    } catch (e: any) {
+      setLibMsg(e.message || "Stopped")
+    }
+  }
+
+  function historyFor(entries: LogEntry[]): string {
+    return entries.filter((e) => e.speaker !== "system").slice(-6)
+      .map((e) => `${e.speaker === "you" ? "Student" : e.speaker === "examiner" ? "Examiner" : "Patient"}: ${e.text}`).join("\n")
+  }
+
   async function handleUtterance(utterance: string) {
     if (!brief || !user || !utterance.trim() || busy) return
-    const transcript = buildTranscript(log)
+    silence()
+    const history = historyFor(log)
     appendLog({ speaker: "you", text: utterance })
+
+    // standard examination requests are answered instantly, with no waiting
+    if (kindOf(utterance) !== "history") {
+      const local = localAnswer(brief, utterance)
+      if (local) { appendLog({ speaker: "examiner", text: local }); const sp = startSpeaker("examiner"); sp.push(local); sp.end(); return }
+    }
+
     setBusy(true)
+    let sp: Speaker | null = null
     try {
       const idToken = await user.getIdToken()
       const res = await fetch("/api/osce-stations/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, brief, transcript, utterance, language }),
+        body: JSON.stringify({ idToken, brief, history, utterance, language }),
       })
-      const data = await res.json()
-      if (!res.ok || !data.reply) throw new Error(data.error || "No response")
-      appendLog({ speaker: "patient", text: data.reply })
-      speak(data.reply, speechLang)
+      if (!res.ok || !res.body) throw new Error("No response")
+      const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ""; let got = false
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        let i: number
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
+          if (!line) continue
+          const ev = JSON.parse(line)
+          if (ev.t === "meta") { appendLog({ speaker: ev.role, text: "" }); sp = startSpeaker(ev.role) }
+          else if (ev.t === "d") {
+            got = true
+            setLog((l) => { const c = [...l]; const k = c.length - 1; c[k] = { ...c[k], text: c[k].text + ev.x }; return c })
+            sp?.push(ev.x)
+          } else if (ev.t === "err") throw new Error(ev.x)
+          else if (ev.t === "end") sp?.end()
+        }
+      }
+      if (!got) throw new Error("Empty")
     } catch {
+      sp?.stop()
       appendLog({ speaker: "system", text: "Could not get a response - please try again." })
     } finally {
       setBusy(false)
@@ -293,8 +343,7 @@ export default function OsceStationsPage() {
       setAssessment(data.assessment)
       setExaminerChat([{ speaker: "examiner", text: data.assessment.feedback }])
       setPhase("feedback")
-      setSpeaking(true)
-      speak(data.assessment.feedback, "en-IN", () => setSpeaking(false))
+      sayExaminer(data.assessment.feedback)
     } catch (e: any) {
       alert(e.message || "Could not generate the assessment - please try again.")
       setPhase("presentation")
@@ -317,8 +366,7 @@ export default function OsceStationsPage() {
       const data = await res.json()
       if (!res.ok || !data.reply) throw new Error(data.error || "No response")
       setExaminerChat((c) => [...c, { speaker: "examiner", text: data.reply }])
-      setSpeaking(true)
-      speak(data.reply, "en-IN", () => setSpeaking(false))
+      sayExaminer(data.reply)
     } catch {
       setExaminerChat((c) => [...c, { speaker: "examiner", text: "Sorry, I couldn't respond just now - try again." }])
     } finally {
@@ -328,24 +376,25 @@ export default function OsceStationsPage() {
 
   async function startViva() {
     if (!brief || !user) return
+    silence()
     setVivaLog([])
     setVivaQuestionNumber(1)
     setVivaResult(null)
+    setVivaPlan(undefined)
     setPhase("viva")
     setVivaBusy(true)
     try {
       const idToken = await user.getIdToken()
-      const caseTranscript = buildTranscript(log)
       const res = await fetch("/api/osce-stations/viva-turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, brief, caseTranscript, studentPresentation, vivaTranscript: "", studentAnswer: "", questionNumber: 1, language: "English" }),
+        body: JSON.stringify({ idToken, brief, questionNumber: 1, studentAnswer: "" }),
       })
       const data = await res.json()
       if (!res.ok || !data.message) throw new Error(data.error || "Could not start viva")
+      setVivaPlan(data.plan)
       setVivaLog([{ speaker: "examiner", text: data.message }])
-      setSpeaking(true)
-      speak(data.message, "en-IN", () => setSpeaking(false))
+      sayExaminer(data.message)
     } catch (e: any) {
       alert(e.message || "Could not start the viva - please try again.")
       setPhase("feedback")
@@ -377,33 +426,32 @@ export default function OsceStationsPage() {
 
   async function handleVivaAnswer(answer: string) {
     if (!brief || !user || vivaBusy) return
-    const vivaTranscript = buildChatTranscript(vivaLog)
+    silence()
     const thisQuestionNumber = vivaQuestionNumber
     const logWithAnswer = [...vivaLog, { speaker: "you" as const, text: answer }]
     setVivaLog(logWithAnswer)
     setVivaBusy(true)
     try {
       const idToken = await user.getIdToken()
-      const caseTranscript = buildTranscript(log)
       const res = await fetch("/api/osce-stations/viva-turn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, brief, caseTranscript, studentPresentation, vivaTranscript, studentAnswer: answer, questionNumber: thisQuestionNumber, language: "English" }),
+        body: JSON.stringify({ idToken, brief, plan: vivaPlan, studentAnswer: answer, questionNumber: thisQuestionNumber }),
       })
       const data = await res.json()
       if (!res.ok || !data.message) throw new Error(data.error || "No response")
+      if (data.plan) setVivaPlan(data.plan)
       const logWithReply = [...logWithAnswer, { speaker: "examiner" as const, text: data.message }]
       setVivaLog(logWithReply)
-      setSpeaking(true)
-      speak(data.message, "en-IN", () => setSpeaking(false))
-      if (thisQuestionNumber >= TOTAL_VIVA_QUESTIONS) {
+      sayExaminer(data.message)
+      if (thisQuestionNumber >= TOTAL_VIVA) {
         setVivaBusy(false)
         finishViva(logWithReply)
         return
       }
       setVivaQuestionNumber((n) => n + 1)
     } catch {
-      setVivaLog((l) => [...l, { speaker: "examiner", text: "Sorry, something went wrong - let's end here." }])
+      setVivaLog((l) => [...l, { speaker: "examiner", text: "Sorry, I lost the connection for a moment. Please say your answer again, or tap Skip." }])
     } finally {
       setVivaBusy(false)
     }
@@ -431,6 +479,70 @@ export default function OsceStationsPage() {
       </div>
 
       {phase === "setup" && (
+        <div className="flex gap-2">
+          <Button size="sm" variant={mode === "library" ? "default" : "outline"} onClick={() => setMode("library")} className="rounded-full flex-1 gap-1">
+            <BookOpen className="h-4 w-4" /> Library cases ({LIB_SEEDS.length})
+          </Button>
+          <Button size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => setMode("new")} className="rounded-full flex-1 gap-1">
+            <Sparkles className="h-4 w-4" /> Generate new
+          </Button>
+        </div>
+      )}
+
+      {phase === "setup" && mode === "library" && (
+        <Card className="glass border-none">
+          <CardContent className="p-6 space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Subject</p>
+              <div className="flex flex-wrap gap-2">
+                {LIB_SUBJECTS.map((s) => (
+                  <Button key={s.key} size="sm" variant={libSubject === s.key ? "default" : "outline"} onClick={() => setLibSubject(s.key)} className="rounded-full">
+                    {s.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1"><Globe className="h-3 w-3" /> Language</p>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGES.map((l) => (
+                  <Button key={l.value} size="sm" variant={language === l.value ? "default" : "outline"} onClick={() => setLanguage(l.value)} className="rounded-full">
+                    {l.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <Button onClick={surprise} disabled={!!libBusy} className="w-full gap-2">
+              <Shuffle className="h-4 w-4" /> Surprise me (diagnosis hidden)
+            </Button>
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Or pick a case</p>
+              {LIB_SEEDS.filter((s) => s.subject === libSubject).map((s) => (
+                <button key={s.id} disabled={!!libBusy} onClick={() => startLibrary(s.id)}
+                  className="w-full flex items-center justify-between gap-2 text-left text-sm rounded-xl border border-white/10 px-3 py-2 hover:bg-white/5 disabled:opacity-60">
+                  <span>{s.topic}</span>
+                  {libBusy === s.id ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : ready.includes(s.id) ? <CheckCircle2 className="h-4 w-4 text-accent shrink-0" /> : <span className="text-[10px] text-muted-foreground shrink-0">prepared on first use</span>}
+                </button>
+              ))}
+            </div>
+
+            {libBusy && <p className="text-xs text-muted-foreground">Preparing this case - the first time can take up to a minute, afterwards it opens instantly.</p>}
+            {setupError && <p className="text-sm text-red-400">{setupError}</p>}
+
+            {isAdmin && (
+              <div className="space-y-1 pt-2 border-t border-white/10">
+                <Button size="sm" variant="outline" onClick={seedAll} disabled={!!libMsg && libMsg.startsWith("Preparing")}>Admin: prepare all library cases</Button>
+                {libMsg && <p className="text-xs text-muted-foreground">{libMsg}</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {phase === "setup" && mode === "new" && (
         <Card className="glass border-none">
           <CardContent className="p-6 space-y-5">
             <div className="space-y-2">
@@ -494,7 +606,7 @@ export default function OsceStationsPage() {
               <div className="max-h-72 overflow-y-auto space-y-2">
                 {log.map((entry, i) => (
                   <div key={i} className={`text-sm ${entry.speaker === "you" ? "text-accent" : entry.speaker === "system" ? "text-muted-foreground italic" : ""}`}>
-                    <span className="font-bold">{entry.speaker === "you" ? "You: " : entry.speaker === "patient" ? "Patient: " : ""}</span>
+                    <span className="font-bold">{entry.speaker === "you" ? "You: " : entry.speaker === "patient" ? `${role?.relation || "Patient"}: ` : entry.speaker === "examiner" ? "Examiner: " : ""}</span>
                     {entry.text}
                   </div>
                 ))}
@@ -502,7 +614,18 @@ export default function OsceStationsPage() {
             </CardContent>
           </Card>
 
-          <VoiceOrTextInput onSubmit={handleUtterance} disabled={busy} lang={speechLang} placeholder="Ask the patient, or type your question..." />
+          {role && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{speaking ? "Speaking..." : `Answering: ${role.label}`} - {language}</span>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="checkbox" checked={handsFree} onChange={(e) => { setHandsFree(e.target.checked); handsFreeRef.current = e.target.checked }} /> Hands-free
+                </label>
+                {speaking && <button className="flex items-center gap-1 text-accent" onClick={silence}><VolumeX className="h-3 w-3" /> Stop voice</button>}
+              </div>
+            </div>
+          )}
+          <VoiceOrTextInput onSubmit={handleUtterance} disabled={busy} lang={speechLang} autoStartKey={autoKey} placeholder="Ask the patient, or type your question..." />
 
           <div className="flex flex-wrap gap-2">
             {QUICK_ACTIONS.map((a) => (
@@ -603,7 +726,7 @@ export default function OsceStationsPage() {
           <Card className="glass border-none">
             <CardContent className="p-4 space-y-2">
               <p className="text-xs font-bold uppercase tracking-widest text-primary">
-                Viva - Question {Math.min(vivaQuestionNumber, TOTAL_VIVA_QUESTIONS)} of {TOTAL_VIVA_QUESTIONS}
+                Viva - Question {Math.min(vivaQuestionNumber, TOTAL_VIVA)} of {TOTAL_VIVA}
               </p>
               <div className="max-h-72 overflow-y-auto space-y-2">
                 {vivaLog.map((m, i) => (
@@ -614,7 +737,17 @@ export default function OsceStationsPage() {
               </div>
             </CardContent>
           </Card>
-          <VoiceOrTextInput onSubmit={handleVivaAnswer} disabled={vivaBusy} lang="en-IN" placeholder="Answer the examiner..." />
+          <VoiceOrTextInput
+            onSubmit={handleVivaAnswer}
+            disabled={vivaBusy}
+            lang="en-IN"
+            placeholder="Answer the examiner..."
+            extra={
+              <Button variant="outline" disabled={vivaBusy} onClick={() => handleVivaAnswer("I don't know")} className="w-full gap-2">
+                <SkipForward className="h-4 w-4" /> I don't know - next question
+              </Button>
+            }
+          />
         </div>
       )}
 
