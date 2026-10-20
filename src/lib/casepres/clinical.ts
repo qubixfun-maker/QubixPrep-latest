@@ -1,4 +1,5 @@
 import { KB2 } from './clinical2'
+import { KB3 } from './clinical3'
 /**
  * Clinical knowledge base for Case Presentation.
  * Each entry matches a finding label (regex) and can carry:
@@ -372,7 +373,7 @@ export const KB: Kb[] = [
 
 export function findKb(label: string): Kb | undefined {
   const t = (label || "").trim()
-  return KB2.find((k) => k.m.test(t)) || KB.find((k) => k.m.test(t))
+  return KB3.find((k) => k.m.test(t)) || KB2.find((k) => k.m.test(t)) || KB.find((k) => k.m.test(t))
 }
 
 export const isTest = (kb?: Kb) => !!(kb && kb.how)

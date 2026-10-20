@@ -1,7 +1,8 @@
 import type { CaseDef, Answers, Field } from './types'
 import { INSIGHTS, type Hint, type Viva } from './insights-data'
 import { INSIGHTS2 } from './insights-data2'
-const ALL = { ...INSIGHTS, ...INSIGHTS2 }
+import { INSIGHTS3 } from './insights-data3'
+const ALL = { ...INSIGHTS, ...INSIGHTS2, ...INSIGHTS3 }
 import { buildDocument, buildSection, openingStatement, isFieldFilled, type ExamItem } from './format'
 
 const arr = (v: any): string[] => (Array.isArray(v) ? v : v ? [String(v)] : []).filter(Boolean)

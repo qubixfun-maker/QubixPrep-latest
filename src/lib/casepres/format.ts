@@ -142,11 +142,11 @@ function hpiLines(sec: CaseDef['sections'][number], ans: Answers, c?: CaseDef): 
     const core = symptomCore(f, a)
     const d = durOf(f)
     if (n === 0) {
-      out.push(d ? `${Sub} was apparently asymptomatic ${agoPhrase(d)}, when ${sub} developed ${core}.` : `${Sub} gives history of ${core}.`)
+      out.push(d ? `${Sub} was alright ${agoPhrase(d)}, then ${sub} noticed ${core}.` : `${Sub} gives history of ${core}.`)
     } else if (d && prev && durDays(d) === durDays(prev)) {
-      out.push(`Along with this, ${sub} noticed ${core}.`)
+      out.push(`${Sub} also complains of ${core}, which started at the same time.`)
     } else if (d) {
-      out.push(`${cap(agoPhrase(d))}, ${sub} also developed ${core}.`)
+      out.push(`${Sub} also complains of ${core}, which started ${agoPhrase(d)}.`)
     } else {
       out.push(`${Sub} also complains of ${core}.`)
     }

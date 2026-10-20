@@ -1,4 +1,4 @@
-export type SubjectId = 'medicine' | 'surgery' | 'paediatrics' | 'obg' | 'ent' | 'orthopaedics'
+export type SubjectId = 'medicine' | 'surgery' | 'paediatrics' | 'obg' | 'ent' | 'orthopaedics' | 'psychiatry' | 'dermatology' | 'ophthalmology' | 'anaesthesiology'
 
 export type AttrDef = {
   key: string
@@ -47,4 +47,8 @@ export const SUBJECTS: { id: SubjectId; name: string; blurb: string }[] = [
   { id: 'obg', name: 'Obstetrics & Gynaecology', blurb: 'Gynaecology and antenatal cases' },
   { id: 'ent', name: 'ENT', blurb: 'Ear, nose and throat' },
   { id: 'orthopaedics', name: 'Orthopaedics', blurb: 'Fracture, joints, bone infection, tumours, spine, nerve injury' },
+  { id: 'psychiatry', name: 'Psychiatry', blurb: 'Depression, mania, psychosis, anxiety and OCD, alcohol and substance use, delirium and dementia' },
+  { id: 'dermatology', name: 'Dermatology', blurb: 'Scaly lesions, itchy rashes, blistering disorders, leprosy, pigmentation and skin growths' },
+  { id: 'ophthalmology', name: 'Ophthalmology', blurb: 'Red eye, gradual and sudden vision loss, eyelid and lacrimal disorders, squint and refraction' },
+  { id: 'anaesthesiology', name: 'Anaesthesiology', blurb: 'Pre-anaesthetic check-up, high-risk patients, airway, regional anaesthesia, critical care' },
 ]
