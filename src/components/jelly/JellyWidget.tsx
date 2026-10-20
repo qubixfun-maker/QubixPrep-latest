@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import ReactMarkdown from "react-markdown"
-import { X, Send, Settings2, Lock, Loader2 } from "lucide-react"
+import { X, Send, Settings2, Lock, Mic, Square, Volume2, VolumeX, Sparkles } from "lucide-react"
 import { JellyAvatar } from "./JellyAvatar"
+import { JellyMessages } from "./JellyMessages"
+import { JellySettings } from "./JellySettings"
 import { useJelly } from "./jelly-store"
-import { PERSONAS, personaOf } from "@/lib/jelly/personas"
+import { personaOf } from "@/lib/jelly/personas"
+import { nudgeLine } from "@/lib/jelly/profile"
 
 const CHIPS: { intent: "explain" | "others" | "mnemonic" | "simple"; label: string }[] = [
   { intent: "explain", label: "Explain this" },
@@ -25,6 +27,7 @@ export function JellyWidget() {
   const drag = useRef<{ x: number; y: number; r: number; b: number; moved: boolean } | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const p = personaOf(j.persona)
+  const nudge = nudgeLine(j.profile, j.name)
 
   useEffect(() => {
     try {
@@ -32,7 +35,7 @@ export function JellyWidget() {
       if (s && typeof s.r === "number" && typeof s.b === "number") setPos(s)
     } catch {}
   }, [])
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }) }, [j.messages, j.open])
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }) }, [j.messages, j.open, j.interim])
 
   const onDown = (e: React.PointerEvent) => {
     drag.current = { x: e.clientX, y: e.clientY, r: pos.r, b: pos.b, moved: false }
@@ -63,22 +66,31 @@ export function JellyWidget() {
   }
 
   const send = () => { if (!text.trim() || j.busy) return; j.ask(text.trim()); setText("") }
+  const talking = (j.busy && j.mood === "explaining") || j.speaking
 
   return (
     <>
       {j.open && (
-        <div className="fixed z-50 right-3 sm:right-6 bottom-28 w-[min(92vw,380px)] max-h-[70vh] flex flex-col rounded-3xl border border-white/10 bg-background/95 backdrop-blur-xl shadow-2xl shadow-primary/20 overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 bg-gradient-to-r from-primary/15 to-accent/10">
-            <div className={`rounded-full ${j.busy ? "ring-2 ring-primary/60 animate-pulse" : "ring-1 ring-white/10"}`}>
-              <JellyAvatar size={42} mood={j.mood} talking={j.busy && j.mood === "explaining"} />
+        <div className="fixed z-50 right-3 sm:right-6 bottom-28 w-[min(92vw,380px)] max-h-[72vh] flex flex-col rounded-3xl border border-white/10 bg-background/95 backdrop-blur-xl shadow-2xl shadow-primary/20 overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-gradient-to-r from-primary/15 to-accent/10">
+            <div className={`rounded-full ${j.busy || j.listening ? "ring-2 ring-primary/60 animate-pulse" : "ring-1 ring-white/10"}`}>
+              <JellyAvatar size={42} mood={j.mood} talking={talking} />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold leading-none">Jelly</p>
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1 flex items-center gap-1">
-                <span className={`h-1.5 w-1.5 rounded-full ${j.active ? "bg-emerald-400" : "bg-amber-400"}`} /> {j.active ? `online - ${p.label}` : "locked"}
+                <span className={`h-1.5 w-1.5 rounded-full ${j.active ? "bg-emerald-400" : "bg-amber-400"}`} />
+                {j.active ? `${j.listening ? "listening" : j.speaking ? "speaking" : "online"} - ${p.label}` : "locked"}
               </p>
             </div>
-            {j.active && <button aria-label="Settings" onClick={() => setSettings((s) => !s)} className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground"><Settings2 className="h-4 w-4" /></button>}
+            {j.active && (
+              <>
+                <button aria-label={j.voiceOn ? "Mute Jelly" : "Let Jelly speak"} title={j.voiceOn ? "Voice on" : "Voice off"} onClick={() => (j.speaking ? j.stopSpeaking() : j.setVoiceOn(!j.voiceOn))}
+                  className={`p-1.5 rounded-lg hover:bg-white/10 ${j.voiceOn ? "text-primary" : "text-muted-foreground"}`}>{j.voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button>
+                <Link href="/jelly" title="Open the Jelly Playground" className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground"><Sparkles className="h-4 w-4" /></Link>
+                <button aria-label="Settings" onClick={() => setSettings((s) => !s)} className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground"><Settings2 className="h-4 w-4" /></button>
+              </>
+            )}
             <button aria-label="Close" onClick={() => j.setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground"><X className="h-4 w-4" /></button>
           </div>
 
@@ -86,49 +98,27 @@ export function JellyWidget() {
             <div className="p-6 text-center space-y-3">
               <Lock className="h-6 w-6 mx-auto text-amber-400" />
               <p className="text-sm font-semibold">Jelly is part of an active plan</p>
-              <p className="text-xs text-muted-foreground">Get instant reactions to your answers, explanations on demand, mnemonics and a study companion that never sleeps.</p>
+              <p className="text-xs text-muted-foreground">Get instant reactions to your answers, explanations on demand, a voice you can talk to, and a study companion that learns how you study.</p>
               <Link href="/pricing" className="inline-block rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground">See plans</Link>
             </div>
           ) : (
             <>
-              {settings && (
-                <div className="px-4 py-3 border-b border-white/10 space-y-3 text-xs bg-white/5">
-                  <div>
-                    <p className="font-bold uppercase tracking-widest text-primary mb-2">Personality</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PERSONAS.map((x) => (
-                        <button key={x.id} onClick={() => j.setPersona(x.id)} title={x.blurb}
-                          className={`rounded-full border px-2.5 py-1 ${j.persona === x.id ? "border-primary bg-primary/20 text-primary" : "border-white/10 text-muted-foreground hover:bg-white/5"}`}>
-                          {x.label}
-                        </button>
-                      ))}
+              <div className="flex-1 overflow-y-auto min-h-[140px]">
+                {settings && <JellySettings />}
+                <div className="px-4 py-3 space-y-3">
+                  {j.messages.length === 0 && (
+                    <div className="text-sm text-muted-foreground leading-relaxed space-y-2">
+                      <p>
+                        {j.persona === "jarvis" ? `Systems online, ${j.name}. ` : `Hi ${j.name}! `}
+                        {j.hasContext ? "I can see the question you're on. Tap a button below, or ask me anything about it." : "Ask me anything about medicine, or open a question and I'll help with that one."}
+                      </p>
+                      {nudge && <p className="text-foreground">{nudge}</p>}
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-1.5">{p.blurb}</p>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer text-muted-foreground">
-                    <input type="checkbox" checked={j.sadOnWrong} onChange={(e) => j.setSadOnWrong(e.target.checked)} /> Look sad when I get one wrong (otherwise encouraging)
-                  </label>
-                  <button onClick={() => j.setHidden(true)} className="text-muted-foreground underline">Hide Jelly for now</button>
+                  )}
+                  <JellyMessages messages={j.messages} rated={j.rated} rate={j.rate} busy={j.busy} />
+                  {j.listening && <p className="text-xs italic text-primary">{j.interim || "Listening..."}</p>}
+                  <div ref={endRef} />
                 </div>
-              )}
-
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-[120px]">
-                {j.messages.length === 0 && (
-                  <div className="text-sm text-muted-foreground leading-relaxed">
-                    {j.persona === "jarvis" ? `Systems online, ${j.name}. ` : `Hi ${j.name}! `}
-                    {j.hasContext ? "I can see the question you're on. Tap a button below, or ask me anything about it." : "Ask me anything about medicine, or open a question and I'll help with that one."}
-                  </div>
-                )}
-                {j.messages.map((m, i) => (
-                  <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
-                    <div className={`max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${m.role === "user" ? "bg-primary/20 text-foreground" : "bg-white/5"}`}>
-                      {m.role === "jelly" && !m.text ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : (
-                        <div className="prose prose-invert prose-sm max-w-none [&>*]:my-1.5"><ReactMarkdown>{m.text}</ReactMarkdown></div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                <div ref={endRef} />
               </div>
 
               {j.hasContext && (
@@ -141,7 +131,14 @@ export function JellyWidget() {
                   ))}
                 </div>
               )}
+              {j.usage && j.usage.limit > 0 && <p className="px-4 pb-1 text-[10px] text-muted-foreground">{Math.max(j.usage.limit - j.usage.used, 0)} of {j.usage.limit} chats left today</p>}
               <div className="flex gap-2 p-3 border-t border-white/10">
+                {j.micSupported && (
+                  <button onClick={j.toggleMic} aria-label={j.listening ? "Stop listening" : "Talk to Jelly"} disabled={j.busy && !j.listening}
+                    className={`rounded-xl px-3 ${j.listening ? "bg-red-500 text-white animate-pulse" : "bg-white/10 text-foreground hover:bg-white/15"} disabled:opacity-50`}>
+                    {j.listening ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  </button>
+                )}
                 <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send() }}
                   placeholder="Ask Jelly anything..." className="flex-1 min-w-0 rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none focus:border-primary/60" />
                 <button onClick={send} disabled={j.busy || !text.trim()} aria-label="Send" className="rounded-xl bg-primary px-3 text-primary-foreground disabled:opacity-50"><Send className="h-4 w-4" /></button>
@@ -166,7 +163,7 @@ export function JellyWidget() {
         <div role="button" tabIndex={0} aria-label="Open Jelly" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") j.setOpen(!j.open) }}
           className="cursor-pointer touch-none select-none rounded-full drop-shadow-[0_6px_16px_rgba(124,58,237,0.35)]">
-          <JellyAvatar size={76} mood={j.active ? j.mood : "sleep"} talking={j.busy && j.mood === "explaining"} />
+          <JellyAvatar size={76} mood={j.active ? j.mood : "sleep"} talking={talking} />
         </div>
       </div>
     </>

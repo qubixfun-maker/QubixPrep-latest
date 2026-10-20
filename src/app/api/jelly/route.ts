@@ -2,11 +2,14 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 import { NextRequest } from 'next/server'
-import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
+import { verifyIdToken } from '@/lib/firebase-admin'
 import { jelly, cleanCtx, cleanMsgs } from '@/ai/jelly'
+import { planOf, limitFor, getProfile, bumpUsage, learnFromChat } from '@/ai/jelly-profile'
 import type { Intent } from '@/lib/jelly/personas'
+import type { Mode } from '@/lib/jelly/profile'
 
 const INTENTS = new Set(['chat', 'explain', 'others', 'mnemonic', 'simple'])
+const MODES = new Set(['doubt', 'topic', 'quiz', 'viva', 'cards', 'plan'])
 const hits = new Map<string, number[]>()
 
 export async function POST(req: NextRequest) {
@@ -16,25 +19,33 @@ export async function POST(req: NextRequest) {
     const b = await req.json()
     if (!b.idToken) return fail('Missing idToken', 400)
     const decoded = await verifyIdToken(b.idToken)
+    const uid = decoded.uid
 
-    const u = (await getAdminFirestore().collection('users').doc(decoded.uid).get()).data()
-    if (!(u?.role === 'admin' || u?.plan === 'basic' || u?.plan === 'pro')) return fail('Jelly is available with an active subscription.', 403)
+    const plan = await planOf(uid)
+    const limit = limitFor(plan)
+    if (limit < 0) return fail('Jelly is available with an active subscription.', 403)
 
     const now = Date.now()
-    const recent = (hits.get(decoded.uid) || []).filter((t) => now - t < 10 * 60_000)
-    if (recent.length >= 40) return fail('Easy there, Doctor. Give Jelly a few minutes to catch up.', 429)
-    hits.set(decoded.uid, [...recent, now])
+    const recent = (hits.get(uid) || []).filter((t) => now - t < 10 * 60_000)
+    if (recent.length >= 60) return fail('Easy there. Give Jelly a minute to catch up.', 429)
+    hits.set(uid, [...recent, now])
 
     const intent: Intent = INTENTS.has(b.intent) ? b.intent : 'chat'
+    const mode: Mode = MODES.has(b.mode) ? b.mode : 'doubt'
     const ask = String(b.ask ?? '').slice(0, 800)
     if (intent === 'chat' && !ask.trim()) return fail('Empty question', 400)
+
+    const profile = await getProfile(uid)
+    if (intent === 'chat') learnFromChat(uid, ask).catch(() => {})
+
     const gen = jelly({
-      intent,
-      persona: String(b.persona || 'jarvis'),
+      intent, mode,
+      persona: String(b.persona || profile.persona || 'jarvis'),
       name: String(b.name || 'Doctor').replace(/[^\p{L}\p{N} .'-]/gu, '').slice(0, 30) || 'Doctor',
       ctx: cleanCtx(b.ctx),
       messages: cleanMsgs(b.messages),
-      ask,
+      ask, profile,
+      beforeAi: () => bumpUsage(uid, limit),
     })
     const stream = new ReadableStream({
       async start(c) {
