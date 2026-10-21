@@ -1,5 +1,6 @@
 
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo } from "react"
 import { useCollection, useFirestore } from "@/firebase"
@@ -34,6 +35,7 @@ export default function VideoLibraryPage() {
   }, [db])
   
   const { data: subjects, loading } = useCollection(subjectsQuery)
+  const [search] = useTopSearch("Search subjects in Videos…")
 
   const { checkingAuth } = useRequireAuth()
   if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
@@ -45,13 +47,6 @@ export default function VideoLibraryPage() {
           <h1 className="text-4xl font-bold tracking-tight">Video Curriculum</h1>
           <p className="text-muted-foreground text-lg">Master complex medical concepts through structured visual lectures.</p>
         </div>
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search lectures..." 
-            className="pl-10 rounded-xl glass border-white/10"
-          />
-        </div>
       </div>
 
       {loading ? (
@@ -60,7 +55,7 @@ export default function VideoLibraryPage() {
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {subjects?.map((subject: any) => {
+          {subjects?.filter((s: any) => !search.trim() || String(s.name).toLowerCase().includes(search.trim().toLowerCase())).map((subject: any) => {
             const Icon = ICON_MAP[subject.iconName] || ICON_MAP[subject.name] || Brain
             return (
               <Link key={subject.id} href={`/videos/${subject.id}`}>

@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo, use } from "react"
 import { useDoc, useCollection, useFirestore } from "@/firebase"
@@ -19,6 +20,7 @@ export default function LongAnswersChaptersPage({ params }: { params: Promise<{ 
   const { data: chapters, loading: chaptersLoading } = useCollection(chaptersQuery)
 
   const { checkingAuth } = useRequireAuth()
+  const [search] = useTopSearch("Search chapters…")
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
   if (checkingAuth || subjectLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
@@ -37,7 +39,7 @@ export default function LongAnswersChaptersPage({ params }: { params: Promise<{ 
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : chapters && chapters.length > 0 ? (
         <div className="grid md:grid-cols-2 gap-4">
-          {chapters.map((ch: any) => {
+          {chapters.filter((c: any) => !search.trim() || String(c.title).toLowerCase().includes(search.trim().toLowerCase())).map((ch: any) => {
             const counts = ch.sectionCounts || {}
             const total = (counts['long-essays'] || 0) + (counts['short-essays'] || 0) + (counts['short-answers'] || 0)
             return (

@@ -97,7 +97,7 @@ export default function NotePackViewerPage({ params }: { params: Promise<{ packI
           <h1 className="text-xl font-bold">Can't open this</h1>
           <p className="text-sm text-muted-foreground mt-1">{errorMsg}</p>
         </div>
-        <Link href="/products"><Button>Back to Products</Button></Link>
+        <Link href="/top-100"><Button>Back to Top 100</Button></Link>
       </div>
     )
   }

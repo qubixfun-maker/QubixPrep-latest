@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import Link from "next/link"
 import { useState } from "react"
@@ -14,6 +15,8 @@ export default function CasePresentationHub() {
   const { sheets, loading: sheetsLoading } = useMyCaseSheets()
   const db = useFirestore()
   const [open, setOpen] = useState<string | null>("medicine")
+  const [search] = useTopSearch("Search cases…")
+  const q = search.trim().toLowerCase()
 
   if (loading) return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 
@@ -67,8 +70,9 @@ export default function CasePresentationHub() {
         <h2 className="text-lg font-bold">Start a new case</h2>
         <div className="space-y-3">
           {SUBJECTS.map((s) => {
-            const cases = casesFor(s.id)
-            const isOpen = open === s.id
+            const cases = casesFor(s.id).filter((c) => !q || `${c.title} ${c.blurb}`.toLowerCase().includes(q))
+            if (q && cases.length === 0) return null
+            const isOpen = !!q || open === s.id
             return (
               <div key={s.id} className="glass rounded-3xl border border-white/10 overflow-hidden">
                 <button onClick={() => setOpen(isOpen ? null : s.id)} className="w-full flex items-center gap-3 p-5 text-left">

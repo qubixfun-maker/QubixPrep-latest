@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo, use } from "react"
 import { useDoc, useCollection, useFirestore } from "@/firebase"
@@ -22,6 +23,7 @@ export default function NotesSubjectPage({ params }: { params: Promise<{ subject
   const { data: notesList, loading: notesLoading } = useCollection(notesQuery)
 
   const { checkingAuth } = useRequireAuth()
+  const [search] = useTopSearch("Search chapters…")
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
   if (checkingAuth || subjectLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
@@ -40,7 +42,7 @@ export default function NotesSubjectPage({ params }: { params: Promise<{ subject
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : notesList && notesList.length > 0 ? (
         <div className="grid md:grid-cols-2 gap-4">
-          {notesList.map((note: any) => (
+          {notesList.filter((n: any) => !search.trim() || String(n.chapterTitle).toLowerCase().includes(search.trim().toLowerCase())).map((note: any) => (
             <Link
               key={note.id}
               href={`/notes/${subjectId}/${note.textbookId}/${note.chapterId}`}

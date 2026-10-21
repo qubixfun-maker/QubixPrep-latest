@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo } from "react"
 import Link from "next/link"
@@ -20,6 +21,7 @@ const GATE_NAME: Record<GateType, string> = {
 }
 
 export default function QuickCardsHubPage() {
+  const [search] = useTopSearch("Search QuickCards sections…")
   const { user } = useUser()
   const db = useFirestore()
   const { settings, loading } = useFeatureSettings()
@@ -42,7 +44,8 @@ export default function QuickCardsHubPage() {
     return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
   }
 
-  const features = SORTED_FEATURES.filter((f) => isAdmin || settings[f.slug]?.visible !== false)
+  const sq = search.trim().toLowerCase()
+  const features = SORTED_FEATURES.filter((f) => isAdmin || settings[f.slug]?.visible !== false).filter((f) => !sq || `${f.name} ${f.description} ${(f.tags || []).join(' ')}`.toLowerCase().includes(sq))
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">

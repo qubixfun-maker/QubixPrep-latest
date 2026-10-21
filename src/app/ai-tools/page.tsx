@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BrainCircuit, FileText, LayoutList, Wand2, Loader2 } from "lucide-react";
@@ -27,6 +28,7 @@ const tools = [
 
 export default function AIToolsPage() {
   const { checkingAuth } = useRequireAuth()
+  const [search] = useTopSearch("Search AI tools…")
   if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
 
   return (
@@ -43,7 +45,7 @@ export default function AIToolsPage() {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-6">
-        {tools.map((tool) => (
+        {tools.filter((t) => !search.trim() || `${t.title} ${t.description}`.toLowerCase().includes(search.trim().toLowerCase())).map((tool) => (
           <Link key={tool.title} href={tool.href}>
             <Card className="glass border-none h-full hover:scale-[1.02] transition-all duration-300 group cursor-pointer overflow-hidden relative">
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">

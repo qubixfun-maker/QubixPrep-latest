@@ -66,7 +66,7 @@ export function JellyWidget() {
   }
 
   const send = () => { if (!text.trim() || j.busy) return; j.ask(text.trim()); setText("") }
-  const talking = (j.busy && j.mood === "explaining") || j.speaking
+  const talking = j.busy || j.speaking
 
   return (
     <>

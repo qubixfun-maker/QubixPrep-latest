@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ export default function PYQPage() {
   const router = useRouter()
   const { isPro, isBasic, loading: planLoading } = usePlan()
   const { checkingAuth } = useRequireAuth()
+  const [search] = useTopSearch("Search subjects in PYQ…")
 
   const [selectedExam, setSelectedExam] = useState<string | null>(null)
   const [selectedYears, setSelectedYears] = useState<number[]>([])
@@ -177,7 +179,7 @@ export default function PYQPage() {
                 <p className="text-xs text-muted-foreground">Select one or more subjects, or leave on "All Subjects."</p>
               </CardHeader>
               <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {SUBJECTS.map(sub => {
+                {SUBJECTS.filter((sub) => sub === "All Subjects" || !search.trim() || sub.toLowerCase().includes(search.trim().toLowerCase())).map(sub => {
                   const isSelected = selectedSubjects.includes(sub)
                   return (
                     <button key={sub} onClick={() => toggleSubject(sub)}

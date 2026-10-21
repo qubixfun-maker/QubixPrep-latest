@@ -23,6 +23,14 @@ const LABEL: Record<Intent, string> = {
   chat: "", explain: "Explain this", others: "Why are the others wrong?", mnemonic: "Give me a mnemonic", simple: "Explain it simply",
 }
 
+function moodFor(t: string): Mood {
+  if (/(^|\n)\s*\**Q\d*[:.)]/i.test(t) && /(^|\n)\s*\**A\d*[:.)]/i.test(t)) return "cheering"
+  if (/(well done|great job|excellent|brilliant|nice work|spot on|exactly right|you got it|that's right|correct!)/i.test(t)) return "cheering"
+  if (/(sorry|oops|not quite|incorrect|mistake|careful|don't worry)/i.test(t)) return "oops"
+  if (/(great|good|nice|easy|remember|tip|pearl|mnemonic|!)/i.test(t)) return "happy"
+  return "explaining"
+}
+
 export function JellyProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser()
   const { canAccessContent, loading } = usePlan()
@@ -200,12 +208,13 @@ export function JellyProvider({ children }: { children: React.ReactNode }) {
     busyRef.current = true; setBusy(true); setMood("thinking")
     const append = (s: string) => setMessages((m) => { const c = [...m]; const k = c.length - 1; c[k] = { ...c[k], text: c[k].text + s }; return c })
     let got = false
+    let full = ""
     let sp: Speaker | null = null
     try {
       const idToken = await u.getIdToken()
       const res = await fetch("/api/jelly", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, intent, mode: ref.current.mode, ask: text, persona: ref.current.persona, name: ref.current.name, ctx: ctxRef.current, messages: history.slice(-12) }),
+        body: JSON.stringify({ idToken, intent, mode: (intent === "chat" && /flash\s?-?cards?/i.test(text)) ? "cards" : ref.current.mode, ask: text, persona: ref.current.persona, name: ref.current.name, ctx: ctxRef.current, messages: history.slice(-12) }),
       })
       if (!res.ok || !res.body) { const d = await res.json().catch(() => ({})); throw new Error(d.error || "No response") }
       if (ref.current.voiceOn) sp = startSpeaker(true)
@@ -219,13 +228,13 @@ export function JellyProvider({ children }: { children: React.ReactNode }) {
           const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
           if (!line) continue
           const ev = JSON.parse(line)
-          if (ev.t === "d") { if (!got) { got = true; setMood("explaining") } append(ev.x); sp?.push(plain(ev.x)) }
+          if (ev.t === "d") { if (!got) { got = true; setMood("explaining") } full += ev.x; append(ev.x); sp?.push(plain(ev.x)) }
           else if (ev.t === "err") throw new Error(ev.x)
         }
       }
       if (!got) throw new Error("Empty")
       sp?.end()
-      flashMood("explaining", 2500)
+      flashMood(moodFor(full), 3500)
     } catch (e: any) {
       sp?.stop()
       const msg = e?.message && !/^(No response|Empty|Failed)$/.test(e.message) ? e.message : "I couldn't reach my systems just now. Please try again in a moment."

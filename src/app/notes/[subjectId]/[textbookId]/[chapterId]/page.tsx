@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo, use } from "react"
 import { useDoc, useFirestore } from "@/firebase"
@@ -20,6 +21,8 @@ export default function NotesTopicListPage({ params }: { params: Promise<{ subje
   const { data: notes, loading: notesLoading } = useDoc(notesRef)
 
   const { checkingAuth } = useRequireAuth()
+  const [search] = useTopSearch("Search topics in this chapter…")
+  const sq = search.trim().toLowerCase()
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
   if (checkingAuth || subjectLoading || notesLoading) {
@@ -42,6 +45,7 @@ export default function NotesTopicListPage({ params }: { params: Promise<{ subje
       {topics.length > 0 ? (
         <div className="space-y-2">
           {topics.map((topic, i) => {
+            if (sq && !String(topic.name).toLowerCase().includes(sq)) return null
             const depth = topic.depth || 0
             return (
               <Link

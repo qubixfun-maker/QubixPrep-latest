@@ -46,7 +46,7 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
   let buf = ""; let first = true; let playing = false; let stopped = false; let ended = false; let finished = false; const live = new Set<HTMLAudioElement>()
   const jobs: { text: string; url: Promise<string | null> }[] = []
 
-  const fetchAudio = async (text: string): Promise<string | null> => {
+  const fetchOnce = async (text: string): Promise<string | null> => {
     try {
       const res = await fetch("/api/osce-stations/tts", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -55,6 +55,15 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
       if (!res.ok) return null
       return URL.createObjectURL(await res.blob())
     } catch { return null }
+  }
+  const fetchAudio = async (text: string): Promise<string | null> => {
+    for (let i = 0; i < 3; i++) {
+      const u = await fetchOnce(text)
+      if (u) return u
+      if (stopped) return null
+      await new Promise((ok) => setTimeout(ok, 400 * (i + 1)))
+    }
+    return null
   }
   const play = (url: string) => new Promise<void>((resolve) => {
     const a = new Audio(url)
@@ -74,7 +83,7 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
       const j = jobs.shift()!
       const url = await j.url
       if (stopped) break
-      if (url) await play(url); else await browserSpeak(j.text, o.lang, o.gender, o.kid)
+      if (url) await play(url); else await browserSpeak(j.text, o.lang, o.kid ? "female" : o.gender, o.kid)
     }
     playing = false
     if (stopped || (ended && !jobs.length)) finish()

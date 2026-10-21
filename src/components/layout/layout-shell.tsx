@@ -39,7 +39,7 @@ function TopBar() {
       >
         <Menu className="h-5 w-5" />
       </button>
-      <form
+      {scoped && <form
         onSubmit={(e) => { e.preventDefault(); if (!scoped && q.trim()) router.push(`/search?q=${encodeURIComponent(q.trim())}`) }}
         className="flex max-w-md flex-1 items-center gap-2 rounded-[14px] border border-border bg-card px-3.5 py-2.5 text-muted-foreground"
       >
@@ -50,7 +50,7 @@ function TopBar() {
           placeholder={scoped || "Search all of QubixPrep…"}
           className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/70"
         />
-      </form>
+      </form>}
       <div className="ml-auto flex items-center gap-2.5">
         <Link href="/pricing" className="hidden rounded-full border border-border bg-card px-3.5 py-2 text-[13px] font-bold text-muted-foreground sm:block">
           🎓 {planLabel}

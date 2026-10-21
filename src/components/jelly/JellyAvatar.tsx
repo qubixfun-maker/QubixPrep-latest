@@ -16,6 +16,7 @@ const GESTURES: Partial<Record<Mood, string[]>> = {
   cheering: ["cheering", "happy", "idle", "cheering"],
   explaining: ["explaining", "idle", "explaining", "happy", "cheering"],
 }
+const AMB = ["happy", "explaining", "cheering"]
 const ALL = ["idle", "happy", "cheering", "thinking", "explaining", "listening", "sleep"]
 
 let preloaded = false
@@ -53,7 +54,20 @@ export function JellyAvatar({ mood = "idle", size = 80, talking = false, classNa
     t = setTimeout(tick, 500)
     return () => clearTimeout(t)
   }, [seq])
-  const sprite = seq ? seq[step % seq.length] : SPRITE[mood]
+  const [amb, setAmb] = useState<string | null>(null)
+  useEffect(() => {
+    if (talking || mood === "sleep" || mood === "thinking") { setAmb(null); return }
+    let t: any; let o: any
+    const loop = () => {
+      t = setTimeout(() => {
+        setAmb(AMB[Math.floor(Math.random() * AMB.length)])
+        o = setTimeout(() => { setAmb(null); loop() }, 1400)
+      }, 4000 + Math.random() * 3500)
+    }
+    loop()
+    return () => { clearTimeout(t); clearTimeout(o) }
+  }, [talking, mood])
+  const sprite = amb || (seq ? seq[step % seq.length] : SPRITE[mood])
   return (
     <div className={`jy-wrap ${className}`} style={{ width: size, height: size }} role="img" aria-label={`Jelly is ${mood}`}>
       <style>{CSS}</style>

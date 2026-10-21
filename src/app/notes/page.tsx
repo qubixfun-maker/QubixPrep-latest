@@ -1,4 +1,5 @@
 "use client"
+import { DeepResults } from "@/components/layout/deep-search"
 import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
 import { useTopSearch } from "@/components/layout/top-search"
 
@@ -50,6 +51,8 @@ export default function NotesSubjectsPage() {
           <p className="text-muted-foreground text-lg">Topic-wise study notes, by subject.</p>
         </div>
       </div>
+
+      <DeepResults kind="notes" query={search} noun="topics" />
 
       {loading ? (
         <div className="h-64 flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>

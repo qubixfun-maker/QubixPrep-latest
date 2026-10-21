@@ -44,12 +44,18 @@ export async function POST(req: NextRequest) {
     if (!audio) {
       const token = await getVertexAccessToken()
       if (!token) return NextResponse.json({ error: 'No Google token' }, { status: 503 })
-      let res = kid
-        ? await synth(token, clean, lang, 'female', `${lang}-Chirp3-HD-Leda`, true)
-        : await synth(token, clean, lang, gender, `${lang}-Chirp3-HD-${VOICE[gender][v]}`)
-      if (!res.ok && kid) res = await synth(token, clean, lang, 'female', KID[lang], true, true)
-      if (!res.ok && kid) res = await synth(token, clean, lang, 'female', undefined, true, true)
-      if (!res.ok) res = await synth(token, clean, lang, gender)
+      const tryVoice = async (name?: string, pitched = false) => {
+        let r = await synth(token, clean, lang, kid ? 'female' : gender, name, kid, pitched)
+        for (let i = 0; i < 2 && !r.ok && (r.status === 429 || r.status >= 500); i++) {
+          await new Promise((ok) => setTimeout(ok, 350 * (i + 1)))
+          r = await synth(token, clean, lang, kid ? 'female' : gender, name, kid, pitched)
+        }
+        return r
+      }
+      let res = kid ? await tryVoice(`${lang}-Chirp3-HD-Leda`) : await tryVoice(`${lang}-Chirp3-HD-${VOICE[gender][v]}`)
+      if (!res.ok && kid) res = await tryVoice(KID[lang], true)
+      if (!res.ok && kid) res = await tryVoice(undefined, true)
+      if (!res.ok && !kid) res = await tryVoice()
       if (!res.ok) return NextResponse.json({ error: `TTS ${res.status}: ${(await res.text()).slice(0, 200)}` }, { status: 503 })
       audio = Buffer.from((await res.json()).audioContent, 'base64')
       if (cache.size > 300) cache.delete(cache.keys().next().value as string)

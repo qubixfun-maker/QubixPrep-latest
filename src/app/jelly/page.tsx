@@ -32,7 +32,7 @@ export default function JellyPlayground() {
   const p = personaOf(j.persona)
   const weak = weakTopics(j.profile, 4)
   const nudge = nudgeLine(j.profile, j.name)
-  const talking = (j.busy && j.mood === "explaining") || j.speaking
+  const talking = j.busy || j.speaking
   const quiz = j.mode === "quiz"
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }) }, [j.messages, j.interim])

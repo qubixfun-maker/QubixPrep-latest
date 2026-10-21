@@ -34,9 +34,8 @@ export async function POST(req: NextRequest) {
     const isAdmin = userData?.role === 'admin'
     const hasPurchased = Array.isArray(userData?.purchasedNotePacks) && userData!.purchasedNotePacks.includes(packId)
 
-    if (!isAdmin && !hasPurchased) {
-      return NextResponse.json({ error: 'You have not purchased this Notes Pack' }, { status: 403 })
-    }
+    // Free for every signed-in user (moved to 100 Most Important Topics)
+    void isAdmin; void hasPurchased
 
     const bucket = getAdminStorageBucket()
     const file = bucket.file(pack.storagePath)

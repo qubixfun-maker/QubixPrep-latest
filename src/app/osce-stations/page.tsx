@@ -1,4 +1,5 @@
 "use client"
+import { useTopSearch } from "@/components/layout/top-search"
 
 import { useState, useRef, useEffect } from "react"
 import { useUser } from "@/firebase"
@@ -77,6 +78,7 @@ export default function OsceStationsPage() {
   const { user } = useUser()
   const { canAccessContent, loading: planLoading } = usePlan()
   const { checkingAuth } = useRequireAuth()
+  const [search] = useTopSearch("Search OSCE cases…")
 
   const [phase, setPhase] = useState<Phase>("setup")
   const [specialty, setSpecialty] = useState("")
@@ -520,7 +522,7 @@ export default function OsceStationsPage() {
 
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase tracking-widest text-primary">Or pick a case</p>
-              {LIB_SEEDS.filter((s) => s.subject === libSubject).map((s) => (
+              {LIB_SEEDS.filter((s) => (search.trim() ? s.topic.toLowerCase().includes(search.trim().toLowerCase()) : s.subject === libSubject)).map((s) => (
                 <button key={s.id} disabled={!!libBusy} onClick={() => startLibrary(s.id)}
                   className="w-full flex items-center justify-between gap-2 text-left text-sm rounded-xl border border-white/10 px-3 py-2 hover:bg-white/5 disabled:opacity-60">
                   <span>{s.topic}</span>
