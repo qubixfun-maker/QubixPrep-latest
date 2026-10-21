@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Shuffle, Check, RotateCcw, Trophy, Keyboard } from "lucide-react"
 
-type Card = { front: string; back: string }
+type Card = { id?: string; front: string; back: string }
 
 export function hueOf(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h }
 function fit(t: string, kind: "q" | "a") {
@@ -28,7 +28,7 @@ const CSS = `
 @media (prefers-reduced-motion:reduce){.fc-anim{animation:none!important}}
 `
 
-export default function ImmersiveDeck({ cards, subject, unit, backHref }: { cards: Card[]; subject: string; unit?: string; backHref: string }) {
+export default function ImmersiveDeck({ cards, subject, unit, backHref, onGrade }: { cards: Card[]; subject: string; unit?: string; backHref: string; onGrade?: (card: Card, ok: boolean) => void }) {
   const hue = hueOf(subject)
   const h2 = (hue + 60) % 360, h3 = (hue + 200) % 360
   const [order, setOrder] = useState<number[]>(() => cards.map((_, i) => i))
@@ -52,8 +52,9 @@ export default function ImmersiveDeck({ cards, subject, unit, backHref }: { card
     setKnown((k) => { const n = new Set(k); ok ? n.add(cardIdx) : n.delete(cardIdx); return n })
     setAgain((a) => { const n = new Set(a); ok ? n.delete(cardIdx) : n.add(cardIdx); return n })
     setFlipped(false)
+    try { if (onGrade && card) onGrade(card, ok) } catch {}
     if (index >= total - 1) setDone(true); else setIndex(index + 1)
-  }, [card, cardIdx, index, total])
+  }, [card, cardIdx, index, total, onGrade])
   const shuffle = useCallback(() => {
     const a = cards.map((_, i) => i)
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }

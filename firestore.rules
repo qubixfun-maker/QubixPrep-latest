@@ -20,6 +20,9 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      match /srs/{id} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
       match /quickCardState/{cardId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
@@ -225,5 +228,15 @@ service cloud.firestore {
     match /arenaStats/{uid} { allow read: if request.auth != null; allow write: if false; }
     match /roomSecrets/{id} { allow read, write: if false; }
     match /arenaMeta/{id} { allow read, write: if false; }
+    // Support inbox: signed-in users can send a message; only admins read, resolve or delete.
+    match /supportRequests/{id} {
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+    // Question reports from students (used by the Report button in QBank).
+    match /questionReports/{id} {
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
   }
 }

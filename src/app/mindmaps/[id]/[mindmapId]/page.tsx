@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState, use } from "react"
-import { useDoc, useFirestore } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useDoc, useFirestore, useUser } from "@/firebase"
+import { doc, getDoc, setDoc } from "firebase/firestore"
 import { ChevronLeft, Loader2, Share2, Bookmark, Flag, HelpCircle, X } from "lucide-react"
 import Link from "next/link"
 import MindMapCanvas from "@/components/mindmap/MindMapCanvas"
@@ -19,6 +19,7 @@ function writeList(key: string, list: string[]) {
 export default function MindmapViewPage({ params }: { params: Promise<{ id: string; mindmapId: string }> }) {
   const { id: subjectId, mindmapId } = use(params)
   const db = useFirestore()
+  const { user } = useUser()
 
   const mmRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId, 'mindmaps', mindmapId)), [db, subjectId, mindmapId])
   const { data: mindmap, loading } = useDoc(mmRef)
@@ -36,12 +37,22 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
     setSaved(readList("mm-saved").includes(mindmapId))
     setFlagged(readList("mm-revise").includes(mindmapId))
   }, [mindmapId])
+  useEffect(() => {
+    if (!db || !user) return
+    getDoc(doc(db, "users", user.uid, "progress", "mindmapMarks")).then((snap) => {
+      const d: any = snap.exists() ? snap.data() : {}
+      const merge = (key: string, remote: string[]) => { const m = Array.from(new Set([...readList(key), ...(remote || [])])); writeList(key, m); return m }
+      const s = merge("mm-saved", d.saved), r = merge("mm-revise", d.revise)
+      setSaved(s.includes(mindmapId)); setFlagged(r.includes(mindmapId))
+    }).catch(() => {})
+  }, [db, user, mindmapId])
 
   function flash(msg: string) { setNote(msg); setTimeout(() => setNote(""), 1800) }
   function toggleList(key: string, on: boolean, set: (v: boolean) => void, onMsg: string, offMsg: string) {
     const list = readList(key).filter((x) => x !== mindmapId)
     if (!on) list.push(mindmapId)
     writeList(key, list); set(!on); flash(!on ? onMsg : offMsg)
+    if (db && user) setDoc(doc(db, "users", user.uid, "progress", "mindmapMarks"), { [key === "mm-saved" ? "saved" : "revise"]: list }, { merge: true }).catch(() => {})
   }
   async function share() {
     const url = typeof window !== "undefined" ? window.location.href : ""

@@ -6,6 +6,7 @@ import { LayoutShell } from '@/components/layout/layout-shell';
 import { JellyProvider } from '@/components/jelly/JellyProvider';
 import { PwaInstallPrompt } from '@/components/pwa-install-prompt';
 import { ServiceWorkerRegister } from '@/components/service-worker-register';
+import { OfflineBanner } from '@/components/offline-banner';
 
 export const metadata: Metadata = {
   title: 'QubixPrep - AI Medical Learning Platform',
@@ -52,6 +53,7 @@ export default function RootLayout({
           <Toaster />
           <PwaInstallPrompt />
           <ServiceWorkerRegister />
+          <OfflineBanner />
         </FirebaseClientProvider>
       </body>
     </html>

@@ -38,6 +38,8 @@ import { usePlan } from '@/hooks/use-plan'
 import { UpgradeGate } from '@/components/upgrade-gate'
 import { useRequireAuth } from '@/hooks/use-require-auth'
 import { useJelly } from "@/components/jelly/jelly-store"
+import { recordQbankAnswer } from "@/lib/study"
+import ReportQuestion from "@/components/qbank/ReportQuestion"
 
 export default function QuizSubjectCurriculumPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: subjectId } = use(params)
@@ -74,7 +76,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   const [aiExplanation, setAiExplanation] = useState<string | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
 
-  const subjectRef = useMemo(() => (!db ? null : doc(db, 'users', subjectId)), [db, subjectId])
+  const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
 
   useEffect(() => {
@@ -244,6 +246,17 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
       setSessionAnswers(prev => ({ ...prev, [currentIndex]: optionIndex }))
       setShowExplanation(true)
       if (optionIndex === currentQ.correct_answer_index) setScore(s => s + 1)
+      if (db && user) {
+        recordQbankAnswer(db, user.uid, {
+          id: (currentQ as any).id,
+          subjectId,
+          topic: currentQ.topic_title || "General",
+          question: currentQ.question_text,
+          options: currentOptions,
+          correct: currentQ.correct_answer_index,
+          explanation: currentQ.explanation,
+        }, optionIndex).catch(() => {})
+      }
       jelly.react({ type: "answer", correct: optionIndex === currentQ.correct_answer_index })
     }
 
@@ -313,6 +326,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
               </div>
               {showExplanation && (
                 <div className="mt-8 space-y-4">
+                  <ReportQuestion subjectId={subjectId} subjectName={(subject as any)?.name} topic={currentQ.topic_title} question={currentQ.question_text} />
                   <div className="p-6 rounded-2xl bg-accent/5 border border-accent/20 animate-in slide-in-from-top-4 duration-500">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-widest"><Sparkles className="h-3.5 w-3.5" /> High-Yield Explanation</div>

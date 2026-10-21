@@ -10,6 +10,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
 import { Scene, SETTINGS, SCENE_CSS } from "@/components/cases/ward-scenes"
 import { PatientGlyph, moodOf } from "@/components/cases/ward-ui"
+import { syncWardProgress } from "@/lib/ward-sync"
 import { loadProgress, rankFor, type WardProgress } from "@/lib/ward-progress"
 
 const GROUPS: Record<string, { emoji: string; grad: string }> = {
@@ -47,6 +48,7 @@ export default function WardRoundHub() {
 
   const all = useMemo(() => ((cases as any[]) || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [cases])
   const q = search.trim().toLowerCase()
+  useEffect(() => { if (db && user) syncWardProgress(db, user.uid).then(setProg).catch(() => {}) }, [db, user])
   const adminNeedsCases = (profile as any)?.role === "admin" && !loading && all.length < 300
   const filtered = useMemo(() => all.filter((c) => (group === "All" || (c.specialty || "General") === group) && (!expertOnly || c.difficulty === "expert") && (!q || [c.title, c.specialty, c.topic].some((x) => String(x || "").toLowerCase().includes(q)))), [all, group, q, expertOnly])
   const groups = useMemo(() => {

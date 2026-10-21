@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import {
   BookOpen, GraduationCap, Layers, Network, Flame, Database, Trophy, BrainCircuit, Stethoscope,
-  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords,
+  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords, HelpCircle, LifeBuoy, RotateCcw, BarChart3, CalendarDays, Timer,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -63,9 +63,13 @@ export function AppSidebar() {
     { title: "Med Stories", url: "/stories", icon: Newspaper },
   ]
   const practise: Item[] = [
+    { title: "Daily Review", url: "/review", icon: RotateCcw },
+    { title: "My Progress", url: "/my-progress", icon: BarChart3 },
+    { title: "Study Plan", url: "/plan", icon: CalendarDays },
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit, lock: !canAccessContent },
+    { title: "Grand Test", url: "/grand-test", icon: Timer },
     { title: "Ward Round", url: "/cases", icon: Stethoscope },
     { title: "Arena", url: "/arena", icon: Swords },
     { title: "OSCE Stations", url: "/osce-stations", icon: Stethoscope },
@@ -79,6 +83,8 @@ export function AppSidebar() {
     { title: "Affiliate", url: "/affiliate", icon: Gift },
     { title: "Profile", url: "/profile", icon: User },
     { title: "Pricing", url: "/pricing", icon: Zap },
+    { title: "Help & FAQ", url: "/faq", icon: HelpCircle },
+    { title: "Support", url: "/support", icon: LifeBuoy },
   ]
 
   const active = (url: string) => (url === "/" ? pathname === "/" : pathname.startsWith(url))
@@ -160,9 +166,9 @@ export function AppSidebar() {
           {label("Practise")}
           <SidebarGroupContent>
             <SidebarMenu>
-              {practise.slice(0, 4).map(row)}
+              {practise.slice(0, 8).map(row)}
               <CasePresentationMenuItem pathname={pathname} onNavigate={closeOnMobile} />
-              {practise.slice(4).map(row)}
+              {practise.slice(8).map(row)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

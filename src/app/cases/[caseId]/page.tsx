@@ -12,6 +12,7 @@ import { Scene, SETTINGS, SCENE_CSS } from "@/components/cases/ward-scenes"
 import { PatientGlyph, BodyMap, VitalsMonitor, StabilityBar, moodOf, liveVitals, ageLabel, type Vitals } from "@/components/cases/ward-ui"
 import { EXTRA_CSS, LabReport, ScanViewer, AlertBanner, TimerRing, SequenceBoard, type Lab, type Scan } from "@/components/cases/ward-extras"
 import { saveResult, rankFor } from "@/lib/ward-progress"
+import { syncWardProgress } from "@/lib/ward-sync"
 import { getAuth } from "firebase/auth"
 import { arena } from "@/lib/arena-client"
 
@@ -82,6 +83,7 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
     const xp = Math.round((Math.max(0, score) + stars * 15) * (c.difficulty === "expert" ? 1.5 : 1))
     const r = saveResult(caseId, stars, percent, arrested ? Math.floor(xp / 2) : xp)
     setGain(r.gain)
+    try { const u = getAuth().currentUser; if (db && u) syncWardProgress(db, u.uid).catch(() => {}) } catch {}
     setRankInfo(rankFor(r.progress.xp))
     const au = getAuth().currentUser
     if (au && !arrested) arena(au, "xp", { caseId, percent, stars }).catch(() => {})

@@ -1,230 +1,177 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { Search, FileText, Video, Database, Network, X, Loader2 } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { Search, FileText, Video, Network, Layers, Database, X, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useFirestore, useCollection } from "@/firebase"
-import { collection, getDocs } from "firebase/firestore"
-import { supabase } from "@/lib/supabase"
+import { collection, getDocs, limit, query as fsQuery } from "firebase/firestore"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 
-type SearchResult = {
-  id: string
-  title: string
-  type: "Note" | "Video" | "Mindmap" | "QBank"
-  category: string
-  href: string
-  meta?: string
+type Type = "Note" | "Video" | "Mindmap" | "Flashcard" | "QBank"
+type Item = { id: string; type: Type; title: string; body: string; category: string; meta?: string; href: string }
+
+const FILTERS = ["All", "Note", "Video", "Mindmap", "Flashcard", "QBank"] as const
+const STYLE: Record<Type, { icon: any; chip: string }> = {
+  Note: { icon: FileText, chip: "bg-indigo-100 text-indigo-700" },
+  Video: { icon: Video, chip: "bg-fuchsia-100 text-fuchsia-700" },
+  Mindmap: { icon: Network, chip: "bg-emerald-100 text-emerald-700" },
+  Flashcard: { icon: Layers, chip: "bg-violet-100 text-violet-700" },
+  QBank: { icon: Database, chip: "bg-orange-100 text-orange-700" },
 }
 
-const FILTERS = ["All", "Note", "Video", "Mindmap", "QBank"] as const
+// Built once per visit and kept in memory, so typing never re-reads Firestore.
+let CONTENT_INDEX: Item[] | null = null
+let QBANK_INDEX: Item[] | null = null
+
+const norm = (s: any) => String(s ?? "").toLowerCase()
+function snippet(text: string, words: string[]) {
+  const t = text.replace(/\s+/g, " ")
+  const lower = t.toLowerCase()
+  const at = Math.min(...words.map((w) => { const i = lower.indexOf(w); return i < 0 ? 1e9 : i }))
+  if (at === 1e9) return t.slice(0, 140)
+  const from = Math.max(0, at - 40)
+  return (from > 0 ? "…" : "") + t.slice(from, from + 150) + (t.length > from + 150 ? "…" : "")
+}
+function Marked({ text, words }: { text: string; words: string[] }) {
+  if (!words.length) return <>{text}</>
+  const re = new RegExp("(" + words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "ig")
+  return <>{text.split(re).map((p, i) => (i % 2 ? <mark key={i} className="rounded bg-amber-200/80 px-0.5 text-inherit">{p}</mark> : <span key={i}>{p}</span>))}</>
+}
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("")
-  useEffect(() => { try { const q = new URLSearchParams(window.location.search).get("q"); if (q) setQuery(q) } catch {} }, [])
-  const [debouncedQuery, setDebouncedQuery] = useState("")
-  const [activeFilter, setActiveFilter] = useState<typeof FILTERS[number]>("All")
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-
   const db = useFirestore()
-  const subjectsQuery = useMemo(() => db ? collection(db, 'subjects') : null, [db])
+  const { checkingAuth } = useRequireAuth()
+  const [q, setQ] = useState("")
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All")
+  const [loading, setLoading] = useState(false)
+  const [index, setIndex] = useState<Item[]>(CONTENT_INDEX || [])
+  const [qbank, setQbank] = useState<Item[]>(QBANK_INDEX || [])
+  const [qLoading, setQLoading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { try { const s = new URLSearchParams(window.location.search).get("q"); if (s) setQ(s) } catch {} }, [])
+
+  const subjectsQuery = useMemo(() => (db ? collection(db, "subjects") : null), [db])
   const { data: subjects } = useCollection(subjectsQuery)
 
-  // Debounce input
+  // One-time index of titles, mind maps and flashcard text (flashcard decks are read whole, so card text is free to search).
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350)
-    return () => clearTimeout(timer)
-  }, [query])
+    if (CONTENT_INDEX || !db || !subjects) return
+    let dead = false
+    setLoading(true)
+    ;(async () => {
+      const out: Item[] = []
+      await Promise.all((subjects as any[]).map(async (s) => {
+        const name = s.name || s.id
+        const [topics, maps, decks] = await Promise.all([
+          getDocs(collection(db, "subjects", s.id, "topics")).catch(() => null),
+          getDocs(collection(db, "subjects", s.id, "mindmaps")).catch(() => null),
+          getDocs(collection(db, "subjects", s.id, "flashcardDecks")).catch(() => null),
+        ])
+        topics?.forEach((d) => { const x = d.data() as any; out.push({ id: d.id, type: x.contentType === "video" ? "Video" : "Note", title: x.title || "", body: "", category: name, meta: x.unitName, href: `/notes/${s.id}/${d.id}` }) })
+        maps?.forEach((d) => { const x = d.data() as any; out.push({ id: d.id, type: "Mindmap", title: x.title || "", body: "", category: name, meta: x.unitName, href: `/mindmaps/${s.id}/${d.id}` }) })
+        decks?.forEach((d) => {
+          const x = d.data() as any
+          const cards = (x.cards || []) as any[]
+          out.push({ id: d.id, type: "Flashcard", title: x.chapterName || x.title || "Flashcards", body: cards.map((c) => (c.front || "") + " — " + (c.back || "")).join(" | "), category: name, meta: `${cards.length} cards`, href: `/flashcards/${s.id}/${d.id}` })
+        })
+      }))
+      if (dead) return
+      CONTENT_INDEX = out
+      setIndex(out); setLoading(false)
+    })().catch(() => setLoading(false))
+    return () => { dead = true }
+  }, [db, subjects])
 
-  useEffect(() => {
-    async function runSearch() {
-      if (!debouncedQuery || debouncedQuery.length < 2 || !db || !subjects) {
-        setResults([])
-        return
-      }
-
-      setIsSearching(true)
-      const lowerQuery = debouncedQuery.toLowerCase()
-      const found: SearchResult[] = []
-
-      try {
-        // Search topics (notes + videos) across all subjects
-        await Promise.all(
-          subjects.map(async (subject: any) => {
-            const topicsSnap = await getDocs(collection(db, 'subjects', subject.id, 'topics'))
-            topicsSnap.forEach(docSnap => {
-              const data = docSnap.data() as any
-              const title = data.title || ""
-              if (title.toLowerCase().includes(lowerQuery)) {
-                const isVideo = data.contentType === 'video'
-                found.push({
-                  id: docSnap.id,
-                  title,
-                  type: isVideo ? "Video" : "Note",
-                  category: subject.name,
-                  href: isVideo ? `/notes/${subject.id}/${docSnap.id}` : `/notes/${subject.id}/${docSnap.id}`,
-                  meta: data.unitName || undefined
-                })
-              }
-            })
-
-            // Search mindmaps
-            const mindmapsSnap = await getDocs(collection(db, 'subjects', subject.id, 'mindmaps'))
-            mindmapsSnap.forEach(docSnap => {
-              const data = docSnap.data() as any
-              const title = data.title || ""
-              if (title.toLowerCase().includes(lowerQuery)) {
-                found.push({
-                  id: docSnap.id,
-                  title,
-                  type: "Mindmap",
-                  category: subject.name,
-                  href: `/mindmaps/${subject.id}/${docSnap.id}`,
-                  meta: data.unitName || undefined
-                })
-              }
-            })
-          })
-        )
-
-        // Search QBank questions (Supabase)
-        const { data: qbankResults } = await supabase
-          .from('questions')
-          .select('id, question_text, subject_id, unit_title, topic_title')
-          .ilike('question_text', `%${debouncedQuery}%`)
-          .limit(15)
-
-        if (qbankResults) {
-          qbankResults.forEach((q: any) => {
-            found.push({
-              id: String(q.id),
-              title: q.question_text,
-              type: "QBank",
-              category: q.subject_id,
-              href: `/qbank/${q.subject_id}`,
-              meta: q.topic_title || q.unit_title || undefined
-            })
-          })
-        }
-
-        setResults(found)
-      } catch (e) {
-        console.error("Search error:", e)
-      } finally {
-        setIsSearching(false)
-      }
-    }
-
-    runSearch()
-  }, [debouncedQuery, db, subjects])
-
-  const filteredResults = results.filter(r => activeFilter === "All" || r.type === activeFilter)
-
-  const iconFor = (type: SearchResult["type"]) => {
-    switch (type) {
-      case "Video": return <Video className="h-6 w-6" />
-      case "Note": return <FileText className="h-6 w-6" />
-      case "Mindmap": return <Network className="h-6 w-6" />
-      case "QBank": return <Database className="h-6 w-6" />
-    }
+  // QBank question text is large, so it is only loaded when the student asks for it.
+  async function loadQuestions() {
+    if (!db || !subjects || qLoading) return
+    setQLoading(true)
+    const out: Item[] = []
+    try {
+      await Promise.all((subjects as any[]).map(async (s) => {
+        const snap = await getDocs(fsQuery(collection(db, "subjects", s.id, "qbankQuestions"), limit(800))).catch(() => null)
+        snap?.forEach((d) => {
+          const x = d.data() as any
+          if (!x.question_text) return
+          out.push({ id: d.id, type: "QBank", title: x.question_text, body: [x.option1, x.option2, x.option3, x.option4, x.explanation].filter(Boolean).join(" | "), category: s.name || s.id, meta: x.topic_title || x.unit_title, href: `/qbank/${s.id}` })
+        })
+      }))
+      QBANK_INDEX = out; setQbank(out)
+    } finally { setQLoading(false) }
   }
 
-  const colorFor = (type: SearchResult["type"]) => {
-    switch (type) {
-      case "Video": return "text-accent"
-      case "Note": return "text-primary"
-      case "Mindmap": return "text-green-400"
-      case "QBank": return "text-orange-400"
+  const words = useMemo(() => norm(q).split(/\s+/).filter((w) => w.length >= 2), [q])
+  const results = useMemo(() => {
+    if (!words.length) return []
+    const scored: { it: Item; score: number }[] = []
+    for (const it of [...index, ...qbank]) {
+      const t = norm(it.title), b = norm(it.body), m = norm(it.meta)
+      let score = 0, ok = true
+      for (const w of words) {
+        if (t.includes(w)) score += t.startsWith(w) ? 6 : 4
+        else if (m.includes(w)) score += 2
+        else if (b.includes(w)) score += 1
+        else { ok = false; break }
+      }
+      if (ok) scored.push({ it, score })
     }
-  }
+    return scored.sort((a, b) => b.score - a.score).slice(0, 80).map((s) => s.it)
+  }, [words, index, qbank])
 
-  const { checkingAuth } = useRequireAuth()
-  if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  const counts = useMemo(() => { const c: Record<string, number> = { All: results.length }; results.forEach((r) => { c[r.type] = (c[r.type] || 0) + 1 }); return c }, [results])
+  const shown = results.filter((r) => filter === "All" || r.type === filter)
+
+  if (checkingAuth) return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8 animate-in fade-in duration-500">
-      <div className="space-y-6">
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-            {isSearching ? (
-              <Loader2 className="h-6 w-6 text-primary animate-spin" />
-            ) : (
-              <Search className="h-6 w-6 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            )}
-          </div>
-          <Input
-            className="h-16 md:h-20 pl-16 pr-16 text-lg md:text-2xl glass border-white/10 rounded-2xl md:rounded-3xl focus-visible:ring-primary focus-visible:ring-offset-0 shadow-2xl"
-            placeholder="Search notes, videos, mindmaps, QBank..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoFocus
-          />
-          {query && (
-            <div className="absolute inset-y-0 right-6 flex items-center">
-              <button onClick={() => setQuery("")} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                <X className="h-5 w-5 text-muted-foreground" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap gap-2 px-2">
-          {FILTERS.map(filter => (
-            <Badge
-              key={filter}
-              variant={activeFilter === filter ? "default" : "outline"}
-              className={`cursor-pointer px-4 py-2 rounded-xl text-sm transition-all ${activeFilter === filter ? 'bg-primary border-primary shadow-lg shadow-primary/20' : 'glass border-white/10 hover:bg-white/5'}`}
-              onClick={() => setActiveFilter(filter)}
-            >
-              {filter}
-            </Badge>
-          ))}
-        </div>
+    <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-10">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
+        <input ref={inputRef} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes, flashcards, mind maps, questions…" className="h-16 w-full rounded-3xl border border-border bg-card pl-14 pr-14 text-lg font-semibold shadow-lg outline-none focus:border-primary md:h-20 md:text-2xl" />
+        {q && <button onClick={() => { setQ(""); inputRef.current?.focus() }} aria-label="Clear" className="absolute right-5 top-1/2 -translate-y-1/2 rounded-full p-1.5 hover:bg-secondary"><X className="h-5 w-5" /></button>}
       </div>
 
-      <div className="space-y-4">
-        {debouncedQuery.length >= 2 ? (
-          isSearching ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : filteredResults.length > 0 ? (
-            filteredResults.map(result => (
-              <Link key={`${result.type}-${result.id}`} href={result.href}>
-                <Card className="glass border-none hover:scale-[1.01] transition-all cursor-pointer group mb-4">
-                  <CardContent className="p-4 md:p-6 flex items-center gap-4 md:gap-6">
-                    <div className={`p-3 md:p-4 rounded-2xl bg-white/5 shrink-0 ${colorFor(result.type)}`}>
-                      {iconFor(result.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground capitalize">{result.category}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-muted-foreground uppercase">{result.type}</span>
-                        {result.meta && <span className="text-[10px] text-muted-foreground">· {result.meta}</span>}
-                      </div>
-                      <h3 className="text-base md:text-xl font-bold group-hover:text-primary transition-colors line-clamp-2">{result.title}</h3>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))
-          ) : (
-            <div className="text-center py-20 text-muted-foreground">
-              <Search className="h-16 w-16 mx-auto mb-4 opacity-10" />
-              <p className="text-xl">No results found for "{debouncedQuery}"</p>
-            </div>
-          )
-        ) : (
-          <div className="text-center py-20 text-muted-foreground opacity-40">
-            <Search className="h-16 w-16 mx-auto mb-4 opacity-20" />
-            <p className="text-lg">Type at least 2 characters to search across notes, videos, mindmaps, and QBank.</p>
-          </div>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTERS.map((f) => (
+          <button key={f} onClick={() => setFilter(f)} className={`rounded-full border px-4 py-1.5 text-sm font-bold transition ${filter === f ? "border-primary bg-primary text-white" : "border-border bg-card hover:border-primary/50"}`}>
+            {f}{words.length && counts[f] ? <span className="ml-1.5 opacity-70">{counts[f]}</span> : null}
+          </button>
+        ))}
+        {loading && <span className="ml-2 inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Preparing search…</span>}
       </div>
+
+      {!qbank.length && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-card p-4 text-sm">
+          <span className="text-muted-foreground">Questions are not searched by default because there are thousands of them.</span>
+          <button onClick={loadQuestions} disabled={qLoading || !subjects} className="inline-flex items-center gap-2 rounded-full bg-orange-500 px-4 py-2 text-xs font-extrabold text-white disabled:opacity-60">{qLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{qLoading ? "Loading questions…" : "Also search question text"}</button>
+        </div>
+      )}
+
+      {words.length === 0 ? (
+        <div className="py-16 text-center text-muted-foreground"><Search className="mx-auto mb-4 h-14 w-14 opacity-20" /><p>Type two or more letters. Several words narrow the search, for example <b>nephritic complement</b>.</p></div>
+      ) : shown.length === 0 ? (
+        <div className="py-16 text-center text-muted-foreground"><p className="text-lg font-bold">Nothing found for “{q}”</p>{!qbank.length && <p className="mt-1 text-sm">Try “Also search question text” above.</p>}</div>
+      ) : (
+        <ul className="space-y-3">
+          {shown.map((r) => {
+            const S = STYLE[r.type]
+            const sub = r.body ? snippet(r.body, words) : ""
+            return (
+              <li key={r.type + r.id}>
+                <Link href={r.href} className="flex items-start gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md md:p-5">
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${S.chip}`}><S.icon className="h-5 w-5" /></span>
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><span>{r.category}</span><span className={`rounded-full px-2 py-0.5 ${S.chip}`}>{r.type}</span>{r.meta && <span className="normal-case tracking-normal">· {r.meta}</span>}</div>
+                    <h3 className="line-clamp-2 text-base font-extrabold md:text-lg"><Marked text={r.title} words={words} /></h3>
+                    {sub && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground"><Marked text={sub} words={words} /></p>}
+                  </div>
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }

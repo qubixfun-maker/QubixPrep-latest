@@ -1,17 +1,19 @@
 "use client"
 
 import { useMemo, use } from "react"
-import { useDoc, useFirestore } from "@/firebase"
+import { useDoc, useFirestore, useUser } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { ChevronLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
+import { gradeFlashcard } from "@/lib/study"
 import ImmersiveDeck from "@/components/flashcards/ImmersiveDeck"
 
 export default function FlashcardStudyPage({ params }: { params: Promise<{ subjectId: string; deckId: string }> }) {
   const { subjectId, deckId } = use(params)
   const db = useFirestore()
+  const { user } = useUser()
 
   const subjectRef = useMemo(() => (!db ? null : doc(db, 'subjects', subjectId)), [db, subjectId])
   const { data: subject, loading: subjectLoading } = useDoc(subjectRef)
@@ -45,6 +47,7 @@ export default function FlashcardStudyPage({ params }: { params: Promise<{ subje
       subject={subject ? (subject as any).name : subjectId}
       unit={d?.chapterName || d?.title || undefined}
       backHref={`/flashcards/${subjectId}`}
+      onGrade={(c, ok) => { if (db && user) gradeFlashcard(db, user.uid, { subjectId, subjectName: subject ? (subject as any).name : undefined, chapter: d?.chapterName || d?.title || undefined, front: c.front, back: c.back }, ok).catch(() => {}) }}
     />
   )
 }
