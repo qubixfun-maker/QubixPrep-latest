@@ -1,13 +1,14 @@
 
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
 import { useUser, useDoc, useFirestore, useCollection, useStorage } from "@/firebase"
 import { ref as storageRef, uploadBytes, deleteObject } from "firebase/storage"
 import { doc, collection, query, orderBy, increment, updateDoc, deleteDoc, getDocs, getDoc, setDoc, writeBatch } from "firebase/firestore"
 import { supabase } from "@/lib/supabase"
 import { groupByUnit } from "@/lib/unit-sort"
 import { generateClinicalCase, ClinicalCase } from "@/ai/flows/ai-case-generator"
+import { CASE_TOPICS } from "@/ai/case-topics"
 import { generateProfPyqAnswer } from "@/ai/flows/ai-profpyq-answer-generator"
 import { generateBannerCopy } from "@/ai/flows/ai-banner-generator"
 import Papa from "papaparse"
@@ -159,6 +160,8 @@ export default function AdminDashboard() {
 
   const [isManagingCases, setIsManagingCases] = useState(false)
   const [allCases, setAllCases] = useState<any[]>([])
+  const [batchRun, setBatchRun] = useState<{ done: number; total: number; failed: number; running: boolean } | null>(null)
+  const batchStopRef = useRef(false)
   const [loadingCases, setLoadingCases] = useState(false)
   const [caseGenSpecialty, setCaseGenSpecialty] = useState("")
   const [caseGenTopic, setCaseGenTopic] = useState("")
@@ -732,6 +735,31 @@ export default function AdminDashboard() {
     } finally {
       setGeneratingCase(false)
     }
+  }
+
+  async function handleGenerate100() {
+    if (!db || !user) return
+    if (!confirm("Generate the 100 Ward Round cases? It takes about 10-15 minutes. Keep this tab open. Cases that already exist are skipped.")) return
+    batchStopRef.current = false
+    const have = new Set(allCases.map((c: any) => c.id))
+    const todo = CASE_TOPICS.filter((t) => !have.has(t.id))
+    let idx = 0, done = 0, failed = 0
+    setBatchRun({ done, total: todo.length, failed, running: true })
+    const worker = async () => {
+      while (!batchStopRef.current) {
+        const t = todo[idx++]
+        if (!t) return
+        try {
+          const idToken = await user.getIdToken()
+          const res = await fetch("/api/admin/ward-case", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, topicId: t.id }) })
+          if (res.ok) done++; else failed++
+        } catch { failed++ }
+        setBatchRun({ done, total: todo.length, failed, running: true })
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()])
+    setBatchRun({ done, total: todo.length, failed, running: false })
+    fetchAllCases()
   }
 
   async function handleSaveCase() {
@@ -2237,6 +2265,18 @@ export default function AdminDashboard() {
               <Button onClick={handleGenerateCase} disabled={generatingCase} className="rounded-lg gap-2">
                 {generatingCase ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Generate
               </Button>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-accent/5 border border-accent/20 space-y-3">
+            <h4 className="font-bold flex items-center gap-2 text-accent text-sm"><Wand2 className="h-4 w-4" /> Ward Round: the 100 ready cases</h4>
+            <p className="text-xs text-muted-foreground">Creates all 100 curated cases (Medicine, Surgery, OBG, Paediatrics and more) in one go. Already existing ones are skipped, so you can run it again to fill any gaps.</p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button onClick={handleGenerate100} disabled={!!batchRun?.running} className="rounded-lg gap-2">
+                {batchRun?.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Generate 100 cases
+              </Button>
+              {batchRun?.running && <Button variant="outline" className="rounded-lg" onClick={() => { batchStopRef.current = true }}>Stop</Button>}
+              {batchRun && <span className="text-xs font-bold">{batchRun.done} / {batchRun.total} done{batchRun.failed ? " · " + batchRun.failed + " failed" : ""}{!batchRun.running ? " · finished" : ""}</span>}
             </div>
           </div>
 

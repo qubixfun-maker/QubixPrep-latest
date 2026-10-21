@@ -66,7 +66,7 @@ export function AppSidebar() {
     { title: "QBank", url: "/qbank", icon: Database },
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit, lock: !canAccessContent },
-    { title: "Clinical Cases", url: "/cases", icon: Stethoscope },
+    { title: "Ward Round", url: "/cases", icon: Stethoscope },
     { title: "OSCE Stations", url: "/osce-stations", icon: Stethoscope },
   ]
   const studio: Item[] = [
