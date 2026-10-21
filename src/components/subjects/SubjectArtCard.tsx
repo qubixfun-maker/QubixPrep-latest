@@ -40,11 +40,11 @@ function artFor(name: string): Art {
 }
 
 /** A big illustrated card for a subject. Used on Notes, Long Answers, Mind Maps, Flashcards and QBank. */
-export function SubjectArtCard({ href, name, subtitle, cta = "Open" }: { href: string; name: string; subtitle: string; cta?: string }) {
+export function SubjectArtCard({ href, name, subtitle, cta = "Open", newTab = false }: { href: string; name: string; subtitle: string; cta?: string; newTab?: boolean }) {
   const a = artFor(name)
   const delay = (name.length % 4) * -0.7
   return (
-    <Link href={href} className="group block h-full focus-visible:outline-none">
+    <Link href={href} {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})} className="group block h-full focus-visible:outline-none">
       <div
         className="relative flex min-h-[236px] h-full flex-col justify-end overflow-hidden rounded-[28px] border border-white/70 p-6 shadow-[0_12px_32px_-14px_rgba(60,40,120,0.35)] transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-[0_26px_44px_-16px_rgba(60,40,120,0.45)] group-focus-visible:ring-4 group-focus-visible:ring-primary/40"
         style={{ background: `linear-gradient(135deg, ${a.from} 0%, ${a.to} 100%)`, color: a.ink }}

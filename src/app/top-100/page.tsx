@@ -1,4 +1,5 @@
 "use client"
+import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
 import { useMemo } from "react"
 import Link from "next/link"
 import { useCollection, useFirestore } from "@/firebase"
@@ -53,36 +54,26 @@ export default function Top100Page() {
         <span className="inline-block rounded-full bg-white/70 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em]">Free for everyone</span>
         <h1 className="mt-3 max-w-[75%] text-3xl md:text-5xl font-black leading-[1.05] tracking-tight">100 Most Important Topics</h1>
         <p className="mt-2 max-w-[75%] text-sm md:text-base font-medium opacity-80">The must-know, high-yield topics. Start here, then go deeper.</p>
-        <span className="mt-4 inline-block rounded-full bg-white/80 px-3.5 py-1.5 text-xs font-extrabold">{total} topic{total === 1 ? "" : "s"} so far</span>
       </div>
 
       {(packsLoading || packs.length > 0) && (
-        <section className="space-y-3">
-          <h2 className="inline-block rounded-xl bg-[#ece3ff] px-4 py-2 text-lg font-black text-[#43299a]">📘 Complete note packs · free</h2>
-          {packsLoading ? (
-            <div className="h-24 flex items-center justify-center"><Loader2 className="h-6 w-6 text-primary animate-spin" /></div>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {packs.map((p: any) => (
-                <a key={p.id} href={`/notes-packs/${p.id}`} target="_blank" rel="noopener noreferrer"
-                  className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#7552ee] text-white"><FileText className="h-6 w-6" /></span>
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-[15px]">{p.title}</strong>
-                    <small className="block truncate text-muted-foreground">{p.description || (p.year ? p.year + " year notes" : "Complete notes")}</small>
-                  </span>
-                  <span className="shrink-0 rounded-full bg-[#d9f6ec] px-3 py-1.5 text-[11px] font-black text-[#17543f]">Read free</span>
-                </a>
-              ))}
-            </div>
-          )}
-        </section>
+        packsLoading ? (
+          <div className="h-24 flex items-center justify-center"><Loader2 className="h-6 w-6 text-primary animate-spin" /></div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {packs.map((p: any) => (
+              <SubjectArtCard key={p.id} href={`/notes-packs/${p.id}`} newTab cta="Read free"
+                name={String(p.title).replace(/\s*\d+\s+(most\s+)?important.*$/i, "").trim() || p.title}
+                subtitle={`100 most important topics${p.year ? " · " + p.year + " year" : ""}`} />
+            ))}
+          </div>
+        )
       )}
 
       {loading ? (
         <div className="h-48 flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
       ) : groups.length === 0 ? (
-        <div className="rounded-2xl glass p-10 text-center text-muted-foreground">{total === 0 ? "Topics are being picked. Check back soon!" : "No topics match your search."}</div>
+        packs.length > 0 ? null : <div className="rounded-2xl glass p-10 text-center text-muted-foreground">{total === 0 ? "Topics are being picked. Check back soon!" : "No topics match your search."}</div>
       ) : (
         groups.map((g, gi) => {
           const tone = TONES[gi % TONES.length]

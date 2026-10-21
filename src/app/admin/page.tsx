@@ -1671,11 +1671,6 @@ export default function AdminDashboard() {
               <Stethoscope className="h-4 w-4" /> OSCE Stations (Live)
             </Button>
           </Link>
-          <Link href="/feed">
-            <Button variant="outline" className="rounded-xl gap-2 glass border-orange-500/30 text-orange-400 hover:bg-orange-500/10">
-              <Flame className="h-4 w-4" /> Study Feed
-            </Button>
-          </Link>
           <Button 
             onClick={() => {
               setQbankForm({
