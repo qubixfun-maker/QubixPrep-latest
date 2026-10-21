@@ -1,7 +1,9 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation"
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
+import { useFirestore } from "@/firebase"
+import { recordBulk } from "@/lib/study"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -15,6 +17,7 @@ import { useJelly } from "@/components/jelly/jelly-store"
 
 function PYQSessionContent() {
   const { user } = useUser()
+  const db = useFirestore()
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
@@ -48,6 +51,14 @@ function PYQSessionContent() {
   const [showReview, setShowReview] = useState(false)
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [lockedAnswers, setLockedAnswers] = useState<Record<number, number>>({})
+
+  const progressSaved = useRef(false)
+  useEffect(() => {
+    if (!finished || progressSaved.current || !db || !user || questions.length === 0) return
+    progressSaved.current = true
+    const src: Record<number, number> = mode === 'practice' ? lockedAnswers : answers
+    recordBulk(db, user.uid, questions.map((q: any, n: number) => ({ subjectId: String(q.subject_id || q.subject || "pyq"), topic: q.topic_title || q.subject || "General", question: q.question_text, options: [q.option1, q.option2, q.option3, q.option4].filter(Boolean), correct: q.correct_answer_index, explanation: q.explanation, picked: src[n] ?? null }))).catch(() => {})
+  }, [finished])
   const [timeLeft, setTimeLeft] = useState(0)
   const [aiExplanation, setAiExplanation] = useState<string | null>(null)
   const [isAiLoading, setIsAiLoading] = useState(false)

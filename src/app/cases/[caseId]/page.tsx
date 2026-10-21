@@ -71,7 +71,13 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
   const [rankInfo, setRankInfo] = useState<ReturnType<typeof rankFor> | null>(null)
 
   const c = (caseData || {}) as any
-  const stages: CaseStage[] = c.stages || []
+  // Fisher-Yates shuffle once per case load, so the best answer is not always option A.
+  const shuffleOptions = <T,>(arr: T[]): T[] => { const x = [...arr]; for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]] } return x }
+  const stages: CaseStage[] = useMemo(
+    () => ((c.stages || []) as CaseStage[]).map((st) => (st.kind === "sequence" || !Array.isArray(st.options) ? st : { ...st, options: shuffleOptions(st.options) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [caseData],
+  )
   const stage = stages[stageIndex]
   const arrested = stability <= 0
   const percent = maxScore > 0 ? Math.max(0, Math.round((score / maxScore) * 100)) : 0
