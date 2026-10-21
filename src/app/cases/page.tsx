@@ -2,8 +2,8 @@
 
 import { useTopSearch } from "@/components/layout/top-search"
 import { useEffect, useMemo, useState } from "react"
-import { useCollection, useFirestore } from "@/firebase"
-import { collection } from "firebase/firestore"
+import { useCollection, useDoc, useFirestore, useUser } from "@/firebase"
+import { collection, doc } from "firebase/firestore"
 import { Loader2, Lock, Star, Flame, Trophy } from "lucide-react"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
@@ -39,11 +39,15 @@ export default function WardRoundHub() {
   const [prog, setProg] = useState<WardProgress>({ xp: 0, done: {} })
   useEffect(() => { setProg(loadProgress()) }, [])
 
+  const { user } = useUser()
+  const profileRef = useMemo(() => (!db || !user ? null : doc(db, "users", user.uid)), [db, user])
+  const { data: profile } = useDoc(profileRef)
   const casesRef = useMemo(() => (!db ? null : collection(db, "cases")), [db])
   const { data: cases, loading } = useCollection(casesRef)
 
   const all = useMemo(() => ((cases as any[]) || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [cases])
   const q = search.trim().toLowerCase()
+  const adminNeedsCases = (profile as any)?.role === "admin" && !loading && all.length < 300
   const filtered = useMemo(() => all.filter((c) => (group === "All" || (c.specialty || "General") === group) && (!expertOnly || c.difficulty === "expert") && (!q || [c.title, c.specialty, c.topic].some((x) => String(x || "").toLowerCase().includes(q)))), [all, group, q, expertOnly])
   const groups = useMemo(() => {
     const m: Record<string, any[]> = {}
@@ -100,7 +104,7 @@ export default function WardRoundHub() {
             <h1 className="text-4xl font-black leading-[1.05] tracking-tight md:text-5xl">Be the doctor.<br />Save the patient.</h1>
             <p className="max-w-md text-sm font-medium text-white/85">300 live patients across every subject, with 200 expert cases that add procedures, scans, lab reports, timed decisions and mid-case complications. Take the history, examine, investigate, diagnose and treat, while the monitor ticks and the patient's condition changes with every decision.</p>
           </div>
-          <div className="rounded-3xl bg-white/15 p-4 backdrop-blur">
+          <div className="rounded-3xl bg-slate-900/70 p-4 text-white shadow-xl ring-1 ring-white/25 backdrop-blur">
             <div className="flex items-center gap-3">
               <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/25 text-3xl">{rk.cur.emoji}</div>
               <div className="min-w-0 flex-1">
@@ -118,6 +122,13 @@ export default function WardRoundHub() {
           </div>
         </div>
       </div>
+
+      {adminNeedsCases && (
+        <Link href="/admin?ward=1" className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border-2 border-dashed border-rose-400 bg-rose-50 p-4 transition hover:bg-rose-100">
+          <div><p className="text-sm font-black text-rose-700">Admin: only {all.length} of 300 Ward Round cases exist</p><p className="text-xs font-medium text-rose-600">Open the generator, then click “Generate 100 cases” and “Generate 200 expert cases”.</p></div>
+          <span className="rounded-full bg-gradient-to-r from-rose-600 to-orange-500 px-4 py-2 text-xs font-black text-white shadow">Open generator →</span>
+        </Link>
+      )}
 
       {loading ? (
         <div className="flex h-64 items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>

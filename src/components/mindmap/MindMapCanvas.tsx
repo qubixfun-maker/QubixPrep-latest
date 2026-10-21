@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { FileText, ChevronsUpDown, ChevronsDownUp, Plus, Minus, Scan, Network } from "lucide-react"
 
 export type MindmapNode = {
   name: string
@@ -10,138 +11,208 @@ export type MindmapNode = {
   branches?: MindmapNode[]
 }
 
-type ColumnState = {
-  items: MindmapNode[]
-  selectedIndex: number | null
-  // Accent color inherited down from whichever top-level branch this column
-  // descends from, so the whole drill-down path stays visually tied to its origin.
-  color?: string
-}
+type N = { id: string; node: MindmapNode; depth: number; color: string; kids: N[]; x: number; y: number; text: string; cardH: number }
 
-const COLORS = ["#7F77DD", "#1D9E75", "#D85A30", "#D4537E", "#378ADD", "#BA7517"]
+const PALETTE = ["#60a5fa", "#8b7cf6", "#2dd4bf", "#f472b6", "#f59e0b", "#38bdf8", "#34d399", "#fb7185"]
+const ROOT_COLOR = "#3b82f6"
+const COL = 300, CARD_W = 230, LABEL_H = 26, GAP = 20
+
+function describe(n: MindmapNode) {
+  const parts: string[] = []
+  if (n.definition) parts.push(n.definition.trim())
+  if (n.mechanism) parts.push("Mechanism: " + n.mechanism.trim())
+  if (n.examples) parts.push("Examples: " + n.examples.trim())
+  return parts.join(" ")
+}
+function cardHeight(text: string) {
+  if (!text) return 0
+  const lines = Math.min(7, Math.ceil(text.length / 34))
+  return lines * 16 + 22
+}
+function build(node: MindmapNode, id: string, depth: number, color: string): N {
+  const text = describe(node)
+  const n: N = { id, node, depth, color, kids: [], x: 0, y: 0, text, cardH: cardHeight(text) }
+  n.kids = (node.branches || []).map((b, i) => build(b, id + "-" + i, depth + 1, depth === 0 ? PALETTE[i % PALETTE.length] : color))
+  return n
+}
+function count(n: N): number { return 1 + n.kids.reduce((s, k) => s + count(k), 0) }
 
 export default function MindMapCanvas({ root }: { root: MindmapNode }) {
-  const [columns, setColumns] = useState<ColumnState[]>([
-    { items: root.branches || [], selectedIndex: null },
-  ])
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const tree = useMemo(() => build(root, "r", 0, ROOT_COLOR), [root])
+  const total = useMemo(() => count(tree), [tree])
 
-  function selectItem(colIndex: number, itemIndex: number, item: MindmapNode) {
-    setColumns((prev) => {
-      const next = prev.slice(0, colIndex + 1)
-      next[colIndex] = { ...next[colIndex], selectedIndex: itemIndex }
-      const hasChildren = !!(item.branches && item.branches.length > 0)
-      if (hasChildren) {
-        const inheritedColor = colIndex === 0 ? COLORS[itemIndex % COLORS.length] : next[colIndex].color
-        next.push({ items: item.branches!, selectedIndex: null, color: inheritedColor })
-      }
-      return next
-    })
-    // Scroll the newly-opened column into view.
-    setTimeout(() => {
-      containerRef.current?.scrollTo({ left: containerRef.current.scrollWidth, behavior: "smooth" })
-    }, 50)
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    const s = new Set<string>()
+    if (total > 70) { const walk = (n: N) => { if (n.depth >= 2 && n.kids.length) s.add(n.id); n.kids.forEach(walk) }; walk(tree) }
+    return s
+  })
+  const [showText, setShowText] = useState(true)
+  const [view, setView] = useState({ x: 40, y: 80, k: 1 })
+  const wrap = useRef<HTMLDivElement>(null)
+  const viewRef = useRef(view); viewRef.current = view
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const last = useRef<{ x: number; y: number; d: number } | null>(null)
+  const moved = useRef(false)
+  const didFit = useRef(false)
+  const travel = useRef(0)
+
+  // layout --------------------------------------------------------------
+  const layout = useMemo(() => {
+    let cursor = 0
+    let maxX = 0
+    const nodeH = (n: N) => LABEL_H + (showText && n.cardH ? n.cardH + 6 : 0) + GAP
+    const visibleKids = (n: N) => (collapsed.has(n.id) ? [] : n.kids)
+    const place = (n: N) => {
+      n.x = n.depth * COL
+      maxX = Math.max(maxX, n.x)
+      const kids = visibleKids(n)
+      const start = cursor
+      if (!kids.length) { n.y = cursor + LABEL_H / 2; cursor += nodeH(n); return }
+      kids.forEach(place)
+      const mid = (kids[0].y + kids[kids.length - 1].y) / 2
+      n.y = Math.max(mid, start + LABEL_H / 2)
+      cursor = Math.max(cursor, n.y + LABEL_H / 2 + (showText && n.cardH ? n.cardH + 6 : 0) + GAP)
+    }
+    place(tree)
+    const nodes: N[] = []
+    const links: { a: N; b: N }[] = []
+    const walk = (n: N) => { nodes.push(n); visibleKids(n).forEach((k) => { links.push({ a: n, b: k }); walk(k) }) }
+    walk(tree)
+    return { nodes, links, width: maxX + CARD_W + 120, height: Math.max(cursor, 200), maxX }
+  }, [tree, collapsed, showText])
+
+  // view helpers --------------------------------------------------------
+  const fit = useCallback((animate = true) => {
+    const el = wrap.current; if (!el) return
+    const cw = el.clientWidth, ch = el.clientHeight
+    const top = 104, bottom = 96
+    const left = -(CARD_W + 24), right = layout.maxX + CARD_W + 28
+    const W = right - left, H = layout.height
+    const k0 = Math.min((cw - 24) / W, (ch - top - bottom) / H, 1.15)
+    const k = Math.max(0.4, k0)
+    const x = k0 >= 0.4 ? (cw - W * k) / 2 - left * k : 12 - left * k
+    const y = k0 >= 0.4 ? top + (ch - top - bottom - H * k) / 2 : Math.max(top, ch / 2 - (tree.y || H / 2) * k)
+    setView({ x, y, k })
+    if (!animate) didFit.current = true
+  }, [layout, tree])
+  useEffect(() => { if (!didFit.current) { fit(false); didFit.current = true } }, [fit])
+
+  const zoomAt = useCallback((cx: number, cy: number, factor: number) => {
+    setView((v) => { const k = Math.min(2.5, Math.max(0.15, v.k * factor)); const r = k / v.k; return { k, x: cx - (cx - v.x) * r, y: cy - (cy - v.y) * r } })
+  }, [])
+  const zoomCenter = (f: number) => { const el = wrap.current; if (el) zoomAt(el.clientWidth / 2, el.clientHeight / 2, f) }
+
+  useEffect(() => {
+    const el = wrap.current; if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const r = el.getBoundingClientRect()
+      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0016)))
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [zoomAt])
+
+  const onDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("[data-ui]")) return
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    moved.current = false
+    travel.current = 0
+    last.current = null
   }
-
-  async function toggleFullscreen() {
-    if (!wrapRef.current) return
-    if (!document.fullscreenElement) {
-      await wrapRef.current.requestFullscreen?.()
-      setIsFullscreen(true)
-    } else {
-      await document.exitFullscreen?.()
-      setIsFullscreen(false)
+  const onMove = (e: React.PointerEvent) => {
+    const p = pointers.current.get(e.pointerId); if (!p) return
+    const prev = { ...p }
+    p.x = e.clientX; p.y = e.clientY
+    const pts = [...pointers.current.values()]
+    if (pts.length === 1) {
+      const dx = e.clientX - prev.x, dy = e.clientY - prev.y
+      travel.current += Math.abs(dx) + Math.abs(dy)
+      if (travel.current > 6 && !moved.current) { moved.current = true; try { (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId) } catch {} }
+      setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }))
+    } else if (pts.length >= 2) {
+      const [a, b] = pts
+      const d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2
+      const r = wrap.current!.getBoundingClientRect()
+      if (last.current) { zoomAt(cx - r.left, cy - r.top, d / (last.current.d || d)); setView((v) => ({ ...v, x: v.x + (cx - last.current!.x), y: v.y + (cy - last.current!.y) })) }
+      last.current = { x: cx, y: cy, d }
+      moved.current = true
     }
   }
+  const onUp = (e: React.PointerEvent) => { pointers.current.delete(e.pointerId); last.current = null; setTimeout(() => { moved.current = false }, 0) }
 
-  if (!root.branches || root.branches.length === 0) {
-    return (
-      <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground rounded-2xl border bg-card/40">
-        This mind map has no branches yet.
-      </div>
-    )
+  const toggle = (n: N) => {
+    if (moved.current || !n.kids.length) return
+    setCollapsed((s) => { const c = new Set(s); c.has(n.id) ? c.delete(n.id) : c.add(n.id); return c })
   }
+  const expandAll = () => setCollapsed(new Set())
+  const collapseAll = () => { const s = new Set<string>(); const walk = (n: N) => { if (n.depth >= 1 && n.kids.length) s.add(n.id); n.kids.forEach(walk) }; walk(tree); setCollapsed(s) }
+
+  let gridPx = 30 * view.k
+  while (gridPx < 18) gridPx *= 2
+  const btn = "grid h-14 w-14 place-items-center text-sky-600 transition active:bg-slate-100 hover:bg-slate-50"
 
   return (
-    <div
-      ref={wrapRef}
-      className={`h-full w-full flex flex-col gap-2 ${isFullscreen ? "bg-background p-4" : ""}`}
-    >
-      <div className="flex justify-end shrink-0">
-        <button
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          className="w-8 h-8 rounded-lg border flex items-center justify-center text-muted-foreground hover:bg-accent/10 hover:text-foreground transition-colors"
-        >
-          {isFullscreen ? "⤡" : "⤢"}
-        </button>
-      </div>
+    <div ref={wrap} className="relative h-full w-full touch-none select-none overflow-hidden bg-[#f3f4f8]" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+      style={{ backgroundImage: "radial-gradient(circle, #cdd2dc 1.4px, transparent 1.6px)", backgroundSize: `${gridPx}px ${gridPx}px`, backgroundPosition: `${view.x}px ${view.y}px`, cursor: "grab" }}>
+      <div className="absolute left-0 top-0 origin-top-left will-change-transform" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})`, width: layout.width, height: layout.height }}>
+        <svg className="pointer-events-none absolute overflow-visible" style={{ left: 0, top: 0 }} width={layout.width} height={layout.height}>
+          {layout.links.map(({ a, b }) => (
+            <path key={b.id} d={`M ${a.x} ${a.y} C ${a.x + COL * 0.45} ${a.y}, ${b.x - COL * 0.45} ${b.y}, ${b.x} ${b.y}`} fill="none" stroke={b.color} strokeOpacity={0.55} strokeWidth={1.8} strokeLinecap="round" />
+          ))}
+        </svg>
 
-      <div
-        ref={containerRef}
-        className="flex-1 min-h-0 flex gap-3 overflow-x-auto overflow-y-hidden rounded-2xl border bg-card/40 p-3"
-      >
-        {columns.map((col, colIndex) => (
-          <div
-            key={colIndex}
-            className="w-[300px] min-w-[280px] max-w-[320px] shrink-0 h-full overflow-y-auto flex flex-col gap-2 bg-card border rounded-xl p-3"
-          >
-            {col.items.map((item, itemIndex) => {
-              const isSelected = col.selectedIndex === itemIndex
-              const hasChildren = !!(item.branches && item.branches.length > 0)
-              const hasDetail = !!(item.definition || item.mechanism || item.examples)
-              const accentColor = colIndex === 0 ? COLORS[itemIndex % COLORS.length] : col.color
-
-              return (
-                <div
-                  key={itemIndex}
-                  onClick={() => selectItem(colIndex, itemIndex, item)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    isSelected
-                      ? "bg-accent/10 border-primary ring-1 ring-primary/40"
-                      : "border-border hover:border-primary/40 hover:bg-accent/5"
-                  }`}
-                  style={accentColor ? { borderLeftColor: accentColor, borderLeftWidth: 3, borderLeftStyle: "solid" } : undefined}
-                >
-                  <h3 className="font-semibold text-sm text-foreground">{item.name}</h3>
-
-                  {item.definition && (
-                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                      <span className="font-semibold text-foreground/80">Definition: </span>{item.definition}
-                    </p>
-                  )}
-                  {item.mechanism && (
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      <span className="font-semibold text-foreground/80">Mechanism: </span>{item.mechanism}
-                    </p>
-                  )}
-                  {item.examples && (
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      <span className="font-semibold text-foreground/80">Examples: </span>{item.examples}
-                    </p>
-                  )}
-
-                  {hasChildren && (
-                    <div className="mt-2 text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center justify-between">
-                      <span>{item.branches!.length} subtopic{item.branches!.length === 1 ? "" : "s"}</span>
-                      <span>→</span>
-                    </div>
-                  )}
-                  {!hasChildren && !hasDetail && (
-                    <p className="text-xs text-muted-foreground/70 mt-2 italic">No further detail yet.</p>
-                  )}
+        {layout.nodes.map((n) => {
+          const parent = n.kids.length > 0
+          const isCollapsed = collapsed.has(n.id)
+          const isRoot = n.depth === 0
+          const side = parent ? "right" : "left"
+          return (
+            <div key={n.id}>
+              {/* label + card */}
+              <div style={{ position: "absolute", top: n.y - LABEL_H / 2, width: CARD_W, left: side === "right" ? n.x - 16 - CARD_W : n.x + 16, textAlign: side === "right" ? "right" : "left" }}>
+                <div onClick={() => toggle(n)} className={`flex h-[26px] items-center ${side === "right" ? "justify-end" : ""} ${parent ? "cursor-pointer" : ""}`}>
+                  <span className={`whitespace-nowrap font-semibold text-slate-800 ${isRoot ? "text-[15px] font-extrabold" : "text-[13px]"}`}>{n.node.name}</span>
                 </div>
-              )
-            })}
-          </div>
-        ))}
+                {showText && n.text && (
+                  <div className="mt-1.5 rounded-lg bg-white px-3 py-2 text-left text-[11.5px] leading-[16px] text-slate-600 shadow-[0_2px_10px_rgba(30,41,59,.08)] ring-1 ring-slate-200/70" style={{ width: CARD_W, display: "-webkit-box", WebkitLineClamp: 7, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{n.text}</div>
+                )}
+              </div>
+
+              {/* dot */}
+              <button data-node onClick={() => toggle(n)} aria-label={n.node.name}
+                className="absolute grid place-items-center rounded-full border-2 bg-white transition-transform hover:scale-125"
+                style={{ left: n.x - 9, top: n.y - 9, width: 18, height: 18, borderColor: isRoot ? ROOT_COLOR : n.color, background: isRoot || isCollapsed ? (isRoot ? ROOT_COLOR : n.color) : "#fff", boxShadow: isRoot ? "0 0 0 5px rgba(59,130,246,.2)" : "none" }}>
+                {parent && !isRoot && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white bg-amber-400" />}
+              </button>
+            </div>
+          )
+        })}
       </div>
 
-      <p className="text-xs text-muted-foreground text-center shrink-0">
-        Click a topic to open its sub-topics in a new column - scroll right to go deeper
-      </p>
+      {/* right controls */}
+      <div data-ui className="absolute bottom-24 right-3 z-10 flex flex-col gap-3 sm:bottom-6">
+        <div className="overflow-hidden rounded-3xl bg-white shadow-[0_8px_30px_rgba(30,41,59,.14)] ring-1 ring-slate-200/70">
+          <button data-ui aria-label="Toggle descriptions" onClick={() => setShowText((v) => !v)} className={`grid h-14 w-14 place-items-center transition ${showText ? "bg-emerald-50 text-emerald-600" : "text-slate-400 hover:bg-slate-50"}`}><FileText className="h-6 w-6" /></button>
+          <div className="h-px bg-slate-100" />
+          <button data-ui aria-label="Expand all" onClick={expandAll} className={btn}><ChevronsUpDown className="h-6 w-6" /></button>
+          <div className="h-px bg-slate-100" />
+          <button data-ui aria-label="Collapse all" onClick={collapseAll} className={btn}><ChevronsDownUp className="h-6 w-6" /></button>
+        </div>
+        <div className="overflow-hidden rounded-3xl bg-white shadow-[0_8px_30px_rgba(30,41,59,.14)] ring-1 ring-slate-200/70">
+          <button data-ui aria-label="Zoom in" onClick={() => zoomCenter(1.25)} className={btn + " !text-slate-700"}><Plus className="h-6 w-6" /></button>
+          <div className="h-px bg-slate-100" />
+          <button data-ui aria-label="Zoom out" onClick={() => zoomCenter(0.8)} className={btn + " !text-slate-700"}><Minus className="h-6 w-6" /></button>
+          <div className="h-px bg-slate-100" />
+          <button data-ui aria-label="Fit to screen" onClick={() => fit(true)} className={btn + " !text-slate-700"}><Scan className="h-6 w-6" /></button>
+        </div>
+      </div>
+
+      {/* node count */}
+      <div data-ui className="absolute bottom-4 left-4 z-10 flex items-center gap-3 rounded-2xl bg-white px-5 py-3 shadow-[0_8px_30px_rgba(30,41,59,.14)] ring-1 ring-slate-200/70">
+        <Network className="h-6 w-6 text-sky-500" />
+        <span className="text-lg font-bold text-slate-700">{total} nodes</span>
+      </div>
     </div>
   )
 }

@@ -579,6 +579,11 @@ export default function AdminDashboard() {
     explanation: ""
   })
 
+  const wardAutoOpen = useRef(false)
+  useEffect(() => {
+    if (wardAutoOpen.current || !user || typeof window === "undefined") return
+    if (new URLSearchParams(window.location.search).get("ward") === "1") { wardAutoOpen.current = true; setIsManagingCases(true); fetchAllCases() }
+  }, [user])
   const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
 
@@ -1569,8 +1574,8 @@ export default function AdminDashboard() {
           <Button onClick={() => setIsUploadingPYQ(true)} variant="outline" className="rounded-xl gap-2 glass">
             <Trophy className="h-4 w-4" /> Upload PYQ
           </Button>
-          <Button onClick={() => { setIsManagingCases(true); fetchAllCases(); }} variant="outline" className="rounded-xl gap-2 glass">
-            <HelpCircle className="h-4 w-4" /> Manage Cases
+          <Button onClick={() => { setIsManagingCases(true); fetchAllCases(); }} className="rounded-xl gap-2 bg-gradient-to-r from-rose-600 to-orange-500 text-white">
+            <HelpCircle className="h-4 w-4" /> Ward Round Cases (generate 100 / 200 expert)
           </Button>
           <Button onClick={() => { setIsManagingProfPyq(true); fetchAllProfPyq(); }} variant="outline" className="rounded-xl gap-2 glass">
             <BookOpen className="h-4 w-4" /> Manage Prof PYQ

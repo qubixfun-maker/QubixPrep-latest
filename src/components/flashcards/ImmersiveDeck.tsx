@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Shuffle, Check, Rotate
 
 type Card = { front: string; back: string }
 
-function hueOf(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h }
+export function hueOf(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h }
 function fit(t: string, kind: "q" | "a") {
   const n = (t || "").length
   if (kind === "q") return n < 40 ? "clamp(1.9rem,4.6vw,4rem)" : n < 100 ? "clamp(1.5rem,3.4vw,2.9rem)" : n < 220 ? "clamp(1.2rem,2.5vw,2.1rem)" : "clamp(1rem,1.9vw,1.55rem)"
