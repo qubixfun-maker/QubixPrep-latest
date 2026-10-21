@@ -67,7 +67,7 @@ export default function ArenaHub() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-3 md:p-8">
-      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-violet-700 via-fuchsia-600 to-orange-500 p-7 text-white shadow-2xl md:p-10">
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-violet-700 via-fuchsia-600 to-orange-500 p-7 text-white shadow-2xl md:p-10">
         <div className="pointer-events-none absolute -right-6 -top-6 text-[9rem] opacity-20">⚔️</div>
         <p className="text-xs font-black uppercase tracking-[0.3em] opacity-80">Multiplayer</p>
         <h1 className="mt-1 text-4xl font-black md:text-5xl">The Arena</h1>

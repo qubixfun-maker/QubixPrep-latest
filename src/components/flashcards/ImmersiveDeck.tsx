@@ -103,7 +103,7 @@ export default function ImmersiveDeck({ cards, subject, unit, backHref, onGrade 
   const glass = "border border-white/15 bg-white/[0.07] text-white backdrop-blur-xl transition hover:bg-white/15 active:scale-95"
 
   return (
-    <div className="fixed inset-0 z-[80] overflow-hidden text-white" style={{ background: `radial-gradient(120% 90% at 50% 0%, hsl(${hue} 55% 14%) 0%, #06060d 62%, #020208 100%)`, height: "100dvh" }}>
+    <div className="keep-dark fixed inset-0 z-[80] overflow-hidden text-white" style={{ background: `radial-gradient(120% 90% at 50% 0%, hsl(${hue} 55% 14%) 0%, #06060d 62%, #020208 100%)`, height: "100dvh" }}>
       <style>{CSS}</style>
 
       {/* aurora */}

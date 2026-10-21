@@ -99,7 +99,7 @@ export default function WardRoundHub() {
       <style>{SCENE_CSS}</style>
 
       {/* hero */}
-      <div className="relative overflow-hidden rounded-[2rem] p-6 text-white shadow-xl md:p-9" style={{ background: "linear-gradient(120deg,#5b3fd1 0%,#c04cdb 55%,#ff8a5b 100%)" }}>
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] p-6 text-white shadow-xl md:p-9" style={{ background: "linear-gradient(120deg,#5b3fd1 0%,#c04cdb 55%,#ff8a5b 100%)" }}>
         <div className="relative z-10 grid gap-6 md:grid-cols-[1.2fr_1fr] md:items-center">
           <div className="space-y-3">
             <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]">New · Ward Round</span>

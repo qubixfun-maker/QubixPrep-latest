@@ -46,7 +46,7 @@ export default function MyProgress() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-10">
-      <div className="relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#0f766e 0%,#0891b2 55%,#2563eb 100%)" }}>
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#0f766e 0%,#0891b2 55%,#2563eb 100%)" }}>
         <div className="relative space-y-2">
           <h1 className="text-3xl font-black tracking-tight md:text-5xl">My progress</h1>
           <p className="max-w-lg text-sm font-medium text-white/90 md:text-base">See where you are strong, where marks are leaking, and how consistent you have been.</p>

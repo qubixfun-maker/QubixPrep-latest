@@ -3,12 +3,13 @@
 import { useMemo, useState, use } from "react"
 import { useDoc, useCollection, useFirestore } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
-import { ChevronRight, ChevronLeft, Loader2, Layers, Search, Sparkles } from "lucide-react"
+import { ChevronLeft, Loader2, Layers, Search, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
 import { groupByUnit } from "@/lib/unit-sort"
 import { hueOf } from "@/components/flashcards/ImmersiveDeck"
+import ChapterTile from "@/components/lists/ChapterTile"
 
 function groupDecksByChapter(decks: any[]) {
   // decks arrives sorted oldest-created-first (see decksQuery below), so the
@@ -57,7 +58,7 @@ export default function FlashcardDecksPage({ params }: { params: Promise<{ subje
   const subjectName = subject ? (subject as any).name : subjectId
   const color = getSubjectColor(subjectName)
   const hue = hueOf(subjectName)
-  const h2 = (hue + 60) % 360
+  const h2 = (hue + 35) % 360
 
   if (checkingAuth || subjectLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
 
@@ -77,7 +78,7 @@ export default function FlashcardDecksPage({ params }: { params: Promise<{ subje
       </Link>
 
       {/* hero */}
-      <div className="relative overflow-hidden rounded-[2rem] p-6 text-white shadow-2xl md:p-10" style={{ background: `radial-gradient(120% 140% at 0% 0%, hsl(${hue} 80% 48%) 0%, hsl(${hue} 60% 22%) 45%, #0a0a14 100%)`, boxShadow: `0 30px 80px hsl(${hue} 80% 40% / .35)` }}>
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] p-6 text-white shadow-2xl md:p-10" style={{ background: `linear-gradient(130deg, hsl(${hue} 85% 52%) 0%, hsl(${h2} 80% 48%) 100%)`, boxShadow: `0 24px 60px hsl(${hue} 80% 45% / .30)` }}>
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full opacity-50 blur-3xl" style={{ background: `hsl(${h2} 90% 60%)` }} />
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.12]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.8) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.8) 1px,transparent 1px)", backgroundSize: "44px 44px", maskImage: "linear-gradient(90deg,transparent,#000 70%)", WebkitMaskImage: "linear-gradient(90deg,transparent,#000 70%)" }} />
         <svg aria-hidden className="pointer-events-none absolute -bottom-6 right-4 hidden h-52 w-52 opacity-25 md:block" style={{ animation: "fcl-float 7s ease-in-out infinite" }} viewBox="0 0 100 100" fill="none" stroke="white" strokeWidth=".8">
@@ -115,26 +116,9 @@ export default function FlashcardDecksPage({ params }: { params: Promise<{ subje
                 <h2 className="flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.2em] text-muted-foreground"><span className="h-px w-6" style={{ background: `hsl(${hue} 80% 55%)` }} />{group.unitName}</h2>
                 <div className="grid gap-3.5 md:grid-cols-2">
                   {group.items.map((chapter: any, i: number) => (
-                    <Link key={chapter.chapterName} href={`/flashcards/${subjectId}/chapter/${encodeURIComponent(chapter.chapterName)}`}>
-                      <div className="fcl-tile group flex items-center justify-between gap-4 rounded-2xl border border-white/10 p-4 md:p-5"
-                        style={{ background: `linear-gradient(155deg, hsl(${hue} 70% 55% / .22) 0%, transparent 42%), linear-gradient(145deg, #232340 0%, #15162a 60%, #0c0c18 100%)`, boxShadow: `inset 0 1px 1px rgba(255,255,255,.1), 0 10px 26px rgba(0,0,0,.35)` }}>
-                        <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: `linear-gradient(180deg, hsl(${hue} 90% 65%), hsl(${h2} 90% 60%))` }} />
-                        <div className="relative z-10 flex min-w-0 items-center gap-4 pl-2">
-                          <div className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/15" style={{ background: `linear-gradient(145deg, hsl(${hue} 75% 55%), hsl(${hue} 65% 30%))`, boxShadow: "inset 0 1px 1px rgba(255,255,255,.35), 0 4px 14px rgba(0,0,0,.4)" }}>
-                            <Layers className="h-6 w-6 text-white/90" />
-                            <span className="absolute -right-1.5 -top-1.5 grid h-6 min-w-6 place-items-center rounded-full bg-white px-1 text-[10px] font-black text-slate-900 shadow">{i + 1}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="truncate font-extrabold text-white">{chapter.chapterName}</p>
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-white/80">{chapter.cardCount} card{chapter.cardCount !== 1 ? 's' : ''}</span>
-                              <span className="hidden text-[11px] font-semibold text-white/45 sm:inline">≈ {Math.max(1, Math.round(chapter.cardCount * 0.4))} min</span>
-                            </div>
-                          </div>
-                        </div>
-                        <span className="relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition group-hover:translate-x-1 group-hover:bg-white group-hover:text-slate-900"><ChevronRight className="h-4 w-4" /></span>
-                      </div>
-                    </Link>
+                    <ChapterTile key={chapter.chapterName} href={`/flashcards/${subjectId}/chapter/${encodeURIComponent(chapter.chapterName)}`} index={i + 1} title={chapter.chapterName} hue={hue}
+                      badge={`${chapter.cardCount} card${chapter.cardCount !== 1 ? "s" : ""}`} icon={<Layers className="h-5 w-5 md:h-6 md:w-6" />}
+                      extra={<span className="text-[11px] font-semibold text-slate-500">≈ {Math.max(1, Math.round(chapter.cardCount * 0.4))} min</span>} />
                   ))}
                 </div>
               </div>

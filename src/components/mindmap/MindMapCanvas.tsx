@@ -11,6 +11,20 @@ export type MindmapNode = {
   branches?: MindmapNode[]
 }
 
+// Generated maps sometimes carry lists or objects where text is expected; flatten everything to plain text.
+const str = (v: any, d = 0): string => v == null ? "" : d > 4 ? "" : Array.isArray(v) ? v.map((x) => str(x, d + 1)).filter(Boolean).join(" ") : typeof v === "object" ? Object.values(v).map((x) => str(x, d + 1)).filter(Boolean).join(" ") : String(v)
+function sanitize(n: any, d = 0): MindmapNode {
+  const o: MindmapNode = { name: str(n?.name).trim() || "Untitled" }
+  const def = str(n?.definition).trim(), mech = str(n?.mechanism).trim(), ex = str(n?.examples).trim()
+  if (def) o.definition = def
+  if (mech) o.mechanism = mech
+  if (ex) o.examples = ex
+  const b = n?.branches
+  const list: any[] = Array.isArray(b) ? b : b && typeof b === "object" ? Object.values(b) : []
+  if (d < 8 && list.length) o.branches = list.filter((x) => x && typeof x === "object").map((x) => sanitize(x, d + 1))
+  return o
+}
+
 type N = { id: string; node: MindmapNode; depth: number; color: string; kids: N[]; x: number; y: number; text: string; cardH: number }
 
 const PALETTE = ["#60a5fa", "#8b7cf6", "#2dd4bf", "#f472b6", "#f59e0b", "#38bdf8", "#34d399", "#fb7185"]
@@ -38,7 +52,7 @@ function build(node: MindmapNode, id: string, depth: number, color: string): N {
 function count(n: N): number { return 1 + n.kids.reduce((s, k) => s + count(k), 0) }
 
 export default function MindMapCanvas({ root }: { root: MindmapNode }) {
-  const tree = useMemo(() => build(root, "r", 0, ROOT_COLOR), [root])
+  const tree = useMemo(() => build(sanitize(root), "r", 0, ROOT_COLOR), [root])
   const total = useMemo(() => count(tree), [tree])
 
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {

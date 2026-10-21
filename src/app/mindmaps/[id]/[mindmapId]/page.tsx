@@ -6,6 +6,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore"
 import { ChevronLeft, Loader2, Share2, Bookmark, Flag, HelpCircle, X } from "lucide-react"
 import Link from "next/link"
 import MindMapCanvas from "@/components/mindmap/MindMapCanvas"
+import SafeBoundary from "@/components/mindmap/SafeBoundary"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
 
@@ -76,14 +77,15 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
   }
 
   const mm = mindmap as any
+  const mapData = (() => { try { const d = typeof mm.data === "string" ? JSON.parse(mm.data) : mm.data; return d && (Array.isArray(d.branches) || d.centralTopic) ? d : null } catch { return null } })()
   const subjectName = (subject as any)?.name || ""
   const tile = "grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-slate-200/80 bg-white/90 shadow-[0_4px_16px_rgba(30,41,59,.1)] backdrop-blur transition active:scale-95 hover:bg-white sm:h-14 sm:w-14"
 
   return (
     <div className="fixed inset-0 z-[70] bg-[#f3f4f8] text-slate-900">
       <div className="absolute inset-0">
-        {mm.type === "radial" && mm.data ? (
-          <MindMapCanvas root={{ name: mm.data.centralTopic, branches: mm.data.branches }} />
+        {mapData ? (
+          <SafeBoundary><MindMapCanvas root={{ name: mapData.centralTopic, branches: mapData.branches }} /></SafeBoundary>
         ) : mm.imageUrl ? (
           <div className="flex h-full items-center justify-center overflow-auto p-4 pt-28"><img src={mm.imageUrl} alt={mm.title} className="max-w-full rounded-2xl" /></div>
         ) : (

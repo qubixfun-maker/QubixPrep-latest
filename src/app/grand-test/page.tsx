@@ -116,7 +116,7 @@ export default function GrandTest() {
     const loading = phase === "loading"
     return (
       <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-10">
-        <div className="relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#1e293b 0%,#4338ca 55%,#9333ea 100%)" }}>
+        <div className="keep-dark relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#1e293b 0%,#4338ca 55%,#9333ea 100%)" }}>
           <div className="relative space-y-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]"><Timer className="h-3 w-3" /> Exam mode</span>
             <h1 className="text-3xl font-black tracking-tight md:text-5xl">Grand test</h1>
@@ -239,7 +239,7 @@ export default function GrandTest() {
   const prev = history[1]
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-10">
-      <div className="relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#0f766e 0%,#2563eb 55%,#7c3aed 100%)" }}>
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#0f766e 0%,#2563eb 55%,#7c3aed 100%)" }}>
         <div className="relative space-y-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]"><Trophy className="h-3 w-3" /> Result</span>
           <p className="text-5xl font-black md:text-6xl">{r.score} <span className="text-2xl font-bold text-white/70">/ {r.max}</span></p>

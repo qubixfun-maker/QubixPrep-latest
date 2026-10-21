@@ -48,7 +48,7 @@ export default function StudyPlan() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-10">
-      <div className="relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#b45309 0%,#ea580c 55%,#e11d48 100%)" }}>
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#b45309 0%,#ea580c 55%,#e11d48 100%)" }}>
         <div className="relative space-y-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]"><CalendarDays className="h-3 w-3" /> Study plan</span>
           <h1 className="text-3xl font-black tracking-tight md:text-5xl">{plan && daysLeft !== null ? (daysLeft > 0 ? `${daysLeft} days to ${plan.examName || "your exam"}` : daysLeft === 0 ? "Exam day. All the best!" : "Exam date has passed") : "Plan your exam"}</h1>

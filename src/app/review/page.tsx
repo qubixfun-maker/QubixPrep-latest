@@ -38,7 +38,7 @@ export default function ReviewHome() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-10">
-      <div className="relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#4338ca 0%,#7c3aed 55%,#db2777 100%)" }}>
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] p-7 text-white shadow-xl md:p-10" style={{ background: "linear-gradient(120deg,#4338ca 0%,#7c3aed 55%,#db2777 100%)" }}>
         <div aria-hidden className="pointer-events-none absolute -right-10 -top-14 h-64 w-64 rounded-full bg-white/15 blur-3xl" />
         <div className="relative space-y-3">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]"><RotateCcw className="h-3 w-3" /> Spaced repetition</span>
