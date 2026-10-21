@@ -148,7 +148,7 @@ export default function MindMapCanvas({ root }: { root: MindmapNode }) {
       const [a, b] = pts
       const d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2
       const r = wrap.current!.getBoundingClientRect()
-      if (last.current) { zoomAt(cx - r.left, cy - r.top, d / (last.current.d || d)); setView((v) => ({ ...v, x: v.x + (cx - last.current!.x), y: v.y + (cy - last.current!.y) })) }
+      if (last.current) { const lx = last.current.x, ly = last.current.y, ld = last.current.d || d; zoomAt(cx - r.left, cy - r.top, d / ld); setView((v) => ({ ...v, x: v.x + (cx - lx), y: v.y + (cy - ly) })) }
       last.current = { x: cx, y: cy, d }
       moved.current = true
     }
