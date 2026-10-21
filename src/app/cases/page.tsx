@@ -28,13 +28,14 @@ const GROUPS: Record<string, { emoji: string; grad: string }> = {
   Anaesthesia: { emoji: "😷", grad: "linear-gradient(135deg,#06b6d4,#67e8f9)" },
   Haematology: { emoji: "🩸", grad: "linear-gradient(135deg,#be123c,#fb7185)" },
 }
-const DIFF: Record<string, string> = { easy: "bg-emerald-500", medium: "bg-amber-500", hard: "bg-rose-500" }
+const DIFF: Record<string, string> = { easy: "bg-emerald-500", medium: "bg-amber-500", hard: "bg-rose-500", expert: "bg-gradient-to-r from-rose-600 to-orange-500" }
 
 export default function WardRoundHub() {
   const db = useFirestore()
   const { canAccessContent, loading: planLoading } = usePlan()
   const [search, setSearch] = useTopSearch("Search clinical cases…")
   const [group, setGroup] = useState("All")
+  const [expertOnly, setExpertOnly] = useState(false)
   const [prog, setProg] = useState<WardProgress>({ xp: 0, done: {} })
   useEffect(() => { setProg(loadProgress()) }, [])
 
@@ -43,7 +44,7 @@ export default function WardRoundHub() {
 
   const all = useMemo(() => ((cases as any[]) || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [cases])
   const q = search.trim().toLowerCase()
-  const filtered = useMemo(() => all.filter((c) => (group === "All" || (c.specialty || "General") === group) && (!q || [c.title, c.specialty, c.topic].some((x) => String(x || "").toLowerCase().includes(q)))), [all, group, q])
+  const filtered = useMemo(() => all.filter((c) => (group === "All" || (c.specialty || "General") === group) && (!expertOnly || c.difficulty === "expert") && (!q || [c.title, c.specialty, c.topic].some((x) => String(x || "").toLowerCase().includes(q)))), [all, group, q, expertOnly])
   const groups = useMemo(() => {
     const m: Record<string, any[]> = {}
     filtered.forEach((c) => { (m[c.specialty || "General"] ||= []).push(c) })
@@ -76,6 +77,7 @@ export default function WardRoundHub() {
         </div>
         <div className="space-y-2 p-4">
           <p className="line-clamp-2 min-h-[2.5rem] text-sm font-extrabold leading-snug text-slate-900">{c.title}</p>
+          {c.difficulty === "expert" && <p className="text-[10px] font-extrabold uppercase tracking-wider text-rose-600">🔥 {c.stages?.length || 9} steps · procedures · timed</p>}
           <div className="flex items-center justify-between">
             <div className="flex gap-0.5">{[0, 1, 2].map((i) => <Star key={i} className={`h-4 w-4 ${d && i < d.stars ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />)}</div>
             <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${isLocked ? "bg-slate-100 text-slate-500" : d ? "bg-emerald-100 text-emerald-700" : "bg-primary/10 text-primary"}`}>{isLocked ? "Scholar" : d ? d.percent + "% · replay" : c.tier === "free" ? "Free · Play" : "Play"}</span>
@@ -96,7 +98,7 @@ export default function WardRoundHub() {
           <div className="space-y-3">
             <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]">New · Ward Round</span>
             <h1 className="text-4xl font-black leading-[1.05] tracking-tight md:text-5xl">Be the doctor.<br />Save the patient.</h1>
-            <p className="max-w-md text-sm font-medium text-white/85">100 live patients across every subject. Take the history, examine, investigate, diagnose and treat, while the monitor ticks and the patient's condition changes with every decision.</p>
+            <p className="max-w-md text-sm font-medium text-white/85">300 live patients across every subject, with 200 expert cases that add procedures, scans, lab reports, timed decisions and mid-case complications. Take the history, examine, investigate, diagnose and treat, while the monitor ticks and the patient's condition changes with every decision.</p>
           </div>
           <div className="rounded-3xl bg-white/15 p-4 backdrop-blur">
             <div className="flex items-center gap-3">
@@ -110,7 +112,7 @@ export default function WardRoundHub() {
             <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/25"><div className="h-full rounded-full bg-white transition-all" style={{ width: rk.pct + "%" }} /></div>
             <p className="mt-1 text-[11px] font-semibold text-white/80">{rk.next ? `${rk.toNext} XP to ${rk.next.name}` : "Top rank reached"}</p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-xl bg-white/15 py-2"><p className="text-lg font-black">{cleared}<span className="text-xs font-bold text-white/70"> / {all.length || 100}</span></p><p className="text-[10px] font-bold uppercase text-white/70">Cases cleared</p></div>
+              <div className="rounded-xl bg-white/15 py-2"><p className="text-lg font-black">{cleared}<span className="text-xs font-bold text-white/70"> / {all.length || 300}</span></p><p className="text-[10px] font-bold uppercase text-white/70">Cases cleared</p></div>
               <div className="rounded-xl bg-white/15 py-2"><p className="flex items-center justify-center gap-1 text-lg font-black"><Star className="h-4 w-4 fill-yellow-300 text-yellow-300" />{starsTotal}</p><p className="text-[10px] font-bold uppercase text-white/70">Stars earned</p></div>
             </div>
           </div>
@@ -140,6 +142,7 @@ export default function WardRoundHub() {
           )}
 
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            <button onClick={() => setExpertOnly((v) => !v)} className={`flex shrink-0 items-center gap-1 rounded-full border px-4 py-2 text-xs font-extrabold transition ${expertOnly ? "border-rose-600 bg-gradient-to-r from-rose-600 to-orange-500 text-white shadow-md" : "border-rose-300 bg-rose-50 text-rose-700 hover:border-rose-500"}`}><Flame className="h-3.5 w-3.5" /> Expert only <span className="opacity-70">{all.filter((c) => c.difficulty === "expert").length}</span></button>
             {["All", ...Object.keys(counts).sort((a, b) => (GROUPS[a] ? Object.keys(GROUPS).indexOf(a) : 99) - (GROUPS[b] ? Object.keys(GROUPS).indexOf(b) : 99))].map((g) => (
               <button key={g} onClick={() => setGroup(g)} className={`shrink-0 rounded-full border px-4 py-2 text-xs font-extrabold transition ${group === g ? "border-primary bg-primary text-white shadow-md" : "border-black/10 bg-white text-slate-700 hover:border-primary/50"}`}>
                 {g !== "All" && <span className="mr-1">{GROUPS[g]?.emoji || "🩺"}</span>}{g} <span className="opacity-60">{g === "All" ? all.length : counts[g]}</span>

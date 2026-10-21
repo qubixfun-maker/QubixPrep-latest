@@ -1,4 +1,6 @@
-// 100 curated Ward Round cases. Format: group | topic | difficulty (e/m/h) | setting
+import { EXPERT_RAW } from './case-topics-expert';
+// 100 curated Ward Round cases (ward-001..100) + 200 expert cases (ward-101..300).
+// Format: group | topic | difficulty (e/m/h) | setting
 const RAW = `
 Medicine|Inferior wall STEMI|m|emergency
 Medicine|Unstable angina / NSTEMI|m|emergency
@@ -102,10 +104,15 @@ Haematology|Immune thrombocytopenia|m|ward
 Haematology|Chronic myeloid leukaemia|m|opd
 `;
 
-export type CaseTopic = { id: string; group: string; topic: string; difficulty: 'easy' | 'medium' | 'hard'; setting: string };
+export type CaseTopic = { id: string; group: string; topic: string; difficulty: 'easy' | 'medium' | 'hard' | 'expert'; setting: string; expert?: boolean };
 const D: Record<string, 'easy' | 'medium' | 'hard'> = { e: 'easy', m: 'medium', h: 'hard' };
 
-export const CASE_TOPICS: CaseTopic[] = RAW.trim().split('\n').map((line, i) => {
+const BASE: CaseTopic[] = RAW.trim().split('\n').map((line, i) => {
   const [group, topic, d, setting] = line.split('|');
   return { id: 'ward-' + String(i + 1).padStart(3, '0'), group, topic, difficulty: D[d] || 'medium', setting };
 });
+const EXPERT: CaseTopic[] = EXPERT_RAW.trim().split('\n').map((line, i) => {
+  const [group, topic, setting] = line.split('|');
+  return { id: 'ward-' + String(i + 101).padStart(3, '0'), group, topic, difficulty: 'expert', setting, expert: true };
+});
+export const CASE_TOPICS: CaseTopic[] = [...BASE, ...EXPERT];

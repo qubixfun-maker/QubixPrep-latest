@@ -3,17 +3,20 @@
 import { useEffect, useMemo, use, useState } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ChevronLeft, Loader2, Trophy, AlertTriangle, Lightbulb, RotateCcw, CheckCircle2, XCircle, AlertCircle, Star, BookOpen } from "lucide-react"
+import { ChevronLeft, Loader2, Trophy, AlertTriangle, Lightbulb, RotateCcw, CheckCircle2, XCircle, AlertCircle, Star, BookOpen, Flame } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { usePlan } from "@/hooks/use-plan"
 import { UpgradeGate } from "@/components/upgrade-gate"
 import { Scene, SETTINGS, SCENE_CSS } from "@/components/cases/ward-scenes"
 import { PatientGlyph, BodyMap, VitalsMonitor, StabilityBar, moodOf, liveVitals, ageLabel, type Vitals } from "@/components/cases/ward-ui"
+import { EXTRA_CSS, LabReport, ScanViewer, AlertBanner, TimerRing, SequenceBoard, type Lab, type Scan } from "@/components/cases/ward-extras"
 import { saveResult, rankFor } from "@/lib/ward-progress"
+import { getAuth } from "firebase/auth"
+import { arena } from "@/lib/arena-client"
 
-type CaseOption = { id: string; label: string; outcome: string; points: number; feedback: string; finding?: string }
-type CaseStage = { id: string; type: string; prompt: string; options: CaseOption[] }
+type CaseOption = { id: string; label: string; outcome: string; points: number; feedback: string; finding?: string; labs?: Lab[]; scan?: Scan }
+type CaseStage = { id: string; type: string; kind?: string; prompt: string; options: CaseOption[]; steps?: string[]; feedback?: string; finding?: string; timeLimit?: number; alert?: { title: string; text: string } }
 type Step = { type: string; outcome: string; points: number }
 
 const OUTCOME: Record<string, { icon: any; text: string; ring: string; bg: string; label: string }> = {
@@ -28,7 +31,11 @@ const STAGE: Record<string, { emoji: string; label: string; grad: string; head: 
   investigation: { emoji: "🧪", label: "Investigations", grad: "from-amber-500 to-orange-500", head: "Lab / imaging report" },
   diagnosis: { emoji: "🧠", label: "Diagnosis", grad: "from-pink-500 to-rose-500", head: "Senior's reaction" },
   management: { emoji: "💊", label: "Management", grad: "from-emerald-500 to-green-500", head: "Patient response" },
+  procedure: { emoji: "🧰", label: "Procedure", grad: "from-sky-500 to-blue-600", head: "Procedure outcome" },
+  complication: { emoji: "🚨", label: "Complication", grad: "from-red-600 to-rose-500", head: "What happens next" },
+  counselling: { emoji: "🤝", label: "Counselling & plan", grad: "from-indigo-500 to-violet-500", head: "Outcome" },
 }
+const TIMEOUT: CaseOption = { id: "timeout", label: "No decision (time ran out)", outcome: "unsafe", points: -5, feedback: "You ran out of time. In a real emergency hesitation costs lives: commit to the best next step quickly.", finding: "" }
 const DELTA: Record<string, number> = { optimal: 6, acceptable: -4, wrong: -12, unsafe: -28 }
 const DEFAULT_VITALS: Vitals = { hr: 96, bp: "118/76", rr: 18, temp: 37.2, spo2: 96 }
 
@@ -72,10 +79,12 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
 
   useEffect(() => {
     if (!finished || !caseData) return
-    const xp = Math.max(0, score) + stars * 15
+    const xp = Math.round((Math.max(0, score) + stars * 15) * (c.difficulty === "expert" ? 1.5 : 1))
     const r = saveResult(caseId, stars, percent, arrested ? Math.floor(xp / 2) : xp)
     setGain(r.gain)
     setRankInfo(rankFor(r.progress.xp))
+    const au = getAuth().currentUser
+    if (au && !arrested) arena(au, "xp", { caseId, percent, stars }).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished])
 
@@ -90,13 +99,13 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
   const base: Vitals = { ...DEFAULT_VITALS, ...(c.vitals || {}) }
   const vit = liveVitals(base, stability, lastOptimal)
   const mood = moodOf(c.appearance, stability)
-  const best = stage?.options.find((o) => o.outcome === "optimal")
+  const best = stage?.options?.find((o) => o.outcome === "optimal")
 
   function pick(o: CaseOption) {
     if (picked) return
     setPicked(o)
     setScore((s) => s + o.points)
-    setMaxScore((m) => m + Math.max(...stage.options.map((x) => x.points)))
+    setMaxScore((m) => m + (stage.kind === "sequence" ? 10 : Math.max(...stage.options.map((x) => x.points))))
     setStability((s) => Math.max(0, Math.min(100, s + (DELTA[o.outcome] ?? 0))))
     setSteps((p) => [...p, { type: stage.type, outcome: o.outcome, points: o.points }])
     if (o.outcome === "unsafe" || o.outcome === "wrong") setShake((k) => k + 1)
@@ -104,7 +113,17 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
   function next() {
     setPicked(null)
     if (arrested || stageIndex + 1 >= stages.length) setFinished(true)
-    else setStageIndex(stageIndex + 1)
+    else {
+      if (stages[stageIndex + 1]?.alert) { setStability((s) => Math.max(8, s - 12)); setShake((k) => k + 1) }
+      setStageIndex(stageIndex + 1)
+    }
+  }
+  function submitSequence(correct: number, total: number) {
+    const frac = total ? correct / total : 0
+    const outcome = frac === 1 ? "optimal" : frac >= 0.6 ? "acceptable" : frac >= 0.34 ? "wrong" : "unsafe"
+    const points = outcome === "unsafe" ? -5 : Math.round(10 * frac)
+    const summary = frac === 1 ? "Perfect order, every step in the right place." : `${correct} of ${total} steps were in the right place.`
+    pick({ id: "seq", label: "Procedure", outcome, points, feedback: `${summary} ${stage.feedback || ""}`.trim(), finding: stage.finding || "" })
   }
   function restart() {
     setStageIndex(0); setPicked(null); setScore(0); setMaxScore(0); setStability(100); setSteps([]); setFinished(false); setFlipped({}); setGain(null); setRankInfo(null)
@@ -112,7 +131,7 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 p-3 md:p-8">
-      <style>{SCENE_CSS}</style>
+      <style>{SCENE_CSS + EXTRA_CSS}</style>
       <Link href="/cases" className="flex w-fit items-center gap-1 text-xs font-bold uppercase tracking-widest text-primary hover:underline">
         <ChevronLeft className="h-3 w-3" /> Back to Ward Round
       </Link>
@@ -126,6 +145,7 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
           <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
             <span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-extrabold text-slate-800 shadow">{SETTINGS[setting].emoji} {SETTINGS[setting].label}</span>
             {c.specialty && <span className="rounded-full bg-primary px-3 py-1 text-[11px] font-extrabold text-white shadow">{c.specialty}</span>}
+            {c.difficulty === "expert" && <span className="flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-600 to-orange-500 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-white shadow"><Flame className="h-3 w-3" /> Expert</span>}
           </div>
           <div className="absolute right-3 top-3 h-28 w-16 rounded-2xl bg-white/80 p-1 shadow backdrop-blur md:h-32 md:w-[72px]"><BodyMap region={c.region} /></div>
           {pt.name && (
@@ -145,7 +165,7 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
       {!finished ? (
         <>
           {/* --- stage rail --------------------------------------------------- */}
-          <div className="flex items-center justify-between gap-1 rounded-2xl border border-black/5 bg-white p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-0.5 rounded-2xl border border-black/5 bg-white p-2 shadow-sm sm:gap-1 sm:p-3">
             {stages.map((s, i) => {
               const st = STAGE[s.type] || STAGE.history
               const done = steps[i]
@@ -153,7 +173,7 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
               const dot = done ? (done.outcome === "optimal" ? "bg-emerald-500" : done.outcome === "acceptable" ? "bg-amber-400" : done.outcome === "unsafe" ? "bg-rose-500" : "bg-slate-400") : cur ? "bg-primary" : "bg-slate-200"
               return (
                 <div key={s.id} className="flex flex-1 flex-col items-center gap-1">
-                  <div className={`grid h-10 w-10 place-items-center rounded-full text-lg text-white shadow ${dot} ${cur && !picked ? "ring-4 ring-primary/25" : ""}`}>{st.emoji}</div>
+                  <div className={`grid h-9 w-9 place-items-center rounded-full text-base text-white shadow sm:h-10 sm:w-10 sm:text-lg ${dot} ${cur && !picked ? "ring-4 ring-primary/25" : ""}`}>{st.emoji}</div>
                   <span className={`hidden text-[10px] font-extrabold uppercase tracking-wider sm:block ${cur ? "text-primary" : "text-muted-foreground"}`}>{st.label}</span>
                 </div>
               )
@@ -170,14 +190,22 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
             </div>
           )}
 
+          {stage?.alert && !picked && <AlertBanner alert={stage.alert} />}
+
           {stage && (
             <div key={stage.id} className="wr-rise overflow-hidden rounded-3xl border border-black/5 bg-white shadow-lg">
               <div className={`flex items-center justify-between bg-gradient-to-r px-5 py-3 text-white ${(STAGE[stage.type] || STAGE.history).grad}`}>
                 <span className="text-xs font-black uppercase tracking-widest">{(STAGE[stage.type] || STAGE.history).emoji} {(STAGE[stage.type] || STAGE.history).label}</span>
-                <span className="text-xs font-bold opacity-90">Step {stageIndex + 1} of {stages.length}</span>
+                <span className="flex items-center gap-3 text-xs font-bold opacity-90">
+                  {stage.timeLimit ? <TimerRing seconds={stage.timeLimit} runKey={stage.id} active={!picked && !finished} onExpire={() => pick(TIMEOUT)} /> : null}
+                  Step {stageIndex + 1} of {stages.length}
+                </span>
               </div>
               <div className="space-y-4 p-5">
                 <p className="text-base font-bold leading-snug text-slate-900">{stage.prompt}</p>
+                {stage.kind === "sequence" && stage.steps ? (
+                  <SequenceBoard stageId={stage.id} prompt={stage.prompt} steps={stage.steps} done={!!picked} onSubmit={submitSequence} />
+                ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {stage.options.map((o, i) => {
                     const sel = picked?.id === o.id
@@ -193,6 +221,7 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
                     )
                   })}
                 </div>
+                )}
 
                 {picked && (() => {
                   const st = OUTCOME[picked.outcome] || OUTCOME.wrong
@@ -200,6 +229,8 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
                   const meta = STAGE[stage.type] || STAGE.history
                   return (
                     <div className="wr-rise space-y-3">
+                      {picked.scan && <ScanViewer scan={picked.scan} />}
+                      {picked.labs && picked.labs.length > 0 && <LabReport labs={picked.labs} />}
                       {picked.finding && (
                         <div className={`rounded-2xl border p-4 ${stage.type === "investigation" ? "border-dashed border-amber-400 bg-amber-50 font-mono text-[13px]" : stage.type === "examination" ? "border-teal-200 bg-teal-50" : "border-violet-200 bg-violet-50"}`}>
                           <p className="mb-1.5 text-[10px] font-extrabold uppercase tracking-widest text-slate-500">{meta.emoji} {meta.head}</p>

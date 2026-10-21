@@ -737,12 +737,12 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleGenerate100() {
+  async function handleGenerate100(expert: boolean = false) {
     if (!db || !user) return
-    if (!confirm("Generate the 100 Ward Round cases? It takes about 10-15 minutes. Keep this tab open. Cases that already exist are skipped.")) return
+    if (!confirm(expert ? "Generate the 200 EXPERT Ward Round cases? It takes about 45-75 minutes. Keep this tab open. Cases that already exist are skipped." : "Generate the 100 Ward Round cases? It takes about 10-15 minutes. Keep this tab open. Cases that already exist are skipped.")) return
     batchStopRef.current = false
     const have = new Set(allCases.map((c: any) => c.id))
-    const todo = CASE_TOPICS.filter((t) => !have.has(t.id))
+    const todo = CASE_TOPICS.filter((t) => !!t.expert === expert && !have.has(t.id))
     let idx = 0, done = 0, failed = 0
     setBatchRun({ done, total: todo.length, failed, running: true })
     const worker = async () => {
@@ -2272,8 +2272,11 @@ export default function AdminDashboard() {
             <h4 className="font-bold flex items-center gap-2 text-accent text-sm"><Wand2 className="h-4 w-4" /> Ward Round: the 100 ready cases</h4>
             <p className="text-xs text-muted-foreground">Creates all 100 curated cases (Medicine, Surgery, OBG, Paediatrics and more) in one go. Already existing ones are skipped, so you can run it again to fill any gaps.</p>
             <div className="flex items-center gap-3 flex-wrap">
-              <Button onClick={handleGenerate100} disabled={!!batchRun?.running} className="rounded-lg gap-2">
+              <Button onClick={() => handleGenerate100(false)} disabled={!!batchRun?.running} className="rounded-lg gap-2">
                 {batchRun?.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Generate 100 cases
+              </Button>
+              <Button onClick={() => handleGenerate100(true)} disabled={!!batchRun?.running} className="rounded-lg gap-2 bg-gradient-to-r from-rose-600 to-orange-500 text-white">
+                {batchRun?.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Generate 200 expert cases
               </Button>
               {batchRun?.running && <Button variant="outline" className="rounded-lg" onClick={() => { batchStopRef.current = true }}>Stop</Button>}
               {batchRun && <span className="text-xs font-bold">{batchRun.done} / {batchRun.total} done{batchRun.failed ? " · " + batchRun.failed + " failed" : ""}{!batchRun.running ? " · finished" : ""}</span>}

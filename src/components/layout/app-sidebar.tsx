@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import {
   BookOpen, GraduationCap, Layers, Network, Flame, Database, Trophy, BrainCircuit, Stethoscope,
-  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper,
+  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -67,6 +67,7 @@ export function AppSidebar() {
     { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit, lock: !canAccessContent },
     { title: "Ward Round", url: "/cases", icon: Stethoscope },
+    { title: "Arena", url: "/arena", icon: Swords },
     { title: "OSCE Stations", url: "/osce-stations", icon: Stethoscope },
   ]
   const studio: Item[] = [

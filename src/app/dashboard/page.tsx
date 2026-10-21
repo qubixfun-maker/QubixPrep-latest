@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   FileDown,
   Stethoscope,
+  Swords,
   Play, 
   ArrowRight, 
   Zap, 
@@ -186,6 +187,7 @@ export default function Dashboard() {
               // { label: "Video Lectures", desc: videoCount + " videos available", href: "/videos", icon: Video, color: "text-green-400" },
               { label: "Flashcards", desc: "Quick recall practice", href: "/flashcards", icon: Layers, color: "text-accent" },
               { label: "Ward Round", desc: "100 live patient cases", href: "/cases", icon: Stethoscope, color: "text-red-400" },
+              { label: "Arena", desc: "Duels, co-op and leaderboards", href: "/arena", icon: Swords, color: "text-fuchsia-400" },
             ].map((item) => (
               <Link key={item.label} href={item.href}>
                 <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all group cursor-pointer">

@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic"
-export const maxDuration = 120
+export const maxDuration = 300
 
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
 import { generateClinicalCase } from '@/ai/flows/ai-case-generator'
+import { generateExpertCase } from '@/ai/flows/ai-expert-case'
 import { CASE_TOPICS } from '@/ai/case-topics'
 
 // Admin only: generates ONE of the 100 Ward Round cases and saves it to Firestore.
@@ -23,11 +24,14 @@ export async function POST(req: NextRequest) {
 
     const n = parseInt(t.id.slice(5), 10)
     for (let attempt = 0; attempt < 2; attempt++) {
-      const r = await generateClinicalCase({ subject: t.group, topic: t.topic, difficulty: t.difficulty, setting: t.setting })
-      if (r.case && r.case.stages?.length === 5) {
+      const r = t.expert
+        ? await generateExpertCase({ subject: t.group, topic: t.topic, setting: t.setting })
+        : await generateClinicalCase({ subject: t.group, topic: t.topic, difficulty: t.difficulty as any, setting: t.setting })
+      const ok = t.expert ? (r.case && r.case.stages?.length >= 8) : (r.case && r.case.stages?.length === 5)
+      if (r.case && ok) {
         await ref.set({
           ...r.case, id: t.id, specialty: t.group, topic: t.topic,
-          tier: n % 4 === 1 ? 'free' : 'paid', order: n, createdAt: new Date().toISOString(),
+          tier: t.expert ? 'paid' : n % 4 === 1 ? 'free' : 'paid', order: n, createdAt: new Date().toISOString(),
         })
         return NextResponse.json({ ok: true })
       }
