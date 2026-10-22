@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import {
   BookOpen, GraduationCap, Layers, Network, Flame, Database, Trophy, BrainCircuit, Stethoscope,
-  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords, HelpCircle, LifeBuoy, RotateCcw, BarChart3, CalendarDays, Timer,
+  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords, HelpCircle, LifeBuoy, RotateCcw, BarChart3, CalendarDays, Timer, Microscope,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -73,6 +73,7 @@ export function AppSidebar() {
     { title: "Ward Round", url: "/cases", icon: Stethoscope },
     { title: "Arena", url: "/arena", icon: Swords },
     { title: "OSCE Stations", url: "/osce-stations", icon: Stethoscope },
+    { title: "Spot & Identify", url: "/spotters", icon: Microscope },
   ]
   const studio: Item[] = [
     { title: "Jelly AI", url: "/jelly", icon: Sparkles },

@@ -1704,6 +1704,11 @@ export default function AdminDashboard() {
               <BarChart3 className="h-4 w-4" /> Usage &amp; Growth
             </Button>
           </Link>
+          <Link href="/admin/spotters">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+              <BarChart3 className="h-4 w-4" /> Spotters upload
+            </Button>
+          </Link>
           <Link href="/admin/analytics">
             <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
               <BarChart3 className="h-4 w-4" /> Analytics
