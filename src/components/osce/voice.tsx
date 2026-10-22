@@ -6,6 +6,32 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { splitSentences, type Gender } from "@/lib/osce/shared"
 
+/* ---------------- Problems are shown to the student instead of failing silently ---------------- */
+
+let issue = ""
+const subs = new Set<() => void>()
+export function reportVoiceIssue(msg: string) { if (issue === msg) return; issue = msg; subs.forEach((f) => f()) }
+/** The latest voice problem ("" when everything is fine). Re-renders the caller when it changes. */
+export function useVoiceIssue() {
+  const [, bump] = useState(0)
+  useEffect(() => { const f = () => bump((n) => n + 1); subs.add(f); return () => { subs.delete(f) } }, [])
+  return issue
+}
+
+/** Phones only allow sound that follows a tap. This plays a silent clip on the first tap so later speech is allowed. */
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+let shared: HTMLAudioElement | null = null
+export function primeAudio() {
+  try {
+    if (!shared) { shared = new Audio(); shared.src = SILENT; shared.play().catch(() => {}) }
+    if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; window.speechSynthesis.speak(u) }
+  } catch {}
+}
+if (typeof window !== "undefined") {
+  const once = () => { primeAudio(); window.removeEventListener("pointerdown", once, true) }
+  window.addEventListener("pointerdown", once, true)
+}
+
 /* ---------------- Speaking: server voice (male / female, local language) with browser fallback ---------------- */
 
 const FEMALE_RE = /female|woman|zira|heera|swara|kalpana|lekha|neerja|pallavi|aditi|priya|veena|sangeeta|raveena|shruti|tessa|samantha|karen|google (हिन्दी|bengali|tamil|telugu|kannada|malayalam|marathi)/i
@@ -23,7 +49,7 @@ function browserVoice(lang: string, gender: Gender): SpeechSynthesisVoice | null
 function browserSpeak(text: string, lang: string, gender: Gender, kid = false): Promise<void> {
   return new Promise((resolve) => {
     try {
-      if (!window.speechSynthesis) return resolve()
+      if (!window.speechSynthesis) { reportVoiceIssue("This browser cannot speak. Open QubixPrep in Chrome to hear the voice."); return resolve() }
       const u = new SpeechSynthesisUtterance(text)
       u.lang = lang
       const v = browserVoice(lang, gender)
@@ -31,7 +57,7 @@ function browserSpeak(text: string, lang: string, gender: Gender, kid = false): 
       u.pitch = kid ? 1.7 : gender === "male" ? 0.8 : 1.15 // makes the gender audible even when only one voice exists
       u.rate = kid ? 1.15 : 1.05
       u.onend = () => resolve()
-      u.onerror = () => resolve()
+      u.onerror = (e: any) => { if (e?.error && e.error !== "canceled" && e.error !== "interrupted") reportVoiceIssue("This phone's own voice failed (" + e.error + "). Check that a Text-to-speech engine is installed and the volume is up."); resolve() }
       window.speechSynthesis.speak(u)
     } catch { resolve() }
   })
@@ -46,15 +72,17 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
   let buf = ""; let first = true; let playing = false; let stopped = false; let ended = false; let finished = false; const live = new Set<HTMLAudioElement>()
   const jobs: { text: string; url: Promise<string | null> }[] = []
 
+  let lastWhy = ""
   const fetchOnce = async (text: string): Promise<string | null> => {
     try {
       const res = await fetch("/api/osce-stations/tts", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken: await o.getToken(), text, lang: o.lang, gender: o.gender, variant: o.variant || 0, kid: !!o.kid }),
       })
-      if (!res.ok) return null
+      if (!res.ok) { lastWhy = `${res.status} ${(await res.text().catch(() => "")).slice(0, 140)}`; return null }
+      reportVoiceIssue("")
       return URL.createObjectURL(await res.blob())
-    } catch { return null }
+    } catch (e: any) { lastWhy = e?.message || "network error"; return null }
   }
   const fetchAudio = async (text: string): Promise<string | null> => {
     for (let i = 0; i < 3; i++) {
@@ -63,16 +91,18 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
       if (stopped) return null
       await new Promise((ok) => setTimeout(ok, 400 * (i + 1)))
     }
+    reportVoiceIssue("The server voice is not responding (" + lastWhy + "). Using this device's own voice instead.")
     return null
   }
   const play = (url: string) => new Promise<void>((resolve) => {
-    const a = new Audio(url)
+    const a = shared || new Audio()
+    a.src = url
     live.add(a)
     let done = false
     const fin = () => { if (done) return; done = true; clearInterval(iv); resolve() }
     const iv = setInterval(() => { if (a.duration && a.duration - a.currentTime < 0.12) fin() }, 30)
     a.onended = () => { live.delete(a); fin() }; a.onerror = () => { live.delete(a); fin() }
-    a.play().catch(fin)
+    a.play().catch((e) => { reportVoiceIssue(e?.name === "NotAllowedError" ? "The browser blocked sound. Tap anywhere on the page once, then try again." : "Could not play the voice (" + (e?.name || "error") + ")."); fin() })
   }).finally(() => setTimeout(() => URL.revokeObjectURL(url), 3000))
 
   const finish = () => { if (finished) return; finished = true; o.onEnd?.() }
@@ -112,6 +142,8 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
   const [listening, setListening] = useState(false)
   const [interim, setInterim] = useState("")
   const [supported, setSupported] = useState(true)
+  const [error, setError] = useState("")
+  const starting = useRef(false); const heard = useRef(false)
   const recRef = useRef<any>(null)
   const finalRef = useRef(""); const interimRef = useRef("")
   const want = useRef(false); const timer = useRef<any>(null); const startedAt = useRef(0)
@@ -132,6 +164,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     const r = new Ctor()
     r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1
     r.onresult = (e: any) => {
+      heard.current = true; setError("")
       let it = ""
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i]
@@ -139,12 +172,22 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
       }
       interimRef.current = it; setInterim(it); arm(silenceMs)
     }
-    r.onerror = (e: any) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") want.current = false }
+    r.onerror = (e: any) => {
+      const c = e?.error
+      if (c === "not-allowed" || c === "service-not-allowed") { want.current = false; setError("The microphone is blocked. Tap the lock icon in the address bar, allow Microphone for this site, then tap again.") }
+      else if (c === "audio-capture") { want.current = false; setError("No microphone was found, or another app is using it. Close other apps that use the mic and try again.") }
+      else if (c === "network") { want.current = false; setError("Voice input needs an internet connection (it uses Google's speech service). Check your connection and try again.") }
+      else if (c === "language-not-supported") { want.current = false; setError("This browser does not support voice input in the chosen language. Pick English or type instead.") }
+      else if (c === "no-speech") setError("I did not hear anything. Tap the mic and speak again.")
+    }
     r.onend = () => {
       if (want.current && Date.now() - startedAt.current > 600) {
         try { const n = make(); recRef.current = n; startedAt.current = Date.now(); n.start(); return } catch {}
       }
-      want.current = false; flush()
+      const quick = Date.now() - startedAt.current <= 600
+      want.current = false
+      if (quick && !heard.current) setError((prev) => prev || "The microphone stopped right away. Close other apps that use the mic, then tap again.")
+      flush()
     }
     return r
   }, [lang, arm, flush, silenceMs])
@@ -155,24 +198,35 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     return () => { want.current = false; clearTimeout(timer.current); try { recRef.current?.abort() } catch {} }
   }, [])
 
-  const start = useCallback(() => {
-    if (want.current) return
-    stopSpeaking()
-    finalRef.current = ""; interimRef.current = ""; setInterim("")
+  const start = useCallback(async () => {
+    if (want.current || starting.current) return
+    starting.current = true
+    stopSpeaking(); primeAudio()
+    finalRef.current = ""; interimRef.current = ""; setInterim(""); setError(""); heard.current = false
     try {
+      // ask for the microphone first, so a blocked mic gives a clear message instead of silence
+      if (navigator.mediaDevices?.getUserMedia) {
+        try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop()) }
+        catch (e: any) {
+          setError(e?.name === "NotFoundError" ? "No microphone was found on this device." : "The microphone is blocked. Tap the lock icon in the address bar, allow Microphone for this site, then tap again.")
+          return
+        }
+      }
       const r = make(); recRef.current = r; want.current = true; startedAt.current = Date.now()
       r.start(); setListening(true); arm(9000)
-    } catch { want.current = false; setListening(false) }
+    } catch (e: any) { want.current = false; setListening(false); setError("Could not start the microphone (" + (e?.message || "unknown error") + ").") }
+    finally { starting.current = false }
   }, [make, arm])
 
-  return { start, stop, listening, interim, supported }
+  return { start, stop, listening, interim, supported, error }
 }
 
 export function VoiceOrTextInput({ onSubmit, disabled, lang, placeholder, autoStartKey, extra }: {
   onSubmit: (text: string) => void; disabled?: boolean; lang: string; placeholder?: string; autoStartKey?: number; extra?: React.ReactNode
 }) {
   const [typed, setTyped] = useState("")
-  const { start, stop, listening, interim, supported } = useListen(lang, (t) => onSubmit(t))
+  const { start, stop, listening, interim, supported, error } = useListen(lang, (t) => onSubmit(t))
+  const voiceIssue = useVoiceIssue()
   const last = useRef(autoStartKey || 0)
   useEffect(() => {
     if (autoStartKey && autoStartKey !== last.current) { last.current = autoStartKey; if (!disabled && supported) start() }
@@ -180,13 +234,16 @@ export function VoiceOrTextInput({ onSubmit, disabled, lang, placeholder, autoSt
 
   return (
     <div className="space-y-2">
+      {!supported && <p className="text-xs rounded-lg bg-amber-100 text-amber-900 px-3 py-2">Voice input is not available in this browser. Open QubixPrep in Chrome to speak to the patient. You can still type below.</p>}
       {supported && (
-        <Button disabled={disabled && !listening} onClick={() => (listening ? stop() : start())}
+        <Button disabled={disabled && !listening} onClick={() => { primeAudio(); listening ? stop() : start() }}
           className={`w-full gap-2 ${listening ? "bg-red-500 hover:bg-red-600 animate-pulse" : ""}`}>
           {listening ? <><Square className="h-4 w-4" /> Listening... tap when finished</> : <><Mic className="h-4 w-4" /> Tap to speak</>}
         </Button>
       )}
       {listening && interim && <p className="text-xs text-muted-foreground italic px-1">{interim}</p>}
+      {error && <p className="text-xs rounded-lg bg-red-100 text-red-800 px-3 py-2">{error}</p>}
+      {voiceIssue && <p className="text-xs rounded-lg bg-amber-100 text-amber-900 px-3 py-2">{voiceIssue}</p>}
       <div className="flex gap-2">
         <Input placeholder={placeholder || "Or type here..."} value={typed} onChange={(e) => setTyped(e.target.value)} disabled={disabled}
           onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { onSubmit(typed.trim()); setTyped("") } }} />
