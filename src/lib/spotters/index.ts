@@ -1,4 +1,11 @@
 import type { Spot } from "./types"
+import { applyExtra } from "./extra"
+import { EXTRA_SURGERY } from "./extra-surgery"
+import { EXTRA_OBG } from "./extra-obg"
+import { EXTRA_OPHTHAL } from "./extra-ophthal"
+import { EXTRA_SPECIMENS } from "./extra-specimens"
+import { EXTRA_PATHOLOGY } from "./extra-pathology"
+import { EXTRA_HISTOLOGY } from "./extra-histology"
 import { HISTOLOGY } from "./data-histology"
 import { PATHOLOGY_SLIDES } from "./data-pathology-slides"
 import { SPECIMENS } from "./data-specimens"
@@ -8,7 +15,9 @@ import { OBG_INSTRUMENTS } from "./data-obg-instruments"
 
 export type { Spot, SpotMcq, SpotImage } from "./types"
 
-export const SPOTS: Spot[] = [...SURGERY, ...OBG_INSTRUMENTS, ...OPHTHAL, ...SPECIMENS, ...PATHOLOGY_SLIDES, ...HISTOLOGY]
+const EXTRA = { ...EXTRA_SURGERY, ...EXTRA_OBG, ...EXTRA_OPHTHAL, ...EXTRA_SPECIMENS, ...EXTRA_PATHOLOGY, ...EXTRA_HISTOLOGY }
+
+export const SPOTS: Spot[] = applyExtra([...SURGERY, ...OBG_INSTRUMENTS, ...OPHTHAL, ...SPECIMENS, ...PATHOLOGY_SLIDES, ...HISTOLOGY], EXTRA)
 
 export const SPOT_BY_ID: Record<string, Spot> = Object.fromEntries(SPOTS.map((s) => [s.id, s]))
 
