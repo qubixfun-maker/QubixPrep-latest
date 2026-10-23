@@ -5,6 +5,7 @@ import { Mic, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { splitSentences, type Gender } from "@/lib/osce/shared"
+import { micAcquire } from "@/lib/mic-lock"
 
 /* ---------------- Problems are shown to the student instead of failing silently ---------------- */
 
@@ -147,10 +148,11 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
   const recRef = useRef<any>(null)
   const finalRef = useRef(""); const interimRef = useRef("")
   const want = useRef(false); const timer = useRef<any>(null); const startedAt = useRef(0)
+  const release = useRef<null | (() => void)>(null)
   const cb = useRef(onFinal); cb.current = onFinal
 
   const flush = useCallback(() => {
-    setListening(false); clearTimeout(timer.current)
+    setListening(false); clearTimeout(timer.current); release.current?.(); release.current = null
     const t = `${finalRef.current} ${interimRef.current}`.trim()
     finalRef.current = ""; interimRef.current = ""; setInterim("")
     if (t) cb.current(t)
@@ -195,7 +197,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
   useEffect(() => {
     if (typeof window === "undefined") return
     if (!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)) setSupported(false)
-    return () => { want.current = false; clearTimeout(timer.current); try { recRef.current?.abort() } catch {} }
+    return () => { want.current = false; clearTimeout(timer.current); release.current?.(); release.current = null; try { recRef.current?.abort() } catch {} }
   }, [])
 
   const start = useCallback(async () => {
@@ -203,18 +205,22 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     starting.current = true
     stopSpeaking(); primeAudio()
     finalRef.current = ""; interimRef.current = ""; setInterim(""); setError(""); heard.current = false
+    // tell the "Hey Jelly" listener to let go of the microphone first (Chrome allows one speech recognizer at a time)
+    release.current?.(); release.current = micAcquire()
+    await new Promise((r) => setTimeout(r, 400))
     try {
       // ask for the microphone first, so a blocked mic gives a clear message instead of silence
       if (navigator.mediaDevices?.getUserMedia) {
         try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop()) }
         catch (e: any) {
           setError(e?.name === "NotFoundError" ? "No microphone was found on this device." : "The microphone is blocked. Tap the lock icon in the address bar, allow Microphone for this site, then tap again.")
+          release.current?.(); release.current = null
           return
         }
       }
       const r = make(); recRef.current = r; want.current = true; startedAt.current = Date.now()
       r.start(); setListening(true); arm(9000)
-    } catch (e: any) { want.current = false; setListening(false); setError("Could not start the microphone (" + (e?.message || "unknown error") + ").") }
+    } catch (e: any) { want.current = false; setListening(false); release.current?.(); release.current = null; setError("Could not start the microphone (" + (e?.message || "unknown error") + ").") }
     finally { starting.current = false }
   }, [make, arm])
 

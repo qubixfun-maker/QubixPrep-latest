@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useMicBusy } from "@/lib/mic-lock"
 
 const WAKE = /\b(?:hey |hi |ok |okay )?(?:jelly|jelli|jeli|jally|jolly|chelly|gelly)\b/i
 
@@ -12,7 +13,8 @@ const WAKE = /\b(?:hey |hi |ok |okay )?(?:jelly|jelli|jeli|jally|jolly|chelly|ge
 export function useWakeWord(enabled: boolean, paused: boolean, onWake: (command: string) => void) {
   const [supported, setSupported] = useState(true)
   const cb = useRef(onWake); cb.current = onWake
-  const active = enabled && !paused
+  const micBusy = useMicBusy() // another part of the app (for example the OSCE mic) is using speech recognition
+  const active = enabled && !paused && !micBusy
 
   useEffect(() => {
     if (!active) return
