@@ -14,6 +14,8 @@ import { usePlan } from "@/hooks/use-plan"
 import { clinicalTutorFlow } from "@/ai/flows/ai-clinical-tutor"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useJelly } from "@/components/jelly/jelly-store"
+import { doc, getDoc } from "firebase/firestore"
+import { PyqImages } from "@/components/pyq/pyq-image"
 
 function PYQSessionContent() {
   const { user } = useUser()
@@ -29,6 +31,7 @@ function PYQSessionContent() {
   const subjectsParam = searchParams.get('subjects') || 'All Subjects'
   const mode = searchParams.get('mode') || 'practice'
   const desiredCount = parseInt(searchParams.get('count') || '0')
+  const imgParam = searchParams.get('img') || 'all'
 
   const years = yearsParam.split(',').map(y => parseInt(y)).filter(y => !isNaN(y))
   const subjects = subjectsParam === 'All Subjects' ? null : subjectsParam.split(',')
@@ -64,27 +67,44 @@ function PYQSessionContent() {
   const [isAiLoading, setIsAiLoading] = useState(false)
 
   useEffect(() => {
+    if (!db) return
+    const fdb = db
+    let cancelled = false
     async function load() {
       setLoading(true)
-      const params = new URLSearchParams({ exam_type: exam, years: years.join(',') })
-      if (subjects) params.set('subjects', subjects.join(','))
-
-      const res = await fetch('/api/pyq?' + params.toString())
-      const json = await res.json()
-      if (json.error) { toast({ variant: "destructive", title: "Error", description: json.error }); setLoading(false); return }
-
-      let pool = json.data || []
-      pool = pool.sort(() => 0.5 - Math.random())
-      if (desiredCount > 0 && pool.length > desiredCount) {
-        pool = pool.slice(0, desiredCount)
+      try {
+        const snap = await getDoc(doc(fdb, 'pyqMeta', 'facets'))
+        const list = ((snap.data()?.rows || []) as string[]).map(s => s.split('|'))
+        let ids = list
+          .filter(p => p[1] === exam && years.includes(parseInt(p[2])) && (!subjects || subjects.includes(p[3])) && (imgParam === 'img' ? p[4] === '1' : imgParam === 'text' ? p[4] !== '1' : true))
+          .map(p => p[0])
+        for (let i = ids.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [ids[i], ids[j]] = [ids[j], ids[i]]
+        }
+        if (desiredCount > 0 && ids.length > desiredCount) ids = ids.slice(0, desiredCount)
+        const docs = await Promise.all(ids.map(id => getDoc(doc(fdb, 'pyqQuestions', id))))
+        const pool = docs.filter(d => d.exists()).map(d => {
+          const x: any = d.data()
+          const o: string[] = x.options || []
+          return {
+            id: d.id, exam_type: x.exam, year: x.year, subject: x.subject, paper: x.paper,
+            question_text: x.question, option1: o[0], option2: o[1], option3: o[2] ?? null, option4: o[3] ?? null,
+            correct_answer_index: x.correct, explanation: x.explanation,
+            qimgs: x.qimgs || [], eimgs: x.eimgs || [],
+          }
+        })
+        if (cancelled) return
+        setQuestions(pool)
+        if (mode === 'exam') setTimeLeft(pool.length * 90)
+      } catch (e: any) {
+        toast({ variant: "destructive", title: "Error", description: e?.message || "Could not load questions" })
       }
-
-      setQuestions(pool)
-      if (mode === 'exam') setTimeLeft(pool.length * 90)
-      setLoading(false)
+      if (!cancelled) setLoading(false)
     }
     load()
-  }, [exam, yearsParam, subjectsParam, desiredCount])
+    return () => { cancelled = true }
+  }, [db, exam, yearsParam, subjectsParam, desiredCount, imgParam])
 
   useEffect(() => {
     if (mode !== 'exam' || finished || loading || timeLeft <= 0) return
@@ -196,6 +216,7 @@ function PYQSessionContent() {
                         {q.subject && <span className="ml-2 text-[10px] text-accent uppercase font-bold">{q.subject}</span>}
                       </p>
                     </div>
+                    <div className="pl-6"><PyqImages names={q.qimgs} /></div>
                     <div className="grid gap-1.5 pl-6">
                       {qOptions.map((opt: string, oi: number) => {
                         const isUserChoice = oi === userAnswer
@@ -212,7 +233,7 @@ function PYQSessionContent() {
                       })}
                     </div>
                     {q.explanation && (
-                      <p className="text-xs text-muted-foreground italic pl-6 pt-2 border-t border-white/5 leading-relaxed">{q.explanation}</p>
+                      <div className="pl-6 pt-2 border-t border-white/5"><p className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap">{q.explanation}</p><PyqImages names={q.eimgs} /></div>
                     )}
                   </CardContent>
                 </Card>
@@ -267,6 +288,7 @@ function PYQSessionContent() {
         <CardHeader className="p-4 md:p-6">
           {q.subject && <p className="text-[10px] font-bold text-accent uppercase tracking-widest mb-2">{q.subject} {q.year ? `· ${q.year}` : '· Random Year'}</p>}
           <CardTitle className="text-lg md:text-xl leading-relaxed">{q.question_text}</CardTitle>
+          <PyqImages names={q.qimgs} />
         </CardHeader>
         <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6 pt-0">
           <div className="grid gap-2.5 md:gap-3">
@@ -302,7 +324,8 @@ function PYQSessionContent() {
                     {isAiLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />} Ask AI Tutor
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{q.explanation || "No explanation provided."}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{q.explanation || "No explanation provided."}</p>
+                <PyqImages names={q.eimgs} />
               </div>
               {aiExplanation && (
                 <div className="p-4 md:p-5 rounded-2xl bg-primary/5 border border-primary/20 animate-in fade-in duration-500">
