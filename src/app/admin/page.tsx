@@ -1709,6 +1709,11 @@ export default function AdminDashboard() {
               <BarChart3 className="h-4 w-4" /> Spotters upload
             </Button>
           </Link>
+          <Link href="/admin/pyq-import">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-sky-500/30 text-sky-400 hover:bg-sky-500/10">
+              <BarChart3 className="h-4 w-4" /> PYQ Import
+            </Button>
+          </Link>
           <Link href="/admin/analytics">
             <Button variant="outline" className="rounded-xl gap-2 glass border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
               <BarChart3 className="h-4 w-4" /> Analytics
