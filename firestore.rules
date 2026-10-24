@@ -180,6 +180,20 @@ service cloud.firestore {
       allow write, delete: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    // The 100 Most Important Topics (note text). Only Scholar / Clinician members (plan not expired) and admins can read.
+    match /top100Notes/{noteId} {
+      function me() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      }
+      function isAdminUser() {
+        return 'role' in me() && me().role == 'admin';
+      }
+      function paidAndActive() {
+        return 'plan' in me() && me().plan in ['basic', 'pro'] && (!('planExpiresAt' in me()) || me().planExpiresAt > request.time.toMillis());
+      }
+      allow read: if request.auth != null && (isAdminUser() || paidAndActive());
+      allow write, delete: if request.auth != null && isAdminUser();
+    }
     match /top100/{topicId} {
       allow read: if true;
       allow write, delete: if request.auth != null &&

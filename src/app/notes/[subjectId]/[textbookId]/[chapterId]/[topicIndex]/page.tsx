@@ -204,7 +204,7 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
         </Link>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{topic?.name || 'Topic'}</h1>
         <p className="text-muted-foreground mt-2">{(notes as any)?.chapterTitle || ''} &middot; {subject ? (subject as any).name : ''}</p>
-        {topic && <Top100Toggle subjectId={subjectId} subjectName={subject ? (subject as any).name : subjectId} textbookId={textbookId} chapterId={chapterId} topicIndex={parseInt(topicIndex, 10)} name={topic.name} chapterTitle={(notes as any)?.chapterTitle || ''} />}
+        {topic && <Top100Toggle subjectId={subjectId} subjectName={subject ? (subject as any).name : subjectId} textbookId={textbookId} chapterId={chapterId} topicIndex={parseInt(topicIndex, 10)} name={topic.name} chapterTitle={(notes as any)?.chapterTitle || ''} markdown={topic.markdown} />}
       </div>
 
       {topic ? (

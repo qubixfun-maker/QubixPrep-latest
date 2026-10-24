@@ -34,8 +34,11 @@ export async function POST(req: NextRequest) {
     const isAdmin = userData?.role === 'admin'
     const hasPurchased = Array.isArray(userData?.purchasedNotePacks) && userData!.purchasedNotePacks.includes(packId)
 
-    // Free for every signed-in user (moved to 100 Most Important Topics)
-    void isAdmin; void hasPurchased
+    // Paid members only (Scholar / Clinician with an active plan), admins, and anyone who bought this pack earlier
+    const paid = (userData?.plan === 'basic' || userData?.plan === 'pro') && (!userData?.planExpiresAt || Number(userData.planExpiresAt) > Date.now())
+    if (!isAdmin && !hasPurchased && !paid) {
+      return NextResponse.json({ error: 'The 100 Most Important Topics are for Scholar and Clinician members. Upgrade to read them.' }, { status: 403 })
+    }
 
     const bucket = getAdminStorageBucket()
     const file = bucket.file(pack.storagePath)
