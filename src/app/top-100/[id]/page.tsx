@@ -87,7 +87,7 @@ export default function Top100NotePage({ params }: { params: Promise<{ id: strin
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{note.name}</h1>
             <p className="text-muted-foreground mt-2">{note.chapterTitle || ""} &middot; {note.subjectName || ""}</p>
           </div>
-          <NoteBody markdown={note.markdown || ""} borderClass={color.border} />
+          <NoteBody markdown={note.markdown || ""} borderClass={color.border} protectWith={user?.email || uid} />
         </>
       )}
     </div>

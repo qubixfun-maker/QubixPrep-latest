@@ -1,5 +1,6 @@
 "use client"
-// The exact note formatting used on the normal topic page (tables, flow diagrams, quick self-test).
+// The exact note formatting used on the normal topic page (tables, flow diagrams, quick self-test),
+// with an optional protection layer: a faint watermark carrying the reader's email, no copy / right-click, hidden when printed.
 import { useMemo, useState } from "react"
 import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -167,10 +168,19 @@ function buildMarkdownComponents(): Components {
   }
 }
 
-export function NoteBody({ markdown, borderClass = "border-white/10" }: { markdown: string; borderClass?: string }) {
+function watermarkUrl(text: string) {
+  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;")
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='360' height='200'><text x='20' y='110' transform='rotate(-22 180 100)' font-family='sans-serif' font-size='15' font-weight='700' fill='rgba(60,40,120,0.10)'>${esc}</text></svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
+export function NoteBody({ markdown, borderClass = "border-white/10", protectWith }: { markdown: string; borderClass?: string; protectWith?: string }) {
   const markdownComponents = useMemo(() => buildMarkdownComponents(), [])
+  const mark = useMemo(() => (protectWith ? watermarkUrl(protectWith) : ""), [protectWith])
+  const block = protectWith ? (e: { preventDefault: () => void }) => e.preventDefault() : undefined
   return (
-    <div
+    <div className={protectWith ? "relative select-none print:hidden [-webkit-touch-callout:none]" : "relative"} onContextMenu={block} onCopy={block} onCut={block} onDragStart={block}>
+      <div
           className={`rounded-2xl glass border ${borderClass} p-6 md:p-8 prose max-w-none [--tw-prose-body:#2b2740] [--tw-prose-bullets:#7552ee] [--tw-prose-counters:#7552ee] text-[15.5px] leading-7
             prose-headings:font-bold prose-headings:text-foreground
             prose-h1:text-2xl md:prose-h1:text-3xl
@@ -194,8 +204,10 @@ export function NoteBody({ markdown, borderClass = "border-white/10" }: { markdo
             [&_ol>li]:before:items-center [&_ol>li]:before:justify-center
             [&_ol>li]:before:rounded-full [&_ol>li]:before:bg-primary
             [&_ol>li]:before:text-[11px] [&_ol>li]:before:font-bold [&_ol>li]:before:text-primary-foreground`}
-    >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{sanitizeMarkdown(markdown)}</ReactMarkdown>
+      >
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{sanitizeMarkdown(markdown)}</ReactMarkdown>
+      </div>
+      {mark && <div aria-hidden className="pointer-events-none absolute inset-0 rounded-2xl" style={{ backgroundImage: mark, backgroundRepeat: "repeat" }} />}
     </div>
   )
 }
