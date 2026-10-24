@@ -16,8 +16,10 @@ export async function POST(req: NextRequest) {
 
     const sql = neon(process.env.NEON_DATABASE_URL || "");
 
-    const affs = await sql`SELECT id, user_id FROM affiliates WHERE code = ${String(code).trim().toUpperCase()}`;
+    const affs = await sql`SELECT id, user_id, status FROM affiliates WHERE code = ${String(code).trim().toUpperCase()}`;
     if (affs.length === 0) return NextResponse.json({ tracked: false, reason: "invalid code" });
+
+    if (affs[0].status === "suspended") return NextResponse.json({ tracked: false, reason: "invalid code" });
 
     if (affs[0].user_id === referredUserId) {
       return NextResponse.json({ tracked: false, reason: "self-referral" });

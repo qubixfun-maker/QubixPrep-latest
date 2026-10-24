@@ -27,12 +27,13 @@ export async function POST(req: NextRequest) {
       SELECT a.id, ${amount}, ${upi}, 'processing'
         FROM affiliates a
        WHERE a.user_id = ${userId}
+         AND COALESCE(a.status, '') <> 'suspended'
          AND a.pending_amount - COALESCE((SELECT SUM(p.amount) FROM payouts p WHERE p.affiliate_id = a.id AND p.status = 'processing'), 0) >= ${amount}
    RETURNING id`;
     const results: any[] = await (sql as any).transaction([lock, insert]);
     const rows: any[] = results[1] || [];
 
-    if (rows.length === 0) throw new ApiError("Not enough available balance.");
+    if (rows.length === 0) throw new ApiError("Not enough available balance, or your account is on hold. Contact support.");
 
     await sql`UPDATE affiliates SET upi_id = ${upi} WHERE user_id = ${userId}`;
     return NextResponse.json({ success: true });
