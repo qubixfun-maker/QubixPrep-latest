@@ -1,4 +1,5 @@
 "use client"
+import { JellyStopButton } from "@/components/jelly/JellyStopButton"
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
@@ -70,6 +71,7 @@ export function JellyWidget() {
 
   return (
     <>
+      {!j.open && j.active && <JellyStopButton show={j.speaking} onStop={j.stopSpeaking} variant="pill" />}
       {j.open && (
         <div className="fixed z-50 right-3 sm:right-6 bottom-28 w-[min(92vw,380px)] max-h-[72vh] flex flex-col rounded-3xl border border-white/10 bg-background/95 backdrop-blur-xl shadow-2xl shadow-primary/20 overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-gradient-to-r from-primary/15 to-accent/10">
@@ -85,6 +87,7 @@ export function JellyWidget() {
             </div>
             {j.active && (
               <>
+                <JellyStopButton show={j.speaking} onStop={j.stopSpeaking} variant="header" />
                 <button aria-label={j.voiceOn ? "Mute Jelly" : "Let Jelly speak"} title={j.voiceOn ? "Voice on" : "Voice off"} onClick={() => (j.speaking ? j.stopSpeaking() : j.setVoiceOn(!j.voiceOn))}
                   className={`p-1.5 rounded-lg hover:bg-white/10 ${j.voiceOn ? "text-primary" : "text-muted-foreground"}`}>{j.voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button>
                 <Link href="/jelly" title="Open the Jelly Playground" className="p-1.5 rounded-lg hover:bg-white/10 text-muted-foreground"><Sparkles className="h-4 w-4" /></Link>

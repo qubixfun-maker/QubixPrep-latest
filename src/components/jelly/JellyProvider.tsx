@@ -143,7 +143,7 @@ export function JellyProvider({ children }: { children: React.ReactNode }) {
       kid: ref.current.profile.voiceKid !== false,
       getToken: () => u.getIdToken(),
       onStart: () => setSpeaking(true),
-      onEnd: () => { setSpeaking(false); if (listenAfter && ref.current.conversation && ref.current.voiceOn) setTimeout(() => micStart.current(), 250) },
+      onEnd: (info) => { setSpeaking(false); if (!info?.stopped && listenAfter && ref.current.conversation && ref.current.voiceOn) setTimeout(() => micStart.current(), 250) },
     })
   }, [])
 

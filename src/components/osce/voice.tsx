@@ -66,32 +66,45 @@ function browserSpeak(text: string, lang: string, gender: Gender, kid = false): 
 
 export type Speaker = { push: (t: string) => void; end: () => void; stop: () => void }
 let current: Speaker | null = null
-export const stopSpeaking = () => { current?.stop(); current = null }
+/** Stops everything being said right now: the playing clip, clips still downloading, the waiting queue and the browser's own voice. */
+export const stopSpeaking = () => {
+  const c = current; current = null
+  try { c?.stop() } catch {}
+  try { shared?.pause() } catch {}
+  try { window.speechSynthesis?.cancel() } catch {}
+}
 
-export function createSpeaker(o: { lang: string; gender: Gender; variant?: number; kid?: boolean; getToken: () => Promise<string>; onStart?: () => void; onEnd?: () => void }): Speaker {
+export function createSpeaker(o: { lang: string; gender: Gender; variant?: number; kid?: boolean; getToken: () => Promise<string>; onStart?: () => void; onEnd?: (info?: { stopped: boolean }) => void }): Speaker {
   stopSpeaking()
   let buf = ""; let first = true; let playing = false; let stopped = false; let ended = false; let finished = false; const live = new Set<HTMLAudioElement>()
+  const cancels = new Set<() => void>() // wake up anything still waiting when stop() is pressed
+  const aborts = new Set<AbortController>() // voice requests still downloading
   const jobs: { text: string; url: Promise<string | null> }[] = []
 
   let lastWhy = ""
   const fetchOnce = async (text: string): Promise<string | null> => {
+    if (stopped) return null
+    const ac = new AbortController(); aborts.add(ac)
     try {
       const res = await fetch("/api/osce-stations/tts", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: ac.signal,
         body: JSON.stringify({ idToken: await o.getToken(), text, lang: o.lang, gender: o.gender, variant: o.variant || 0, kid: !!o.kid }),
       })
       if (!res.ok) { lastWhy = `${res.status} ${(await res.text().catch(() => "")).slice(0, 140)}`; return null }
       reportVoiceIssue("")
       return URL.createObjectURL(await res.blob())
     } catch (e: any) { lastWhy = e?.message || "network error"; return null }
+    finally { aborts.delete(ac) }
   }
   const fetchAudio = async (text: string): Promise<string | null> => {
     for (let i = 0; i < 3; i++) {
+      if (stopped) return null
       const u = await fetchOnce(text)
       if (u) return u
       if (stopped) return null
       await new Promise((ok) => setTimeout(ok, 400 * (i + 1)))
     }
+    if (stopped) return null
     reportVoiceIssue("The server voice is not responding (" + lastWhy + "). Using this device's own voice instead.")
     return null
   }
@@ -100,29 +113,36 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
     a.src = url
     live.add(a)
     let done = false
-    const fin = () => { if (done) return; done = true; clearInterval(iv); resolve() }
+    const fin = () => { if (done) return; done = true; clearInterval(iv); cancels.delete(fin); resolve() }
     const iv = setInterval(() => { if (a.duration && a.duration - a.currentTime < 0.12) fin() }, 30)
+    cancels.add(fin)
     a.onended = () => { live.delete(a); fin() }; a.onerror = () => { live.delete(a); fin() }
-    a.play().catch((e) => { reportVoiceIssue(e?.name === "NotAllowedError" ? "The browser blocked sound. Tap anywhere on the page once, then try again." : "Could not play the voice (" + (e?.name || "error") + ")."); fin() })
+    a.play().catch((e) => { if (!stopped) reportVoiceIssue(e?.name === "NotAllowedError" ? "The browser blocked sound. Tap anywhere on the page once, then try again." : "Could not play the voice (" + (e?.name || "error") + ")."); fin() })
   }).finally(() => setTimeout(() => URL.revokeObjectURL(url), 3000))
+  // the browser's own voice sometimes never reports that it was cancelled, so stop() must be able to end the wait itself
+  const cancellable = (p: Promise<void>) => new Promise<void>((resolve) => {
+    const done = () => { cancels.delete(done); resolve() }
+    cancels.add(done); p.then(done, done)
+  })
 
-  const finish = () => { if (finished) return; finished = true; o.onEnd?.() }
+  const finish = (byStop = false) => { if (finished) return; finished = true; o.onEnd?.({ stopped: byStop }) }
   const pump = async () => {
-    if (playing) return
+    if (playing || stopped) return
     playing = true; o.onStart?.()
     while (jobs.length && !stopped) {
       const j = jobs.shift()!
       const url = await j.url
-      if (stopped) break
-      if (url) await play(url); else await browserSpeak(j.text, o.lang, o.kid ? "female" : o.gender, o.kid)
+      if (stopped) { if (url) URL.revokeObjectURL(url); break }
+      if (url) await play(url); else await cancellable(browserSpeak(j.text, o.lang, o.kid ? "female" : o.gender, o.kid))
     }
     playing = false
-    if (stopped || (ended && !jobs.length)) finish()
+    if (stopped || (ended && !jobs.length)) finish(stopped)
   }
-  const enqueue = (text: string) => { if (!text.trim()) return; jobs.push({ text, url: fetchAudio(text) }); pump() }
+  const enqueue = (text: string) => { if (stopped || !text.trim()) return; jobs.push({ text, url: fetchAudio(text) }); pump() }
 
   const sp: Speaker = {
     push(t) {
+      if (stopped) return
       buf += t
       const re = /[.!?।॥]\s/g
       let cut = -1; let m: RegExpExecArray | null
@@ -130,8 +150,19 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
       if (cut < 0 && first && buf.length > 80) { const c = buf.lastIndexOf(", "); if (c > 30) cut = c + 1 }
       if (cut > (first ? 20 : 40)) { splitSentences(buf.slice(0, cut)).forEach(enqueue); buf = buf.slice(cut); first = false }
     },
-    end() { splitSentences(buf).forEach(enqueue); buf = ""; ended = true; if (!playing && !jobs.length) finish() },
-    stop() { stopped = true; jobs.length = 0; live.forEach((a) => { try { a.pause() } catch {} }); live.clear(); try { window.speechSynthesis?.cancel() } catch {} finish() },
+    end() { if (stopped) return; splitSentences(buf).forEach(enqueue); buf = ""; ended = true; if (!playing && !jobs.length) finish() },
+    stop() {
+      if (stopped) return
+      stopped = true
+      // clips that finish downloading after the stop are thrown away, never played
+      jobs.splice(0).forEach((j) => { j.url.then((u) => { if (u) URL.revokeObjectURL(u) }).catch(() => {}) })
+      aborts.forEach((c) => { try { c.abort() } catch {} }); aborts.clear()
+      live.forEach((a) => { try { a.pause() } catch {} }); live.clear()
+      try { window.speechSynthesis?.cancel() } catch {}
+      cancels.forEach((f) => { try { f() } catch {} }); cancels.clear()
+      if (current === sp) current = null
+      finish(true)
+    },
   }
   current = sp
   return sp

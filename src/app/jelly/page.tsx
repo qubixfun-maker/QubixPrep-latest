@@ -1,4 +1,5 @@
 "use client"
+import { JellyStopButton } from "@/components/jelly/JellyStopButton"
 
 import { useEffect, useRef, useState } from "react"
 import { Loader2, Mic, Square, Send, Trash2, Volume2, VolumeX, Settings2, BookOpen, HelpCircle, Stethoscope, Layers, CalendarDays, MessageCircleQuestion } from "lucide-react"
@@ -63,6 +64,7 @@ export default function JellyPlayground() {
           {nudge && <p className="text-sm mt-1.5">{nudge}</p>}
         </div>
         <div className="flex flex-col gap-1 shrink-0">
+          <JellyStopButton show={j.speaking} onStop={j.stopSpeaking} variant="page" />
           <button aria-label={j.voiceOn ? "Mute Jelly" : "Let Jelly speak"} onClick={() => (j.speaking ? j.stopSpeaking() : j.setVoiceOn(!j.voiceOn))}
             className={`p-2 rounded-xl hover:bg-white/10 ${j.voiceOn ? "text-primary" : "text-muted-foreground"}`}>{j.voiceOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button>
           <button aria-label="Settings" onClick={() => setSettings((s) => !s)} className="p-2 rounded-xl hover:bg-white/10 text-muted-foreground"><Settings2 className="h-4 w-4" /></button>
