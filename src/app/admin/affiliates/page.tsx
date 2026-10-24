@@ -1,347 +1,171 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import { useUser } from "@/firebase"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Users, IndianRupee, CheckCircle2, XCircle, Clock, Search, ArrowLeft, Gift, Bell, ChevronRight } from "lucide-react"
-import Link from "next/link"
+import { Loader2, ArrowLeft, Gift } from "lucide-react"
+
+const rupees = (n: number) => "₹" + Number(n || 0).toLocaleString("en-IN")
+const day = (d: any) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "")
+
+type Tab = "payouts" | "sales" | "affiliates"
 
 export default function AdminAffiliatesPage() {
+  const { user } = useUser()
   const { toast } = useToast()
-  const [affiliates, setAffiliates] = useState<any[]>([])
-  const [allPayouts, setAllPayouts] = useState<any[]>([])
-  const [pageLoading, setPageLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState<'payouts' | 'affiliates' | 'referrals' | 'product-referrals'>('payouts')
-  const [processing, setProcessing] = useState<number | null>(null)
-  const [selectedAffiliate, setSelectedAffiliate] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+  const [data, setData] = useState<{ affiliates: any[]; referrals: any[]; payouts: any[] }>({ affiliates: [], referrals: [], payouts: [] })
+  const [tab, setTab] = useState<Tab>("payouts")
+  const [search, setSearch] = useState("")
+  const [working, setWorking] = useState<string | null>(null)
 
-  useEffect(() => { fetchAll() }, [])
-
-  async function fetchAll() {
-    setPageLoading(true)
-    try {
-      const res = await fetch('/api/affiliate/admin')
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setAffiliates(data.affiliates || [])
-      setAllPayouts(data.allPayouts || [])
-    } catch (e: any) { toast({ variant: 'destructive', title: 'Error', description: e.message }) }
-    setPageLoading(false)
-  }
-
-  async function handlePayoutAction(payoutId: number, action: 'approved' | 'rejected') {
-    setProcessing(payoutId)
-    try {
-      const res = await fetch('/api/affiliate/admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payoutId, action })
+  const api = useCallback(
+    async (init?: RequestInit) => {
+      if (!user) throw new Error("Please sign in.")
+      const token = await user.getIdToken()
+      const res = await fetch("/api/affiliate/admin", {
+        ...init,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      toast({ title: action === 'approved' ? 'Payout Approved' : 'Payout Rejected' })
-      fetchAll()
-      setSelectedAffiliate(null)
-    } catch (e: any) { toast({ variant: 'destructive', title: 'Error', description: e.message }) }
-    setProcessing(null)
-  }
-
-  const pendingPayouts = allPayouts.filter(p => p.status === 'processing')
-  const readyForPayout = affiliates.filter(a => (a.pendingAmount || 0) >= 500)
-  const allReferrals = affiliates.flatMap(a => (a.referrals || []).map((r: any) => ({ ...r, affiliateName: a.name, affiliateCode: a.code })))
-  const allProductReferrals = affiliates.flatMap(a => (a.productReferrals || []).map((r: any) => ({ ...r, affiliateName: a.name, affiliateCode: a.code })))
-  const filtered = affiliates.filter(a =>
-    a.name?.toLowerCase().includes(search.toLowerCase()) ||
-    a.email?.toLowerCase().includes(search.toLowerCase()) ||
-    a.code?.toLowerCase().includes(search.toLowerCase())
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json.error) throw new Error(json.error || "Something went wrong.")
+      return json
+    },
+    [user]
   )
 
-  if (pageLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  const load = useCallback(async () => {
+    if (!user) return
+    setLoading(true)
+    setError("")
+    try {
+      setData(await api())
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [user, api])
+
+  useEffect(() => { load() }, [load])
+
+  const byId = useMemo(() => {
+    const m: Record<string, any> = {}
+    data.affiliates.forEach((a) => { m[a.id] = a })
+    return m
+  }, [data.affiliates])
+
+  async function act(key: string, body: any, okMessage: string) {
+    setWorking(key)
+    try {
+      await api({ method: "POST", body: JSON.stringify(body) })
+      toast({ title: okMessage })
+      await load()
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Failed", description: e.message })
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  const q = search.trim().toLowerCase()
+  const waiting = data.payouts.filter((p) => p.status === "processing")
+  const sales = data.referrals.filter((r) => r.status === "completed" || r.status === "cancelled")
+  const affiliates = data.affiliates.filter((a) => !q || [a.name, a.email, a.code, a.upiId].some((v) => String(v || "").toLowerCase().includes(q)))
+
+  if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+  if (error) return <div className="max-w-xl mx-auto p-8 text-center text-sm text-red-500">{error}</div>
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center gap-4">
-        <Link href="/admin"><Button variant="ghost" size="sm" className="gap-2 text-muted-foreground"><ArrowLeft className="h-4 w-4" /> Admin</Button></Link>
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Gift className="h-6 w-6 text-primary" /> Affiliate Management</h1>
-          <p className="text-muted-foreground text-xs mt-0.5">Manage affiliates, referrals and payouts</p>
-        </div>
-      </div>
-
-      {readyForPayout.length > 0 && (
-        <div className="glass rounded-2xl border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-2">
-          <p className="text-xs font-bold uppercase tracking-widest text-yellow-400 flex items-center gap-2"><Bell className="h-3.5 w-3.5" /> Ready for Payout ({readyForPayout.length})</p>
-          <div className="flex flex-wrap gap-2">
-            {readyForPayout.map(a => (
-              <button key={a.id} onClick={() => setSelectedAffiliate(a)} className="text-xs px-3 py-1.5 rounded-xl bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors flex items-center gap-2">
-                <span className="font-semibold">{a.name || a.email}</span>
-                <span className="text-yellow-400 font-bold">₹{a.pendingAmount}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Total Affiliates', value: String(affiliates.length), icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-          { label: 'Completed Referrals', value: String(allReferrals.filter(r => r.status === 'completed').length), icon: CheckCircle2, color: 'text-green-400', bg: 'bg-green-400/10' },
-          { label: 'Pending Payouts', value: '₹' + pendingPayouts.reduce((s, p) => s + Number(p.amount || 0), 0), icon: Clock, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-          { label: 'Total Paid Out', value: '₹' + affiliates.reduce((s, a) => s + Number(a.paidOut || 0), 0), icon: IndianRupee, color: 'text-primary', bg: 'bg-primary/10' },
-        ].map((s) => (
-          <div key={s.label} className="glass rounded-2xl p-4 flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${s.bg} ${s.color} shrink-0`}><s.icon className="h-4 w-4" /></div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{s.label}</p>
-              <p className="text-base font-bold">{s.value}</p>
-            </div>
-          </div>
-        ))}
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+      <div className="flex items-center gap-3">
+        <Link href="/admin"><Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
+        <h1 className="text-xl font-bold flex items-center gap-2"><Gift className="h-5 w-5 text-primary" /> Affiliates</h1>
       </div>
 
       <div className="flex gap-2">
-        {(['payouts', 'affiliates', 'referrals', 'product-referrals'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${activeTab === tab ? 'bg-primary text-white' : 'glass text-muted-foreground hover:text-foreground'}`}>
-            {tab}{tab === 'payouts' && pendingPayouts.length > 0 && <span className="ml-1.5 bg-red-500 text-white rounded-full px-1.5 py-0.5 text-[9px]">{pendingPayouts.length}</span>}
-          </button>
+        {([
+          ["payouts", `Payouts (${waiting.length})`],
+          ["sales", `Sales (${sales.length})`],
+          ["affiliates", `Affiliates (${data.affiliates.length})`],
+        ] as [Tab, string][]).map(([k, label]) => (
+          <Button key={k} variant={tab === k ? "default" : "outline"} size="sm" onClick={() => setTab(k)}>{label}</Button>
         ))}
       </div>
 
-      {activeTab === 'payouts' && (
-        <div className="glass rounded-2xl border border-white/10 overflow-hidden">
-          {allPayouts.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">No payout requests yet.</div> : (
-            <div className="divide-y divide-white/5">
-              {allPayouts.map((p: any) => {
-                const aff = affiliates.find(a => a.id === p.affiliateId)
-                return (
-                  <div key={p.id} className="p-4 flex items-center justify-between gap-4 flex-wrap">
-                    <div>
-                      <p className="font-semibold text-sm">{aff?.name || aff?.email || 'Unknown'}</p>
-                      <p className="text-xs text-muted-foreground">{aff?.email} · UPI: {p.upiId}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleDateString('en-IN')}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg font-bold text-green-400">₹{p.amount}</span>
-                      {p.status === 'processing' ? (
-                        <div className="flex gap-2">
-                          <Button size="sm" className="rounded-xl bg-green-500/20 text-green-400 hover:bg-green-500/30 gap-1 border border-green-500/20" disabled={processing === p.id} onClick={() => handlePayoutAction(p.id, 'approved')}>
-                            {processing === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Approve
-                          </Button>
-                          <Button size="sm" variant="ghost" className="rounded-xl text-red-400 hover:bg-red-500/10 gap-1" disabled={processing === p.id} onClick={() => handlePayoutAction(p.id, 'rejected')}>
-                            <XCircle className="h-3 w-3" /> Reject
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.status === 'approved' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                          {p.status === 'approved' ? 'Paid' : 'Rejected'}
-                        </span>
-                      )}
-                    </div>
+      {tab === "payouts" && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Pay the UPI id yourself, then press Mark paid. Reject if something looks wrong.</p>
+          {data.payouts.length === 0 && <p className="text-sm text-muted-foreground">No payout requests yet.</p>}
+          {data.payouts.map((p) => {
+            const a = byId[p.affiliateId]
+            return (
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
+                <div>
+                  <p className="font-bold">{rupees(p.amount)} <span className="font-normal text-muted-foreground">to</span> {p.upiId}</p>
+                  <p className="text-xs text-muted-foreground">{a?.name || a?.email || "Affiliate"} · {day(p.createdAt)}</p>
+                </div>
+                {p.status === "processing" ? (
+                  <div className="flex gap-2">
+                    <Button size="sm" disabled={working === `a${p.id}`} onClick={() => act(`a${p.id}`, { payoutId: p.id, action: "approved" }, "Marked as paid")}>Mark paid</Button>
+                    <Button size="sm" variant="outline" disabled={working === `r${p.id}`} onClick={() => act(`r${p.id}`, { payoutId: p.id, action: "rejected" }, "Rejected")}>Reject</Button>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'affiliates' && (
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by name, email or code..." className="pl-10 glass border-white/10" value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-          <div className="glass rounded-2xl border border-white/10 overflow-hidden">
-            {filtered.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">No affiliates yet.</div> : (
-              <div className="divide-y divide-white/5">
-                {filtered.map((a: any) => (
-                  <button key={a.id} onClick={() => setSelectedAffiliate(a)} className="w-full text-left p-4 flex items-center justify-between gap-4 flex-wrap hover:bg-white/5 transition-colors">
-                    <div>
-                      <p className="font-semibold text-sm flex items-center gap-2">
-                        {a.name || a.email}
-                        {(a.pendingAmount || 0) >= 500 && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400">Payout Ready</span>}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{a.email}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">Code: <span className="font-mono font-bold text-primary">{a.code}</span> {a.plan ? `· ${a.plan}` : ''}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right"><p className="text-[10px] text-muted-foreground">Earned</p><p className="text-sm font-bold text-green-400">₹{a.totalEarned || 0}</p></div>
-                      <div className="text-right"><p className="text-[10px] text-muted-foreground">Available</p><p className="text-sm font-bold text-yellow-400">₹{a.pendingAmount || 0}</p></div>
-                      <div className="text-right"><p className="text-[10px] text-muted-foreground">Paid Out</p><p className="text-sm font-bold">₹{a.paidOut || 0}</p></div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    </div>
-                  </button>
-                ))}
+                ) : (
+                  <span className={p.status === "approved" ? "text-green-500 font-bold" : "text-red-500"}>{p.status === "approved" ? "Paid" : "Rejected"}</span>
+                )}
               </div>
-            )}
-          </div>
+            )
+          })}
         </div>
       )}
 
-      {activeTab === 'referrals' && (
-        <div className="glass rounded-2xl border border-white/10 overflow-hidden">
-          {allReferrals.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">No referrals yet.</div> : (
-            <div className="divide-y divide-white/5">
-              {allReferrals.map((r: any) => (
-                <div key={r.id} className="p-4 flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
-                    <p className="text-xs text-muted-foreground">Referred by: {r.affiliateName} ({r.affiliateCode})</p>
-                    <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
-                  </div>
+      {tab === "sales" && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">If you refund a student, press Cancel to take the commission back from the affiliate.</p>
+          {sales.length === 0 && <p className="text-sm text-muted-foreground">No commissions yet.</p>}
+          {sales.map((r) => {
+            const a = byId[r.affiliateId]
+            return (
+              <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
+                <div>
+                  <p className="font-medium">{r.email || r.name || "Student"} <span className="text-muted-foreground">bought {r.plan === "pro" ? "Clinician" : r.plan === "basic" ? "Scholar" : r.plan || "a plan"}</span></p>
+                  <p className="text-xs text-muted-foreground">via {a?.name || a?.email || "affiliate"} ({a?.code}) · {day(r.creditedAt || r.createdAt)}</p>
+                </div>
+                {r.status === "completed" ? (
                   <div className="flex items-center gap-3">
-                    {r.status === 'completed' ? (
-                      <>
-                        <span className="text-sm font-bold text-green-400">₹{r.amount}</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned</span>
-                      </>
-                    ) : r.status === 'cancelled' ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Cancelled</span>
-                    ) : (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400">{r.chargeCount || 0}/2 payments</span>
-                    )}
+                    <span className="text-green-500 font-bold">{rupees(r.amount)}</span>
+                    <Button size="sm" variant="outline" disabled={working === `c${r.id}`} onClick={() => act(`c${r.id}`, { referralId: r.id, action: "cancel" }, "Commission cancelled")}>Cancel</Button>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ) : (
+                  <span className="text-xs text-muted-foreground">Cancelled</span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
-      {activeTab === 'product-referrals' && (
-        <div className="glass rounded-2xl border border-white/10 overflow-hidden">
-          {allProductReferrals.length === 0 ? <div className="p-8 text-center text-sm text-muted-foreground">No product referrals yet.</div> : (
-            <div className="divide-y divide-white/5">
-              {allProductReferrals.map((r: any) => (
-                <div key={r.id} className="p-4 flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
-                    <p className="text-xs text-muted-foreground">Referred by: {r.affiliateName} ({r.affiliateCode})</p>
-                    <p className="text-xs text-muted-foreground">{r.packTitle} - {new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-green-400">₹{r.amount}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned</span>
-                  </div>
-                </div>
-              ))}
+      {tab === "affiliates" && (
+        <div className="space-y-2">
+          <Input placeholder="Search name, email, code or UPI" value={search} onChange={(e) => setSearch(e.target.value)} />
+          {affiliates.map((a) => (
+            <div key={a.id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-medium">{a.name || a.email} <span className="text-xs text-muted-foreground">({a.code})</span></p>
+                <p className="text-xs text-muted-foreground">{a.email} · UPI: {a.upiId || "not set"} · joined {day(a.createdAt)}</p>
+              </div>
+              <div className="text-right text-xs">
+                <p>Earned <b>{rupees(a.totalEarned)}</b></p>
+                <p className="text-muted-foreground">Balance {rupees(a.pendingAmount)} · Paid {rupees(a.paidOut)}</p>
+              </div>
             </div>
-          )}
+          ))}
         </div>
       )}
-
-      <Dialog open={!!selectedAffiliate} onOpenChange={(open) => !open && setSelectedAffiliate(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          {selectedAffiliate && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">{selectedAffiliate.name || selectedAffiliate.email}</DialogTitle>
-                <DialogDescription>{selectedAffiliate.email} · Code: <span className="font-mono font-bold text-primary">{selectedAffiliate.code}</span></DialogDescription>
-              </DialogHeader>
-              <div className="grid grid-cols-3 gap-3 py-2">
-                <div className="glass rounded-xl p-3 text-center"><p className="text-[10px] text-muted-foreground">Earned</p><p className="text-base font-bold text-green-400">₹{selectedAffiliate.totalEarned || 0}</p></div>
-                <div className="glass rounded-xl p-3 text-center"><p className="text-[10px] text-muted-foreground">Available</p><p className="text-base font-bold text-yellow-400">₹{selectedAffiliate.pendingAmount || 0}</p></div>
-                <div className="glass rounded-xl p-3 text-center"><p className="text-[10px] text-muted-foreground">Paid Out</p><p className="text-base font-bold">₹{selectedAffiliate.paidOut || 0}</p></div>
-              </div>
-              {selectedAffiliate.upiId && <p className="text-xs text-muted-foreground">UPI: <span className="font-mono">{selectedAffiliate.upiId}</span></p>}
-
-              {(selectedAffiliate.pendingAmount || 0) >= 500 && (
-                <div className="flex items-center gap-2 text-xs bg-yellow-500/10 text-yellow-400 rounded-xl p-3">
-                  <Bell className="h-4 w-4 shrink-0" /> This affiliate has crossed the ₹500 payout threshold.
-                </div>
-              )}
-
-              <div className="pt-3 space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Referrals ({(selectedAffiliate.referrals || []).length})</p>
-                {(selectedAffiliate.referrals || []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No referrals yet.</p>
-                ) : (
-                  <div className="glass rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
-                    {selectedAffiliate.referrals.map((r: any) => (
-                      <div key={r.id} className="p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
-                            <p className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString('en-IN')} {r.plan ? `· ${r.plan}` : ''}</p>
-                          </div>
-                          {r.status === 'completed' ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned ₹{r.amount}</span>
-                          ) : r.status === 'cancelled' ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">Cancelled</span>
-                          ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400">{r.chargeCount || 0}/2 payments</span>
-                          )}
-                        </div>
-                        {Array.isArray(r.chargeHistory) && r.chargeHistory.length > 0 && (
-                          <div className="mt-2 pl-3 border-l-2 border-white/10 space-y-1">
-                            {r.chargeHistory.map((c: any, i: number) => (
-                              <p key={i} className="text-[10px] text-muted-foreground">Payment {i + 1}: ₹{c.amount} on {new Date(c.chargedAt).toLocaleDateString('en-IN')}</p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-3 space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Product Referrals ({(selectedAffiliate.productReferrals || []).length})</p>
-                {(selectedAffiliate.productReferrals || []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No product referrals yet.</p>
-                ) : (
-                  <div className="glass rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
-                    {selectedAffiliate.productReferrals.map((r: any) => (
-                      <div key={r.id} className="p-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">{r.referredUserName || r.referredUserEmail}</p>
-                          <p className="text-xs text-muted-foreground">{r.packTitle} - {new Date(r.createdAt).toLocaleDateString('en-IN')}</p>
-                        </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/10 text-green-400">Earned ₹{r.amount}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-3 space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Payout History ({(selectedAffiliate.payouts || []).length})</p>
-                {(selectedAffiliate.payouts || []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No payout requests yet.</p>
-                ) : (
-                  <div className="glass rounded-xl border border-white/10 divide-y divide-white/5 overflow-hidden">
-                    {selectedAffiliate.payouts.map((p: any) => (
-                      <div key={p.id} className="p-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">₹{p.amount} → {p.upiId}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(p.createdAt).toLocaleDateString('en-IN')}</p>
-                        </div>
-                        {p.status === 'processing' ? (
-                          <div className="flex gap-2">
-                            <Button size="sm" className="rounded-xl bg-green-500/20 text-green-400 hover:bg-green-500/30 gap-1 border border-green-500/20 h-7 px-2" disabled={processing === p.id} onClick={() => handlePayoutAction(p.id, 'approved')}>
-                              {processing === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                            </Button>
-                            <Button size="sm" variant="ghost" className="rounded-xl text-red-400 hover:bg-red-500/10 gap-1 h-7 px-2" disabled={processing === p.id} onClick={() => handlePayoutAction(p.id, 'rejected')}>
-                              <XCircle className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.status === 'approved' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                            {p.status === 'approved' ? 'Paid' : 'Rejected'}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

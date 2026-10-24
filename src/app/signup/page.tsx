@@ -85,7 +85,7 @@ function SignUpPageContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             code: profileData.referredBy,
-            referredUserId: userCredential.user.uid,
+            idToken: await userCredential.user.getIdToken(),
             referredUserEmail: formData.email,
             referredUserName: formData.name
           })
@@ -155,7 +155,7 @@ function SignUpPageContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             code: profileData.referredBy,
-            referredUserId: pendingGoogleUser.uid,
+            idToken: await pendingGoogleUser.getIdToken(),
             referredUserEmail: pendingGoogleUser.email,
             referredUserName: pendingGoogleUser.displayName
           })

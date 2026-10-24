@@ -8,6 +8,7 @@ import { neon } from '@neondatabase/serverless'
 import { PRODUCT_REFERRAL_COMMISSION } from '@/lib/affiliate'
 
 async function creditProductReferralIfApplicable(userId: string, packId: string, packTitle: string, paymentId: string) {
+  if (PRODUCT_REFERRAL_COMMISSION <= 0) return // affiliates earn only the flat plan commission
   try {
     const sql = neon(process.env.NEON_DATABASE_URL || "")
     const refs = await sql`SELECT affiliate_id FROM referrals WHERE referred_user_id = ${userId} LIMIT 1`

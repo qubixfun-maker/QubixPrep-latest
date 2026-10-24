@@ -1,15 +1,22 @@
 export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
+import { verifyIdToken } from "@/lib/plan-server";
 
+// Called right after a student signs up with a referral code.
+// The student's own login token proves who they are, so nobody can attach someone else's account.
 export async function POST(req: NextRequest) {
   try {
-    const { code, referredUserId, referredUserEmail, referredUserName } = await req.json();
-    if (!code || !referredUserId) return NextResponse.json({ error: "code and referredUserId required" }, { status: 400 });
+    const { code, idToken, referredUserEmail, referredUserName } = await req.json();
+    if (!code || !idToken) return NextResponse.json({ error: "code and idToken required" }, { status: 400 });
+
+    let referredUserId: string;
+    try { referredUserId = await verifyIdToken(String(idToken)); }
+    catch { return NextResponse.json({ error: "Please sign in again." }, { status: 401 }); }
 
     const sql = neon(process.env.NEON_DATABASE_URL || "");
 
-    const affs = await sql`SELECT id, user_id FROM affiliates WHERE code = ${code.trim().toUpperCase()}`;
+    const affs = await sql`SELECT id, user_id FROM affiliates WHERE code = ${String(code).trim().toUpperCase()}`;
     if (affs.length === 0) return NextResponse.json({ tracked: false, reason: "invalid code" });
 
     if (affs[0].user_id === referredUserId) {
@@ -24,6 +31,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ tracked: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("[AFFILIATE] track-referral failed:", e?.message);
+    return NextResponse.json({ error: "Could not record the referral." }, { status: 500 });
   }
 }

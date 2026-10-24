@@ -1,5 +1,6 @@
 // Server-only helpers for yearly plan purchases. Never import this from a client component.
 import Razorpay from 'razorpay'
+import { creditPlanReferral } from '@/lib/affiliate-server'
 import { SKUS, computeActivation, type SkuId, type UserPlanInfo } from '@/lib/plans'
 
 function serviceAccount() {
@@ -118,11 +119,18 @@ export async function fulfillOrder(orderId: string, paymentId: string, expectUid
   if (order.amount !== sku.amount || payment.amount !== sku.amount) return { plan: '', already: false, skipped: 'The amount paid does not match the plan price.' }
   if (expectUid && expectUid !== uid) return { plan: '', already: false, skipped: 'This order belongs to a different account.' }
 
-  if (!(await claimOrder(orderId, uid))) return { plan: sku.plan, already: true }
+  // Pays the affiliate who referred this student (once, and never for the upgrade). Never blocks the plan itself.
+  const payCommission = async () => {
+    if (sku.id === 'upgrade') return
+    try { await creditPlanReferral(uid, sku.plan, orderId, paymentId) } catch (e: any) { console.error('[AFFILIATE] credit failed:', e?.message) }
+  }
+
+  if (!(await claimOrder(orderId, uid))) { await payCommission(); return { plan: sku.plan, already: true } }
   try {
     const user = await readUserPlan(uid)
     const act = computeActivation(user, sku, Date.now())
     await writePlan(uid, act.plan, act.planExpiresAt, orderId, paymentId)
+    await payCommission()
     return { plan: act.plan, already: false }
   } catch (e) {
     await releaseOrder(orderId)
