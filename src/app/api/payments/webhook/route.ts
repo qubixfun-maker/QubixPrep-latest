@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { neon } from '@neondatabase/serverless'
 import { setUserPlanFromSubscription } from '@/lib/firestore-rest'
+import { fulfillOrder } from '@/lib/plan-server'
 
 const PLAN_COMMISSION: Record<string, number> = { basic: 29, pro: 59 }
 
@@ -51,6 +52,17 @@ export async function POST(req: NextRequest) {
 
     const event = JSON.parse(rawBody)
     console.log('[WEBHOOK] Event received:', event.event)
+
+    // Yearly plans are paid as one-time orders. This is the safety net if the browser closed after paying.
+    if (event.event === 'order.paid') {
+      const orderId = event.payload?.order?.entity?.id
+      const payId = event.payload?.payment?.entity?.id
+      if (orderId && payId) {
+        const done = await fulfillOrder(orderId, payId)
+        console.log('[WEBHOOK] order.paid', orderId, done.skipped ? 'skipped: ' + done.skipped : done.already ? '(already done)' : '(plan given)')
+      }
+      return NextResponse.json({ success: true })
+    }
 
     const subscriptionEntity = event.payload?.subscription?.entity
     const paymentEntity = event.payload?.payment?.entity

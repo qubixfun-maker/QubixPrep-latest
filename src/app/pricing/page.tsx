@@ -1,86 +1,126 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { useUser, useDoc, useFirestore } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useState } from "react"
+import { useUser } from "@/firebase"
+import { usePlan } from "@/hooks/use-plan"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Check, Zap, BookOpen, Crown, Loader2 } from "lucide-react"
+import { Check, Zap, BookOpen, Crown, Sparkles, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+
+type SkuId = "basic" | "pro" | "upgrade"
 
 const PLANS = [
   {
     id: "free", name: "Explorer", price: 0, icon: BookOpen,
     color: "text-muted-foreground", border: "border-white/10",
-    description: "Get started with limited access",
-    features: ["5 free notes per subject", "All video lectures", "3 free mindmaps per subject", "10 QBank questions per subject", "Basic dashboard"],
-    locked: ["Full notes library", "All mindmaps", "Unlimited QBank", "AI Tools", "Custom Test Series", "PDF AI Extraction"],
-    cta: "Current Plan", razorpayPlanId: null,
+    description: "Try the app before you buy",
+    features: [
+      "A few free notes, QBank questions, flashcards, mind maps and long answers in every subject",
+      "1 free PYQ session",
+      "1 free case presentation",
+      "A few free spotters",
+      "2 free Ward Round cases",
+    ],
+    locked: ["Top 100 Topics", "Full libraries", "Jelly AI and AI Tools"],
   },
   {
     id: "basic", name: "Scholar", price: 999, icon: Crown,
     color: "text-accent", border: "border-accent/40", badge: "Yearly Plan",
-    description: "Full content library unlocked",
-    features: ["Everything in Explorer", "Unlimited notes access", "All mindmaps", "Full QBank — all subjects", "Custom Test Series", "Video lectures (all)", "QuickCards — all sections"],
-    locked: ["AI Tutor", "AI Summarizer", "AI Quiz Generator", "PDF AI Extraction"],
-    cta: "Subscribe for ₹999 / year", razorpayPlanId: "basic",
+    description: "The full content library, no AI",
+    features: [
+      "Everything in Explorer",
+      "Unlimited notes, QBank, flashcards, mind maps and long answers",
+      "Full PYQ series with images",
+      "Case Presentation and unlimited Ward Round",
+      "All spotters and QuickCards",
+      "Top 100 Topics",
+      "All video lectures",
+    ],
+    locked: ["Jelly AI", "AI Tutor and AI Tools", "OSCE Stations"],
+  },
+  {
+    id: "pro", name: "Clinician", price: 1499, icon: Sparkles,
+    color: "text-primary", border: "border-primary/50", badge: "With AI",
+    description: "Everything in Scholar, plus all AI features",
+    features: [
+      "Everything in Scholar",
+      "Jelly AI study companion",
+      "AI Tutor, Summarizer and Quiz Generator",
+      "OSCE Stations",
+    ],
+    locked: [] as string[],
   },
 ]
 
 export default function PricingPage() {
   const { user } = useUser()
-  const db = useFirestore()
+  const { plan, expiresAt } = usePlan()
   const { toast } = useToast()
-  const [loading, setLoading] = useState<string | null>(null)
+  const [loading, setLoading] = useState<SkuId | null>(null)
 
-  const profileRef = useMemo(() => (!db || !user) ? null : doc(db, 'users', user.uid), [db, user])
-  const { data: profile } = useDoc(profileRef)
-  const rawPlan = (profile as any)?.plan || "free"
-  // Clinician (pro) is no longer sold, but existing Clinician members keep their access and count as subscribed.
-  const isSubscribed = rawPlan === "basic" || rawPlan === "pro"
-  const currentPlan = rawPlan === "pro" ? "basic" : rawPlan
+  const validTill = expiresAt ? new Date(expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : null
 
-  async function handleUpgrade(plan: typeof PLANS[0]) {
-    if (!user || !plan.razorpayPlanId) return
-    setLoading(plan.id)
-
+  async function buy(sku: SkuId, label: string) {
+    if (!user) {
+      toast({ variant: "destructive", title: "Please sign in first", description: "Log in or sign up, then come back to this page." })
+      return
+    }
+    setLoading(sku)
     try {
-      const res = await fetch('/api/payments/create-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: plan.razorpayPlanId, userId: user.uid, email: user.email })
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/payments/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sku, idToken }),
       })
       const data = await res.json()
-
-      if (!res.ok || !data.subscriptionId) {
-        throw new Error(data.error || 'Could not create subscription. Please try again.')
-      }
+      if (!res.ok || !data.orderId) throw new Error(data.error || "Could not start the payment. Please try again.")
 
       const rzp = new (window as any).Razorpay({
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        subscription_id: data.subscriptionId,
-        name: 'QubixPrep',
-        description: `${plan.name} Plan - Yearly Subscription (₹${plan.price}/year)`,
-        handler: async () => {
-          toast({
-            title: "Subscription Activated!",
-            description: `Welcome to ${plan.name}! Your plan will update shortly.`
-          })
-          setTimeout(() => window.location.reload(), 2000)
+        order_id: data.orderId,
+        amount: data.amount,
+        currency: data.currency,
+        name: "QubixPrep",
+        description: label,
+        handler: async (resp: any) => {
+          try {
+            const token = await user.getIdToken(true)
+            const v = await fetch("/api/payments/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...resp, idToken: token }),
+            })
+            const vd = await v.json()
+            if (!v.ok) throw new Error(vd.error || "Could not confirm the payment.")
+            toast({ title: "Payment successful!", description: "Your plan is now active." })
+            setTimeout(() => window.location.reload(), 1500)
+          } catch (e: any) {
+            toast({ variant: "destructive", title: "Payment received, activation pending", description: "Your plan should switch on within a minute. If it does not, contact support with your payment ID " + (resp?.razorpay_payment_id || "") })
+          }
         },
-        prefill: { email: user.email || '' },
-        theme: { color: '#7C3AED' },
-        notes: {
-          userId: user.uid,
-          planId: plan.razorpayPlanId,
-        }
+        prefill: { email: user.email || "" },
+        theme: { color: "#7C3AED" },
       })
       rzp.open()
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Subscription Failed", description: e.message })
+      toast({ variant: "destructive", title: "Payment could not start", description: e.message })
     } finally {
       setLoading(null)
     }
+  }
+
+  function action(planId: string): { text: string; disabled: boolean; sku?: SkuId; label?: string } {
+    if (planId === "free") return { text: plan === "free" ? "✓ Current Plan" : "Included", disabled: true }
+    if (planId === "basic") {
+      if (plan === "basic") return { text: "✓ Current Plan", disabled: true }
+      if (plan === "pro") return { text: "Included in Clinician", disabled: true }
+      return { text: "Get Scholar for ₹999 / year", disabled: false, sku: "basic", label: "Scholar - 1 year (₹999)" }
+    }
+    if (plan === "pro") return { text: "✓ Current Plan", disabled: true }
+    if (plan === "basic") return { text: "Upgrade to Clinician for ₹500", disabled: false, sku: "upgrade", label: "Upgrade Scholar to Clinician (₹500)" }
+    return { text: "Get Clinician for ₹1,499 / year", disabled: false, sku: "pro", label: "Clinician - 1 year (₹1,499)" }
   }
 
   return (
@@ -93,46 +133,44 @@ export default function PricingPage() {
           Choose Your <span className="text-gradient">Learning Path</span>
         </h1>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-          Start free. Upgrade when you're ready. One simple yearly plan — ₹999 per year, auto-renews via Razorpay.
+          Start free. Pay once for a full year: ₹999 for the full content library, or ₹1,499 to add every AI feature.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-        {PLANS.map((plan) => {
-          const Icon = plan.icon
-          const isCurrent = currentPlan === plan.id
-          const isUpgrade = plan.price > 0 && !isCurrent
-
+      <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        {PLANS.map((p) => {
+          const Icon = p.icon
+          const a = action(p.id)
+          const isCurrent = a.text.startsWith("✓")
           return (
-            <Card key={plan.id} className={`glass border-2 ${plan.border} relative overflow-hidden flex flex-col ${isCurrent ? 'ring-2 ring-primary/50' : ''}`}>
-              {plan.badge && (
+            <Card key={p.id} className={`glass border-2 ${p.border} relative overflow-hidden flex flex-col ${isCurrent ? "ring-2 ring-primary/50" : ""}`}>
+              {"badge" in p && p.badge && (
                 <div className="absolute top-4 right-4 px-2 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] font-bold uppercase tracking-widest">
-                  {plan.badge}
+                  {p.badge}
                 </div>
               )}
               {isCurrent && <div className="absolute top-0 left-0 w-full h-1 bg-primary" />}
               <CardHeader className="p-8 pb-4">
-                <div className={`p-3 rounded-2xl bg-white/5 w-fit mb-4 ${plan.color}`}>
+                <div className={`p-3 rounded-2xl bg-white/5 w-fit mb-4 ${p.color}`}>
                   <Icon className="h-6 w-6" />
                 </div>
-                <CardTitle className="text-2xl font-bold">{plan.name}</CardTitle>
-                <p className="text-muted-foreground text-sm">{plan.description}</p>
+                <CardTitle className="text-2xl font-bold">{p.name}</CardTitle>
+                <p className="text-muted-foreground text-sm">{p.description}</p>
                 <div className="mt-4 flex items-end gap-1">
-                  <span className="text-4xl font-bold">₹{plan.price}</span>
-                  {plan.price > 0 && <span className="text-muted-foreground mb-1">/year</span>}
-                  {plan.price === 0 && <span className="text-muted-foreground mb-1">forever</span>}
+                  <span className="text-4xl font-bold">₹{p.price.toLocaleString("en-IN")}</span>
+                  {p.price > 0 ? <span className="text-muted-foreground mb-1">/year</span> : <span className="text-muted-foreground mb-1">forever</span>}
                 </div>
               </CardHeader>
 
               <CardContent className="p-8 pt-0 flex flex-col flex-1">
                 <div className="space-y-3 flex-1">
-                  {plan.features.map((f) => (
+                  {p.features.map((f) => (
                     <div key={f} className="flex items-start gap-3">
                       <Check className="h-4 w-4 text-green-400 shrink-0 mt-0.5" />
                       <span className="text-sm">{f}</span>
                     </div>
                   ))}
-                  {plan.locked.map((f) => (
+                  {p.locked.map((f) => (
                     <div key={f} className="flex items-start gap-3 opacity-30">
                       <div className="h-4 w-4 rounded-full border border-white/20 shrink-0 mt-0.5" />
                       <span className="text-sm line-through">{f}</span>
@@ -141,13 +179,16 @@ export default function PricingPage() {
                 </div>
 
                 <Button
-                  className={`w-full mt-8 h-12 rounded-xl font-bold ${isCurrent ? 'bg-white/10 text-white cursor-default' : plan.id === 'pro' ? 'bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30' : 'bg-accent/20 hover:bg-accent/30 text-accent border border-accent/30'}`}
-                  disabled={isCurrent || loading === plan.id}
-                  onClick={() => isUpgrade && handleUpgrade(plan)}
+                  className={`w-full mt-8 h-12 rounded-xl font-bold ${isCurrent || a.disabled ? "bg-white/10 text-white cursor-default" : p.id === "pro" ? "bg-primary hover:bg-primary/90 shadow-lg shadow-primary/30" : "bg-accent/20 hover:bg-accent/30 text-accent border border-accent/30"}`}
+                  disabled={a.disabled || loading !== null}
+                  onClick={() => a.sku && buy(a.sku, a.label || p.name)}
                 >
-                  {loading === plan.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {isCurrent ? (isSubscribed && rawPlan === "pro" ? "✓ Clinician member" : "✓ Current Plan") : plan.cta}
+                  {a.sku && loading === a.sku ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {a.text}
                 </Button>
+                {isCurrent && validTill && p.id !== "free" && (
+                  <p className="text-center text-xs text-muted-foreground mt-3">Valid till {validTill}</p>
+                )}
               </CardContent>
             </Card>
           )
@@ -155,7 +196,7 @@ export default function PricingPage() {
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        Payments secured by Razorpay · Auto-renews yearly · Cancel anytime from your profile
+        Payments secured by Razorpay · One payment per year, no auto-renewal · Questions? Contact support
       </p>
     </div>
   )

@@ -65,6 +65,10 @@ export async function requireProPlan(userId: string | undefined): Promise<void> 
   const role = fields.role?.stringValue
 
   if (role === 'admin') return
+  const expiresAt = Number(fields.planExpiresAt?.integerValue ?? 0)
+  if (expiresAt && expiresAt < Date.now()) {
+    throw new Error('Your plan has expired. Please renew to continue.')
+  }
   if (plan !== 'pro') {
     throw new Error('This feature requires the Clinician plan. Please upgrade to continue.')
   }

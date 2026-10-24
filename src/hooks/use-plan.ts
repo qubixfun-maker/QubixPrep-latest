@@ -11,10 +11,14 @@ export function usePlan() {
   const { data: profile, loading } = useDoc(profileRef)
 
   const isAdmin = (profile as any)?.role === 'admin'
-  const plan: Plan = isAdmin ? 'pro' : ((profile as any)?.plan || 'free')
+  const rawPlan: Plan = (profile as any)?.plan || 'free'
+  const planExpiresAt = (profile as any)?.planExpiresAt
+  const expired = typeof planExpiresAt === 'number' && planExpiresAt < Date.now()
+  const plan: Plan = isAdmin ? 'pro' : (expired ? 'free' : rawPlan)
 
   return {
     plan,
+    expiresAt: typeof planExpiresAt === 'number' ? planExpiresAt : null,
     loading,
     isFree: plan === 'free',
     isBasic: plan === 'basic' || plan === 'pro',
