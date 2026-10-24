@@ -1,47 +1,69 @@
 "use client"
 
-import { use, useEffect, useState } from "react"
+import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useFirestore } from "@/firebase"
+import { useDoc, useFirestore, useUser } from "@/firebase"
 import { doc, getDoc } from "firebase/firestore"
 import { ChevronLeft, Loader2 } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
+import { usePlan } from "@/hooks/use-plan"
 import { getSubjectColor } from "@/lib/subject-colors"
+import { getCached, putCached, removeCached, clearTop100Cache } from "@/lib/top100-cache"
 import { NoteBody } from "@/components/notes/note-body"
 import { UpgradeGate } from "@/components/upgrade-gate"
 
-// Notes already opened in this visit open instantly when you come back to them.
+// Notes already opened in this visit open instantly when you come back to them (kept per account).
 const seen = new Map<string, any>()
 
 export default function Top100NotePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const db = useFirestore()
+  const { user } = useUser()
+  const uid = user?.uid
   const { checkingAuth } = useRequireAuth()
-  const [state, setState] = useState<"loading" | "ready" | "locked" | "missing" | "error">(seen.has(id) ? "ready" : "loading")
-  const [note, setNote] = useState<any>(seen.get(id) || null)
+  const { canAccessContent, loading: planLoading } = usePlan()
+  const profileRef = useMemo(() => (!db || !uid ? null : doc(db, "users", uid)), [db, uid])
+  const { data: profile, loading: profileLoading } = useDoc(profileRef)
+  const entitled = !!canAccessContent || (profile as any)?.role === "admin"
+
+  const [state, setState] = useState<"loading" | "ready" | "locked" | "missing" | "error">("loading")
+  const [note, setNote] = useState<any>(null)
 
   useEffect(() => {
-    if (!db || checkingAuth) return
-    if (seen.has(id)) { setNote(seen.get(id)); setState("ready"); return }
+    if (!db || !uid || checkingAuth || planLoading || profileLoading) return
     let cancelled = false
-    setState("loading")
-    getDoc(doc(db, "top100Notes", id))
-      .then((snap) => {
+    ;(async () => {
+      const k = `${uid}:${id}`
+      let shown = false
+      // 1) show what is already on this device straight away (only for members whose plan is active)
+      const mem = entitled ? seen.get(k) : null
+      const saved = mem || (entitled ? await getCached(uid, id) : null)
+      if (cancelled) return
+      if (saved) { seen.set(k, saved); setNote(saved); setState("ready"); shown = true } else setState("loading")
+      // 2) check with the server in the background; this is also what keeps the lock honest
+      try {
+        const snap = await getDoc(doc(db, "top100Notes", id))
         if (cancelled) return
-        if (!snap.exists()) { setState("missing"); return }
+        if (!snap.exists()) {
+          seen.delete(k); removeCached(uid, id); setNote(null); setState("missing")
+          return
+        }
         const data = snap.data()
-        seen.set(id, data)
-        setNote(data)
-        setState("ready")
-      })
-      .catch((e: any) => {
+        seen.set(k, data); setNote(data); setState("ready")
+        putCached(uid, id, data)
+      } catch (e: any) {
         if (cancelled) return
-        setState(e?.code === "permission-denied" ? "locked" : "error")
-      })
+        if (e?.code === "permission-denied") {
+          seen.delete(k); clearTop100Cache(); setNote(null); setState("locked")
+        } else if (!shown) {
+          setState("error")
+        } // offline with a saved copy: keep showing it
+      }
+    })()
     return () => { cancelled = true }
-  }, [db, id, checkingAuth])
+  }, [db, uid, id, checkingAuth, planLoading, profileLoading, entitled])
 
-  if (checkingAuth || state === "loading") {
+  if (checkingAuth || planLoading || profileLoading || state === "loading") {
     return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
   }
 

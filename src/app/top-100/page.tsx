@@ -1,6 +1,6 @@
 "use client"
 import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useCollection, useDoc, useFirestore, useUser } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
@@ -9,6 +9,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useTopSearch } from "@/components/layout/top-search"
 import { getSubjectYear } from "@/lib/subject-year"
 import { usePlan } from "@/hooks/use-plan"
+import { clearTop100Cache } from "@/lib/top100-cache"
 
 const TONES = [
   { bg: "#ece3ff", ink: "#43299a", dot: "#7552ee" }, { bg: "#ffe6d6", ink: "#7a3512", dot: "#f08a4b" },
@@ -22,8 +23,10 @@ export default function Top100Page() {
   const [search] = useTopSearch("Search the 100 topics…")
   const { canAccessContent, loading: planLoading } = usePlan()
   const profileRef = useMemo(() => (!db || !user ? null : doc(db, "users", user.uid)), [db, user])
-  const { data: profile } = useDoc(profileRef)
+  const { data: profile, loading: profileLoading } = useDoc(profileRef)
   const unlocked = !!canAccessContent || (profile as any)?.role === "admin"
+  // a member whose plan has ended must not keep reading saved notes offline
+  useEffect(() => { if (!planLoading && !profileLoading && !unlocked) clearTop100Cache() }, [planLoading, profileLoading, unlocked])
 
   const ref = useMemo(() => (!db ? null : collection(db, "top100")), [db])
   const { data, loading } = useCollection(ref)
