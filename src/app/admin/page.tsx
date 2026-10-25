@@ -1639,6 +1639,11 @@ export default function AdminDashboard() {
               <Gift className="h-4 w-4" /> Manage Affiliates
             </Button>
           </Link>
+          <Link href="/admin/grand-test-import">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/10">
+              <Gift className="h-4 w-4" /> Grand Test Papers
+            </Button>
+          </Link>
           <Link href="/admin/free-access">
             <Button variant="outline" className="rounded-xl gap-2 glass border-pink-500/30 text-pink-400 hover:bg-pink-500/10">
               <Gift className="h-4 w-4" /> Free Access (Influencers)

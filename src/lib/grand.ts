@@ -1,9 +1,10 @@
 // Grand Test: sampling, NEET-PG style scoring and an approximate rank estimate.
 import { Firestore, collection, documentId, getDocs, limit, orderBy, query, where } from "firebase/firestore"
 
-export type GQ = { key: string; subjectId: string; subjectName: string; topic: string; question: string; options: string[]; correct: number; explanation: string }
-export type SavedTest = { qs: GQ[]; answers: Record<number, number>; marked: number[]; endAt: number; startedAt: number; minutes: number; negative: boolean; i: number }
-export type Attempt = { at: number; n: number; score: number; max: number; correct: number; wrong: number; skipped: number; mins: number; rank: number; scaled: number; subjects: Record<string, { n: string; a: number; c: number }> }
+export type GQ = { key: string; subjectId: string; subjectName: string; topic: string; question: string; options: string[]; correct: number; explanation: string; qimgs?: string[]; eimgs?: string[] }
+export type GCredit = { n: number; img: string; title: string; authors: string; journal: string; year: string; pmcid: string; licence: string; url: string }
+export type SavedTest = { qs: GQ[]; answers: Record<number, number>; marked: number[]; endAt: number; startedAt: number; minutes: number; negative: boolean; i: number; paperId?: string; paperTitle?: string; credits?: GCredit[] }
+export type Attempt = { at: number; n: number; score: number; max: number; correct: number; wrong: number; skipped: number; mins: number; rank: number; scaled: number; subjects: Record<string, { n: string; a: number; c: number }>; paperId?: string; paperTitle?: string }
 
 const ID_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 const randId = () => Array.from({ length: 20 }, () => ID_CHARS[Math.floor(Math.random() * ID_CHARS.length)]).join("")

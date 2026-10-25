@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { doc, collection, getDoc, setDoc } from "firebase/firestore"
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, Clock, Flag, Grid3x3, Loader2, Timer, Trophy, X } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ArrowRight, Check, ChevronDown, Clock, Flag, Grid3x3, Loader2, Lock, Timer, Trophy, X } from "lucide-react"
 import { useCollection, useFirestore, useUser } from "@/firebase"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { recordBulk } from "@/lib/study"
-import { estimateRank, sampleQuestions, scoreTest, type Attempt, type GQ, type SavedTest } from "@/lib/grand"
+import { usePlan } from "@/hooks/use-plan"
+import { GrandImages } from "@/components/grand/grand-images"
+import { loadPaper, type PaperMeta } from "@/lib/grand-papers"
+import { estimateRank, sampleQuestions, scoreTest, type Attempt, type GCredit, type GQ, type SavedTest } from "@/lib/grand"
 
 const KEY = "qp-grand-v1"
 const SIZES = [{ n: 50, m: 60, l: "Quick", d: "50 questions, 60 min" }, { n: 100, m: 120, l: "Half paper", d: "100 questions, 2 hours" }, { n: 200, m: 210, l: "Full NEET PG", d: "200 questions, 3 h 30 min" }]
@@ -18,6 +21,11 @@ export default function GrandTest() {
   const db = useFirestore()
   const { user } = useUser()
   const { checkingAuth } = useRequireAuth()
+  const { canAccessContent } = usePlan()
+  const [isAdmin, setIsAdmin] = useState(false)
+  const papersQuery = useMemo(() => (db ? collection(db, "grandPapers") : null), [db])
+  const { data: paperDocs } = useCollection(papersQuery)
+  const papers = useMemo(() => ((paperDocs as any[]) || []).map((p) => p as PaperMeta).sort((a, b) => a.n - b.n), [paperDocs])
   const subjectsQuery = useMemo(() => (db ? collection(db, "subjects") : null), [db])
   const { data: subjectDocs } = useCollection(subjectsQuery)
   const subjects = useMemo(() => ((subjectDocs as any[]) || []).map((s) => ({ id: s.id as string, name: (s.name || s.id) as string })).sort((a, b) => a.name.localeCompare(b.name)), [subjectDocs])
@@ -28,6 +36,10 @@ export default function GrandTest() {
   const [negative, setNegative] = useState(true)
   const [err, setErr] = useState("")
   const [history, setHistory] = useState<Attempt[]>([])
+  const [paper, setPaper] = useState<{ id: string; title: string } | null>(null)
+  const [credits, setCredits] = useState<GCredit[]>([])
+  const [showCustom, setShowCustom] = useState(false)
+  const [openingId, setOpeningId] = useState("")
 
   const [qs, setQs] = useState<GQ[]>([])
   const [answers, setAnswers] = useState<Record<number, number>>({})
@@ -49,19 +61,20 @@ export default function GrandTest() {
       const raw = localStorage.getItem(KEY)
       if (!raw) return
       const t = JSON.parse(raw) as SavedTest
-      if (t && t.qs?.length && t.endAt) { setQs(t.qs); setAnswers(t.answers || {}); setMarked(t.marked || []); setEndAt(t.endAt); setStartedAt(t.startedAt); setMinutes(t.minutes); setNegative(t.negative); setI(t.i || 0); setPhase("exam") }
+      if (t && t.qs?.length && t.endAt) { setQs(t.qs); setAnswers(t.answers || {}); setMarked(t.marked || []); setEndAt(t.endAt); setStartedAt(t.startedAt); setMinutes(t.minutes); setNegative(t.negative); setI(t.i || 0); setPaper(t.paperId ? { id: t.paperId, title: t.paperTitle || "Grand Test" } : null); setCredits(t.credits || []); setPhase("exam") }
     } catch {}
   }, [])
 
   useEffect(() => {
     if (!db || !user) return
+    getDoc(doc(db, "users", user.uid)).then((s) => setIsAdmin((s.data() as any)?.role === "admin")).catch(() => {})
     getDoc(doc(db, "users", user.uid, "progress", "grand")).then((s) => { if (s.exists()) setHistory(((s.data() as any).attempts || []) as Attempt[]) }).catch(() => {})
   }, [db, user])
 
   useEffect(() => {
     if (phase !== "exam") return
-    try { localStorage.setItem(KEY, JSON.stringify({ qs, answers, marked, endAt, startedAt, minutes, negative, i } satisfies SavedTest)) } catch {}
-  }, [phase, qs, answers, marked, endAt, startedAt, minutes, negative, i])
+    try { localStorage.setItem(KEY, JSON.stringify({ qs, answers, marked, endAt, startedAt, minutes, negative, i, paperId: paper?.id, paperTitle: paper?.title, credits } satisfies SavedTest)) } catch {}
+  }, [phase, qs, answers, marked, endAt, startedAt, minutes, negative, i, paper, credits])
 
   const finish = useCallback(() => {
     setConfirm(false); setFinishedAt(Date.now()); setPhase("result")
@@ -88,7 +101,24 @@ export default function GrandTest() {
     const mins = list.length < cfg.n ? Math.max(10, Math.round((cfg.m * list.length) / cfg.n)) : cfg.m
     const now = Date.now()
     saved.current = false
+    setPaper(null); setCredits([])
     setQs(list); setAnswers({}); setMarked([]); setI(0); setStartedAt(now); setEndAt(now + mins * 60000); setMinutes(mins); setPalette(false); setPhase("exam")
+  }
+
+  async function startPaper(meta: PaperMeta) {
+    if (!db) return
+    setErr(""); setOpeningId(meta.id)
+    try {
+      const p = await loadPaper(db, meta, subjects)
+      if (p.qs.length < 10) throw new Error("This paper has no questions yet.")
+      const now = Date.now()
+      saved.current = false
+      setPaper({ id: meta.id, title: meta.title }); setCredits(p.credits)
+      setQs(p.qs); setAnswers({}); setMarked([]); setI(0); setStartedAt(now); setEndAt(now + p.minutes * 60000); setMinutes(p.minutes); setPalette(false); setPhase("exam")
+    } catch (e: any) {
+      setErr(/permission|insufficient/i.test(e?.message || "") ? "This paper is for paid members. Open Pricing to unlock all papers." : e?.message || "Could not open this paper.")
+    }
+    setOpeningId("")
   }
 
   const result = useMemo(() => {
@@ -102,12 +132,12 @@ export default function GrandTest() {
     if (phase !== "result" || !result || saved.current || !db || !user) return
     saved.current = true
     const mins = Math.max(1, Math.round((finishedAt - startedAt) / 60000))
-    const att: Attempt = { at: Date.now(), n: qs.length, score: result.score, max: result.max, correct: result.correct, wrong: result.wrong, skipped: result.skipped, mins, rank: result.rank, scaled: result.scaled, subjects: result.subjects }
+    const att: Attempt = { at: Date.now(), n: qs.length, score: result.score, max: result.max, correct: result.correct, wrong: result.wrong, skipped: result.skipped, mins, rank: result.rank, scaled: result.scaled, subjects: result.subjects, ...(paper ? { paperId: paper.id, paperTitle: paper.title } : {}) }
     const next = [att, ...history].slice(0, 20)
     setHistory(next)
     setDoc(doc(db, "users", user.uid, "progress", "grand"), { attempts: next }).catch(() => {})
     recordBulk(db, user.uid, qs.map((q, n) => ({ subjectId: q.subjectId, topic: q.topic, question: q.question, options: q.options, correct: q.correct, explanation: q.explanation, picked: answers[n] ?? null }))).catch(() => {})
-  }, [phase, result, db, user, qs, answers, finishedAt, startedAt, history])
+  }, [phase, result, db, user, qs, answers, finishedAt, startedAt, history, paper])
 
   if (checkingAuth) return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 
@@ -120,41 +150,71 @@ export default function GrandTest() {
           <div className="relative space-y-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em]"><Timer className="h-3 w-3" /> Exam mode</span>
             <h1 className="text-3xl font-black tracking-tight md:text-5xl">Grand test</h1>
-            <p className="max-w-lg text-sm font-medium text-white/90 md:text-base">A timed mixed-subject paper with NEET PG style marking (+4, −1) and an estimated all-India rank.</p>
+            <p className="max-w-lg text-sm font-medium text-white/90 md:text-base">Full 200-question NEET PG style papers, timed, with marking (+4, −1) and an estimated all-India rank.</p>
           </div>
         </div>
 
         <section className="space-y-3">
-          <h2 className="font-black">1. Paper size</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {SIZES.map((s, n) => (
-              <button key={s.n} onClick={() => setSize(n)} className={`rounded-3xl border-2 p-4 text-left transition ${size === n ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"}`}>
-                <p className="text-lg font-black">{s.l}</p><p className="text-xs font-semibold text-muted-foreground">{s.d}</p>
-              </button>
-            ))}
+          <h2 className="font-black">Full papers</h2>
+          {papers.length === 0 && <p className="rounded-2xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">Full papers are being added. Meanwhile, make your own paper below.</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {papers.map((p) => {
+              const mine = history.filter((h) => h.paperId === p.id)
+              const best = mine.length ? Math.max(...mine.map((h) => h.score)) : null
+              const locked = !p.free && !canAccessContent && !isAdmin
+              return (
+                <div key={p.id} className="flex flex-col justify-between gap-3 rounded-3xl border-2 border-border bg-card p-4">
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-lg font-black">{p.title}</p>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${p.free ? "bg-emerald-100 text-emerald-700" : "bg-secondary text-muted-foreground"}`}>{p.free ? "Free" : "Premium"}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-muted-foreground">{p.count} questions · {Math.floor(p.durationMin / 60)} h {p.durationMin % 60} min</p>
+                    {best !== null && <p className="mt-1 text-xs font-bold text-primary">Best {best} / {p.count * 4} · taken {mine.length}×</p>}
+                  </div>
+                  {locked ? (
+                    <Link href="/pricing" className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border text-sm font-extrabold"><Lock className="h-4 w-4" /> Unlock with a plan</Link>
+                  ) : (
+                    <button onClick={() => startPaper(p)} disabled={!!openingId} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-extrabold text-white disabled:opacity-60">{openingId === p.id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening…</> : best !== null ? "Take again" : "Start paper"}</button>
+                  )}
+                </div>
+              )
+            })}
           </div>
+          <label className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-sm font-bold"><input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} className="h-4 w-4" /> Negative marking (−1 for each wrong answer)</label>
+          {err && <p className="flex items-center gap-2 rounded-2xl bg-rose-50 p-3 text-sm font-bold text-rose-700"><AlertTriangle className="h-4 w-4" /> {err}</p>}
         </section>
 
         <section className="space-y-3">
-          <div className="flex items-center justify-between"><h2 className="font-black">2. Subjects</h2>
-            <div className="flex gap-3 text-xs font-bold"><button onClick={() => setPicked(Object.fromEntries(subjects.map((s) => [s.id, true])))} className="text-primary">Select all</button><button onClick={() => setPicked({})} className="text-muted-foreground">Clear</button></div></div>
-          <div className="flex flex-wrap gap-2">
-            {subjects.map((s) => <button key={s.id} onClick={() => setPicked({ ...picked, [s.id]: !picked[s.id] })} className={`rounded-full border px-3.5 py-1.5 text-sm font-bold transition ${picked[s.id] ? "border-primary bg-primary text-white" : "border-border bg-card hover:border-primary/50"}`}>{s.name}</button>)}
-          </div>
-          <p className="text-xs text-muted-foreground">{chosen.length ? `${chosen.length} selected` : "None selected means all subjects"}.</p>
+          <button onClick={() => setShowCustom((v) => !v)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-card p-4 text-left font-black"><span>Make your own paper <span className="font-semibold text-muted-foreground">· random questions from the Question Bank</span></span><ChevronDown className={`h-5 w-5 transition ${showCustom ? "rotate-180" : ""}`} /></button>
+          {showCustom && (
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {SIZES.map((s, n) => (
+                  <button key={s.n} onClick={() => setSize(n)} className={`rounded-3xl border-2 p-4 text-left transition ${size === n ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"}`}>
+                    <p className="text-lg font-black">{s.l}</p><p className="text-xs font-semibold text-muted-foreground">{s.d}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between"><h2 className="font-black">Subjects</h2>
+                  <div className="flex gap-3 text-xs font-bold"><button onClick={() => setPicked(Object.fromEntries(subjects.map((s) => [s.id, true])))} className="text-primary">Select all</button><button onClick={() => setPicked({})} className="text-muted-foreground">Clear</button></div></div>
+                <div className="flex flex-wrap gap-2">
+                  {subjects.map((s) => <button key={s.id} onClick={() => setPicked({ ...picked, [s.id]: !picked[s.id] })} className={`rounded-full border px-3.5 py-1.5 text-sm font-bold transition ${picked[s.id] ? "border-primary bg-primary text-white" : "border-border bg-card hover:border-primary/50"}`}>{s.name}</button>)}
+                </div>
+                <p className="text-xs text-muted-foreground">{chosen.length ? `${chosen.length} selected` : "None selected means all subjects"}.</p>
+              </div>
+              <button onClick={start} disabled={loading || !subjects.length} className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-lg font-extrabold text-white shadow-lg disabled:opacity-60">{loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Building your paper…</> : "Start the test"}</button>
+            </div>
+          )}
         </section>
-
-        <label className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-sm font-bold"><input type="checkbox" checked={negative} onChange={(e) => setNegative(e.target.checked)} className="h-4 w-4" /> Negative marking (−1 for each wrong answer)</label>
-
-        {err && <p className="flex items-center gap-2 rounded-2xl bg-rose-50 p-3 text-sm font-bold text-rose-700"><AlertTriangle className="h-4 w-4" /> {err}</p>}
-        <button onClick={start} disabled={loading || !subjects.length} className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-lg font-extrabold text-white shadow-lg disabled:opacity-60">{loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Building your paper…</> : "Start the test"}</button>
 
         {history.length > 0 && (
           <section className="space-y-3">
             <h2 className="font-black">Your previous tests</h2>
             <div className="space-y-2">{history.slice(0, 6).map((h) => (
               <div key={h.at} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 text-sm">
-                <div><p className="font-black">{h.score} / {h.max} <span className="font-semibold text-muted-foreground">· {h.n} questions</span></p><p className="text-xs text-muted-foreground">{new Date(h.at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {h.mins} min</p></div>
+                <div><p className="font-black">{h.score} / {h.max} <span className="font-semibold text-muted-foreground">· {h.paperTitle || `${h.n} questions`}</span></p><p className="text-xs text-muted-foreground">{new Date(h.at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {h.mins} min</p></div>
                 <span className="rounded-full bg-secondary px-3 py-1 text-xs font-black">Est. rank {rankText(h.rank)}</span>
               </div>))}</div>
           </section>
@@ -190,7 +250,8 @@ export default function GrandTest() {
         <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
           <div className="space-y-5">
             <span className="inline-block rounded-full bg-secondary px-3 py-1 text-[11px] font-black uppercase tracking-wider text-primary">{q.subjectName}</span>
-            <h1 className="text-lg font-extrabold leading-snug md:text-xl">{q.question}</h1>
+            <h1 className="text-lg font-extrabold leading-snug md:text-xl whitespace-pre-line">{q.question}</h1>
+            <GrandImages names={q.qimgs} />
             <div className="space-y-2.5">
               {q.options.map((o, n) => (
                 <button key={n} onClick={() => setAnswers((a) => (a[i] === n ? Object.fromEntries(Object.entries(a).filter(([k]) => Number(k) !== i)) : { ...a, [i]: n }))} className={`flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left font-semibold transition ${answers[i] === n ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"}`}>
@@ -267,12 +328,25 @@ export default function GrandTest() {
         {rows.map(({ q, n, p }) => (
           <div key={n} className="space-y-3 rounded-2xl border border-border bg-card p-4 text-sm">
             <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">Q{n + 1} · {q.subjectName}{q.topic ? " · " + q.topic : ""}</p>
-            <p className="font-bold">{q.question}</p>
+            <p className="font-bold whitespace-pre-line">{q.question}</p>
+            <GrandImages names={q.qimgs} />
             <ul className="space-y-1.5">{q.options.map((o, k) => <li key={k} className={`flex items-start gap-2 rounded-xl px-3 py-2 ${k === q.correct ? "bg-emerald-50 font-bold text-emerald-800" : k === p ? "bg-rose-50 text-rose-800" : "bg-secondary/60"}`}>{k === q.correct ? <Check className="mt-0.5 h-4 w-4 shrink-0" /> : k === p ? <X className="mt-0.5 h-4 w-4 shrink-0" /> : <span className="w-4" />}<span>{o}</span></li>)}</ul>
-            {q.explanation && <p className="rounded-xl bg-secondary p-3 text-muted-foreground">{q.explanation}</p>}
+            {(q.explanation || (q.eimgs && q.eimgs.length > 0)) && <div className="space-y-2 rounded-xl bg-secondary p-3 text-muted-foreground">{q.explanation && <p className="whitespace-pre-line">{q.explanation}</p>}<GrandImages names={q.eimgs} /></div>}
           </div>
         ))}
       </section>
+
+      {credits.length > 0 && (
+        <details className="rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-black text-foreground">Image credits ({credits.length})</summary>
+          <p className="mt-2">Figures in this paper come from open-access articles, used under the licence shown. Click a title to open the source.</p>
+          <ul className="mt-2 space-y-2">
+            {credits.map((c, k) => (
+              <li key={k}>Q{c.n}: {c.url ? <a href={c.url} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">{c.title || c.pmcid}</a> : <span className="font-bold">{c.title || c.pmcid}</span>}{c.authors ? `, ${c.authors}` : ""}{c.journal ? ` ${c.journal}` : ""}{c.year ? ` (${c.year})` : ""}{c.pmcid ? ` ${c.pmcid}` : ""}{c.licence ? `. ${c.licence}` : ""}</li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <div className="flex flex-wrap gap-3">
         <button onClick={() => { setPhase("setup"); saved.current = false }} className="rounded-full bg-primary px-6 py-3 font-extrabold text-white">Take another test</button>
