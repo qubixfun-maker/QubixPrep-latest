@@ -12,3 +12,7 @@ fix_admin*.js
 total_admin*.js
 tsconfig.tsbuildinfo
 .vercel
+
+home/
+backup-*.json
+qubix-*.tar.gz
