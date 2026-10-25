@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 30
 
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyIdToken } from '@/lib/firebase-admin'
+import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
 import { getVertexAccessToken } from '@/ai/genkit'
 
 const LANGS = new Set(['en-IN', 'hi-IN', 'kn-IN', 'ta-IN', 'te-IN', 'ml-IN', 'mr-IN', 'bn-IN'])
@@ -13,6 +13,36 @@ const KID: Record<string, string> = {
   'te-IN': 'te-IN-Standard-A', 'ml-IN': 'ml-IN-Wavenet-A', 'mr-IN': 'mr-IN-Wavenet-A', 'bn-IN': 'bn-IN-Wavenet-A',
 }
 const cache = new Map<string, Buffer>()
+
+// Jelly's OpenAI voice (Marin, chill style). Used only for paid members, English and Hindi, and only when the key is set.
+const CORAL_LANGS = new Set(['en-IN', 'hi-IN'])
+const CORAL_STYLE = 'Voice: laid-back, mellow and effortlessly cool, like a friendly surfer who is also a great study mentor. Tone: relaxed, warm, encouraging, never rushed. Pace: easy and flowing. Keep every medical term and number crisp and clearly pronounced. Speak in the same language as the text.'
+async function openaiSpeech(text: string): Promise<Buffer | null> {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) return null
+  try {
+    // Marin is Jelly's voice; if OpenAI does not accept it for this model, fall back to Coral.
+    for (const voice of ['marin', 'coral']) {
+      const r = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice, input: text, instructions: CORAL_STYLE, response_format: 'mp3' }),
+      })
+      if (r.ok) return Buffer.from(await r.arrayBuffer())
+      if (r.status !== 400 && r.status !== 422) return null
+    }
+    return null
+  } catch { return null }
+}
+async function isPaid(decoded: any): Promise<boolean> {
+  try {
+    const uid = decoded?.uid || decoded?.user_id || decoded?.sub
+    if (!uid) return false
+    const u: any = (await getAdminFirestore().collection('users').doc(String(uid)).get()).data() || {}
+    if (u.role === 'admin') return true
+    return (u.plan === 'basic' || u.plan === 'pro') && (!u.planExpiresAt || Number(u.planExpiresAt) > Date.now())
+  } catch { return false }
+}
 
 const RATE = 1.12
 function tidy(t: string) {
@@ -36,11 +66,20 @@ export async function POST(req: NextRequest) {
     if (!idToken || !text?.trim() || !LANGS.has(lang) || (gender !== 'male' && gender !== 'female')) {
       return NextResponse.json({ error: 'Bad request' }, { status: 400 })
     }
-    await verifyIdToken(idToken)
+    const decoded: any = await verifyIdToken(idToken)
     const clean = tidy(String(text)).slice(0, 600)
     const v = Math.abs(Number(variant) || 0) % 3
     const key = `${lang}|${kid ? 'kid' : gender}|${v}|${clean}`
     let audio = cache.get(key)
+    // Coral for paid members (Jelly only), English and Hindi
+    if (!audio && kid && CORAL_LANGS.has(lang) && process.env.OPENAI_API_KEY && (await isPaid(decoded))) {
+      const ck = 'coral|' + clean
+      audio = cache.get(ck)
+      if (!audio) {
+        const a = await openaiSpeech(clean)
+        if (a) { audio = a; if (cache.size > 300) cache.delete(cache.keys().next().value as string); cache.set(ck, a) }
+      }
+    }
     if (!audio) {
       const token = await getVertexAccessToken()
       if (!token) return NextResponse.json({ error: 'No Google token' }, { status: 503 })
