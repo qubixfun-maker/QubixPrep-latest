@@ -8,7 +8,7 @@ export const COMPANY_NAME = "QubixPrep"
 export const SITE_URL = "https://qubixprep.com"
 
 /** Shown as the contact + grievance address in the Terms and Privacy Policy. CHANGE THIS to your real support email. */
-export const CONTACT_EMAIL = "support@qubixprep.com"
+export const CONTACT_EMAIL = "qubixprep@gmail.com"
 
 /** Legal city whose courts decide disputes (example: "Hyderabad"). Leave "" to say "competent courts in India". */
 export const JURISDICTION_CITY = ""
