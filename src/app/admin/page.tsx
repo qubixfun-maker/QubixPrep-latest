@@ -1719,7 +1719,7 @@ export default function AdminDashboard() {
               <BarChart3 className="h-4 w-4" /> Analytics
             </Button>
           </Link>
-          <Link href="/osce-stations">
+          <Link href="/virtual-patient">
             <Button variant="outline" className="rounded-xl gap-2 glass border-teal-500/30 text-teal-400 hover:bg-teal-500/10">
               <Stethoscope className="h-4 w-4" /> OSCE Stations (Live)
             </Button>

@@ -37,7 +37,7 @@ const PLANS = [
       "Top 100 Topics",
       "All video lectures",
     ],
-    locked: ["Jelly AI", "AI Tutor and AI Tools", "OSCE Stations"],
+    locked: ["Jelly AI", "AI Tutor and AI Tools", "Virtual Patient"],
   },
   {
     id: "pro", name: "Clinician", price: 1499, icon: Sparkles,
@@ -47,7 +47,7 @@ const PLANS = [
       "Everything in Scholar",
       "Jelly AI study companion",
       "AI Tutor, Summarizer and Quiz Generator",
-      "OSCE Stations",
+      "Virtual Patient",
     ],
     locked: [] as string[],
   },

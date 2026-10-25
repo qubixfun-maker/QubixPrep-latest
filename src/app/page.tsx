@@ -11,6 +11,7 @@ import { getFeatureIcon } from "@/components/quickcards/icons"
 import { useJelly } from "@/components/jelly/jelly-store"
 import { JellyAvatar } from "@/components/jelly/JellyAvatar"
 import { QuickDeckCard } from "@/components/quickcards/QuickDeckCard"
+import { MoreWays } from "@/components/dashboard/more-ways"
 import { Button } from "@/components/ui/button"
 import { loadStats, dayKey, recordDailyCase } from "@/lib/study"
 import { streakOf, doneToday } from "@/lib/streak"
@@ -43,21 +44,10 @@ const FEATURES: Feature[] = [
   { name: "QuickCards", href: "/quickcards", micro: "QUICK REVISION · PRO", title: "Rapid-fire\nrevision", tagline: "Exam-ready, at a glance.", emoji: "⚡", bg: "#fff0bf", fg: "#805716", chip: "🔒 SCHOLAR", chipKind: "pro", body: "Dense decks: ECG, drugs, fluids, OPD and more.", foot: "Reference sections" },
   { name: "Ward Round", href: "/cases", micro: "THINK · DIAGNOSE", title: "Think like\na clinician", tagline: "Clues, reasoning, decisions.", emoji: "🩺", bg: "#d9f1f8", fg: "#245f78", chip: "100 LIVE CASES", chipKind: "free", body: "Build clinical reasoning with patient scenarios.", foot: "Start a case" },
   { name: "The Arena", href: "/arena", micro: "PLAY · COMPETE", title: "Study with\nfriends", tagline: "Duels, co-op and seasons.", emoji: "⚔️", bg: "#efe0ff", fg: "#5b2d9c", chip: "MULTIPLAYER", chipKind: "free", body: "Race friends on MCQs, battle on flashcards, treat patients as a team.", foot: "Enter the arena" },
-  { name: "OSCE Stations", href: "/osce-stations", micro: "SPEAK · PERFORM", title: "Practice the\nreal thing", tagline: "Meet your virtual patient.", emoji: "🗣️", bg: "#ffe0ec", fg: "#8d3c61", chip: "🔒 SCHOLAR", chipKind: "pro", body: "History, examination, viva and scored feedback.", foot: "100 ready cases" },
+  { name: "Virtual Patient", href: "/virtual-patient", micro: "SPEAK · PERFORM", title: "Practice the\nreal thing", tagline: "Meet your virtual patient.", emoji: "🗣️", bg: "#ffe0ec", fg: "#8d3c61", chip: "🔒 SCHOLAR", chipKind: "pro", body: "History, examination, viva and scored feedback.", foot: "100 ready cases" },
   { name: "PYQ Series", href: "/pyq", micro: "PAST PAPERS · PATTERNS", title: "Study what\nshows up", tagline: "Learn from past questions.", emoji: "📄", bg: "#e4efda", fg: "#41633a", chip: "EXPLORE", chipKind: "free", body: "Year-wise NEET-PG, INI-CET and USMLE practice.", foot: "Browse question sets" },
   { name: "Med Stories", href: "/stories", micro: "LIVE · MEDICAL NEWS", title: "Fresh from the\nmedical world", tagline: "Swipe through today's stories.", emoji: "📰", bg: "#fde4dc", fg: "#8a3a2a", chip: "LIVE · FREE", chipKind: "free", body: "New medical news as web stories, straight from trusted sources.", foot: "Open stories" },
   { name: "Jelly AI", href: "/jelly", micro: "YOUR AI STUDY BUDDY", title: "Ask away.\nJelly knows.", tagline: "Doubts, quizzes, plans, viva.", emoji: "👻", bg: "#e8e0ff", fg: "#5b43a0", chip: "SCHOLAR", chipKind: "pro", body: "Explain, quiz, practise viva or plan your week.", foot: "Chat with Jelly" },
-]
-
-const MORE_WAYS = [
-  { emoji: "📝", name: "Long Answers", note: "Essays and short answers", href: "/long-answers", bg: "#e4efda" },
-  { emoji: "🧑‍⚕️", name: "Case Presentation", note: "Present like in the viva", href: "/case-presentation", bg: "#d9f1f8" },
-  { emoji: "🔬", name: "Spot & Identify", note: "Specimens and slides", href: "/spotters", bg: "#ffe6ed" },
-  { emoji: "⏱️", name: "Grand Test", note: "Full-length mock paper", href: "/grand-test", bg: "#fff0bf" },
-  { emoji: "🧠", name: "Custom Quiz", note: "Build your own test", href: "/test-series", bg: "#eee5ff" },
-  { emoji: "✨", name: "AI Tools", note: "Summarise and quiz", href: "/ai-tools", bg: "#e8e0ff" },
-  { emoji: "🔁", name: "Daily Review", note: "Cards due today", href: "/review", bg: "#d8f4e9" },
-  { emoji: "🗓️", name: "Study Plan", note: "Plan your week", href: "/plan", bg: "#ffe2d3" },
 ]
 
 const SUBJECT_STYLES: { match: RegExp; emoji: string; bg: string; label: string }[] = [
@@ -414,23 +404,7 @@ export default function Dashboard() {
       </section>
 
       {/* More ways to study */}
-      <section>
-        <div className="mb-3.5">
-          <h2 className="text-[21px] font-black tracking-tight">More ways to study 🎒</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Everything else, one tap away.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
-          {MORE_WAYS.map((m) => (
-            <Link key={m.name} href={user ? m.href : "/signup"} className="group flex items-center gap-3 rounded-[18px] border border-border bg-card p-3 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10">
-              <div className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[13px] text-[21px]" style={{ background: m.bg }}>{m.emoji}</div>
-              <div className="min-w-0">
-                <b className="block truncate text-[13px] leading-tight">{m.name}</b>
-                <small className="block truncate text-[11px] text-muted-foreground">{m.note}</small>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <MoreWays loggedIn={!!user} />
 
       {/* QuickCards */}
       {visibleQc.length > 0 && (
@@ -456,7 +430,7 @@ export default function Dashboard() {
           <div className="text-[43px] leading-none">👑</div>
           <div>
             <h3 className="mb-1 text-xl font-bold">Ready to unlock your full potential?</h3>
-            <p className="text-xs text-[#d1c9e7]">Full notes, every mind map, unlimited QBank, OSCE and your Jelly AI companion.</p>
+            <p className="text-xs text-[#d1c9e7]">Full notes, every mind map, unlimited QBank, Virtual Patient and your Jelly AI companion.</p>
           </div>
           <Link href="/pricing" className="shrink-0 rounded-[13px] bg-[#ffb17e] px-4 py-3 text-sm font-black text-[#4d2c21] sm:ml-auto">
             Explore Scholar · ₹999/year →

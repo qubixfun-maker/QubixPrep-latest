@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: false,
   },
   serverExternalPackages: ['google-auth-library'],
+  async redirects() {
+    return [
+      { source: '/osce-stations', destination: '/virtual-patient', permanent: false },
+      { source: '/osce-stations/:path*', destination: '/virtual-patient', permanent: false },
+    ]
+  },
   outputFileTracingIncludes: {
     '/api/admin/ai-ingest-textbook': ['./node_modules/@napi-rs/canvas*/**/*'],
     '/api/admin/parse-question-bank': ['./node_modules/@napi-rs/canvas*/**/*'],

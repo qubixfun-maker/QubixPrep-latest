@@ -113,7 +113,7 @@ export default function Dashboard() {
               <Link href="/ai-tools"><BrainCircuit className="h-4 w-4" /> AI Tools</Link>
             </Button>
             <Button variant="outline" size="lg" asChild className="w-full md:w-auto rounded-xl glass border-white/10 hover:bg-white/5 gap-2">
-              <Link href="/osce-stations"><Stethoscope className="h-4 w-4" /> OSCE Stations</Link>
+              <Link href="/virtual-patient"><Stethoscope className="h-4 w-4" /> Virtual Patient</Link>
             </Button>
           </div>
         </div>

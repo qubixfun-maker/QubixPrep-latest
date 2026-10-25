@@ -51,7 +51,7 @@ export function TermsContent() {
 
       <H>6. AI features and medical disclaimer</H>
       <UL>
-        <li>The AI tutor, Jelly, OSCE simulations, summaries and flashcard generators are learning aids. They can make mistakes. Verify important facts with your standard textbooks and faculty.</li>
+        <li>The AI tutor, Jelly, Virtual Patient simulations, summaries and flashcard generators are learning aids. They can make mistakes. Verify important facts with your standard textbooks and faculty.</li>
         <li>{COMPANY_NAME} is for education only. It is not medical advice, and it must never be used to diagnose or treat a real patient or to make clinical decisions.</li>
         <li>AI features may have fair-use limits. Do not use them to create harmful, illegal, abusive or misleading content, and do not try to extract our prompts, models or content through them.</li>
       </UL>

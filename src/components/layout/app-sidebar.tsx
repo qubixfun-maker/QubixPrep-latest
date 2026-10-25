@@ -72,7 +72,7 @@ export function AppSidebar() {
     { title: "Grand Test", url: "/grand-test", icon: Timer },
     { title: "Ward Round", url: "/cases", icon: Stethoscope },
     { title: "Arena", url: "/arena", icon: Swords },
-    { title: "OSCE Stations", url: "/osce-stations", icon: Stethoscope },
+    { title: "Virtual Patient", url: "/virtual-patient", icon: Stethoscope },
     { title: "Case Presentation", url: "/case-presentation", icon: Stethoscope },
     { title: "Spot & Identify", url: "/spotters", icon: Microscope },
   ]
