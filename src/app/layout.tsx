@@ -11,11 +11,26 @@ import { OfflineBanner } from '@/components/offline-banner';
 export const metadata: Metadata = {
   title: 'QubixPrep - AI Medical Learning Platform',
   description: 'Modern AI-powered medical learning platform for MBBS and NEET-PG students.',
+  metadataBase: new URL('https://qubixprep.com'),
   manifest: '/manifest.json',
   icons: {
-    icon: '/icons/favicon-32.png',
-    apple: '/icons/apple-touch-icon.png',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icons/favicon-32.png?v=2', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png?v=2', sizes: '192x192', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/icons/apple-touch-icon.png?v=2',
   },
+  openGraph: {
+    title: 'QubixPrep - AI Medical Learning Platform',
+    description: 'Notes, QBank, PYQs and full-length Grand Tests for MBBS and NEET-PG.',
+    url: 'https://qubixprep.com',
+    siteName: 'QubixPrep',
+    images: [{ url: '/brand/og-image.png', width: 1200, height: 630, alt: 'QubixPrep' }],
+    type: 'website',
+  },
+  twitter: { card: 'summary_large_image', title: 'QubixPrep', images: ['/brand/og-image.png'] },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

@@ -6,7 +6,8 @@ import { doc, getDoc, setDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { BrainCircuit, Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react"
+import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react"
+import { BrandMark } from "@/components/brand-mark"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
@@ -89,7 +90,7 @@ function LoginPageContent() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md border-none shadow-2xl">
         <CardHeader className="text-center">
-          <BrainCircuit className="mx-auto h-12 w-12 text-primary" />
+          <BrandMark className="mx-auto h-20 w-auto" />
           <CardTitle className="text-2xl font-bold">Log In</CardTitle>
           <CardDescription>Welcome back to QubixPrep</CardDescription>
         </CardHeader>

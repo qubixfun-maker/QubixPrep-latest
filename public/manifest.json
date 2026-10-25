@@ -4,7 +4,7 @@
   "description": "AI-powered medical learning platform for MBBS and NEET-PG students.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0A0A0F",
+  "background_color": "#0d1b31",
   "theme_color": "#7C3AED",
   "orientation": "portrait-primary",
   "icons": [

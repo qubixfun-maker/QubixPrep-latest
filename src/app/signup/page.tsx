@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BrainCircuit, Loader2, MessageCircle, CheckCircle2 } from "lucide-react"
+import { Loader2, MessageCircle, CheckCircle2 } from "lucide-react"
+import { BrandMark } from "@/components/brand-mark"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { CollegePicker } from "@/components/college-picker"
@@ -257,7 +258,7 @@ function SignUpPageContent() {
       <div className="min-h-screen flex items-center justify-center p-4 bg-background">
         <Card className="w-full max-w-md border-none shadow-2xl">
           <CardHeader className="text-center">
-            <BrainCircuit className="mx-auto h-12 w-12 text-primary" />
+            <BrandMark className="mx-auto h-20 w-auto" />
             <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
             <CardDescription>Just a few more details, {pendingGoogleUser.displayName?.split(' ')[0] || 'there'}</CardDescription>
           </CardHeader>
@@ -292,7 +293,7 @@ function SignUpPageContent() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md border-none shadow-2xl">
         <CardHeader className="text-center">
-          <BrainCircuit className="mx-auto h-12 w-12 text-primary" />
+          <BrandMark className="mx-auto h-20 w-auto" />
           <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
           <CardDescription>Join QubixPrep</CardDescription>
         </CardHeader>

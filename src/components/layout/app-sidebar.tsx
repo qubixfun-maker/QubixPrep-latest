@@ -1,5 +1,6 @@
 "use client"
 
+import { BrandLockup } from "@/components/brand-mark"
 import { useMemo } from "react"
 import {
   BookOpen, GraduationCap, Layers, Network, Flame, Database, Trophy, BrainCircuit, Stethoscope,
@@ -111,10 +112,7 @@ export function AppSidebar() {
     <Sidebar collapsible="offcanvas" className="border-r border-border bg-sidebar">
       <SidebarHeader className="gap-4 p-4 pb-2">
         <Link href="/" className="flex items-center gap-2.5 px-2 min-w-0" onClick={closeOnMobile}>
-          <div className="flex h-[38px] w-[38px] items-center justify-center rounded-[13px] bg-primary text-white shadow-lg shadow-primary/25 shrink-0">
-            <Plus className="h-5 w-5" strokeWidth={3} />
-          </div>
-          <span className="text-[22px] font-black tracking-tight text-primary truncate">QubixPrep</span>
+          <BrandLockup />
         </Link>
         {user && (
           <Link href="/profile" onClick={closeOnMobile} className="flex items-center gap-2.5 rounded-2xl bg-secondary p-3 min-w-0">
