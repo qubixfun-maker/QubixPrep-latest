@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Menu, Search } from "lucide-react"
@@ -35,7 +35,7 @@ function TopBar() {
       <button
         onClick={toggleSidebar}
         aria-label="Toggle menu"
-        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground md:hidden"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-accent"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -61,6 +61,18 @@ function TopBar() {
       </div>
     </header>
   )
+}
+
+/** On tablets and small laptops the menu starts closed so the page gets the full width. The menu button opens it any time. */
+function AutoCollapse() {
+  const { setOpen, isMobile } = useSidebar()
+  const done = useRef(false)
+  useEffect(() => {
+    if (done.current) return
+    done.current = true
+    if (!isMobile && window.innerWidth < 1100) setOpen(false)
+  }, [isMobile, setOpen])
+  return null
 }
 
 function MobileNav() {
@@ -103,6 +115,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
+      <AutoCollapse />
       <MobileNav />
     </SidebarProvider>
     </TopSearchProvider>

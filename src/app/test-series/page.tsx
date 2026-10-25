@@ -363,7 +363,7 @@ export default function TestSeriesPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="glass border-none sticky top-24">
+          <Card className="glass border-none lg:sticky lg:top-24">
             <CardHeader className="bg-primary/10 rounded-t-lg">
               <CardTitle className="text-lg">Assessment Summary</CardTitle>
             </CardHeader>

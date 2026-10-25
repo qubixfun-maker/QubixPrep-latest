@@ -50,7 +50,7 @@ export default function LongAnswersChaptersPage({ params }: { params: Promise<{ 
                       <BookOpen className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold truncate">{ch.title}</p>
+                      <p className="min-w-0 break-words font-bold">{ch.title}</p>
                       <p className="text-xs text-muted-foreground mt-1">{total} question{total !== 1 ? 's' : ''}</p>
                     </div>
                   </div>

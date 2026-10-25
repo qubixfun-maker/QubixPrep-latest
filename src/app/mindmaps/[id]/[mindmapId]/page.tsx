@@ -97,8 +97,8 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-2.5 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:px-5" style={{ background: "linear-gradient(180deg, rgba(243,244,248,.96) 55%, rgba(243,244,248,0))" }}>
         <Link href={`/mindmaps/${subjectId}`} aria-label="Back" className={`pointer-events-auto ${tile}`}><ChevronLeft className="h-6 w-6 text-slate-700" /></Link>
         <div className="pointer-events-none min-w-0 flex-1 px-1">
-          <h1 className="truncate text-xl font-extrabold leading-tight tracking-tight sm:text-2xl">{mm.title}</h1>
-          {subjectName && <p className="truncate text-sm font-medium text-slate-500 sm:text-base">{subjectName}</p>}
+          <h1 className="line-clamp-2 break-words text-xl font-extrabold leading-tight tracking-tight sm:text-2xl">{mm.title}</h1>
+          {subjectName && <p className="line-clamp-2 break-words text-sm font-medium text-slate-500 sm:text-base">{subjectName}</p>}
         </div>
         <button onClick={share} aria-label="Share" className={`pointer-events-auto ${tile}`}><Share2 className="h-5 w-5 text-sky-600" /></button>
         <button onClick={() => toggleList("mm-saved", saved, setSaved, "Saved", "Removed from saved")} aria-label="Bookmark" className={`pointer-events-auto ${tile}`}><Bookmark className={`h-5 w-5 ${saved ? "fill-slate-700 text-slate-700" : "text-slate-500"}`} /></button>

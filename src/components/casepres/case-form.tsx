@@ -78,7 +78,10 @@ export function CaseForm({ caseDef, answers, setField, onPresent, saveState }: {
         </div>
       )}
 
-      <div className="fixed bottom-0 inset-x-0 z-30 border-t border-white/10 bg-background/90 backdrop-blur">
+      {/* spacer, so the last fields are never hidden behind the bar */}
+      <div className="h-24 md:h-20" aria-hidden />
+      {/* on phones the bar sits above the tab bar (Home / Notes / QBank...); on bigger screens it sits at the very bottom */}
+      <div className="fixed inset-x-0 bottom-[calc(54px+env(safe-area-inset-bottom,0px))] z-30 border-t border-white/10 bg-background/95 backdrop-blur md:bottom-0">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-2">
           <Button variant="outline" onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0} className="gap-1"><ChevronLeft className="h-4 w-4" /><span className="hidden sm:inline">Back</span></Button>
           <Button variant="outline" onClick={() => setIdx((i) => Math.min(caseDef.sections.length - 1, i + 1))} disabled={idx === caseDef.sections.length - 1} className="gap-1"><span className="hidden sm:inline">Next</span><ChevronRight className="h-4 w-4" /></Button>

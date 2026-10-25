@@ -178,7 +178,7 @@ export default function GrandTest() {
     )
     return (
       <div className="mx-auto max-w-6xl p-3 md:p-6">
-        <div className="sticky top-0 z-20 -mx-3 mb-4 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur md:mx-0 md:rounded-2xl md:border md:px-5">
+        <div className="sticky top-[66px] z-20 -mx-3 mb-4 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur md:mx-0 md:rounded-2xl md:border md:px-5">
           <p className="text-sm font-black">Q {i + 1} <span className="font-semibold text-muted-foreground">/ {qs.length}</span></p>
           <p className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-sm font-black ${low ? "bg-rose-100 text-rose-700" : "bg-secondary"}`}><Clock className="h-4 w-4" /> {fmt(left)}</p>
           <div className="flex gap-2">

@@ -75,7 +75,7 @@ export default function NotesSubjectPage({ params }: { params: Promise<{ subject
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <BookOpen className={`h-5 w-5 shrink-0 ${color.text}`} />
-                  <span className="font-medium truncate">{note.chapterTitle}</span>
+                  <span className="min-w-0 break-words font-medium">{note.chapterTitle}</span>
                   {!entitled && note.free && <span className="shrink-0 rounded-full bg-[#d9f6ec] px-2 py-0.5 text-[10px] font-black text-[#17543f]">FREE</span>}
                 </div>
                 {locked ? <Lock className="h-5 w-5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />}

@@ -230,7 +230,7 @@ export function MyPdfQbanks() {
                       <BookOpen className="h-6 w-6" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-base line-clamp-1 mb-1">{q.file_name}</h4>
+                      <h4 className="font-bold text-base line-clamp-2 break-words mb-1">{q.file_name}</h4>
                       <div className="flex items-center gap-3 flex-wrap">
                         <span className="px-2 py-0.5 rounded bg-accent/10 text-accent text-[9px] font-bold uppercase tracking-widest">{q.subject}</span>
                         <span className="text-[10px] text-muted-foreground font-medium">{q.total_questions} Clinical Cases</span>

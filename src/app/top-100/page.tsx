@@ -112,8 +112,8 @@ export default function Top100Page() {
                     <div className="flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3 shadow-sm transition-all hover:shadow-md" style={{ opacity: unlocked ? 1 : 0.85 }}>
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ background: tone.bg, color: tone.ink }}>{n}</span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold">{t.name}</p>
-                        {t.chapterTitle && <p className="truncate text-xs text-muted-foreground">{t.chapterTitle}</p>}
+                        <p className="min-w-0 break-words text-sm font-bold">{t.name}</p>
+                        {t.chapterTitle && <p className="min-w-0 break-words text-xs text-muted-foreground">{t.chapterTitle}</p>}
                       </div>
                       {unlocked ? <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" /> : <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />}
                     </div>

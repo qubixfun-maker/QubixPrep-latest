@@ -292,7 +292,7 @@ export default function PYQPage() {
         </div>
 
         <div>
-          <Card className="glass border-none sticky top-24">
+          <Card className="glass border-none lg:sticky lg:top-24">
             <CardHeader className="bg-primary/10 rounded-t-xl"><CardTitle>Session Summary</CardTitle></CardHeader>
             <CardContent className="p-6 space-y-4">
               <div className="space-y-3 text-sm">
