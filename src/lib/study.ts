@@ -108,6 +108,9 @@ export async function loadStats(db: Firestore, uid: string) {
   return (s.exists() ? s.data() : {}) as { total?: { a: number; c: number }; topics?: Record<string, { n: string; s: string; a: number; c: number }>; days?: Record<string, { q?: number; c?: number; f?: number }> }
 }
 
+/** The Case of the Day on the home page: counts as today's activity, so it keeps the streak alive. */
+export async function recordDailyCase(db: Firestore, uid: string, ok: boolean) { await bumpStats(db, uid, { kind: "q", ok }) }
+
 /** Grand Test: one stats write for the whole paper; wrong answers (up to 60) go into the notebook and review queue. */
 export async function recordBulk(db: Firestore, uid: string, items: { subjectId: string; topic: string; question: string; options: string[]; correct: number; explanation?: string; picked: number | null }[]) {
   const answered = items.filter((x) => x.picked !== null)

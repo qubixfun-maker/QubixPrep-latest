@@ -19,7 +19,7 @@ const cache = new Map<string, Buffer>()
 //  - OSCE stations: a voice per case. The case's gender and variant pick the person, so each patient or examiner sounds different.
 const OPENAI_LANGS = new Set(['en-IN', 'hi-IN'])
 const OPENAI_VOICE = { male: ['cedar', 'onyx', 'ash'], female: ['coral', 'nova', 'shimmer'] } as const
-const JELLY_STYLE = 'Voice: bright, bubbly and cheerful, like a fun older sibling who loves teaching. Tone: playful, a smile in every sentence, lots of friendly energy. Pace: lively and bouncy. Keep every medical term and number crisp and clearly pronounced. Speak in the same language as the text.'
+const JELLY_STYLE = 'Voice: bright, bubbly and cheerful, like a fun older sibling who loves teaching. Tone: playful, a smile in every sentence, lots of friendly energy. Pace: brisk and natural, like a quick-talking friend in a normal conversation, never slow or drawn out, with no long pauses between sentences. Keep every medical term and number crisp and clearly pronounced. Speak in the same language as the text.'
 const CASE_STYLE = 'You are a real person in a clinical exam station in India, speaking naturally and conversationally with a clear Indian accent. Say exactly the words given, in the same language as the text. Do not sound like an announcer or a teacher.'
 async function openaiSpeech(text: string, voices: string[], instructions: string): Promise<{ audio: Buffer; voice: string } | null> {
   const key = process.env.OPENAI_API_KEY
@@ -37,7 +37,16 @@ async function openaiSpeech(text: string, voices: string[], instructions: string
   } catch {}
   return null
 }
+const paidCache = new Map<string, { at: number; v: boolean }>()
 async function isPaid(decoded: any): Promise<boolean> {
+  const uid = String(decoded?.uid || decoded?.user_id || decoded?.sub || '')
+  const hit = uid ? paidCache.get(uid) : undefined
+  if (hit && Date.now() - hit.at < 60_000) return hit.v
+  const v = await isPaidFresh(decoded)
+  if (uid) { if (paidCache.size > 500) paidCache.clear(); paidCache.set(uid, { at: Date.now(), v }) }
+  return v
+}
+async function isPaidFresh(decoded: any): Promise<boolean> {
   try {
     const uid = decoded?.uid || decoded?.user_id || decoded?.sub
     if (!uid) return false

@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
-import { getSubjectYear } from "@/lib/subject-year"
 
 export default function MindmapsSubjectsPage() {
   const db = useFirestore()
@@ -25,19 +24,7 @@ export default function MindmapsSubjectsPage() {
     return subjects.filter((s: any) => s.name.toLowerCase().includes(search.toLowerCase()))
   }, [subjects, search])
 
-  const groupedByYear = useMemo(() => {
-    const groups: Record<string, any[]> = {}
-    filtered.forEach((s: any) => {
-      const year = getSubjectYear(s.name)
-      const key = year.label
-      if (!groups[key]) groups[key] = []
-      groups[key].push(s)
-    })
-    Object.values(groups).forEach((list) => list.sort((a, b) => a.name.localeCompare(b.name)))
-    return Object.entries(groups)
-      .sort((a, b) => getSubjectYear(a[1][0].name).order - getSubjectYear(b[1][0].name).order)
-      .map(([label, items]) => ({ label, items }))
-  }, [filtered])
+  const sortedSubjects = useMemo(() => [...filtered].sort((a: any, b: any) => String(a.name).localeCompare(String(b.name))), [filtered])
 
   const { checkingAuth } = useRequireAuth()
   if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
@@ -54,21 +41,14 @@ export default function MindmapsSubjectsPage() {
       {loading ? (
         <div className="h-64 flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
       ) : (
-        <div className="space-y-10">
-          {groupedByYear.map((group) => (
-            <div key={group.label} className="space-y-4">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground px-1">{group.label}</h2>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {group.items.map((subject: any) => {
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {sortedSubjects.map((subject: any) => {
                   const color = getSubjectColor(subject.name)
                   return (
                     <SubjectArtCard key={subject.id} href={`/mindmaps/${subject.id}`} name={subject.name} subtitle="Explore chapters as visual mind maps." />
                   )
                 })}
               </div>
-            </div>
-          ))}
-        </div>
       )}
     </div>
   )

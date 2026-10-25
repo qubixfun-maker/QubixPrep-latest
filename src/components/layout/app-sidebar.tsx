@@ -73,6 +73,7 @@ export function AppSidebar() {
     { title: "Ward Round", url: "/cases", icon: Stethoscope },
     { title: "Arena", url: "/arena", icon: Swords },
     { title: "OSCE Stations", url: "/osce-stations", icon: Stethoscope },
+    { title: "Case Presentation", url: "/case-presentation", icon: Stethoscope },
     { title: "Spot & Identify", url: "/spotters", icon: Microscope },
   ]
   const studio: Item[] = [

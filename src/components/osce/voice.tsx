@@ -111,10 +111,13 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
   const play = (url: string) => new Promise<void>((resolve) => {
     const a = shared || new Audio()
     a.src = url
+    const rate = o.kid ? 1.15 : 1 // Jelly talks a little faster, like a normal person
+    a.defaultPlaybackRate = rate; a.playbackRate = rate
+    try { (a as any).preservesPitch = true } catch {}
     live.add(a)
     let done = false
     const fin = () => { if (done) return; done = true; clearInterval(iv); cancels.delete(fin); resolve() }
-    const iv = setInterval(() => { if (a.duration && a.duration - a.currentTime < 0.12) fin() }, 30)
+    const iv = setInterval(() => { if (a.duration && a.duration - a.currentTime < 0.2) fin() }, 30)
     cancels.add(fin)
     a.onended = () => { live.delete(a); fin() }; a.onerror = () => { live.delete(a); fin() }
     a.play().catch((e) => { if (!stopped) reportVoiceIssue(e?.name === "NotAllowedError" ? "The browser blocked sound. Tap anywhere on the page once, then try again." : "Could not play the voice (" + (e?.name || "error") + ")."); fin() })
@@ -147,8 +150,8 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
       const re = /[.!?।॥]\s/g
       let cut = -1; let m: RegExpExecArray | null
       while ((m = re.exec(buf))) cut = m.index + 1
-      if (cut < 0 && first && buf.length > 80) { const c = buf.lastIndexOf(", "); if (c > 30) cut = c + 1 }
-      if (cut > (first ? 20 : 40)) { splitSentences(buf.slice(0, cut)).forEach(enqueue); buf = buf.slice(cut); first = false }
+      if (cut < 0 && first && buf.length > 50) { const c = buf.lastIndexOf(", "); if (c > 22) cut = c + 1 }
+      if (cut > (first ? 14 : 40)) { splitSentences(buf.slice(0, cut)).forEach(enqueue); buf = buf.slice(cut); first = false }
     },
     end() { if (stopped) return; splitSentences(buf).forEach(enqueue); buf = ""; ended = true; if (!playing && !jobs.length) finish() },
     stop() {

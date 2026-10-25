@@ -12,6 +12,8 @@ import { useJelly } from "@/components/jelly/jelly-store"
 import { JellyAvatar } from "@/components/jelly/JellyAvatar"
 import { QuickDeckCard } from "@/components/quickcards/QuickDeckCard"
 import { Button } from "@/components/ui/button"
+import { loadStats, dayKey, recordDailyCase } from "@/lib/study"
+import { streakOf, doneToday } from "@/lib/streak"
 import { Loader2, CheckCircle2, ArrowRight, Sparkles } from "lucide-react"
 import Link from "next/link"
 
@@ -47,6 +49,17 @@ const FEATURES: Feature[] = [
   { name: "Jelly AI", href: "/jelly", micro: "YOUR AI STUDY BUDDY", title: "Ask away.\nJelly knows.", tagline: "Doubts, quizzes, plans, viva.", emoji: "👻", bg: "#e8e0ff", fg: "#5b43a0", chip: "SCHOLAR", chipKind: "pro", body: "Explain, quiz, practise viva or plan your week.", foot: "Chat with Jelly" },
 ]
 
+const MORE_WAYS = [
+  { emoji: "📝", name: "Long Answers", note: "Essays and short answers", href: "/long-answers", bg: "#e4efda" },
+  { emoji: "🧑‍⚕️", name: "Case Presentation", note: "Present like in the viva", href: "/case-presentation", bg: "#d9f1f8" },
+  { emoji: "🔬", name: "Spot & Identify", note: "Specimens and slides", href: "/spotters", bg: "#ffe6ed" },
+  { emoji: "⏱️", name: "Grand Test", note: "Full-length mock paper", href: "/grand-test", bg: "#fff0bf" },
+  { emoji: "🧠", name: "Custom Quiz", note: "Build your own test", href: "/test-series", bg: "#eee5ff" },
+  { emoji: "✨", name: "AI Tools", note: "Summarise and quiz", href: "/ai-tools", bg: "#e8e0ff" },
+  { emoji: "🔁", name: "Daily Review", note: "Cards due today", href: "/review", bg: "#d8f4e9" },
+  { emoji: "🗓️", name: "Study Plan", note: "Plan your week", href: "/plan", bg: "#ffe2d3" },
+]
+
 const SUBJECT_STYLES: { match: RegExp; emoji: string; bg: string; label: string }[] = [
   { match: /anat/i, emoji: "🦴", bg: "#fff0e6", label: "STRUCTURE & FORM" },
   { match: /physio/i, emoji: "❤️", bg: "#e4f5f0", label: "HOW THE BODY WORKS" },
@@ -79,22 +92,17 @@ export default function Dashboard() {
 
   const profileRef = useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user])
   const { data: profile } = useDoc(profileRef)
-  const streak = (profile as any)?.streakCount || 0
-  const isAdminUser = (profile as any)?.role === "admin"
-
-  const [completed, setCompleted] = useState<number | null>(null)
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof loadStats>> | null>(null)
   useEffect(() => {
+    if (!db || !user) return
     let on = true
-    async function load() {
-      if (!db || !user) return
-      try {
-        const snap = await getDocs(query(collection(db, "users", user.uid, "progress"), where("completed", "==", true)))
-        if (on) setCompleted(snap.size)
-      } catch { if (on) setCompleted(0) }
-    }
-    load()
+    loadStats(db, user.uid).then((x) => { if (on) setStats(x) }).catch(() => { if (on) setStats({}) })
     return () => { on = false }
   }, [db, user])
+  const streak = streakOf(stats?.days)
+  const studiedToday = doneToday(stats?.days)
+  const answeredTotal = stats ? (stats.total?.a || 0) : null
+  const isAdminUser = (profile as any)?.role === "admin"
 
   const subjectsQuery = useMemo(() => (db ? collection(db, "subjects") : null), [db])
   const { data: rawSubjects } = useCollection(subjectsQuery)
@@ -197,6 +205,12 @@ export default function Dashboard() {
     ? [dq.option1, dq.option2, dq.option3, dq.option4].map((text, idx) => ({ text, idx })).filter((o) => !!o.text)
     : []
 
+  const recordDaily = (ok: boolean) => {
+    if (!db || !user) return
+    const k = `qp_daily_${user.uid}_${dayKey()}`
+    try { if (localStorage.getItem(k)) return; localStorage.setItem(k, "1") } catch {}
+    recordDailyCase(db, user.uid, ok).then(() => loadStats(db, user.uid)).then(setStats).catch(() => {})
+  }
   const askJelly = () => { if (jelly.active) jelly.setOpen(true); else router.push("/jelly") }
   const goTo = (href: string) => router.push(!user ? "/signup" : href)
 
@@ -221,7 +235,7 @@ export default function Dashboard() {
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Today&apos;s mission ✨</div>
             <h2 className="my-2 text-[23px] font-black leading-tight tracking-tight">Small steps. Big doctor energy.</h2>
             <p className="mb-4 max-w-[320px] text-sm text-[#635985]">
-              {streak > 0 ? `You're on a ${streak}-day streak. Answer today's case to keep it going!` : "Answer today's case to start your streak."}
+              {studiedToday ? (streak > 1 ? `Today is done. ${streak}-day streak, see you tomorrow!` : "Today is done. Come back tomorrow to build your streak!") : streak > 0 ? `You're on a ${streak}-day streak. Answer today's case to keep it going!` : "Answer today's case to start your streak."}
             </p>
             <button
               onClick={() => document.getElementById("case-of-the-day")?.scrollIntoView({ behavior: "smooth" })}
@@ -257,7 +271,7 @@ export default function Dashboard() {
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { bg: "#fff0dc", icon: "🔥", value: `${streak} ${streak === 1 ? "day" : "days"}`, label: "Study streak" },
-          { bg: "#e7f8e9", icon: "✅", value: completed === null ? "…" : String(completed), label: "Items completed" },
+          { bg: "#e7f8e9", icon: "✅", value: answeredTotal === null ? "…" : String(answeredTotal), label: "Questions answered" },
           { bg: "#e8e0ff", icon: "📚", value: String(subjects.length), label: "Subjects to explore" },
           { bg: "#ffe4ef", icon: "🎓", value: planLabel, label: "Your plan" },
         ].map((s) => (
@@ -344,7 +358,7 @@ export default function Dashboard() {
                 else if (wrong) cls = "border-red-500/60 bg-red-500/10"
                 else if (answered) cls = "border-border opacity-50"
                 return (
-                  <button key={opt.idx} onClick={() => { if (!answered) setSelectedIdx(opt.idx) }} disabled={answered}
+                  <button key={opt.idx} onClick={() => { if (answered) return; setSelectedIdx(opt.idx); recordDaily(opt.idx === dq.correct_answer_index) }} disabled={answered}
                     className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-[13px] transition-all ${cls}`}>
                     <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${answered && isCorrect ? "bg-green-500 text-white" : wrong ? "bg-red-500 text-white" : "bg-muted text-muted-foreground"}`}>
                       {String.fromCharCode(65 + opt.idx)}
@@ -395,6 +409,25 @@ export default function Dashboard() {
                 <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-muted-foreground"><span>{f.foot}</span><span>→</span></div>
               </div>
             </article>
+          ))}
+        </div>
+      </section>
+
+      {/* More ways to study */}
+      <section>
+        <div className="mb-3.5">
+          <h2 className="text-[21px] font-black tracking-tight">More ways to study 🎒</h2>
+          <p className="mt-1 text-xs text-muted-foreground">Everything else, one tap away.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3">
+          {MORE_WAYS.map((m) => (
+            <Link key={m.name} href={user ? m.href : "/signup"} className="group flex items-center gap-3 rounded-[18px] border border-border bg-card p-3 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10">
+              <div className="grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[13px] text-[21px]" style={{ background: m.bg }}>{m.emoji}</div>
+              <div className="min-w-0">
+                <b className="block truncate text-[13px] leading-tight">{m.name}</b>
+                <small className="block truncate text-[11px] text-muted-foreground">{m.note}</small>
+              </div>
+            </Link>
           ))}
         </div>
       </section>

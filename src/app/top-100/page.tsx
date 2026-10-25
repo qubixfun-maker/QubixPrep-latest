@@ -7,7 +7,6 @@ import { collection, doc } from "firebase/firestore"
 import { Loader2, ArrowRight, Lock } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useTopSearch } from "@/components/layout/top-search"
-import { getSubjectYear } from "@/lib/subject-year"
 import { usePlan } from "@/hooks/use-plan"
 import { clearTop100Cache } from "@/lib/top100-cache"
 
@@ -48,7 +47,7 @@ export default function Top100Page() {
     list.forEach((t) => { (by[t.subjectName] = by[t.subjectName] || []).push(t) })
     Object.values(by).forEach((l) => l.sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0)))
     return Object.entries(by)
-      .sort((a, b) => getSubjectYear(a[0]).order - getSubjectYear(b[0]).order || a[0].localeCompare(b[0]))
+      .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([subject, items]) => ({ subject, items }))
   }, [data, search])
 
