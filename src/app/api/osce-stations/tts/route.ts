@@ -14,25 +14,28 @@ const KID: Record<string, string> = {
 }
 const cache = new Map<string, Buffer>()
 
-// Jelly's OpenAI voice (Marin, chill style). Used only for paid members, English and Hindi, and only when the key is set.
-const CORAL_LANGS = new Set(['en-IN', 'hi-IN'])
-const CORAL_STYLE = 'Voice: laid-back, mellow and effortlessly cool, like a friendly surfer who is also a great study mentor. Tone: relaxed, warm, encouraging, never rushed. Pace: easy and flowing. Keep every medical term and number crisp and clearly pronounced. Speak in the same language as the text.'
-async function openaiSpeech(text: string): Promise<Buffer | null> {
+// OpenAI voices (paid members and admins, English and Hindi). Everything else keeps the Google voices above.
+//  - Jelly (kid=true): Marin, in a relaxed "chill" style.
+//  - OSCE stations: a voice per case. The case's gender and variant pick the person, so each patient or examiner sounds different.
+const OPENAI_LANGS = new Set(['en-IN', 'hi-IN'])
+const OPENAI_VOICE = { male: ['cedar', 'onyx', 'ash'], female: ['coral', 'nova', 'shimmer'] } as const
+const JELLY_STYLE = 'Voice: bright, bubbly and cheerful, like a fun older sibling who loves teaching. Tone: playful, a smile in every sentence, lots of friendly energy. Pace: lively and bouncy. Keep every medical term and number crisp and clearly pronounced. Speak in the same language as the text.'
+const CASE_STYLE = 'You are a real person in a clinical exam station in India, speaking naturally and conversationally with a clear Indian accent. Say exactly the words given, in the same language as the text. Do not sound like an announcer or a teacher.'
+async function openaiSpeech(text: string, voices: string[], instructions: string): Promise<{ audio: Buffer; voice: string } | null> {
   const key = process.env.OPENAI_API_KEY
-  if (!key) return null
+  if (!key || process.env.OPENAI_LLM === 'off') return null
   try {
-    // Marin is Jelly's voice; if OpenAI does not accept it for this model, fall back to Coral.
-    for (const voice of ['marin', 'coral']) {
+    for (const voice of voices) {
       const r = await fetch('https://api.openai.com/v1/audio/speech', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice, input: text, instructions: CORAL_STYLE, response_format: 'mp3' }),
+        body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice, input: text, instructions, response_format: 'mp3' }),
       })
-      if (r.ok) return Buffer.from(await r.arrayBuffer())
-      if (r.status !== 400 && r.status !== 422) return null
+      if (r.ok) return { audio: Buffer.from(await r.arrayBuffer()), voice }
+      if (r.status !== 400 && r.status !== 422) return null // a voice that OpenAI does not accept is skipped; anything else (limits, outage) falls back to Google
     }
-    return null
-  } catch { return null }
+  } catch {}
+  return null
 }
 async function isPaid(decoded: any): Promise<boolean> {
   try {
@@ -71,13 +74,14 @@ export async function POST(req: NextRequest) {
     const v = Math.abs(Number(variant) || 0) % 3
     const key = `${lang}|${kid ? 'kid' : gender}|${v}|${clean}`
     let audio = cache.get(key)
-    // Coral for paid members (Jelly only), English and Hindi
-    if (!audio && kid && CORAL_LANGS.has(lang) && process.env.OPENAI_API_KEY && (await isPaid(decoded))) {
-      const ck = 'coral|' + clean
+    if (!audio && OPENAI_LANGS.has(lang) && process.env.OPENAI_API_KEY && process.env.OPENAI_LLM !== 'off' && (await isPaid(decoded))) {
+      const voices = kid ? ['marin', 'coral'] : Array.from(new Set([OPENAI_VOICE[gender][v], OPENAI_VOICE[gender][1], 'coral']))
+      const extra = typeof body.style === 'string' ? ' ' + body.style.replace(/[^\p{L}\p{N} .,'-]/gu, '').slice(0, 160) : ''
+      const ck = `oa|${kid ? 'kid' : gender}|${v}|${extra}|${clean}`
       audio = cache.get(ck)
       if (!audio) {
-        const a = await openaiSpeech(clean)
-        if (a) { audio = a; if (cache.size > 300) cache.delete(cache.keys().next().value as string); cache.set(ck, a) }
+        const out = await openaiSpeech(clean, voices, (kid ? JELLY_STYLE : CASE_STYLE) + extra)
+        if (out) { audio = out.audio; if (cache.size > 300) cache.delete(cache.keys().next().value as string); cache.set(ck, out.audio) }
       }
     }
     if (!audio) {
