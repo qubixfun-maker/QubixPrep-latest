@@ -9,7 +9,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { recordBulk } from "@/lib/study"
 import { usePlan } from "@/hooks/use-plan"
 import { GrandImages } from "@/components/grand/grand-images"
-import { loadPaper, type PaperMeta } from "@/lib/grand-papers"
+import { loadPaper, sampleFromPapers, type PaperMeta } from "@/lib/grand-papers"
 import { estimateRank, sampleQuestions, scoreTest, type Attempt, type GCredit, type GQ, type SavedTest } from "@/lib/grand"
 
 const KEY = "qp-grand-v1"
@@ -40,6 +40,7 @@ export default function GrandTest() {
   const [credits, setCredits] = useState<GCredit[]>([])
   const [showCustom, setShowCustom] = useState(false)
   const [openingId, setOpeningId] = useState("")
+  const [imageOnly, setImageOnly] = useState(false)
 
   const [qs, setQs] = useState<GQ[]>([])
   const [answers, setAnswers] = useState<Record<number, number>>({})
@@ -89,19 +90,27 @@ export default function GrandTest() {
     return () => clearInterval(t)
   }, [phase, endAt, finish])
 
-  const chosen = subjects.filter((s) => picked[s.id])
-  const useSubjects = chosen.length ? chosen : subjects
+  const usable = useMemo(() => papers.filter((p) => p.free || canAccessContent || isAdmin), [papers, canAccessContent, isAdmin])
+  const subjectChips = useMemo(() => {
+    const m = new Map<string, number>()
+    usable.forEach((p) => (p.subjects || []).forEach((s) => m.set(s.name, (m.get(s.name) || 0) + s.n)))
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, n]) => ({ name, n }))
+  }, [usable])
+  const chosen = subjectChips.filter((s) => picked[s.name])
 
   async function start() {
-    if (!db || !subjects.length) return
+    if (!db) return
+    if (!usable.length) { setErr("No Grand Test papers are available to build from yet."); return }
     setErr(""); setPhase("loading")
     const cfg = SIZES[size]
-    const list = await sampleQuestions(db, useSubjects, cfg.n)
-    if (list.length < 10) { setErr("Not enough questions found for this selection. Pick more subjects."); setPhase("setup"); return }
+    let r: { qs: GQ[]; credits: GCredit[] } = { qs: [], credits: [] }
+    try { r = await sampleFromPapers(db, usable, subjects, { total: cfg.n, names: chosen.map((c) => c.name), imageOnly }) } catch {}
+    const list = r.qs
+    if (list.length < 10) { setErr(imageOnly ? "Fewer than 10 image questions match this selection. Pick more subjects or switch off image-only." : "Not enough questions found for this selection. Pick more subjects."); setPhase("setup"); return }
     const mins = list.length < cfg.n ? Math.max(10, Math.round((cfg.m * list.length) / cfg.n)) : cfg.m
     const now = Date.now()
     saved.current = false
-    setPaper(null); setCredits([])
+    setPaper(null); setCredits(r.credits)
     setQs(list); setAnswers({}); setMarked([]); setI(0); setStartedAt(now); setEndAt(now + mins * 60000); setMinutes(mins); setPalette(false); setPhase("exam")
   }
 
@@ -196,15 +205,16 @@ export default function GrandTest() {
                   </button>
                 ))}
               </div>
+              <label className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-sm font-bold"><input type="checkbox" checked={imageOnly} onChange={(e) => setImageOnly(e.target.checked)} className="h-4 w-4" /> Image-based questions only</label>
               <div className="space-y-3">
                 <div className="flex items-center justify-between"><h2 className="font-black">Subjects</h2>
-                  <div className="flex gap-3 text-xs font-bold"><button onClick={() => setPicked(Object.fromEntries(subjects.map((s) => [s.id, true])))} className="text-primary">Select all</button><button onClick={() => setPicked({})} className="text-muted-foreground">Clear</button></div></div>
+                  <div className="flex gap-3 text-xs font-bold"><button onClick={() => setPicked(Object.fromEntries(subjectChips.map((s) => [s.name, true])))} className="text-primary">Select all</button><button onClick={() => setPicked({})} className="text-muted-foreground">Clear</button></div></div>
                 <div className="flex flex-wrap gap-2">
-                  {subjects.map((s) => <button key={s.id} onClick={() => setPicked({ ...picked, [s.id]: !picked[s.id] })} className={`rounded-full border px-3.5 py-1.5 text-sm font-bold transition ${picked[s.id] ? "border-primary bg-primary text-white" : "border-border bg-card hover:border-primary/50"}`}>{s.name}</button>)}
+                  {subjectChips.map((s) => <button key={s.name} onClick={() => setPicked({ ...picked, [s.name]: !picked[s.name] })} className={`rounded-full border px-3.5 py-1.5 text-sm font-bold transition ${picked[s.name] ? "border-primary bg-primary text-white" : "border-border bg-card hover:border-primary/50"}`}>{s.name}</button>)}
                 </div>
-                <p className="text-xs text-muted-foreground">{chosen.length ? `${chosen.length} selected` : "None selected means all subjects"}.</p>
+                <p className="text-xs text-muted-foreground">{chosen.length ? `${chosen.length} selected` : "None selected means all subjects"}. Questions are taken only from the Grand Test papers{usable.length < papers.length ? " you can open" : ""}.</p>
               </div>
-              <button onClick={start} disabled={loading || !subjects.length} className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-lg font-extrabold text-white shadow-lg disabled:opacity-60">{loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Building your paper…</> : "Start the test"}</button>
+              <button onClick={start} disabled={loading || !usable.length} className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-lg font-extrabold text-white shadow-lg disabled:opacity-60">{loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Building your paper…</> : "Start the test"}</button>
             </div>
           )}
         </section>

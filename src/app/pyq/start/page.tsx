@@ -338,7 +338,7 @@ function PYQSessionContent() {
         </CardContent>
       </Card>
 
-      <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto p-3 md:p-0 bg-background/95 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none border-t md:border-t-0 border-white/5 flex gap-2 z-20">
+      <div className="fixed md:relative bottom-0 left-0 right-0 md:bottom-auto p-3 md:p-0 bg-background/95 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none border-t md:border-t-0 border-white/5 flex gap-2 z-[45]" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
         <Button onClick={previousQuestion} disabled={currentIndex === 0} variant="outline" className="h-12 px-4 md:px-6 rounded-xl glass border-white/10 gap-1.5 font-bold disabled:opacity-30 shrink-0">
           <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Previous</span>
         </Button>
