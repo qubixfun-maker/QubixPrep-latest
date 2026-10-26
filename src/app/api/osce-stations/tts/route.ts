@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
 
+import { isClinician } from '@/lib/require-clinician'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
 import { getVertexAccessToken } from '@/ai/genkit'
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bad request' }, { status: 400 })
     }
     const decoded: any = await verifyIdToken(idToken)
+    if (!(await isClinician(decoded.uid))) return NextResponse.json({ error: 'Virtual Patient is part of the Clinician plan. Upgrade to continue.', needsPlan: true }, { status: 403 })
     const clean = tidy(String(text)).slice(0, 600)
     const v = Math.abs(Number(variant) || 0) % 3
     const key = `${lang}|${kid ? 'kid' : gender}|${v}|${clean}`

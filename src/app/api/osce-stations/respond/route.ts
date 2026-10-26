@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
+import { isClinician } from '@/lib/require-clinician'
 import { NextRequest } from 'next/server'
 import { verifyIdToken } from '@/lib/firebase-admin'
 import { answer } from '@/ai/osce-engine'
@@ -13,7 +14,8 @@ export async function POST(req: NextRequest) {
     if (!idToken || !brief || !utterance?.trim()) {
       return new Response(JSON.stringify({ error: 'Missing idToken, brief, or utterance' }), { status: 400 })
     }
-    await verifyIdToken(idToken)
+    const __who = await verifyIdToken(idToken)
+    if (!(await isClinician(__who.uid))) return new Response(JSON.stringify({ error: "Virtual Patient is part of the Clinician plan. Upgrade to continue.", needsPlan: true }), { status: 403, headers: { "Content-Type": "application/json" } })
     const gen = answer(brief as OsceBrief, typeof history === 'string' ? history : '', utterance.trim(), typeof language === 'string' && language.trim() ? language.trim() : 'English')
     const stream = new ReadableStream({
       async start(c) {

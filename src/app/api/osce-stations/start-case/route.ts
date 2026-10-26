@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
 
+import { isClinician } from '@/lib/require-clinician'
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyIdToken } from '@/lib/firebase-admin'
 import { generateCaseBrief } from '@/ai/osce-live-case'
@@ -13,7 +14,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Any signed-in user may call this - it's a student-facing study feature, not admin-only.
-    await verifyIdToken(idToken)
+    const __who = await verifyIdToken(idToken)
+    if (!(await isClinician(__who.uid))) return NextResponse.json({ error: 'Virtual Patient is part of the Clinician plan. Upgrade to continue.', needsPlan: true }, { status: 403 })
 
     const { brief, error } = await generateCaseBrief(specialty.trim(), topic.trim())
     if (!brief) {

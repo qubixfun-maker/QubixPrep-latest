@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
+import { isClinician } from '@/lib/require-clinician'
 import { NextRequest } from 'next/server'
 import { verifyIdToken } from '@/lib/firebase-admin'
 import { jelly, cleanCtx, cleanMsgs } from '@/ai/jelly'
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     const decoded = await verifyIdToken(b.idToken)
     const uid = decoded.uid
 
+    if (!(await isClinician(uid))) return fail('Jelly is part of the Clinician plan. Upgrade to chat with Jelly.', 403)
     const plan = await planOf(uid)
     const limit = limitFor(plan)
     if (limit < 0) return fail('Jelly is available with an active subscription.', 403)
