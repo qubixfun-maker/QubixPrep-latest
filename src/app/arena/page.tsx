@@ -66,11 +66,11 @@ export default function ArenaHub() {
   const needsSubject = mode !== "coop"
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-3 md:p-8">
-      <div className="keep-dark relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-violet-700 via-fuchsia-600 to-orange-500 p-7 text-white shadow-2xl md:p-10">
-        <div className="pointer-events-none absolute -right-6 -top-6 text-[9rem] opacity-20">⚔️</div>
+    <div className="mx-auto max-w-5xl space-y-5 overflow-x-clip p-3 pb-28 md:space-y-6 md:p-8 md:pb-8">
+      <div className="keep-dark relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-violet-700 via-fuchsia-600 to-orange-500 p-5 text-white shadow-2xl sm:p-7 md:p-10">
+        <div className="pointer-events-none absolute -right-6 -top-6 text-[6rem] opacity-20 sm:text-[9rem]">⚔️</div>
         <p className="text-xs font-black uppercase tracking-[0.3em] opacity-80">Multiplayer</p>
-        <h1 className="mt-1 text-4xl font-black md:text-5xl">The Arena</h1>
+        <h1 className="mt-1 text-3xl font-black sm:text-4xl md:text-5xl">The Arena</h1>
         <p className="mt-2 max-w-lg text-sm opacity-90 md:text-base">Race your friends on real MBBS questions, battle on flashcards, or treat a patient as a team. Earn XP, climb the season ladder, collect badges.</p>
         {season && (
           <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-xs font-extrabold backdrop-blur">
@@ -79,7 +79,7 @@ export default function ArenaHub() {
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_340px] [&>*]:min-w-0">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {MODES.map((m) => (
@@ -124,8 +124,8 @@ export default function ArenaHub() {
           <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
             <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-muted-foreground">Got a code?</p>
             <div className="flex gap-2">
-              <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && join()} maxLength={6} placeholder="ABC123" className="h-12 flex-1 rounded-xl border border-black/10 px-4 text-center text-lg font-black uppercase tracking-[0.3em]" />
-              <Button onClick={join} disabled={code.trim().length < 4} className="h-12 rounded-xl px-6 font-black"><Link2 className="mr-1.5 h-4 w-4" /> Join</Button>
+              <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && join()} maxLength={6} placeholder="ABC123" className="h-12 min-w-0 flex-1 rounded-xl border border-black/10 px-2 text-center text-lg font-black uppercase tracking-[0.2em] sm:px-4 sm:tracking-[0.3em]" />
+              <Button onClick={join} disabled={code.trim().length < 4} className="h-12 shrink-0 rounded-xl px-4 font-black sm:px-6"><Link2 className="mr-1.5 h-4 w-4" /> Join</Button>
             </div>
           </div>
         </div>

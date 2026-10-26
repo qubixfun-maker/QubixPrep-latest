@@ -86,7 +86,7 @@ export function ArenaCoop({ room, user, code }: { room: any; user: any; code: st
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-[1fr_330px]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_330px] [&>*]:min-w-0">
         <div className="relative h-[240px] overflow-hidden rounded-3xl border border-black/5 shadow-xl md:h-[310px]">
           <Scene setting={setting}><PatientGlyph scale={1.3} x={430} y={178} name={pt.name} age={pt.age} ageUnit={pt.ageUnit} sex={pt.sex} mood={mood} rr={vit.rr} /></Scene>
           <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[11px] font-extrabold text-slate-800 shadow">{SETTINGS[setting].emoji} {SETTINGS[setting].label}</span>
@@ -114,14 +114,14 @@ export function ArenaCoop({ room, user, code }: { room: any; user: any; code: st
       ) : stage && (
         <>
           {co.stage === 0 && co.phase === "vote" && (
-            <div className="wr-rise flex items-start gap-3"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sky-100 text-2xl shadow">👩‍⚕️</div><div className="rounded-2xl rounded-tl-sm border border-black/5 bg-white p-4 shadow-sm"><p className="mb-1 text-[10px] font-extrabold uppercase tracking-widest text-sky-600">Triage nurse</p><p className="text-sm leading-relaxed text-slate-800">{c.stem}</p></div></div>
+            <div className="wr-rise flex items-start gap-3"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sky-100 text-2xl shadow">👩‍⚕️</div><div className="min-w-0 rounded-2xl rounded-tl-sm border border-black/5 bg-white p-4 shadow-sm"><p className="mb-1 text-[10px] font-extrabold uppercase tracking-widest text-sky-600">Triage nurse</p><p className="text-sm leading-relaxed text-slate-800">{c.stem}</p></div></div>
           )}
           <div key={co.stage + co.phase} className="wr-rise overflow-hidden rounded-3xl border border-black/5 bg-white shadow-lg">
             <div className={`flex items-center justify-between bg-gradient-to-r px-5 py-3 text-white ${(STAGE[stage.type] || STAGE.history).grad}`}>
               <span className="text-xs font-black uppercase tracking-widest">{(STAGE[stage.type] || STAGE.history).emoji} {(STAGE[stage.type] || STAGE.history).label}</span>
               <span className="text-xs font-bold opacity-90">Step {co.stage + 1} of {stages.length}</span>
             </div>
-            <div className="space-y-4 p-5">
+            <div className="space-y-4 p-4 sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 {room.order.map((id: string, i: number) => (
                   <span key={id} className={`flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-3 text-xs font-extrabold ${co.votes?.[id] ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-black/10 bg-slate-50 text-slate-600"}`}>
@@ -138,9 +138,9 @@ export function ArenaCoop({ room, user, code }: { room: any; user: any; code: st
                   const st = OUT[o.outcome] || OUT.wrong
                   return (
                     <button key={o.id} disabled={co.phase !== "vote" || busy} onClick={() => call("vote", { optId: o.id })}
-                      className={`flex items-start gap-3 rounded-2xl border-2 p-4 text-left transition-all ${chosen ? `${st.ring} ${st.bg}` : best ? "border-emerald-300 bg-emerald-50/60" : myVote === o.id ? "border-primary bg-primary/10" : co.phase === "reveal" ? "border-black/5 opacity-50" : "border-black/10 bg-white hover:-translate-y-0.5 hover:border-primary hover:shadow-md"}`}>
+                      className={`flex w-full items-start gap-3 rounded-2xl border-2 p-3 text-left transition-all sm:p-4 ${chosen ? `${st.ring} ${st.bg}` : best ? "border-emerald-300 bg-emerald-50/60" : myVote === o.id ? "border-primary bg-primary/10" : co.phase === "reveal" ? "border-black/5 opacity-50" : "border-black/10 bg-white hover:-translate-y-0.5 hover:border-primary hover:shadow-md"}`}>
                       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-primary/10 text-sm font-black text-primary">{String.fromCharCode(65 + i)}</span>
-                      <span className="pt-1 text-sm font-semibold leading-snug text-slate-800">{o.label}</span>
+                      <span className="min-w-0 flex-1 break-words pt-1 text-sm font-semibold leading-snug text-slate-800">{o.label}</span>
                     </button>
                   )
                 })}

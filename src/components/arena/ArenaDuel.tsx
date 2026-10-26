@@ -89,22 +89,22 @@ function LiveQuestion({ room, user, code, call, err }: any) {
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+    <div className="grid gap-5 lg:grid-cols-[1fr_300px] [&>*]:min-w-0">
       <div className="space-y-4">
-        <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] font-black uppercase tracking-wider text-muted-foreground sm:text-xs sm:tracking-widest">
           <span>Question {cur.idx + 1} / {room.qCount}</span>
           <span className={`flex items-center gap-1 ${left < 6 && !reveal ? "text-rose-600" : ""}`}><Timer className="h-4 w-4" /> {reveal ? "Answer" : startsIn > 0 ? "Get ready" : Math.ceil(left) + "s"}</span>
         </div>
         <div className="h-2.5 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full transition-[width] duration-200" style={{ width: reveal || startsIn > 0 ? "100%" : (left / room.sec) * 100 + "%", background: left < 6 ? "#ef4565" : "#7c6fd6" }} /></div>
 
-        <div className="relative rounded-3xl border border-black/5 bg-white p-6 shadow-lg">
+        <div className="relative rounded-3xl border border-black/5 bg-white p-4 shadow-lg sm:p-6">
           {startsIn > 0 && (
             <div className="absolute inset-0 z-10 grid place-items-center rounded-3xl bg-white/90 backdrop-blur-sm">
               <p className="text-8xl font-black text-primary" style={{ animation: "wr-beat 1s infinite" }}>{Math.ceil(startsIn / 1000)}</p>
             </div>
           )}
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">{q.topic}</p>
-          <p className="mt-2 text-lg font-bold leading-snug text-slate-900">{q.q}</p>
+          <p className="mt-2 break-words text-base font-bold leading-snug text-slate-900 sm:text-lg">{q.q}</p>
           <div className="mt-5 grid gap-3">
             {q.options.map((o: string, i: number) => {
               const isRight = reveal && cur.correct === i
@@ -112,9 +112,9 @@ function LiveQuestion({ room, user, code, call, err }: any) {
               const mine = myPick === i
               return (
                 <button key={i} onClick={() => choose(i)} disabled={reveal || myPick !== undefined}
-                  className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-all ${isRight ? "border-emerald-400 bg-emerald-50" : isMineWrong ? "border-rose-400 bg-rose-50" : mine ? "border-primary bg-primary/10" : reveal ? "border-black/5 opacity-50" : "border-black/10 bg-white hover:-translate-y-0.5 hover:border-primary hover:shadow-md"}`}>
+                  className={`flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition-all sm:p-4 ${isRight ? "border-emerald-400 bg-emerald-50" : isMineWrong ? "border-rose-400 bg-rose-50" : mine ? "border-primary bg-primary/10" : reveal ? "border-black/5 opacity-50" : "border-black/10 bg-white hover:-translate-y-0.5 hover:border-primary hover:shadow-md"}`}>
                   <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-sm font-black ${isRight ? "bg-emerald-500 text-white" : isMineWrong ? "bg-rose-500 text-white" : "bg-primary/10 text-primary"}`}>{String.fromCharCode(65 + i)}</span>
-                  <span className="text-sm font-semibold text-slate-800">{o}</span>
+                  <span className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-800">{o}</span>
                   {isRight && <CheckCircle2 className="ml-auto h-5 w-5 text-emerald-600" />}{isMineWrong && <XCircle className="ml-auto h-5 w-5 text-rose-600" />}
                 </button>
               )
@@ -217,23 +217,23 @@ function AsyncRun({ room, user, code, me, call, err }: any) {
           <div className="mt-3"><ShareBar code={code} label={`Beat my score on ${room.source?.label}!`} /></div>
         </div>
       )}
-      <div className="flex items-center justify-between text-xs font-black uppercase tracking-widest text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] font-black uppercase tracking-wider text-muted-foreground sm:text-xs sm:tracking-widest">
         <span>Question {qi + 1} / {room.qCount}</span><span className="text-primary">Score {me?.score || 0}</span>
         <span className="flex items-center gap-1"><Timer className="h-4 w-4" /> {fb ? "" : Math.ceil(left) + "s"}</span>
       </div>
       <div className="h-2.5 overflow-hidden rounded-full bg-black/10"><div className="h-full rounded-full bg-primary transition-[width] duration-200" style={{ width: fb ? "100%" : (left / room.sec) * 100 + "%" }} /></div>
-      <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-lg">
+      <div className="rounded-3xl border border-black/5 bg-white p-4 shadow-lg sm:p-6">
         <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">{q.topic}</p>
-        <p className="mt-2 text-lg font-bold leading-snug text-slate-900">{q.q}</p>
+        <p className="mt-2 break-words text-base font-bold leading-snug text-slate-900 sm:text-lg">{q.q}</p>
         <div className="mt-5 grid gap-3">
           {q.options.map((o: string, i: number) => {
             const right = fb && fb.correctIndex === i
             const wrong = fb && pick === i && fb.correctIndex !== i
             return (
               <button key={i} onClick={() => choose(i)} disabled={!!fb || busy}
-                className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-all ${right ? "border-emerald-400 bg-emerald-50" : wrong ? "border-rose-400 bg-rose-50" : pick === i ? "border-primary bg-primary/10" : fb ? "border-black/5 opacity-50" : "border-black/10 bg-white hover:-translate-y-0.5 hover:border-primary hover:shadow-md"}`}>
+                className={`flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left transition-all sm:p-4 ${right ? "border-emerald-400 bg-emerald-50" : wrong ? "border-rose-400 bg-rose-50" : pick === i ? "border-primary bg-primary/10" : fb ? "border-black/5 opacity-50" : "border-black/10 bg-white hover:-translate-y-0.5 hover:border-primary hover:shadow-md"}`}>
                 <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl text-sm font-black ${right ? "bg-emerald-500 text-white" : wrong ? "bg-rose-500 text-white" : "bg-primary/10 text-primary"}`}>{String.fromCharCode(65 + i)}</span>
-                <span className="text-sm font-semibold text-slate-800">{o}</span>
+                <span className="min-w-0 flex-1 break-words text-sm font-semibold text-slate-800">{o}</span>
               </button>
             )
           })}

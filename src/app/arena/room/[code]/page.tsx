@@ -46,7 +46,7 @@ export default function ArenaRoomPage({ params }: { params: Promise<{ code: stri
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-3 md:p-8">
+    <div className="mx-auto max-w-5xl space-y-5 overflow-x-clip p-3 pb-28 md:p-8 md:pb-8">
       <style>{SCENE_CSS}</style>
       <Link href="/arena" className="flex w-fit items-center gap-1 text-xs font-bold uppercase tracking-widest text-primary hover:underline"><ChevronLeft className="h-3 w-3" /> Back to Arena</Link>
       {children}
