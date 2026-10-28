@@ -1,0 +1,1882 @@
+=================== src/app/api/osce-stations/tts/route.ts
+export const dynamic = "force-dynamic"
+export const maxDuration = 30
+
+import { isClinician } from '@/lib/require-clinician'
+import { NextRequest, NextResponse } from 'next/server'
+import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
+import { getVertexAccessToken } from '@/ai/genkit'
+
+const LANGS = new Set(['en-IN', 'hi-IN', 'kn-IN', 'ta-IN', 'te-IN', 'ml-IN', 'mr-IN', 'bn-IN'])
+const VOICE = { male: ['Orus', 'Charon', 'Fenrir'], female: ['Aoede', 'Leda', 'Kore'] } as const
+// Playful kid-like voice: a bright standard voice per language, pitched up and slightly faster (Chirp voices cannot be pitched).
+const KID: Record<string, string> = {
+  'en-IN': 'en-IN-Neural2-A', 'hi-IN': 'hi-IN-Neural2-A', 'kn-IN': 'kn-IN-Wavenet-A', 'ta-IN': 'ta-IN-Wavenet-A',
+  'te-IN': 'te-IN-Standard-A', 'ml-IN': 'ml-IN-Wavenet-A', 'mr-IN': 'mr-IN-Wavenet-A', 'bn-IN': 'bn-IN-Wavenet-A',
+}
+const cache = new Map<string, Buffer>()
+
+// OpenAI voices (paid members and admins, English and Hindi). Everything else keeps the Google voices above.
+//  - Jelly (kid=true): Marin, in a relaxed "chill" style.
+//  - OSCE stations: a voice per case. The case's gender and variant pick the person, so each patient or examiner sounds different.
+const OPENAI_LANGS = new Set(['en-IN', 'hi-IN'])
+const OPENAI_VOICE = { male: ['cedar', 'onyx', 'ash'], female: ['coral', 'nova', 'shimmer'] } as const
+const JELLY_STYLE = 'Voice: bright, bubbly and cheerful, like a fun older sibling who loves teaching. Tone: playful, a smile in every sentence, lots of friendly energy. Pace: brisk and natural, like a quick-talking friend in a normal conversation, never slow or drawn out, with no long pauses between sentences. Keep every medical term and number crisp and clearly pronounced. Speak in the same language as the text.'
+const CASE_STYLE = 'You are a real person in a clinical exam station in India, speaking naturally and conversationally with a clear Indian accent. Say exactly the words given, in the same language as the text. Do not sound like an announcer or a teacher.'
+async function openaiSpeech(text: string, voices: string[], instructions: string): Promise<{ audio: Buffer; voice: string } | null> {
+  const key = process.env.OPENAI_API_KEY
+  if (!key || process.env.OPENAI_LLM === 'off') return null
+  try {
+    for (const voice of voices) {
+      const r = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice, input: text, instructions, response_format: 'mp3' }),
+      })
+      if (r.ok) return { audio: Buffer.from(await r.arrayBuffer()), voice }
+      if (r.status !== 400 && r.status !== 422) return null // a voice that OpenAI does not accept is skipped; anything else (limits, outage) falls back to Google
+    }
+  } catch {}
+  return null
+}
+const paidCache = new Map<string, { at: number; v: boolean }>()
+async function isPaid(decoded: any): Promise<boolean> {
+  const uid = String(decoded?.uid || decoded?.user_id || decoded?.sub || '')
+  const hit = uid ? paidCache.get(uid) : undefined
+  if (hit && Date.now() - hit.at < 60_000) return hit.v
+  const v = await isPaidFresh(decoded)
+  if (uid) { if (paidCache.size > 500) paidCache.clear(); paidCache.set(uid, { at: Date.now(), v }) }
+  return v
+}
+async function isPaidFresh(decoded: any): Promise<boolean> {
+  try {
+    const uid = decoded?.uid || decoded?.user_id || decoded?.sub
+    if (!uid) return false
+    const u: any = (await getAdminFirestore().collection('users').doc(String(uid)).get()).data() || {}
+    if (u.role === 'admin') return true
+    return (u.plan === 'basic' || u.plan === 'pro') && (!u.planExpiresAt || Number(u.planExpiresAt) > Date.now())
+  } catch { return false }
+}
+
+const RATE = 1.12
+function tidy(t: string) {
+  return t.replace(/[*_#`~>|]/g, ' ').replace(/\(([^)]{1,40})\)/g, ', $1,').replace(/\s[-–—]\s/g, ', ').replace(/\s*\n+\s*/g, '. ').replace(/\s{2,}/g, ' ').trim()
+}
+async function synth(token: string, text: string, lang: string, gender: 'male' | 'female', name?: string, kid = false, pitched = false) {
+  const voice: any = { languageCode: lang, ...(name ? { name } : { ssmlGender: gender.toUpperCase() }) }
+  return fetch('https://texttospeech.googleapis.com/v1/text:synthesize', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input: { text }, voice, audioConfig: { audioEncoding: 'MP3', speakingRate: kid ? 1.15 : RATE, ...(pitched ? { pitch: 5 } : {}) } }),
+  })
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { idToken, text, lang, variant } = body
+    const kid = body.kid === true
+    const gender = body.gender as 'male' | 'female'
+    if (!idToken || !text?.trim() || !LANGS.has(lang) || (gender !== 'male' && gender !== 'female')) {
+      return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+    }
+    const decoded: any = await verifyIdToken(idToken)
+    if (!(await isClinician(decoded.uid))) return NextResponse.json({ error: 'Virtual Patient is part of the Clinician plan. Upgrade to continue.', needsPlan: true }, { status: 403 })
+    const clean = tidy(String(text)).slice(0, 600)
+    const v = Math.abs(Number(variant) || 0) % 3
+    const key = `${lang}|${kid ? 'kid' : gender}|${v}|${clean}`
+    let audio = cache.get(key)
+    if (!audio && OPENAI_LANGS.has(lang) && process.env.OPENAI_API_KEY && process.env.OPENAI_LLM !== 'off' && (await isPaid(decoded))) {
+      const voices = kid ? ['marin', 'coral'] : Array.from(new Set([OPENAI_VOICE[gender][v], OPENAI_VOICE[gender][1], 'coral']))
+      const extra = typeof body.style === 'string' ? ' ' + body.style.replace(/[^\p{L}\p{N} .,'-]/gu, '').slice(0, 160) : ''
+      const ck = `oa|${kid ? 'kid' : gender}|${v}|${extra}|${clean}`
+      audio = cache.get(ck)
+      if (!audio) {
+        const out = await openaiSpeech(clean, voices, (kid ? JELLY_STYLE : CASE_STYLE) + extra)
+        if (out) { audio = out.audio; if (cache.size > 300) cache.delete(cache.keys().next().value as string); cache.set(ck, out.audio) }
+      }
+    }
+    if (!audio) {
+      const token = await getVertexAccessToken()
+      if (!token) return NextResponse.json({ error: 'No Google token' }, { status: 503 })
+      const tryVoice = async (name?: string, pitched = false) => {
+        let r = await synth(token, clean, lang, kid ? 'female' : gender, name, kid, pitched)
+        for (let i = 0; i < 2 && !r.ok && (r.status === 429 || r.status >= 500); i++) {
+          await new Promise((ok) => setTimeout(ok, 350 * (i + 1)))
+          r = await synth(token, clean, lang, kid ? 'female' : gender, name, kid, pitched)
+        }
+        return r
+      }
+      let res = kid ? await tryVoice(`${lang}-Chirp3-HD-Leda`) : await tryVoice(`${lang}-Chirp3-HD-${VOICE[gender][v]}`)
+      if (!res.ok && kid) res = await tryVoice(KID[lang], true)
+      if (!res.ok && kid) res = await tryVoice(undefined, true)
+      if (!res.ok && !kid) res = await tryVoice()
+      if (!res.ok) return NextResponse.json({ error: `TTS ${res.status}: ${(await res.text()).slice(0, 200)}` }, { status: 503 })
+      audio = Buffer.from((await res.json()).audioContent, 'base64')
+      if (cache.size > 300) cache.delete(cache.keys().next().value as string)
+      cache.set(key, audio)
+    }
+    return new Response(new Uint8Array(audio), { headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=3600' } })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || 'TTS failed' }, { status: 500 })
+  }
+}
+=================== src/components/osce/voice.tsx
+"use client"
+
+import { useState, useRef, useEffect, useCallback } from "react"
+import { Mic, Square } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { splitSentences, type Gender } from "@/lib/osce/shared"
+import { micAcquire } from "@/lib/mic-lock"
+
+/* ---------------- Problems are shown to the student instead of failing silently ---------------- */
+
+let issue = ""
+const subs = new Set<() => void>()
+export function reportVoiceIssue(msg: string) { if (issue === msg) return; issue = msg; subs.forEach((f) => f()) }
+/** The latest voice problem ("" when everything is fine). Re-renders the caller when it changes. */
+export function useVoiceIssue() {
+  const [, bump] = useState(0)
+  useEffect(() => { const f = () => bump((n) => n + 1); subs.add(f); return () => { subs.delete(f) } }, [])
+  return issue
+}
+
+/** Phones only allow sound that follows a tap. This plays a silent clip on the first tap so later speech is allowed. */
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+let shared: HTMLAudioElement | null = null
+export function primeAudio() {
+  try {
+    if (!shared) { shared = new Audio(); shared.src = SILENT; shared.play().catch(() => {}) }
+    if (window.speechSynthesis) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; window.speechSynthesis.speak(u) }
+  } catch {}
+}
+if (typeof window !== "undefined") {
+  const once = () => { primeAudio(); window.removeEventListener("pointerdown", once, true) }
+  window.addEventListener("pointerdown", once, true)
+}
+
+/* ---------------- Speaking: server voice (male / female, local language) with browser fallback ---------------- */
+
+const FEMALE_RE = /female|woman|zira|heera|swara|kalpana|lekha|neerja|pallavi|aditi|priya|veena|sangeeta|raveena|shruti|tessa|samantha|karen|google (हिन्दी|bengali|tamil|telugu|kannada|malayalam|marathi)/i
+const MALE_RE = /\bmale\b|\bman\b|ravi|hemant|prabhat|madhur|valluvar|mohan|prabhat|rishi|david|mark|daniel|alex/i
+
+function browserVoice(lang: string, gender: Gender): SpeechSynthesisVoice | null {
+  const all = window.speechSynthesis.getVoices()
+  const pool = all.filter((v) => v.lang === lang).concat(all.filter((v) => v.lang !== lang && v.lang?.startsWith(lang.split("-")[0])))
+  if (!pool.length) return null
+  const want = gender === "female" ? FEMALE_RE : MALE_RE
+  const other = gender === "female" ? MALE_RE : FEMALE_RE
+  return pool.find((v) => want.test(v.name)) || pool.find((v) => !other.test(v.name)) || pool[0]
+}
+
+function browserSpeak(text: string, lang: string, gender: Gender, kid = false): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      if (!window.speechSynthesis) { reportVoiceIssue("This browser cannot speak. Open QubixPrep in Chrome to hear the voice."); return resolve() }
+      const u = new SpeechSynthesisUtterance(text)
+      u.lang = lang
+      const v = browserVoice(lang, gender)
+      if (v) u.voice = v
+      u.pitch = kid ? 1.7 : gender === "male" ? 0.8 : 1.15 // makes the gender audible even when only one voice exists
+      u.rate = kid ? 1.15 : 1.05
+      u.onend = () => resolve()
+      u.onerror = (e: any) => { if (e?.error && e.error !== "canceled" && e.error !== "interrupted") reportVoiceIssue("This phone's own voice failed (" + e.error + "). Check that a Text-to-speech engine is installed and the volume is up."); resolve() }
+      window.speechSynthesis.speak(u)
+    } catch { resolve() }
+  })
+}
+
+export type Speaker = { push: (t: string) => void; end: () => void; stop: () => void }
+let current: Speaker | null = null
+/** Stops everything being said right now: the playing clip, clips still downloading, the waiting queue and the browser's own voice. */
+export const stopSpeaking = () => {
+  const c = current; current = null
+  try { c?.stop() } catch {}
+  try { shared?.pause() } catch {}
+  try { window.speechSynthesis?.cancel() } catch {}
+}
+
+export function createSpeaker(o: { lang: string; gender: Gender; variant?: number; kid?: boolean; getToken: () => Promise<string>; onStart?: () => void; onEnd?: (info?: { stopped: boolean }) => void }): Speaker {
+  stopSpeaking()
+  let buf = ""; let first = true; let playing = false; let stopped = false; let ended = false; let finished = false; const live = new Set<HTMLAudioElement>()
+  const cancels = new Set<() => void>() // wake up anything still waiting when stop() is pressed
+  const aborts = new Set<AbortController>() // voice requests still downloading
+  const jobs: { text: string; url: Promise<string | null> }[] = []
+
+  let lastWhy = ""
+  const fetchOnce = async (text: string): Promise<string | null> => {
+    if (stopped) return null
+    const ac = new AbortController(); aborts.add(ac)
+    try {
+      const res = await fetch("/api/osce-stations/tts", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: ac.signal,
+        body: JSON.stringify({ idToken: await o.getToken(), text, lang: o.lang, gender: o.gender, variant: o.variant || 0, kid: !!o.kid }),
+      })
+      if (!res.ok) { lastWhy = `${res.status} ${(await res.text().catch(() => "")).slice(0, 140)}`; return null }
+      reportVoiceIssue("")
+      return URL.createObjectURL(await res.blob())
+    } catch (e: any) { lastWhy = e?.message || "network error"; return null }
+    finally { aborts.delete(ac) }
+  }
+  const fetchAudio = async (text: string): Promise<string | null> => {
+    for (let i = 0; i < 3; i++) {
+      if (stopped) return null
+      const u = await fetchOnce(text)
+      if (u) return u
+      if (stopped) return null
+      await new Promise((ok) => setTimeout(ok, 400 * (i + 1)))
+    }
+    if (stopped) return null
+    reportVoiceIssue("The server voice is not responding (" + lastWhy + "). Using this device's own voice instead.")
+    return null
+  }
+  const play = (url: string) => new Promise<void>((resolve) => {
+    const a = shared || new Audio()
+    a.src = url
+    const rate = o.kid ? 1.15 : 1 // Jelly talks a little faster, like a normal person
+    a.defaultPlaybackRate = rate; a.playbackRate = rate
+    try { (a as any).preservesPitch = true } catch {}
+    live.add(a)
+    let done = false
+    const fin = () => { if (done) return; done = true; clearInterval(iv); cancels.delete(fin); resolve() }
+    const iv = setInterval(() => { if (a.duration && a.duration - a.currentTime < 0.2) fin() }, 30)
+    cancels.add(fin)
+    a.onended = () => { live.delete(a); fin() }; a.onerror = () => { live.delete(a); fin() }
+    a.play().catch((e) => { if (!stopped) reportVoiceIssue(e?.name === "NotAllowedError" ? "The browser blocked sound. Tap anywhere on the page once, then try again." : "Could not play the voice (" + (e?.name || "error") + ")."); fin() })
+  }).finally(() => setTimeout(() => URL.revokeObjectURL(url), 3000))
+  // the browser's own voice sometimes never reports that it was cancelled, so stop() must be able to end the wait itself
+  const cancellable = (p: Promise<void>) => new Promise<void>((resolve) => {
+    const done = () => { cancels.delete(done); resolve() }
+    cancels.add(done); p.then(done, done)
+  })
+
+  const finish = (byStop = false) => { if (finished) return; finished = true; o.onEnd?.({ stopped: byStop }) }
+  const pump = async () => {
+    if (playing || stopped) return
+    playing = true; o.onStart?.()
+    while (jobs.length && !stopped) {
+      const j = jobs.shift()!
+      const url = await j.url
+      if (stopped) { if (url) URL.revokeObjectURL(url); break }
+      if (url) await play(url); else await cancellable(browserSpeak(j.text, o.lang, o.kid ? "female" : o.gender, o.kid))
+    }
+    playing = false
+    if (stopped || (ended && !jobs.length)) finish(stopped)
+  }
+  const enqueue = (text: string) => { if (stopped || !text.trim()) return; jobs.push({ text, url: fetchAudio(text) }); pump() }
+
+  const sp: Speaker = {
+    push(t) {
+      if (stopped) return
+      buf += t
+      const re = /[.!?।॥]\s/g
+      let cut = -1; let m: RegExpExecArray | null
+      while ((m = re.exec(buf))) cut = m.index + 1
+      if (cut < 0 && first && buf.length > 50) { const c = buf.lastIndexOf(", "); if (c > 22) cut = c + 1 }
+      if (cut > (first ? 14 : 40)) { splitSentences(buf.slice(0, cut)).forEach(enqueue); buf = buf.slice(cut); first = false }
+    },
+    end() { if (stopped) return; splitSentences(buf).forEach(enqueue); buf = ""; ended = true; if (!playing && !jobs.length) finish() },
+    stop() {
+      if (stopped) return
+      stopped = true
+      // clips that finish downloading after the stop are thrown away, never played
+      jobs.splice(0).forEach((j) => { j.url.then((u) => { if (u) URL.revokeObjectURL(u) }).catch(() => {}) })
+      aborts.forEach((c) => { try { c.abort() } catch {} }); aborts.clear()
+      live.forEach((a) => { try { a.pause() } catch {} }); live.clear()
+      try { window.speechSynthesis?.cancel() } catch {}
+      cancels.forEach((f) => { try { f() } catch {} }); cancels.clear()
+      if (current === sp) current = null
+      finish(true)
+    },
+  }
+  current = sp
+  return sp
+}
+
+/* ---------------- Listening: keeps listening through pauses, sends after a real silence ---------------- */
+
+export function useListen(lang: string, onFinal: (t: string) => void, silenceMs = 2500) {
+  const [listening, setListening] = useState(false)
+  const [interim, setInterim] = useState("")
+  const [supported, setSupported] = useState(true)
+  const [error, setError] = useState("")
+  const starting = useRef(false); const heard = useRef(false)
+  const recRef = useRef<any>(null)
+  const finalRef = useRef(""); const interimRef = useRef("")
+  const want = useRef(false); const timer = useRef<any>(null); const startedAt = useRef(0)
+  const release = useRef<null | (() => void)>(null)
+  const cb = useRef(onFinal); cb.current = onFinal
+
+  const flush = useCallback(() => {
+    setListening(false); clearTimeout(timer.current); release.current?.(); release.current = null
+    const t = `${finalRef.current} ${interimRef.current}`.trim()
+    finalRef.current = ""; interimRef.current = ""; setInterim("")
+    if (t) cb.current(t)
+  }, [])
+
+  const stop = useCallback(() => { want.current = false; clearTimeout(timer.current); try { recRef.current?.stop() } catch { flush() } }, [flush])
+  const arm = useCallback((ms: number) => { clearTimeout(timer.current); timer.current = setTimeout(stop, ms) }, [stop])
+
+  const make = useCallback(() => {
+    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const r = new Ctor()
+    r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1
+    r.onresult = (e: any) => {
+      heard.current = true; setError("")
+      let it = ""
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i]
+        if (res.isFinal) finalRef.current = `${finalRef.current} ${res[0].transcript}`.trim(); else it += res[0].transcript
+      }
+      interimRef.current = it; setInterim(it); arm(silenceMs)
+    }
+    r.onerror = (e: any) => {
+      const c = e?.error
+      if (c === "not-allowed" || c === "service-not-allowed") { want.current = false; setError("The microphone is blocked. Tap the lock icon in the address bar, allow Microphone for this site, then tap again.") }
+      else if (c === "audio-capture") { want.current = false; setError("No microphone was found, or another app is using it. Close other apps that use the mic and try again.") }
+      else if (c === "network") { want.current = false; setError("Voice input needs an internet connection (it uses Google's speech service). Check your connection and try again.") }
+      else if (c === "language-not-supported") { want.current = false; setError("This browser does not support voice input in the chosen language. Pick English or type instead.") }
+      else if (c === "no-speech") setError("I did not hear anything. Tap the mic and speak again.")
+    }
+    r.onend = () => {
+      if (want.current && Date.now() - startedAt.current > 600) {
+        try { const n = make(); recRef.current = n; startedAt.current = Date.now(); n.start(); return } catch {}
+      }
+      const quick = Date.now() - startedAt.current <= 600
+      want.current = false
+      if (quick && !heard.current) setError((prev) => prev || "The microphone stopped right away. Close other apps that use the mic, then tap again.")
+      flush()
+    }
+    return r
+  }, [lang, arm, flush, silenceMs])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    if (!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)) setSupported(false)
+    return () => { want.current = false; clearTimeout(timer.current); release.current?.(); release.current = null; try { recRef.current?.abort() } catch {} }
+  }, [])
+
+  const start = useCallback(async () => {
+    if (want.current || starting.current) return
+    starting.current = true
+    stopSpeaking(); primeAudio()
+    finalRef.current = ""; interimRef.current = ""; setInterim(""); setError(""); heard.current = false
+    // tell the "Hey Jelly" listener to let go of the microphone first (Chrome allows one speech recognizer at a time)
+    release.current?.(); release.current = micAcquire()
+    await new Promise((r) => setTimeout(r, 400))
+    try {
+      // ask for the microphone first, so a blocked mic gives a clear message instead of silence
+      if (navigator.mediaDevices?.getUserMedia) {
+        try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop()) }
+        catch (e: any) {
+          setError(e?.name === "NotFoundError" ? "No microphone was found on this device." : "The microphone is blocked. Tap the lock icon in the address bar, allow Microphone for this site, then tap again.")
+          release.current?.(); release.current = null
+          return
+        }
+      }
+      const r = make(); recRef.current = r; want.current = true; startedAt.current = Date.now()
+      r.start(); setListening(true); arm(9000)
+    } catch (e: any) { want.current = false; setListening(false); release.current?.(); release.current = null; setError("Could not start the microphone (" + (e?.message || "unknown error") + ").") }
+    finally { starting.current = false }
+  }, [make, arm])
+
+  return { start, stop, listening, interim, supported, error }
+}
+
+export function VoiceOrTextInput({ onSubmit, disabled, lang, placeholder, autoStartKey, extra }: {
+  onSubmit: (text: string) => void; disabled?: boolean; lang: string; placeholder?: string; autoStartKey?: number; extra?: React.ReactNode
+}) {
+  const [typed, setTyped] = useState("")
+  const { start, stop, listening, interim, supported, error } = useListen(lang, (t) => onSubmit(t))
+  const voiceIssue = useVoiceIssue()
+  const last = useRef(autoStartKey || 0)
+  useEffect(() => {
+    if (autoStartKey && autoStartKey !== last.current) { last.current = autoStartKey; if (!disabled && supported) start() }
+  }, [autoStartKey, disabled, supported, start])
+
+  return (
+    <div className="space-y-2">
+      {!supported && <p className="text-xs rounded-lg bg-amber-100 text-amber-900 px-3 py-2">Voice input is not available in this browser. Open QubixPrep in Chrome to speak to the patient. You can still type below.</p>}
+      {supported && (
+        <Button disabled={disabled && !listening} onClick={() => { primeAudio(); listening ? stop() : start() }}
+          className={`w-full gap-2 ${listening ? "bg-red-500 hover:bg-red-600 animate-pulse" : ""}`}>
+          {listening ? <><Square className="h-4 w-4" /> Listening... tap when finished</> : <><Mic className="h-4 w-4" /> Tap to speak</>}
+        </Button>
+      )}
+      {listening && interim && <p className="text-xs text-muted-foreground italic px-1">{interim}</p>}
+      {error && <p className="text-xs rounded-lg bg-red-100 text-red-800 px-3 py-2">{error}</p>}
+      {voiceIssue && <p className="text-xs rounded-lg bg-amber-100 text-amber-900 px-3 py-2">{voiceIssue}</p>}
+      <div className="flex gap-2">
+        <Input placeholder={placeholder || "Or type here..."} value={typed} onChange={(e) => setTyped(e.target.value)} disabled={disabled}
+          onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { onSubmit(typed.trim()); setTyped("") } }} />
+        <Button disabled={disabled || !typed.trim()} onClick={() => { onSubmit(typed.trim()); setTyped("") }}>Send</Button>
+      </div>
+      {extra}
+    </div>
+  )
+}
+=================== src/ai/osce-live-case.ts
+'use server';
+import { osceCall } from '@/ai/osce-ai';
+
+function tryParseJson(raw: string): any | null {
+  const cleaned = raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) return null;
+    try {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function stripQuotes(s: string): string {
+  return s.trim().replace(/^["']+/, '').replace(/["']+$/, '').trim();
+}
+
+export type CaseBrief = {
+  specialty: string;
+  topic: string;
+  patient: { name: string; age: number; gender: string; occupation: string; address: string; dateOfAdmission: string; dateOfExamination: string };
+  chiefComplaint: string;
+  hopi: string;
+  negativeHistory: string[];
+  pastHistory: string;
+  familyHistory: string;
+  personalHistory: string;
+  generalPhysicalExam: string;
+  localExamination: { inspection: string; palpation: string; percussion: string; auscultation: string };
+  investigations: { name: string; result: string }[];
+  provisionalDiagnosis: string;
+  differentials: string[];
+  managementPlan: string;
+  imageSearchQuery: string;
+};
+
+const TOTAL_VIVA_QUESTIONS = 4;
+
+function caseBriefPrompt(specialty: string, topic: string, extra = ''): string {
+  return `You are creating a single, complete, internally-consistent OSCE/clinical long-case for an Indian MBBS student, in the specialty "${specialty}", on the topic/condition "${topic}".
+
+Invent one realistic patient and case, exactly as it would appear in a real Indian medical college clinical long-case examination. Be clinically accurate and internally consistent - vitals, history, exam findings, and investigations must all plausibly support the same diagnosis.
+
+Return ONLY a JSON object, no commentary, no markdown fences, matching EXACTLY this shape:
+{
+  "specialty": "${specialty}",
+  "topic": "${topic}",
+  "patient": {
+    "name": "a plausible Indian patient name",
+    "age": <number>,
+    "gender": "Male" or "Female",
+    "occupation": "...",
+    "address": "a plausible Indian village/town/city and state",
+    "dateOfAdmission": "a plausible recent date, e.g. 10/10/2026",
+    "dateOfExamination": "1-3 days after dateOfAdmission"
+  },
+  "chiefComplaint": "the chief complaint(s) IN CHRONOLOGICAL ORDER exactly as the patient would state them, each with duration, e.g. 'Pain abdomen x 3 days, Fever x 2 days'",
+  "hopi": "a detailed History of Present Illness narrative covering onset, duration, progression, aggravating and relieving factors, and character/site/radiation of pain if relevant, plus associated symptoms, written as a flowing clinical narrative the patient could plausibly describe when asked, following standard clinical history-taking practice",
+  "negativeHistory": [<6 to 10 short strings, each a symptom the patient explicitly denies, relevant to this case, e.g. "No vomiting", "No hematuria", "No history of trauma" - drawn from a standard systemic review relevant to ruling out differentials for this case>],
+  "pastHistory": "similar complaints in the past (or none), past surgical history, and presence/absence of diabetes mellitus and hypertension, as a short narrative",
+  "familyHistory": "relevant family history as a short narrative, or 'No significant family history'",
+  "personalHistory": "diet, appetite, bowel/bladder habits, sleep, and addictions (smoking/alcohol/tobacco) as a short narrative appropriate to age and context",
+  "generalPhysicalExam": "general physical examination findings: build, nutrition, pallor, icterus, cyanosis, clubbing, lymphadenopathy, edema, and vitals (temperature, pulse, BP, respiratory rate, SpO2) as a short clinical narrative with plausible numeric vitals consistent with the diagnosis",
+  "localExamination": {
+    "inspection": "inspection findings relevant to the system/region involved in this case",
+    "palpation": "palpation findings",
+    "percussion": "percussion findings, or 'Not applicable to this examination' if genuinely not relevant to this system",
+    "auscultation": "auscultation findings, or 'Not applicable to this examination' if genuinely not relevant"
+  },
+  "investigations": [<3 to 6 objects: {"name": "investigation name", "result": "the result, with plausible specific values/units where relevant"}>],
+  "provisionalDiagnosis": "the single most likely diagnosis",
+  "differentials": [<2 to 4 differential diagnosis strings>],
+  "managementPlan": "a concise but specific management plan appropriate to this diagnosis (investigations to confirm, initial treatment, definitive treatment/procedure if relevant, and follow-up)",
+  "imageSearchQuery": "a short (2-5 word) web image search query for a clinical photo related to this disease/condition"
+}
+
+Make the case specific, plausible, and fully internally consistent - a student who takes a thorough history and examination should be able to correctly arrive at "${topic}" as the diagnosis.${extra ? '\n\n' + extra : ''}`;
+}
+
+export type GenerateCaseBriefOutput = { brief?: CaseBrief; error?: string };
+
+export async function generateCaseBrief(specialty: string, topic: string, extra = ''): Promise<GenerateCaseBriefOutput> {
+  const MAX_ATTEMPTS = 2;
+  let lastError = '';
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const { content: raw } = await osceCall(
+        [{ role: 'user', content: caseBriefPrompt(specialty, topic, extra) }],
+        4000,
+        1024,
+        'smart'
+      );
+      const parsed = tryParseJson(raw);
+      if (
+        parsed &&
+        parsed.patient &&
+        typeof parsed.chiefComplaint === 'string' &&
+        typeof parsed.hopi === 'string' &&
+        Array.isArray(parsed.negativeHistory) &&
+        Array.isArray(parsed.investigations) &&
+        typeof parsed.provisionalDiagnosis === 'string'
+      ) {
+        return { brief: parsed as CaseBrief };
+      }
+      lastError = 'Generated case was missing required fields.';
+    } catch (e: any) {
+      lastError = e.message || 'Generation failed';
+    }
+  }
+  return { error: lastError || 'Could not generate a case right now.' };
+}
+
+function inCharacterPrompt(brief: CaseBrief, transcript: string, utterance: string, language: string): string {
+  return `You are playing a simulated clinical case for an Indian MBBS OSCE-style long-case exam. Respond as whichever role fits what the student just said:
+- If they ask the PATIENT something (identification details, chief complaint, history, negative history, past/family/personal history), answer AS THE PATIENT, in first person, naturally and conversationally.
+- If they request an EXAMINATION finding (general physical exam, inspection, palpation, percussion, auscultation, vitals) or an INVESTIGATION result, respond as a clinical narrator stating the finding/result directly and factually (not in first person).
+- Stay strictly consistent with the hidden case ground truth below. Never reveal the diagnosis, differentials, or management plan, even if asked directly - if asked, deflect naturally in character.
+- If asked something not explicitly covered by the ground truth, improvise a plausible, clinically consistent answer rather than saying you don't know.
+- Respond ONLY in ${language}. Keep the reply conversational and concise (1-4 sentences) - this is spoken dialogue, not a report.
+
+HIDDEN CASE GROUND TRUTH (never reveal diagnosis/differentials/management):
+Patient: ${JSON.stringify(brief.patient)}
+Chief complaint: ${brief.chiefComplaint}
+HOPI: ${brief.hopi}
+Negative history: ${brief.negativeHistory.join('; ')}
+Past history: ${brief.pastHistory}
+Family history: ${brief.familyHistory}
+Personal history: ${brief.personalHistory}
+General physical exam: ${brief.generalPhysicalExam}
+Local examination - Inspection: ${brief.localExamination.inspection}
+Local examination - Palpation: ${brief.localExamination.palpation}
+Local examination - Percussion: ${brief.localExamination.percussion}
+Local examination - Auscultation: ${brief.localExamination.auscultation}
+Investigations: ${brief.investigations.map((i) => `${i.name}: ${i.result}`).join('; ')}
+
+Conversation so far:
+${transcript || '(nothing yet)'}
+
+The student just said: "${utterance}"
+
+Respond with ONLY the in-character reply text, nothing else - no labels, no quotes, no JSON.`;
+}
+
+export type InCharacterReplyOutput = { reply?: string; error?: string };
+
+export async function generateInCharacterReply(brief: CaseBrief, transcript: string, utterance: string, language: string): Promise<InCharacterReplyOutput> {
+  try {
+    const { content: raw } = await osceCall(
+      [{ role: 'user', content: inCharacterPrompt(brief, transcript, utterance, language) }],
+      400,
+      0,
+      'fast'
+    );
+    const reply = stripQuotes(raw);
+    if (!reply) return { error: 'Empty reply' };
+    return { reply };
+  } catch (e: any) {
+    return { error: e.message || 'Failed to generate reply' };
+  }
+}
+
+function assessmentPrompt(brief: CaseBrief, transcript: string, studentPresentation: string, language: string): string {
+  return `You are a senior clinical examiner grading an Indian MBBS student's OSCE long-case performance.
+
+HIDDEN CASE GROUND TRUTH:
+${JSON.stringify(brief)}
+
+The student's full history-taking and examination conversation:
+${transcript}
+
+The student's final case presentation (their stated diagnosis, differentials, and management plan):
+${studentPresentation || '(not provided)'}
+
+Score the student out of 25 in each of these four areas, being fair but rigorous:
+- historyScore: did they elicit the chief complaint, HOPI details, relevant negative history, and past/family/personal history thoroughly and in good order?
+- examinationScore: did they perform a sensible general and local examination (inspection/palpation/percussion/auscultation as relevant)?
+- diagnosisScore: how close is their stated provisional diagnosis and differentials to the ground truth?
+- managementScore: how appropriate and specific is their management plan?
+
+Then write "feedback": 3-5 sentences, spoken naturally as if a senior doctor were addressing the student directly after their presentation - praise what they did well, clearly state what was missing or incorrect and why it matters, and note anything they should have asked, examined, or concluded differently. This will be read aloud to the student by an avatar, so write it as natural spoken feedback, not a bullet list.
+
+Return ONLY a JSON object, no commentary, no markdown fences, matching exactly:
+{"historyScore": <0-25>, "examinationScore": <0-25>, "diagnosisScore": <0-25>, "managementScore": <0-25>, "feedback": "..."}
+
+Respond in ${language}.`;
+}
+
+export type FinalAssessmentOutput = {
+  assessment?: {
+    historyScore: number; examinationScore: number; diagnosisScore: number; managementScore: number; totalScore: number;
+    feedback: string; actualDiagnosis: string; actualDifferentials: string[]; actualManagement: string;
+  };
+  error?: string;
+};
+
+export async function generateFinalAssessment(brief: CaseBrief, transcript: string, studentPresentation: string, language: string): Promise<FinalAssessmentOutput> {
+  try {
+    const { content: raw } = await osceCall(
+      [{ role: 'user', content: assessmentPrompt(brief, transcript, studentPresentation, language) }],
+      1200,
+      512,
+      'smart'
+    );
+    const parsed = tryParseJson(raw);
+    if (!parsed || typeof parsed.historyScore !== 'number') {
+      return { error: 'Could not generate the assessment.' };
+    }
+    const clamp = (n: any) => Math.max(0, Math.min(25, Math.round(Number(n) || 0)));
+    const historyScore = clamp(parsed.historyScore);
+    const examinationScore = clamp(parsed.examinationScore);
+    const diagnosisScore = clamp(parsed.diagnosisScore);
+    const managementScore = clamp(parsed.managementScore);
+    return {
+      assessment: {
+        historyScore,
+        examinationScore,
+        diagnosisScore,
+        managementScore,
+        totalScore: historyScore + examinationScore + diagnosisScore + managementScore,
+        feedback: typeof parsed.feedback === 'string' ? parsed.feedback : '',
+        actualDiagnosis: brief.provisionalDiagnosis,
+        actualDifferentials: brief.differentials,
+        actualManagement: brief.managementPlan,
+      },
+    };
+  } catch (e: any) {
+    return { error: e.message || 'Failed to generate assessment' };
+  }
+}
+
+function examinerChatPrompt(
+  brief: CaseBrief,
+  caseTranscript: string,
+  studentPresentation: string,
+  assessmentFeedback: string,
+  chatTranscript: string,
+  studentMessage: string,
+  language: string
+): string {
+  return `You are a senior clinical examiner. You just gave an Indian MBBS student this spoken feedback on their long-case presentation:
+"${assessmentFeedback}"
+
+HIDDEN CASE GROUND TRUTH:
+${JSON.stringify(brief)}
+
+The student's history-taking and examination conversation:
+${caseTranscript}
+
+The student's case presentation:
+${studentPresentation || '(not provided)'}
+
+Your conversation with the student since giving feedback:
+${chatTranscript || '(nothing yet)'}
+
+The student just said: "${studentMessage}"
+
+Respond as the examiner, directly and helpfully, in 2-4 sentences, staying in character as a supportive but rigorous senior doctor. Reference the real case facts where relevant. Respond ONLY in ${language}, with ONLY the spoken reply text - no labels, no quotes, no JSON.`;
+}
+
+export type ExaminerChatReplyOutput = { reply?: string; error?: string };
+
+export async function generateExaminerChatReply(
+  brief: CaseBrief,
+  caseTranscript: string,
+  studentPresentation: string,
+  assessmentFeedback: string,
+  chatTranscript: string,
+  studentMessage: string,
+  language: string
+): Promise<ExaminerChatReplyOutput> {
+  try {
+    const { content: raw } = await osceCall(
+      [{ role: 'user', content: examinerChatPrompt(brief, caseTranscript, studentPresentation, assessmentFeedback, chatTranscript, studentMessage, language) }],
+      350,
+      0,
+      'fast'
+    );
+    const reply = stripQuotes(raw);
+    if (!reply) return { error: 'Empty reply' };
+    return { reply };
+  } catch (e: any) {
+    return { error: e.message || 'Failed to generate reply' };
+  }
+}
+
+function vivaTurnPrompt(
+  brief: CaseBrief,
+  caseTranscript: string,
+  studentPresentation: string,
+  vivaTranscript: string,
+  studentAnswer: string,
+  questionNumber: number,
+  language: string
+): string {
+  const isFirst = !studentAnswer.trim();
+  const isLast = questionNumber >= TOTAL_VIVA_QUESTIONS;
+  const instruction = isFirst
+    ? `Ask the FIRST viva question now - probe pathophysiology, differential diagnosis reasoning, relevant anatomy/pharmacology, or management rationale specific to this case. Go beyond what was already covered during history-taking.`
+    : `The student just answered: "${studentAnswer}". Give a brief one-sentence reaction (correct / partially correct / incorrect), referencing the real facts of the case. ${
+        isLast
+          ? `This was the final question - after your reaction, give a short closing remark thanking the student for the viva. Do NOT ask another question.`
+          : `Then ask viva question number ${questionNumber + 1} of ${TOTAL_VIVA_QUESTIONS}, again probing pathophysiology, differentials, anatomy/pharmacology, or management rationale not already covered.`
+      }`;
+
+  return `You are a strict but fair clinical examiner conducting a short oral viva (${TOTAL_VIVA_QUESTIONS} questions) on this case for an Indian MBBS student, after their long-case presentation.
+
+HIDDEN CASE GROUND TRUTH:
+${JSON.stringify(brief)}
+
+The student's history-taking and examination conversation:
+${caseTranscript}
+
+The student's case presentation:
+${studentPresentation || '(not provided)'}
+
+Viva conversation so far (question ${questionNumber} of ${TOTAL_VIVA_QUESTIONS}):
+${vivaTranscript || '(nothing yet - this is the first question)'}
+
+${instruction}
+
+Respond ONLY in ${language}, with ONLY the spoken message text - no labels, no quotes, no JSON.`;
+}
+
+export type VivaTurnOutput = { message?: string; error?: string };
+
+export async function generateVivaTurn(
+  brief: CaseBrief,
+  caseTranscript: string,
+  studentPresentation: string,
+  vivaTranscript: string,
+  studentAnswer: string,
+  questionNumber: number,
+  language: string
+): Promise<VivaTurnOutput> {
+  try {
+    const { content: raw } = await osceCall(
+      [{ role: 'user', content: vivaTurnPrompt(brief, caseTranscript, studentPresentation, vivaTranscript, studentAnswer, questionNumber, language) }],
+      350,
+      0,
+      'fast'
+    );
+    const message = stripQuotes(raw);
+    if (!message) return { error: 'Empty reply' };
+    return { message };
+  } catch (e: any) {
+    return { error: e.message || 'Failed to generate viva turn' };
+  }
+}
+
+function vivaResultPrompt(brief: CaseBrief, vivaTranscript: string, language: string): string {
+  return `You are a senior clinical examiner. Score this student's oral viva performance on the case below, out of 20.
+
+HIDDEN CASE GROUND TRUTH:
+${JSON.stringify(brief)}
+
+Full viva transcript:
+${vivaTranscript}
+
+Return ONLY a JSON object, no commentary, no markdown fences, matching exactly:
+{"score": <0-20 integer>, "feedback": "2-3 sentences of spoken feedback on their viva performance, in ${language}"}`;
+}
+
+export type VivaResultOutput = { assessment?: { score: number; feedback: string }; error?: string };
+
+export async function generateVivaResult(brief: CaseBrief, vivaTranscript: string, language: string): Promise<VivaResultOutput> {
+  try {
+    const { content: raw } = await osceCall(
+      [{ role: 'user', content: vivaResultPrompt(brief, vivaTranscript, language) }],
+      400,
+      256,
+      'smart'
+    );
+    const parsed = tryParseJson(raw);
+    if (!parsed || typeof parsed.score !== 'number') {
+      return { error: 'Could not grade the viva.' };
+    }
+    return {
+      assessment: {
+        score: Math.max(0, Math.min(20, Math.round(parsed.score))),
+        feedback: typeof parsed.feedback === 'string' ? parsed.feedback : '',
+      },
+    };
+  } catch (e: any) {
+    return { error: e.message || 'Failed to grade viva' };
+  }
+}
+=================== src/ai/osce-engine.ts
+import { createHash } from 'crypto'
+import { FieldValue } from 'firebase-admin/firestore'
+import { getAdminFirestore } from '@/lib/firebase-admin'
+import { osceCall, osceStream, parseJson } from '@/ai/osce-ai'
+import { examReference } from '@/lib/osce/examref'
+import { type OsceBrief, type VivaItem, TOTAL_VIVA, kindOf, localAnswer, normTokens, jaccard, isContextual, roleOf, looksLikeSkip } from '@/lib/osce/shared'
+
+/* ---------- Shared memory: every question answered once is remembered for all later students ---------- */
+type Mem = { id: string; q: string; a: string; lang: string; role: string; set: Set<string> }
+const memCache = new Map<string, { at: number; items: Mem[] }>()
+
+async function loadMemory(caseId: string): Promise<Mem[]> {
+  const hit = memCache.get(caseId)
+  if (hit && Date.now() - hit.at < 60_000) return hit.items
+  const snap = await getAdminFirestore().collection('osceMemory').doc(caseId).collection('qa').orderBy('t', 'desc').limit(300).get()
+  const items = snap.docs.map((d) => { const x = d.data() as any; return { id: d.id, q: x.q, a: x.a, lang: x.lang, role: x.role, set: new Set(normTokens(x.q || '')) } })
+  memCache.set(caseId, { at: Date.now(), items })
+  return items
+}
+
+async function lookupMemory(caseId: string, question: string, lang: string): Promise<Mem | null> {
+  if (isContextual(question)) return null
+  const items = await loadMemory(caseId)
+  const s = new Set(normTokens(question))
+  let best: Mem | null = null; let score = 0
+  for (const m of items) {
+    if (m.lang !== lang) continue
+    const j = jaccard(s, m.set)
+    if (j > score) { score = j; best = m }
+  }
+  if (best && score >= 0.75) {
+    getAdminFirestore().collection('osceMemory').doc(caseId).collection('qa').doc(best.id).set({ hits: FieldValue.increment(1) }, { merge: true }).catch(() => {})
+    return best
+  }
+  return null
+}
+
+async function saveMemory(caseId: string, question: string, answer: string, lang: string, role: string) {
+  if (isContextual(question) || answer.length > 700) return
+  const id = createHash('sha1').update(`${lang}|${normTokens(question).join(' ')}`).digest('hex').slice(0, 20)
+  await getAdminFirestore().collection('osceMemory').doc(caseId).collection('qa').doc(id).set({ q: question.slice(0, 300), a: answer, lang, role, hits: 0, t: Date.now() }, { merge: true })
+  const c = memCache.get(caseId)
+  if (c) c.items.unshift({ id, q: question, a: answer, lang, role, set: new Set(normTokens(question)) })
+}
+
+/* ---------- Case sheet (compact text, much cheaper than JSON) ---------- */
+function sheet(b: OsceBrief): string {
+  const p = b.patient
+  return [
+    `Patient: ${p.name}, ${p.age}y ${p.gender}, ${p.occupation}, ${p.address}`,
+    `Chief complaints: ${b.chiefComplaint}`,
+    `HOPI: ${b.hopi}`,
+    `Denies: ${b.negativeHistory.join('; ')}`,
+    `Past: ${b.pastHistory}`, `Family: ${b.familyHistory}`, `Personal: ${b.personalHistory}`,
+    `General exam: ${b.generalPhysicalExam}`,
+    `Inspection: ${b.localExamination.inspection}`, `Palpation: ${b.localExamination.palpation}`,
+    `Percussion: ${b.localExamination.percussion}`, `Auscultation: ${b.localExamination.auscultation}`,
+    `Investigations: ${b.investigations.map((i) => `${i.name}: ${i.result}`).join('; ')}`,
+  ].join('\n')
+}
+
+const SCRIPT: Record<string, string> = {
+  English: 'English', Hindi: 'Hindi in Devanagari script', Kannada: 'Kannada in Kannada script', Tamil: 'Tamil in Tamil script',
+  Telugu: 'Telugu in Telugu script', Malayalam: 'Malayalam in Malayalam script', Marathi: 'Marathi in Devanagari script', Bengali: 'Bengali in Bengali script',
+}
+
+const EXAM_RULES = `- This is an examination or investigation request. If the CASE SHEET already states the finding, read it out as written. If it does not, improvise the finding as a real patient with the hidden diagnosis would show it: the classic positive sign for signs that belong to this disease, normal for every other system or unrelated sign. Use the terms of the EXAMINATION REFERENCE. If an investigation is asked that is not on the sheet, give a plausible result that fits the diagnosis. Never contradict the sheet or the earlier answers, and never name the diagnosis.`
+
+export type Evt = { t: 'meta'; role: 'patient' | 'examiner'; src: 'local' | 'memory' | 'ai' } | { t: 'd'; x: string } | { t: 'end' }
+
+/** Answers one student utterance: instant for standard requests, remembered answers next, otherwise streamed from the AI. */
+export async function* answer(b: OsceBrief, history: string, utterance: string, language: string): AsyncGenerator<Evt> {
+  const kind = kindOf(utterance)
+  const examiner = kind !== 'history'
+  const role = examiner ? 'examiner' : 'patient'
+
+  const local = examiner ? localAnswer(b, utterance) : null
+  if (local) { yield { t: 'meta', role, src: 'local' }; yield { t: 'd', x: local }; yield { t: 'end' }; return }
+
+  const lang = examiner ? 'English' : language
+  let canon = ''
+  if (b.caseId) {
+    try {
+      const m = await lookupMemory(b.caseId, utterance, lang)
+      if (m) { yield { t: 'meta', role, src: 'memory' }; yield { t: 'd', x: m.a }; yield { t: 'end' }; return }
+      canon = (await loadMemory(b.caseId)).slice(0, 12).map((x) => `Q: ${x.q} / A: ${x.a}`).join('\n')
+    } catch {}
+  }
+
+  yield { t: 'meta', role, src: 'ai' }
+  const r = roleOf(b)
+  const ref = examiner ? examReference(b.proformaId) : ''
+  const who = examiner
+    ? `You are the examiner reading out clinical findings of the case below, in English, in a flat factual voice (no first person).`
+    : r.kind === 'informant'
+      ? `You are the ${r.relation.toLowerCase()} of the patient, giving the history on the patient's behalf in an Indian hospital. Speak in first person about the patient ("my ${b.patient.age < 12 ? (/^f/i.test(b.patient.gender) ? 'daughter' : 'son') : 'family member'}", "he/she"). Your name is not needed.`
+      : `You are the patient ${b.patient.name}, speaking in first person like a real ${b.patient.occupation} from ${b.patient.address}: simple lay words, not medical jargon.`
+  const system = `${who}
+This is a clinical long-case exam for an Indian MBBS student.
+RULES:
+- Answer ONLY what was asked, in ${examiner ? '1 to 3 short factual sentences (under 50 words)' : '1 or 2 short sentences (under 35 words)'}. Do not volunteer extra ${examiner ? 'findings' : 'symptoms'}.
+- Stay consistent with the CASE SHEET. Never reveal or hint at the diagnosis, differentials or management.
+- If asked something the sheet does not cover, invent a small plausible detail that fits the diagnosis, and stay consistent with the earlier answers below.
+${examiner ? EXAM_RULES : '- If the question is vague, answer briefly as a real person would.'}
+- ${examiner ? 'Write in English.' : `Reply STRICTLY in ${SCRIPT[language] || language}, using only that language's own script and natural spoken words. No English sentences; only words people really say in English (BP, sugar, tablet, X-ray) may stay.`}
+CASE SHEET:
+${sheet(b)}
+${examiner ? `Hidden diagnosis (only to keep findings consistent, never say it): ${b.provisionalDiagnosis}\n${ref ? `EXAMINATION REFERENCE (what the standard proforma for this case type examines; use its terms and signs):\n${ref}\n` : ''}` : ''}${canon ? `EARLIER ANSWERS GIVEN TO OTHER STUDENTS (stay consistent):\n${canon}` : ''}`
+  const user = `${history ? `Recent conversation:\n${history}\n\n` : ''}Student: ${utterance}`
+
+  let full = ''
+  try {
+    for await (const piece of osceStream([{ role: 'system', content: system }, { role: 'user', content: user }], 220, 0, 'fast')) {
+      full += piece; yield { t: 'd', x: piece }
+    }
+  } catch (e: any) {
+    if (!full) throw e
+  }
+  yield { t: 'end' }
+  const text = full.trim().replace(/^["']+|["']+$/g, '')
+  if (b.caseId && text) saveMemory(b.caseId, utterance, text, lang, role).catch(() => {})
+}
+
+/* ---------- Viva ---------- */
+export async function vivaPlan(b: OsceBrief): Promise<VivaItem[]> {
+  if (b.viva && b.viva.length >= TOTAL_VIVA) return b.viva.slice(0, TOTAL_VIVA)
+  const prompt = `You are a strict Indian MBBS clinical examiner. Prepare ${TOTAL_VIVA} viva questions for the case below, in the style of a real university viva, rising in difficulty:
+1 recall (definition/classification/cause), 2 mechanism or anatomy/pathophysiology, 3 investigation choice and interpretation, 4 treatment (drug of choice, doses or procedure), 5 complication or applied/tricky question.
+Each question must be specific to THIS case and under 25 words. "ans" is the model answer in at most 40 words. "key" lists the 3 to 5 must-have points, comma separated.
+Return ONLY JSON: {"questions":[{"q":"","ans":"","key":""}]}
+CASE:
+${sheet(b)}
+Diagnosis: ${b.provisionalDiagnosis}. Differentials: ${b.differentials.join(', ')}. Management: ${b.managementPlan}`
+  const { content } = await osceCall([{ role: 'user', content: prompt }], 1400, 0, 'fast', true)
+  const j = parseJson(content)
+  const qs: VivaItem[] = (j?.questions || []).filter((x: any) => x?.q && x?.ans).slice(0, TOTAL_VIVA).map((x: any) => ({ q: String(x.q), ans: String(x.ans), key: String(x.key || x.ans) }))
+  if (qs.length < 3) throw new Error('Could not prepare the viva questions.')
+  return qs
+}
+
+export async function vivaTurn(b: OsceBrief, plan: VivaItem[] | undefined, questionNumber: number, studentAnswer: string): Promise<{ message: string; plan: VivaItem[]; verdict?: string }> {
+  const p = plan && plan.length ? plan : await vivaPlan(b)
+  if (!studentAnswer.trim()) return { message: `Let us begin the viva. Question 1. ${p[0].q}`, plan: p }
+  const cur = p[Math.min(questionNumber, p.length) - 1]
+  const last = questionNumber >= p.length
+  const next = last ? ' That completes the viva. Thank you.' : ` Question ${questionNumber + 1}. ${p[questionNumber].q}`
+
+  if (looksLikeSkip(studentAnswer) && studentAnswer.trim().split(/\s+/).length <= 8) {
+    return { message: `That is alright. The answer is: ${cur.ans}${next}`, plan: p, verdict: 'skipped' }
+  }
+  const prompt = `Question: ${cur.q}
+Must-have points: ${cur.key}
+Model answer: ${cur.ans}
+Student's answer: "${studentAnswer}"
+Judge the student fairly. Return ONLY JSON: {"verdict":"correct"|"partial"|"wrong","reaction":"one sentence under 25 words speaking to the student: say what was right and what was missing"}`
+  let verdict = 'partial'; let reaction = 'Thank you.'
+  try {
+    const { content } = await osceCall([{ role: 'user', content: prompt }], 200, 0, 'fast', true)
+    const j = parseJson(content)
+    if (j?.verdict) verdict = String(j.verdict)
+    if (j?.reaction) reaction = String(j.reaction)
+  } catch {}
+  return { message: `${reaction}${verdict === 'correct' ? '' : ` The answer is: ${cur.ans}`}${next}`, plan: p, verdict }
+}
+=================== src/lib/osce/shared.ts
+import type { CaseBrief } from '@/ai/osce-live-case'
+
+export type VivaItem = { q: string; ans: string; key: string }
+export type OsceBrief = CaseBrief & {
+  caseId?: string
+  proformaId?: string
+  informant?: { relation: string; gender: 'Male' | 'Female' }
+  viva?: VivaItem[]
+}
+export type Gender = 'male' | 'female'
+export type Role = { kind: 'self' | 'informant'; relation: string; gender: Gender; label: string }
+
+export const LANG_CODES: Record<string, string> = {
+  English: 'en-IN', Hindi: 'hi-IN', Kannada: 'kn-IN', Tamil: 'ta-IN',
+  Telugu: 'te-IN', Malayalam: 'ml-IN', Marathi: 'mr-IN', Bengali: 'bn-IN',
+}
+export const TOTAL_VIVA = 5
+
+const hash = (s: string) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return Math.abs(h) }
+
+/** Who answers the questions: the patient, or an informant (child, unconscious, confused patient). */
+export function roleOf(b: OsceBrief): Role {
+  const age = Number(b.patient?.age) || 30
+  const pg: Gender = /^f/i.test(b.patient?.gender || '') ? 'female' : 'male'
+  if (b.informant) {
+    const g: Gender = /^f/i.test(b.informant.gender) ? 'female' : 'male'
+    return { kind: 'informant', relation: b.informant.relation, gender: g, label: `Patient's ${b.informant.relation.toLowerCase()} (informant)` }
+  }
+  const text = `${b.topic} ${b.chiefComplaint}`
+  const unable = /unconscious|altered sensorium|drowsy|coma|stupor|delirium|dementia|aphasi|unresponsive|encephalopathy|neonat|newborn/i.test(text)
+  if (age < 12 || unable) {
+    let relation: string; let gender: Gender
+    if (age < 12) {
+      const mother = hash(b.patient?.name || '') % 10 < 7
+      relation = mother ? 'Mother' : 'Father'; gender = mother ? 'female' : 'male'
+    } else if (age >= 60) {
+      const son = hash(b.patient?.name || '') % 2 === 0
+      relation = son ? 'Son' : 'Daughter'; gender = son ? 'male' : 'female'
+    } else {
+      relation = pg === 'male' ? 'Wife' : 'Husband'; gender = pg === 'male' ? 'female' : 'male'
+    }
+    return { kind: 'informant', relation, gender, label: `Patient's ${relation.toLowerCase()} (informant)` }
+  }
+  return { kind: 'self', relation: 'Patient', gender: pg, label: 'Patient' }
+}
+
+const EXAM_RE = /(examin|inspect|palpat|percuss|auscult|vital|pulse|blood pressure|\bbp\b|temperature|pallor|icterus|jaundice|cyanosis|clubbing|oedema|edema|lymph node|gait|reflex|\btone\b|\bpower\b|sensation|cranial|fundus|otoscop|per abdomen|per vaginam|per rectal|mallampati|airway|palpate|look at|check (the )?(his|her|the))/i
+const INV_RE = /(investigation|report|x-?ray|\becg\b|\bct\b|\bmri\b|\busg\b|ultrasound|\bcbc\b|haemogram|hemogram|blood (test|sugar|count|culture|group)|urine (routine|test|culture)|\blft\b|\brft\b|serum|biopsy|\becho\b|scan|lab )/i
+export type Kind = 'exam' | 'invest' | 'history'
+export const kindOf = (u: string): Kind => (INV_RE.test(u) ? 'invest' : EXAM_RE.test(u) ? 'exam' : 'history')
+
+/** Instant (no AI, no network) answers for the standard examination requests. Findings are narrated in English. */
+export function localAnswer(b: OsceBrief, utterance: string): string | null {
+  const u = utterance.toLowerCase().trim()
+  if (u.split(/\s+/).length > 7) return null
+  const L = b.localExamination
+  const na = (s?: string) => (s && s.trim() ? s.trim() : '')
+  if (/general (physical )?exam|\bgpe\b|^vitals?$|vital signs/.test(u)) return na(b.generalPhysicalExam) || null
+  if (/^(local )?inspection/.test(u)) return na(L?.inspection) || null
+  if (/^palpation/.test(u)) return na(L?.palpation) || null
+  if (/^percussion/.test(u)) return na(L?.percussion) || null
+  if (/^auscultation/.test(u)) return na(L?.auscultation) || null
+  if (/^(relevant )?investigations?$/.test(u)) return b.investigations?.length ? b.investigations.map((i) => `${i.name}: ${i.result}`).join('. ') + '.' : null
+  return null
+}
+
+const STOP = new Set('do does did you your have has had any is are was were the a an of and or to ever sometimes please tell me about can could would will it its in on at for with so now then also what how when where why which who whom he she his her him my our their there here sir madam doctor say kindly'.split(' '))
+export function normTokens(q: string): string[] {
+  return q.toLowerCase().split(/[^\p{L}\p{N}\p{M}]+/u).filter((t) => t && !STOP.has(t))
+}
+export function jaccard(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0
+  let i = 0; a.forEach((x) => { if (b.has(x)) i++ })
+  return i / (a.size + b.size - i)
+}
+/** Questions that depend on earlier turns ("what about that?") must not be cached. */
+export const isContextual = (q: string) => /\b(it|that|this|those|these|they|them|same|again|before|earlier|you said)\b/i.test(q) || normTokens(q).length === 0
+
+export function splitSentences(t: string): string[] {
+  const raw = t.replace(/\s+/g, ' ').trim().split(/(?<=[.!?।॥])\s+/u)
+  const out: string[] = []
+  for (const s of raw) {
+    if (!s) continue
+    if (out.length && (out[out.length - 1].length < 28 || s.length < 14) && out[out.length - 1].length + s.length < 240) out[out.length - 1] += ' ' + s
+    else out.push(s)
+  }
+  return out
+}
+
+const SKIP_LATIN = /\b(don'?t know|do not know|dont know|no idea|not sure|skip|pass|next question|can'?t (recall|remember)|give up)\b/i
+const SKIP_INDIC = /(पता नहीं|मालूम नहीं|ಗೊತ್ತಿಲ್ಲ|தெரியாது|తెలియదు|അറിയില്ല|माहीत नाही|জানি না)/
+export const looksLikeSkip = (t: string) => SKIP_LATIN.test(t) || SKIP_INDIC.test(t)
+=================== src/app/api/osce-stations/respond/route.ts
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
+
+import { isClinician } from '@/lib/require-clinician'
+import { NextRequest } from 'next/server'
+import { verifyIdToken } from '@/lib/firebase-admin'
+import { answer } from '@/ai/osce-engine'
+import type { OsceBrief } from '@/lib/osce/shared'
+
+export async function POST(req: NextRequest) {
+  const enc = new TextEncoder()
+  try {
+    const { idToken, brief, history, utterance, language } = await req.json()
+    if (!idToken || !brief || !utterance?.trim()) {
+      return new Response(JSON.stringify({ error: 'Missing idToken, brief, or utterance' }), { status: 400 })
+    }
+    const __who = await verifyIdToken(idToken)
+    if (!(await isClinician(__who.uid))) return new Response(JSON.stringify({ error: "Virtual Patient is part of the Clinician plan. Upgrade to continue.", needsPlan: true }), { status: 403, headers: { "Content-Type": "application/json" } })
+    const gen = answer(brief as OsceBrief, typeof history === 'string' ? history : '', utterance.trim(), typeof language === 'string' && language.trim() ? language.trim() : 'English')
+    const stream = new ReadableStream({
+      async start(c) {
+        try { for await (const e of gen) c.enqueue(enc.encode(JSON.stringify(e) + '\n')) }
+        catch (e: any) { c.enqueue(enc.encode(JSON.stringify({ t: 'err', x: e.message || 'Failed' }) + '\n')) }
+        c.close()
+      },
+    })
+    return new Response(stream, { headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store' } })
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: e.message || 'Failed to get response' }), { status: 500 })
+  }
+}
+=================== src/app/virtual-patient/page.tsx
+"use client"
+import { useTopSearch } from "@/components/layout/top-search"
+
+import { useState, useRef, useEffect } from "react"
+import { useUser } from "@/firebase"
+import {
+  Loader2, Stethoscope, Clock, Globe, Trophy, Sparkles, VolumeX, SkipForward, BookOpen, CheckCircle2, Shuffle
+} from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { VoiceOrTextInput, createSpeaker, stopSpeaking, type Speaker } from "@/components/osce/voice"
+import { type OsceBrief, type VivaItem, type Gender, LANG_CODES, TOTAL_VIVA, roleOf, kindOf, localAnswer, looksLikeSkip } from "@/lib/osce/shared"
+import { LIB_SEEDS, LIB_SUBJECTS } from "@/lib/osce/library"
+import { useRequireAuth } from "@/hooks/use-require-auth"
+import { usePlan } from "@/hooks/use-plan"
+import { UpgradeGate } from "@/components/upgrade-gate"
+
+type LogEntry = { speaker: "you" | "patient" | "examiner" | "system"; text: string }
+type ChatMsg = { speaker: "you" | "examiner"; text: string }
+
+type Assessment = {
+  historyScore: number
+  examinationScore: number
+  diagnosisScore: number
+  managementScore: number
+  totalScore: number
+  feedback: string
+  actualDiagnosis: string
+  actualDifferentials: string[]
+  actualManagement: string
+}
+
+type VivaResult = { score: number; feedback: string }
+
+type Phase =
+  | "setup" | "generating" | "encounter" | "presentation" | "assessing"
+  | "feedback" | "viva" | "viva-grading" | "done"
+
+
+const LANGUAGES = [
+  { label: "English", value: "English", speechLang: "en-IN" },
+  { label: "Hindi", value: "Hindi", speechLang: "hi-IN" },
+  { label: "Kannada", value: "Kannada", speechLang: "kn-IN" },
+  { label: "Tamil", value: "Tamil", speechLang: "ta-IN" },
+  { label: "Telugu", value: "Telugu", speechLang: "te-IN" },
+  { label: "Malayalam", value: "Malayalam", speechLang: "ml-IN" },
+  { label: "Marathi", value: "Marathi", speechLang: "mr-IN" },
+  { label: "Bengali", value: "Bengali", speechLang: "bn-IN" },
+]
+
+const SPECIALTIES = [
+  "Medicine", "Surgery", "Obstetrics & Gynecology", "Pediatrics",
+  "Orthopedics", "ENT", "Ophthalmology", "Psychiatry",
+]
+
+const QUICK_ACTIONS = [
+  "General physical examination",
+  "Inspection",
+  "Palpation",
+  "Percussion",
+  "Auscultation",
+  "Relevant investigations",
+]
+
+function DoctorAvatar({ speaking }: { speaking: boolean }) {
+  return (
+    <div className="flex items-center justify-center py-2">
+      <div className={`relative h-20 w-20 rounded-full flex items-center justify-center bg-accent/10 border-2 transition-colors ${speaking ? "border-accent animate-pulse" : "border-white/10"}`}>
+        <Stethoscope className={`h-9 w-9 transition-colors ${speaking ? "text-accent" : "text-muted-foreground"}`} />
+        {speaking && <span className="absolute -bottom-0.5 h-1.5 w-7 rounded-full bg-accent/70 animate-pulse" />}
+      </div>
+    </div>
+  )
+}
+
+export default function OsceStationsPage() {
+  const { user } = useUser()
+  const { canAccessContent, loading: planLoading } = usePlan()
+  const { checkingAuth } = useRequireAuth()
+  const [search] = useTopSearch("Search virtual patient cases…")
+
+  const [phase, setPhase] = useState<Phase>("setup")
+  const [specialty, setSpecialty] = useState("")
+  const [topic, setTopic] = useState("")
+  const [language, setLanguage] = useState("English")
+  const speechLang = LANGUAGES.find((l) => l.value === language)?.speechLang || "en-IN"
+  const [speaking, setSpeaking] = useState(false)
+
+  const [brief, setBrief] = useState<OsceBrief | null>(null)
+  const speakerRef = useRef<Speaker | null>(null)
+  const examinerGender = useRef<Gender>(Math.random() < 0.5 ? "male" : "female")
+  const [handsFree, setHandsFree] = useState(false)
+  const handsFreeRef = useRef(false)
+  const [autoKey, setAutoKey] = useState(0)
+  const [vivaPlan, setVivaPlan] = useState<VivaItem[] | undefined>(undefined)
+  const [log, setLog] = useState<LogEntry[]>([])
+  const [busy, setBusy] = useState(false)
+
+  const [mode, setMode] = useState<"library" | "new">("library")
+  const [libSubject, setLibSubject] = useState(LIB_SUBJECTS[0].key)
+  const [ready, setReady] = useState<string[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [libBusy, setLibBusy] = useState<string | null>(null)
+  const [libMsg, setLibMsg] = useState<string | null>(null)
+
+  async function libCall(body: any) {
+    const idToken = await user!.getIdToken()
+    const res = await fetch("/api/osce-stations/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken, ...body }) })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || "Library request failed")
+    return data
+  }
+  useEffect(() => {
+    if (!user) return
+    libCall({ action: "list" }).then((d) => { setReady(d.ready || []); setIsAdmin(!!d.admin) }).catch(() => {})
+  }, [user])
+
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageCredit, setImageCredit] = useState<string | null>(null)
+
+  const [studentPresentation, setStudentPresentation] = useState("")
+  const [assessment, setAssessment] = useState<Assessment | null>(null)
+  const [setupError, setSetupError] = useState<string | null>(null)
+
+  const [examinerChat, setExaminerChat] = useState<ChatMsg[]>([])
+  const [examinerBusy, setExaminerBusy] = useState(false)
+
+  const [vivaLog, setVivaLog] = useState<ChatMsg[]>([])
+  const [vivaQuestionNumber, setVivaQuestionNumber] = useState(1)
+  const [vivaBusy, setVivaBusy] = useState(false)
+  const [vivaResult, setVivaResult] = useState<VivaResult | null>(null)
+
+  const role = brief ? roleOf(brief) : null
+
+  /** Starts a speaker with the right voice: the patient/informant in the chosen local language, the examiner in English. */
+  function startSpeaker(who: "patient" | "examiner", then?: () => void): Speaker {
+    const isPatient = who === "patient" && role
+    const sp = createSpeaker({
+      lang: isPatient ? speechLang : "en-IN",
+      gender: isPatient ? role!.gender : examinerGender.current,
+      variant: isPatient ? (brief?.patient?.name?.length || 0) : 0,
+      getToken: () => user!.getIdToken(),
+      onStart: () => setSpeaking(true),
+      onEnd: () => { setSpeaking(false); then?.(); if (handsFreeRef.current) setAutoKey((k) => k + 1) },
+    })
+    speakerRef.current = sp
+    return sp
+  }
+  function sayExaminer(text: string) { const sp = startSpeaker("examiner"); sp.push(text); sp.end() }
+  function silence() { stopSpeaking(); setSpeaking(false) }
+
+  function appendLog(entry: LogEntry) {
+    setLog((l) => [...l, entry])
+  }
+
+  function buildTranscript(entries: LogEntry[]): string {
+    return entries
+      .filter((e) => e.speaker !== "system")
+      .map((e) => `${e.speaker === "you" ? "Student" : "Patient"}: ${e.text}`)
+      .join("\n")
+  }
+
+  function buildChatTranscript(entries: ChatMsg[]): string {
+    return entries.map((e) => `${e.speaker === "you" ? "Student" : "Examiner"}: ${e.text}`).join("\n")
+  }
+
+  async function fetchImage(query: string) {
+    try {
+      const res = await fetch(`/api/topic-image?topic=${encodeURIComponent(query)}&subject=${encodeURIComponent(specialty)}`)
+      const data = await res.json()
+      if (data.url) { setImageUrl(data.url); setImageCredit(data.photographer || null) }
+    } catch {}
+  }
+
+  function resetToSetup() {
+    silence()
+    setVivaPlan(undefined)
+    setPhase("setup")
+    setBrief(null)
+    setLog([])
+    setAssessment(null)
+    setExaminerChat([])
+    setVivaLog([])
+    setVivaResult(null)
+    setStudentPresentation("")
+    setImageUrl(null)
+    setImageCredit(null)
+    setSpeaking(false)
+  }
+
+  async function startCase() {
+    if (!user || !specialty.trim() || !topic.trim()) return
+    setSetupError(null)
+    setPhase("generating")
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/osce-stations/start-case", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, specialty: specialty.trim(), topic: topic.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.brief) throw new Error(data.error || "Could not generate a case")
+      setBrief(data.brief)
+      setLog([{ speaker: "system", text: "You are in the examination room. Begin by introducing yourself, then take a full history and examination." }])
+      setImageUrl(null)
+      setImageCredit(null)
+      setStudentPresentation("")
+      setAssessment(null)
+      setExaminerChat([])
+      setVivaLog([])
+      setVivaResult(null)
+      setPhase("encounter")
+      fetchImage(data.brief.imageSearchQuery || topic.trim())
+    } catch (e: any) {
+      setSetupError(e.message || "Could not generate a case - please try again.")
+      setPhase("setup")
+    }
+  }
+
+  function enterCase(b: OsceBrief, spec: string, top: string) {
+    setSpecialty(spec)
+    setTopic(top)
+    setBrief(b)
+    setLog([{ speaker: "system", text: "You are in the examination room. Begin by introducing yourself, then take a full history and examination." }])
+    setImageUrl(null)
+    setImageCredit(null)
+    setStudentPresentation("")
+    setAssessment(null)
+    setExaminerChat([])
+    setVivaLog([])
+    setVivaResult(null)
+    setVivaPlan(b.viva)
+    setPhase("encounter")
+    fetch(`/api/topic-image?topic=${encodeURIComponent(b.imageSearchQuery || b.topic)}&subject=${encodeURIComponent(spec)}`)
+      .then((r) => r.json()).then((d) => { if (d.url) { setImageUrl(d.url); setImageCredit(d.photographer || null) } }).catch(() => {})
+  }
+
+  async function startLibrary(id: string, hideTopic = false) {
+    if (!user || libBusy) return
+    const seed = LIB_SEEDS.find((s) => s.id === id)
+    if (!seed) return
+    setSetupError(null)
+    setLibBusy(id)
+    try {
+      const d = await libCall({ action: "get", id })
+      setReady((r) => (r.includes(id) ? r : [...r, id]))
+      enterCase(d.brief, seed.label, hideTopic ? "Diagnosis not shown" : seed.topic)
+    } catch (e: any) {
+      setSetupError(e.message || "Could not open this case - please try again.")
+    } finally {
+      setLibBusy(null)
+    }
+  }
+
+  function surprise() {
+    const pool = LIB_SEEDS.filter((s) => s.subject === libSubject)
+    const pick = pool[Math.floor(Math.random() * pool.length)]
+    if (pick) startLibrary(pick.id, true)
+  }
+
+  async function seedAll() {
+    setLibMsg("Preparing cases...")
+    try {
+      for (let i = 0; i < 40; i++) {
+        const d = await libCall({ action: "seed", limit: 4 })
+        setReady(d.ready || [])
+        setLibMsg(`${(d.ready || []).length} of ${LIB_SEEDS.length} ready${d.failed ? `, ${d.failed} failed in the last round` : ""}`)
+        if (!d.remaining || !d.made) break
+      }
+    } catch (e: any) {
+      setLibMsg(e.message || "Stopped")
+    }
+  }
+
+  function historyFor(entries: LogEntry[]): string {
+    return entries.filter((e) => e.speaker !== "system").slice(-6)
+      .map((e) => `${e.speaker === "you" ? "Student" : e.speaker === "examiner" ? "Examiner" : "Patient"}: ${e.text}`).join("\n")
+  }
+
+  async function handleUtterance(utterance: string) {
+    if (!brief || !user || !utterance.trim() || busy) return
+    silence()
+    const history = historyFor(log)
+    appendLog({ speaker: "you", text: utterance })
+
+    // standard examination requests are answered instantly, with no waiting
+    if (kindOf(utterance) !== "history") {
+      const local = localAnswer(brief, utterance)
+      if (local) { appendLog({ speaker: "examiner", text: local }); const sp = startSpeaker("examiner"); sp.push(local); sp.end(); return }
+    }
+
+    setBusy(true)
+    let sp: Speaker | null = null
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/osce-stations/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, brief, history, utterance, language }),
+      })
+      if (!res.ok || !res.body) throw new Error("No response")
+      const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ""; let got = false
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        let i: number
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
+          if (!line) continue
+          const ev = JSON.parse(line)
+          if (ev.t === "meta") { appendLog({ speaker: ev.role, text: "" }); sp = startSpeaker(ev.role) }
+          else if (ev.t === "d") {
+            got = true
+            setLog((l) => { const c = [...l]; const k = c.length - 1; c[k] = { ...c[k], text: c[k].text + ev.x }; return c })
+            sp?.push(ev.x)
+          } else if (ev.t === "err") throw new Error(ev.x)
+          else if (ev.t === "end") sp?.end()
+        }
+      }
+      if (!got) throw new Error("Empty")
+    } catch {
+      sp?.stop()
+      appendLog({ speaker: "system", text: "Could not get a response - please try again." })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleFinish() {
+    if (!brief || !user) return
+    setPhase("assessing")
+    try {
+      const idToken = await user.getIdToken()
+      const transcript = buildTranscript(log)
+      const res = await fetch("/api/osce-stations/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, brief, transcript, studentPresentation, language: "English" }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.assessment) throw new Error(data.error || "Assessment failed")
+      setAssessment(data.assessment)
+      setExaminerChat([{ speaker: "examiner", text: data.assessment.feedback }])
+      setPhase("feedback")
+      sayExaminer(data.assessment.feedback)
+    } catch (e: any) {
+      alert(e.message || "Could not generate the assessment - please try again.")
+      setPhase("presentation")
+    }
+  }
+
+  async function handleExaminerMessage(message: string) {
+    if (!brief || !user || !assessment || examinerBusy) return
+    const chatTranscript = buildChatTranscript(examinerChat)
+    setExaminerChat((c) => [...c, { speaker: "you", text: message }])
+    setExaminerBusy(true)
+    try {
+      const idToken = await user.getIdToken()
+      const caseTranscript = buildTranscript(log)
+      const res = await fetch("/api/osce-stations/examiner-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, brief, caseTranscript, studentPresentation, assessmentFeedback: assessment.feedback, chatTranscript, studentMessage: message, language: "English" }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.reply) throw new Error(data.error || "No response")
+      setExaminerChat((c) => [...c, { speaker: "examiner", text: data.reply }])
+      sayExaminer(data.reply)
+    } catch {
+      setExaminerChat((c) => [...c, { speaker: "examiner", text: "Sorry, I couldn't respond just now - try again." }])
+    } finally {
+      setExaminerBusy(false)
+    }
+  }
+
+  async function startViva() {
+    if (!brief || !user) return
+    silence()
+    setVivaLog([])
+    setVivaQuestionNumber(1)
+    setVivaResult(null)
+    setVivaPlan(undefined)
+    setPhase("viva")
+    setVivaBusy(true)
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/osce-stations/viva-turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, brief, questionNumber: 1, studentAnswer: "" }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.message) throw new Error(data.error || "Could not start viva")
+      setVivaPlan(data.plan)
+      setVivaLog([{ speaker: "examiner", text: data.message }])
+      sayExaminer(data.message)
+    } catch (e: any) {
+      alert(e.message || "Could not start the viva - please try again.")
+      setPhase("feedback")
+    } finally {
+      setVivaBusy(false)
+    }
+  }
+
+  async function finishViva(finalLog: ChatMsg[]) {
+    if (!brief || !user) return
+    setPhase("viva-grading")
+    try {
+      const idToken = await user.getIdToken()
+      const vivaTranscript = buildChatTranscript(finalLog)
+      const res = await fetch("/api/osce-stations/viva-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, brief, vivaTranscript, language }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.assessment) throw new Error(data.error || "Could not grade viva")
+      setVivaResult(data.assessment)
+      setPhase("done")
+    } catch (e: any) {
+      alert(e.message || "Could not grade the viva.")
+      setPhase("feedback")
+    }
+  }
+
+  async function handleVivaAnswer(answer: string) {
+    if (!brief || !user || vivaBusy) return
+    silence()
+    const thisQuestionNumber = vivaQuestionNumber
+    const logWithAnswer = [...vivaLog, { speaker: "you" as const, text: answer }]
+    setVivaLog(logWithAnswer)
+    setVivaBusy(true)
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/osce-stations/viva-turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, brief, plan: vivaPlan, studentAnswer: answer, questionNumber: thisQuestionNumber }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.message) throw new Error(data.error || "No response")
+      if (data.plan) setVivaPlan(data.plan)
+      const logWithReply = [...logWithAnswer, { speaker: "examiner" as const, text: data.message }]
+      setVivaLog(logWithReply)
+      sayExaminer(data.message)
+      if (thisQuestionNumber >= TOTAL_VIVA) {
+        setVivaBusy(false)
+        finishViva(logWithReply)
+        return
+      }
+      setVivaQuestionNumber((n) => n + 1)
+    } catch {
+      setVivaLog((l) => [...l, { speaker: "examiner", text: "Sorry, I lost the connection for a moment. Please say your answer again, or tap Skip." }])
+    } finally {
+      setVivaBusy(false)
+    }
+  }
+
+  if (checkingAuth || planLoading) {
+    return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  }
+
+  if (!canAccessContent) {
+    return (
+      <div className="max-w-2xl mx-auto p-4 md:p-12">
+        <UpgradeGate type="content" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto p-4 md:p-12 space-y-6 animate-in slide-in-from-bottom-4 duration-700">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+          <Stethoscope className="h-7 w-7 text-accent" /> Virtual Patient
+        </h1>
+        <p className="text-muted-foreground text-sm">A fresh AI-generated patient every time - take the history, examine, present your diagnosis, and get examiner feedback out loud.</p>
+      </div>
+
+      {phase === "setup" && (
+        <div className="flex gap-2">
+          <Button size="sm" variant={mode === "library" ? "default" : "outline"} onClick={() => setMode("library")} className="rounded-full flex-1 gap-1">
+            <BookOpen className="h-4 w-4" /> Library cases ({LIB_SEEDS.length})
+          </Button>
+          <Button size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => setMode("new")} className="rounded-full flex-1 gap-1">
+            <Sparkles className="h-4 w-4" /> Generate new
+          </Button>
+        </div>
+      )}
+
+      {phase === "setup" && mode === "library" && (
+        <Card className="glass border-none">
+          <CardContent className="p-6 space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Subject</p>
+              <div className="flex flex-wrap gap-2">
+                {LIB_SUBJECTS.map((s) => (
+                  <Button key={s.key} size="sm" variant={libSubject === s.key ? "default" : "outline"} onClick={() => setLibSubject(s.key)} className="rounded-full">
+                    {s.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1"><Globe className="h-3 w-3" /> Language</p>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGES.map((l) => (
+                  <Button key={l.value} size="sm" variant={language === l.value ? "default" : "outline"} onClick={() => setLanguage(l.value)} className="rounded-full">
+                    {l.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <Button onClick={surprise} disabled={!!libBusy} className="w-full gap-2">
+              <Shuffle className="h-4 w-4" /> Surprise me (diagnosis hidden)
+            </Button>
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Or pick a case</p>
+              {LIB_SEEDS.filter((s) => (search.trim() ? s.topic.toLowerCase().includes(search.trim().toLowerCase()) : s.subject === libSubject)).map((s) => (
+                <button key={s.id} disabled={!!libBusy} onClick={() => startLibrary(s.id)}
+                  className="w-full flex items-center justify-between gap-2 text-left text-sm rounded-xl border border-white/10 px-3 py-2 hover:bg-white/5 disabled:opacity-60">
+                  <span>{s.topic}</span>
+                  {libBusy === s.id ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : ready.includes(s.id) ? <CheckCircle2 className="h-4 w-4 text-accent shrink-0" /> : <span className="text-[10px] text-muted-foreground shrink-0">prepared on first use</span>}
+                </button>
+              ))}
+            </div>
+
+            {libBusy && <p className="text-xs text-muted-foreground">Preparing this case - the first time can take up to a minute, afterwards it opens instantly.</p>}
+            {setupError && <p className="text-sm text-red-400">{setupError}</p>}
+
+            {isAdmin && (
+              <div className="space-y-1 pt-2 border-t border-white/10">
+                <Button size="sm" variant="outline" onClick={seedAll} disabled={!!libMsg && libMsg.startsWith("Preparing")}>Admin: prepare all library cases</Button>
+                {libMsg && <p className="text-xs text-muted-foreground">{libMsg}</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {phase === "setup" && mode === "new" && (
+        <Card className="glass border-none">
+          <CardContent className="p-6 space-y-5">
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Specialty</p>
+              <div className="flex flex-wrap gap-2">
+                {SPECIALTIES.map((s) => (
+                  <Button key={s} size="sm" variant={specialty === s ? "default" : "outline"} onClick={() => setSpecialty(s)} className="rounded-full">
+                    {s}
+                  </Button>
+                ))}
+              </div>
+              <Input placeholder="Or type a specialty..." value={specialty} onChange={(e) => setSpecialty(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Topic / Condition</p>
+              <Input placeholder="e.g. Acute appendicitis, Rheumatic heart disease, Placenta previa" value={topic} onChange={(e) => setTopic(e.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1"><Globe className="h-3 w-3" /> Language</p>
+              <div className="flex flex-wrap gap-2">
+                {LANGUAGES.map((l) => (
+                  <Button key={l.value} size="sm" variant={language === l.value ? "default" : "outline"} onClick={() => setLanguage(l.value)} className="rounded-full">
+                    {l.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {setupError && <p className="text-sm text-red-400">{setupError}</p>}
+
+            <Button onClick={startCase} disabled={!specialty.trim() || !topic.trim()} className="w-full gap-2">
+              <Sparkles className="h-4 w-4" /> Generate Case
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {phase === "generating" && (
+        <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-sm">Generating your patient...</p>
+        </div>
+      )}
+
+      {phase === "encounter" && brief && (
+        <div className="space-y-4">
+          {imageUrl && (
+            <Card className="glass border-none overflow-hidden">
+              <img src={imageUrl} alt="Clinical reference" className="w-full h-44 object-cover" />
+              {imageCredit && <p className="text-[10px] text-muted-foreground px-3 py-1">Photo by {imageCredit} on Pexels</p>}
+            </Card>
+          )}
+
+          <Card className="glass border-none">
+            <CardContent className="p-4 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1">
+                <Clock className="h-3 w-3" /> {specialty} - {topic}
+              </p>
+              <div className="max-h-72 overflow-y-auto space-y-2">
+                {log.map((entry, i) => (
+                  <div key={i} className={`text-sm ${entry.speaker === "you" ? "text-accent" : entry.speaker === "system" ? "text-muted-foreground italic" : ""}`}>
+                    <span className="font-bold">{entry.speaker === "you" ? "You: " : entry.speaker === "patient" ? `${role?.relation || "Patient"}: ` : entry.speaker === "examiner" ? "Examiner: " : ""}</span>
+                    {entry.text}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {role && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{speaking ? "Speaking..." : `Answering: ${role.label}`} - {language}</span>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="checkbox" checked={handsFree} onChange={(e) => { setHandsFree(e.target.checked); handsFreeRef.current = e.target.checked }} /> Hands-free
+                </label>
+                {speaking && <button className="flex items-center gap-1 text-accent" onClick={silence}><VolumeX className="h-3 w-3" /> Stop voice</button>}
+              </div>
+            </div>
+          )}
+          <VoiceOrTextInput onSubmit={handleUtterance} disabled={busy} lang={speechLang} autoStartKey={autoKey} placeholder="Ask the patient, or type your question..." />
+
+          <div className="flex flex-wrap gap-2">
+            {QUICK_ACTIONS.map((a) => (
+              <Button key={a} size="sm" variant="outline" disabled={busy} onClick={() => handleUtterance(a)} className="rounded-full">
+                {a}
+              </Button>
+            ))}
+          </div>
+
+          <Button onClick={() => setPhase("presentation")} className="w-full" disabled={busy}>
+            Finish History & Examination
+          </Button>
+        </div>
+      )}
+
+      {phase === "presentation" && (
+        <Card className="glass border-none">
+          <CardContent className="p-6 space-y-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-primary">Present Your Case</p>
+            <p className="text-sm text-muted-foreground">State your provisional diagnosis, differential diagnoses, and management plan - speak or type it below.</p>
+            <textarea
+              className="w-full min-h-[160px] rounded-xl glass border border-white/10 p-3 text-sm bg-transparent"
+              placeholder="e.g. My provisional diagnosis is... The differentials are... I would manage this by..."
+              value={studentPresentation}
+              onChange={(e) => setStudentPresentation(e.target.value)}
+            />
+            <VoiceOrTextInput
+              onSubmit={(t) => setStudentPresentation((p) => (p ? p + " " + t : t))}
+              lang="en-IN"
+              placeholder="Add more by voice or text..."
+            />
+            <Button onClick={handleFinish} disabled={!studentPresentation.trim()} className="w-full">
+              Submit for Assessment
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {phase === "assessing" && (
+        <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-sm">The examiner is reviewing your case...</p>
+        </div>
+      )}
+
+      {phase === "feedback" && assessment && (
+        <div className="space-y-4">
+          <DoctorAvatar speaking={speaking} />
+
+          <Card className="glass border-none">
+            <CardContent className="p-4 space-y-2 max-h-72 overflow-y-auto">
+              {examinerChat.map((m, i) => (
+                <div key={i} className={`text-sm ${m.speaker === "you" ? "text-accent" : ""}`}>
+                  <span className="font-bold">{m.speaker === "you" ? "You: " : "Examiner: "}</span>{m.text}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <VoiceOrTextInput onSubmit={handleExaminerMessage} disabled={examinerBusy} lang="en-IN" placeholder="Ask the examiner a question..." />
+
+          <Card className="glass border-none">
+            <CardContent className="p-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Scores</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <p>History: <span className="font-bold">{assessment.historyScore}/25</span></p>
+                <p>Examination: <span className="font-bold">{assessment.examinationScore}/25</span></p>
+                <p>Diagnosis: <span className="font-bold">{assessment.diagnosisScore}/25</span></p>
+                <p>Management: <span className="font-bold">{assessment.managementScore}/25</span></p>
+              </div>
+              <p className="font-bold pt-1">Total: {assessment.totalScore}/100</p>
+            </CardContent>
+          </Card>
+
+          <Card className="glass border-none">
+            <CardContent className="p-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">Actual Diagnosis</p>
+              <p className="font-medium">{assessment.actualDiagnosis}</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground pt-2">Differentials</p>
+              <ul className="list-disc list-inside text-sm">
+                {assessment.actualDifferentials.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground pt-2">Management</p>
+              <p className="text-sm">{assessment.actualManagement}</p>
+            </CardContent>
+          </Card>
+
+          <div className="flex gap-2">
+            <Button onClick={startViva} className="flex-1 gap-2"><Trophy className="h-4 w-4" /> Take Viva</Button>
+            <Button variant="outline" onClick={resetToSetup} className="flex-1">Start Another Case</Button>
+          </div>
+        </div>
+      )}
+
+      {phase === "viva" && (
+        <div className="space-y-4">
+          <DoctorAvatar speaking={speaking} />
+          <Card className="glass border-none">
+            <CardContent className="p-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">
+                Viva - Question {Math.min(vivaQuestionNumber, TOTAL_VIVA)} of {TOTAL_VIVA}
+              </p>
+              <div className="max-h-72 overflow-y-auto space-y-2">
+                {vivaLog.map((m, i) => (
+                  <div key={i} className={`text-sm ${m.speaker === "you" ? "text-accent" : ""}`}>
+                    <span className="font-bold">{m.speaker === "you" ? "You: " : "Examiner: "}</span>{m.text}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+          <VoiceOrTextInput
+            onSubmit={handleVivaAnswer}
+            disabled={vivaBusy}
+            lang="en-IN"
+            placeholder="Answer the examiner..."
+            extra={
+              <Button variant="outline" disabled={vivaBusy} onClick={() => handleVivaAnswer("I don't know")} className="w-full gap-2">
+                <SkipForward className="h-4 w-4" /> I don't know - next question
+              </Button>
+            }
+          />
+        </div>
+      )}
+
+      {phase === "viva-grading" && (
+        <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-sm">Grading your viva...</p>
+        </div>
+      )}
+
+      {phase === "done" && (
+        <div className="space-y-4">
+          {vivaResult && (
+            <Card className="glass border-none">
+              <CardContent className="p-6 space-y-2 text-center">
+                <Trophy className="h-8 w-8 text-primary mx-auto" />
+                <p className="text-2xl font-bold">{vivaResult.score}<span className="text-base text-muted-foreground">/20 viva</span></p>
+                <p className="text-sm text-muted-foreground text-left">{vivaResult.feedback}</p>
+              </CardContent>
+            </Card>
+          )}
+          <Button onClick={resetToSetup} className="w-full">Start Another Case</Button>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,23 @@
+    match /grandPapers/{docId} {
+      allow read: if request.auth != null;
+      allow write, delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /grandImages/{docId} {
+      allow read: if request.auth != null;
+      allow write, delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /grandPaperQs/{docId} {
+      function gpUser() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      }
+      function gpPaid() {
+        return gpUser().get('plan', 'free') != 'free' &&
+          (gpUser().get('planExpiresAt', null) == null || gpUser().planExpiresAt > request.time.toMillis());
+      }
+      allow read: if request.auth != null &&
+        (resource.data.get('free', false) == true || gpPaid() || gpUser().get('role', '') == 'admin');
+      allow write, delete: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }

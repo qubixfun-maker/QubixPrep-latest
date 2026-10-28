@@ -9,6 +9,7 @@ import { useUser } from "@/firebase"
 import { usePlan } from "@/hooks/use-plan"
 import { TopSearchProvider, useTopSearchState } from "@/components/layout/top-search"
 import dynamic from "next/dynamic"
+import { PlanRouteGuard } from "@/components/layout/plan-route-guard"
 const AppSidebar = dynamic(() => import("@/components/layout/app-sidebar").then(mod => mod.AppSidebar), { ssr: false })
 
 const TABS = [
@@ -99,7 +100,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   if (isAuthPage) {
     return (
       <main className="min-h-screen w-full bg-background">
-        {children}
+        <PlanRouteGuard>{children}</PlanRouteGuard>
       </main>
     )
   }

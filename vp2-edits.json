@@ -1,0 +1,55 @@
+{
+ "edits": {
+  "src/components/osce/voice.tsx": [
+   [
+    "export function useListen(lang: string, onFinal: (t: string) => void, silenceMs = 2500) {",
+    "/** Joins two pieces of recognised speech. Some phones send the earlier words again inside every new result, so repeats are folded away. */\nfunction mergeText(a: string, b: string): string {\n  const x = (a || \"\").trim(), y = (b || \"\").trim()\n  if (!x) return y\n  if (!y) return x\n  const lx = x.toLowerCase(), ly = y.toLowerCase()\n  if (ly.startsWith(lx)) return y   // the new text already contains the earlier text\n  if (lx.endsWith(ly)) return x     // the new text only repeats the end of the earlier text\n  return `${x} ${y}`\n}\n\nexport function useListen(lang: string, onFinal: (t: string) => void, silenceMs = 2500) {"
+   ],
+   [
+    "  const finalRef = useRef(\"\"); const interimRef = useRef(\"\")\n",
+    "  const finalRef = useRef(\"\"); const interimRef = useRef(\"\"); const baseRef = useRef(\"\"); const lastSent = useRef({ t: \"\", at: 0 })\n"
+   ],
+   [
+    "    const t = `${finalRef.current} ${interimRef.current}`.trim()\n    finalRef.current = \"\"; interimRef.current = \"\"; setInterim(\"\")\n    if (t) cb.current(t)",
+    "    const t = mergeText(finalRef.current, interimRef.current)\n    finalRef.current = \"\"; interimRef.current = \"\"; baseRef.current = \"\"; setInterim(\"\")\n    // the same sentence is never sent twice in a row\n    if (t && !(t === lastSent.current.t && Date.now() - lastSent.current.at < 3000)) { lastSent.current = { t, at: Date.now() }; cb.current(t) }"
+   ],
+   [
+    "      let it = \"\"\n      for (let i = e.resultIndex; i < e.results.length; i++) {\n        const res = e.results[i]\n        if (res.isFinal) finalRef.current = `${finalRef.current} ${res[0].transcript}`.trim(); else it += res[0].transcript\n      }\n      interimRef.current = it; setInterim(it); arm(silenceMs)",
+    "      // Rebuild the whole sentence from every result each time instead of adding piece by piece.\n      let fin = \"\", it = \"\"\n      for (let i = 0; i < e.results.length; i++) {\n        const res = e.results[i]\n        if (res.isFinal) fin = mergeText(fin, res[0].transcript); else it = mergeText(it, res[0].transcript)\n      }\n      finalRef.current = mergeText(baseRef.current, fin)\n      interimRef.current = it; setInterim(it); arm(silenceMs)"
+   ],
+   [
+    "        try { const n = make(); recRef.current = n; startedAt.current = Date.now(); n.start(); return } catch {}",
+    "        // a new listening round starts: keep what was heard so far as the base, so nothing is lost or counted twice\n        baseRef.current = mergeText(finalRef.current, interimRef.current); finalRef.current = baseRef.current; interimRef.current = \"\"\n        try { const n = make(); recRef.current = n; startedAt.current = Date.now(); n.start(); return } catch {}"
+   ],
+   [
+    "    finalRef.current = \"\"; interimRef.current = \"\"; setInterim(\"\"); setError(\"\"); heard.current = false",
+    "    finalRef.current = \"\"; interimRef.current = \"\"; baseRef.current = \"\"; setInterim(\"\"); setError(\"\"); heard.current = false"
+   ]
+  ],
+  "src/app/virtual-patient/page.tsx": [
+   [
+    "  const [studentPresentation, setStudentPresentation] = useState(\"\")\n",
+    "  const [studentPresentation, setStudentPresentation] = useState(\"\")\n  const [draftBusy, setDraftBusy] = useState(false)\n"
+   ],
+   [
+    "  async function handleFinish() {",
+    "  /** What the student found out so far, as plain lines (the examiner's lines are the examination findings). */\n  function elicitedText(entries: LogEntry[]): string {\n    return entries.filter((e) => e.speaker !== \"system\" && (e.en || e.text).trim())\n      .map((e) => `${e.speaker === \"you\" ? \"Student\" : e.speaker === \"examiner\" ? \"Examination finding\" : \"Patient\"}: ${e.en || e.text}`).join(\"\\n\")\n  }\n  /** A simple draft built on the phone itself, used when the writing service is not reachable. */\n  function localDraft(entries: LogEntry[]): string {\n    const hist = entries.filter((e) => e.speaker === \"patient\" && (e.en || e.text).trim()).map((e) => `- ${(e.en || e.text).trim()}`)\n    const exam = entries.filter((e) => e.speaker === \"examiner\" && (e.en || e.text).trim()).map((e) => `- ${(e.en || e.text).trim()}`)\n    return [\n      brief ? `${brief.patient?.name || \"The patient\"}, ${brief.patient?.age || \"\"} year old ${brief.patient?.gender || \"\"}`.replace(/\\s+/g, \" \").trim() + \".\" : \"\",\n      \"\", \"History (from the patient):\", ...(hist.length ? hist : [\"- \"]),\n      \"\", \"Examination findings:\", ...(exam.length ? exam : [\"- \"]),\n      \"\", \"Provisional diagnosis: \", \"\", \"Differential diagnosis: \", \"\", \"Management plan: \",\n    ].join(\"\\n\")\n  }\n  /** Opens the presentation step with the history and examination already written, so the student only adds the diagnosis and plan. */\n  async function startPresentation() {\n    setPhase(\"presentation\")\n    if (studentPresentation.trim() || !brief || !user) return\n    setDraftBusy(true)\n    try {\n      const idToken = await user.getIdToken()\n      const p = brief.patient\n      const demo = p ? `${p.name || \"\"}, ${p.age || \"\"} year old ${p.gender || \"\"}${p.occupation ? \", \" + p.occupation : \"\"}${p.address ? \", from \" + p.address : \"\"}` : \"\"\n      const res = await fetch(\"/api/osce-stations/draft\", {\n        method: \"POST\", headers: { \"Content-Type\": \"application/json\" },\n        body: JSON.stringify({ idToken, transcript: elicitedText(log), demo }),\n      })\n      const d = await res.json()\n      if (!res.ok || !d.draft) throw new Error(\"draft\")\n      setStudentPresentation((cur) => (cur.trim() ? cur : d.draft))\n    } catch {\n      setStudentPresentation((cur) => (cur.trim() ? cur : localDraft(log)))\n    } finally { setDraftBusy(false) }\n  }\n\n  async function handleFinish() {"
+   ],
+   [
+    "<Button onClick={() => setPhase(\"presentation\")} className=\"w-full\" disabled={busy}>",
+    "<Button onClick={startPresentation} className=\"w-full\" disabled={busy}>"
+   ],
+   [
+    "<p className=\"text-sm text-muted-foreground\">State your provisional diagnosis, differential diagnoses, and management plan - speak or type it below.</p>",
+    "<p className=\"text-sm text-muted-foreground\">Your history and examination are already written below from what you found. Read it, correct anything, then add your provisional diagnosis, differential diagnoses and management plan - speak or type.</p>\n            {draftBusy && <p className=\"flex items-center gap-2 text-xs text-muted-foreground\"><Loader2 className=\"h-3.5 w-3.5 animate-spin\" /> Writing your case summary...</p>}"
+   ],
+   [
+    "className=\"w-full min-h-[160px] rounded-xl glass border border-white/10 p-3 text-sm bg-transparent\"",
+    "className=\"w-full min-h-[320px] rounded-xl glass border border-white/10 p-3 text-sm bg-transparent\""
+   ]
+  ]
+ },
+ "newFiles": {
+  "src/app/api/osce-stations/draft/route.ts": "export const dynamic = \"force-dynamic\"\nexport const maxDuration = 60\n\nimport { NextRequest, NextResponse } from 'next/server'\nimport { verifyIdToken } from '@/lib/firebase-admin'\nimport { isClinician } from '@/lib/require-clinician'\nimport { osceCall } from '@/ai/osce-ai'\n\n/** Writes the history and examination the student has gathered as a case presentation draft. It never adds a diagnosis. */\nexport async function POST(req: NextRequest) {\n  try {\n    const { idToken, transcript, demo } = await req.json()\n    if (!idToken || typeof transcript !== 'string' || !transcript.trim()) return NextResponse.json({ error: 'Bad request' }, { status: 400 })\n    const who = await verifyIdToken(idToken)\n    if (!(await isClinician(who.uid))) return NextResponse.json({ error: 'Virtual Patient is part of the Clinician plan.', needsPlan: true }, { status: 403 })\n    const convo = transcript.trim().slice(-9000)\n    const d = typeof demo === 'string' ? demo.trim().slice(0, 300) : ''\n    const prompt = `An Indian MBBS student has just taken a history and examined a virtual patient. Below is the full conversation.\nWrite the case presentation the student will give to the examiner, in simple English, in this order:\n1. Patient details and chief complaints with duration (one opening sentence).\n2. History of present illness (as a short story in time order).\n3. Negative history, past history, family history, personal history (only the ones that were actually asked).\n4. General physical examination and local / systemic examination findings (only what was actually examined).\nRules: use ONLY facts stated in the conversation. Do not invent or guess anything the student did not ask or examine. Do NOT write a diagnosis, differential diagnosis or management. Plain text only, with short headings followed by a colon. No markdown symbols, no bullet characters other than a dash.\nPatient details given to the student: ${d || 'not given'}\n\nCONVERSATION:\n${convo}`\n    const { content } = await osceCall([{ role: 'user', content: prompt }], 1200, 0, 'fast')\n    let body = content.trim().replace(/\\*\\*/g, '').replace(/^#+\\s*/gm, '')\n    if (!body) return NextResponse.json({ error: 'Empty' }, { status: 502 })\n    const draft = `${body}\\n\\nProvisional diagnosis: \\n\\nDifferential diagnosis: \\n\\nManagement plan: `\n    return NextResponse.json({ draft })\n  } catch (e: any) {\n    return NextResponse.json({ error: e.message || 'Draft failed' }, { status: 500 })\n  }\n}\n"
+ }
+}
