@@ -62,6 +62,7 @@ function who(c: CaseDef | undefined, ans: Answers) {
   const p = (ans.particulars || {}) as Record<string, any>
   const sex = (arr(p.sex ?? ans.sex)[0] || '').toLowerCase()
   if (c?.id === 'paed-newborn') return { Sub: 'The baby', sub: 'the baby' }
+  if (c?.subject === 'obg' && !sex) return { Sub: 'She', sub: 'she' }
   if (sex.startsWith('m')) return { Sub: 'He', sub: 'he' }
   if (sex.startsWith('f')) return { Sub: 'She', sub: 'she' }
   return { Sub: 'The patient', sub: 'the patient' }
@@ -288,7 +289,7 @@ export function openingStatement(c: CaseDef, ans: Answers): string {
   const get = (k: string) => clean(p[k] ?? ans[k])
   const name = get('name')
   const age = get('age')
-  const sex = arr(p.sex ?? ans.sex)[0]
+  const sex = arr(p.sex ?? ans.sex)[0] || (c.subject === 'obg' ? 'Female' : '')
   const occ = get('occupation')
   const addr = get('address')
   const who: string[] = []

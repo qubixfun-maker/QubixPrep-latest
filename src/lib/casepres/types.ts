@@ -44,7 +44,7 @@ export const SUBJECTS: { id: SubjectId; name: string; blurb: string }[] = [
   { id: 'medicine', name: 'Medicine', blurb: 'GIT, CNS, respiratory, CVS, anaemia, fever, diabetes, renal, rheumatology, poisoning' },
   { id: 'surgery', name: 'Surgery', blurb: 'Varicose veins, hernia, thyroid, breast, ulcer and more' },
   { id: 'paediatrics', name: 'Paediatrics', blurb: 'GI, nutrition, newborn, CNS, respiratory, CVS' },
-  { id: 'obg', name: 'Obstetrics & Gynaecology', blurb: 'Gynaecology and antenatal cases' },
+  { id: 'obg', name: 'Obstetrics & Gynaecology', blurb: 'Gynaecology, antenatal, labour, postnatal, high-risk pregnancy, early pregnancy bleeding, prolapse and infertility' },
   { id: 'ent', name: 'ENT', blurb: 'Ear, nose and throat' },
   { id: 'orthopaedics', name: 'Orthopaedics', blurb: 'Fracture, joints, bone infection, tumours, spine, nerve injury' },
   { id: 'psychiatry', name: 'Psychiatry', blurb: 'Depression, mania, psychosis, anxiety and OCD, alcohol and substance use, delirium and dementia' },
