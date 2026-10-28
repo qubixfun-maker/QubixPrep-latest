@@ -16,7 +16,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
 import { UpgradeGate } from "@/components/upgrade-gate"
 
-type LogEntry = { en?: string; speaker: "you" | "patient" | "examiner" | "system"; text: string }
+type LogEntry = { speaker: "you" | "patient" | "examiner" | "system"; text: string; id?: number; en?: string }
 type ChatMsg = { speaker: "you" | "examiner"; text: string }
 
 type Assessment = {
@@ -132,6 +132,16 @@ export default function OsceStationsPage() {
   const [vivaBusy, setVivaBusy] = useState(false)
   const [vivaResult, setVivaResult] = useState<VivaResult | null>(null)
 
+  // the text boxes scroll down by themselves as new words arrive
+  const logIdRef = useRef(0)
+  const logBoxRef = useRef<HTMLDivElement>(null)
+  const chatBoxRef = useRef<HTMLDivElement>(null)
+  const vivaBoxRef = useRef<HTMLDivElement>(null)
+  const stickBottom = (r: { current: HTMLDivElement | null }) => { const el = r.current; if (el) el.scrollTop = el.scrollHeight }
+  useEffect(() => { stickBottom(logBoxRef) }, [log])
+  useEffect(() => { stickBottom(chatBoxRef) }, [examinerChat])
+  useEffect(() => { stickBottom(vivaBoxRef) }, [vivaLog])
+
   const role = brief ? roleOf(brief) : null
 
   /** Starts a speaker with the right voice: the patient/informant in the chosen local language, the examiner in English. */
@@ -151,8 +161,25 @@ export default function OsceStationsPage() {
   function sayExaminer(text: string) { const sp = startSpeaker("examiner"); sp.push(text); sp.end() }
   function silence() { stopSpeaking(); setSpeaking(false) }
 
-  function appendLog(entry: LogEntry) {
-    setLog((l) => [...l, entry])
+  function appendLog(entry: LogEntry): number {
+    const id = ++logIdRef.current
+    setLog((l) => [...l, { ...entry, id }])
+    return id
+  }
+
+  /** Under a line written in an Indian language, shows its English meaning as a small subtitle. */
+  async function addSubtitle(id: number, text: string) {
+    if (!user || !/[\u0900-\u0DFF]/.test(text)) return
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/osce-stations/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, text, from: language }),
+      })
+      const d = await res.json()
+      if (res.ok && d.en) setLog((l) => l.map((e) => (e.id === id ? { ...e, en: d.en } : e)))
+    } catch {}
   }
 
   function buildTranscript(entries: LogEntry[]): string {
@@ -284,7 +311,8 @@ export default function OsceStationsPage() {
     if (!brief || !user || !utterance.trim() || busy) return
     silence()
     const history = historyFor(log)
-    appendLog({ speaker: "you", text: utterance })
+    const youId = appendLog({ speaker: "you", text: utterance })
+    addSubtitle(youId, utterance)
 
     // standard examination requests are answered instantly, with no waiting
     if (kindOf(utterance) !== "history") {
@@ -302,7 +330,7 @@ export default function OsceStationsPage() {
         body: JSON.stringify({ idToken, brief, history, utterance, language }),
       })
       if (!res.ok || !res.body) throw new Error("No response")
-      const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ""; let got = false
+      const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = ""; let got = false; let acc = ""; let entryId = 0
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
@@ -312,9 +340,9 @@ export default function OsceStationsPage() {
           const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1)
           if (!line) continue
           const ev = JSON.parse(line)
-          if (ev.t === "meta") { appendLog({ speaker: ev.role, text: "" }); sp = startSpeaker(ev.role) }
+          if (ev.t === "meta") { entryId = appendLog({ speaker: ev.role, text: "" }); sp = startSpeaker(ev.role) }
           else if (ev.t === "d") {
-            got = true
+            got = true; acc += ev.x
             setLog((l) => { const c = [...l]; const k = c.length - 1; c[k] = { ...c[k], text: c[k].text + ev.x }; return c })
             sp?.push(ev.x)
           } else if (ev.t === "err") throw new Error(ev.x)
@@ -322,6 +350,7 @@ export default function OsceStationsPage() {
         }
       }
       if (!got) throw new Error("Empty")
+      if (entryId) addSubtitle(entryId, acc)
     } catch {
       sp?.stop()
       appendLog({ speaker: "system", text: "Could not get a response - please try again." })
@@ -643,11 +672,12 @@ export default function OsceStationsPage() {
               <p className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-1">
                 <Clock className="h-3 w-3" /> {specialty} - {topic}
               </p>
-              <div className="max-h-72 overflow-y-auto space-y-2">
+              <div ref={logBoxRef} className="max-h-72 overflow-y-auto space-y-2">
                 {log.map((entry, i) => (
                   <div key={i} className={`text-sm ${entry.speaker === "you" ? "text-accent" : entry.speaker === "system" ? "text-muted-foreground italic" : ""}`}>
                     <span className="font-bold">{entry.speaker === "you" ? "You: " : entry.speaker === "patient" ? `${role?.relation || "Patient"}: ` : entry.speaker === "examiner" ? "Examiner: " : ""}</span>
                     {entry.text}
+                    {entry.en && <div className="mt-0.5 text-xs italic text-muted-foreground">{entry.en}</div>}
                   </div>
                 ))}
               </div>
@@ -717,12 +747,14 @@ export default function OsceStationsPage() {
           <DoctorAvatar speaking={speaking} />
 
           <Card className="glass border-none">
-            <CardContent className="p-4 space-y-2 max-h-72 overflow-y-auto">
-              {examinerChat.map((m, i) => (
-                <div key={i} className={`text-sm ${m.speaker === "you" ? "text-accent" : ""}`}>
-                  <span className="font-bold">{m.speaker === "you" ? "You: " : "Examiner: "}</span>{m.text}
-                </div>
-              ))}
+            <CardContent className="p-4">
+              <div ref={chatBoxRef} className="space-y-2 max-h-72 overflow-y-auto">
+                {examinerChat.map((m, i) => (
+                  <div key={i} className={`text-sm ${m.speaker === "you" ? "text-accent" : ""}`}>
+                    <span className="font-bold">{m.speaker === "you" ? "You: " : "Examiner: "}</span>{m.text}
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
@@ -769,7 +801,7 @@ export default function OsceStationsPage() {
               <p className="text-xs font-bold uppercase tracking-widest text-primary">
                 Viva - Question {Math.min(vivaQuestionNumber, TOTAL_VIVA)} of {TOTAL_VIVA}
               </p>
-              <div className="max-h-72 overflow-y-auto space-y-2">
+              <div ref={vivaBoxRef} className="max-h-72 overflow-y-auto space-y-2">
                 {vivaLog.map((m, i) => (
                   <div key={i} className={`text-sm ${m.speaker === "you" ? "text-accent" : ""}`}>
                     <span className="font-bold">{m.speaker === "you" ? "You: " : "Examiner: "}</span>{m.text}

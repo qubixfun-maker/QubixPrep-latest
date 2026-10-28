@@ -59,6 +59,17 @@ function sheet(b: OsceBrief): string {
   ].join('\n')
 }
 
+const REGION: Record<string, string> = {
+  Kannada: 'Karnataka', Tamil: 'Tamil Nadu', Telugu: 'Andhra Pradesh or Telangana', Malayalam: 'Kerala',
+  Marathi: 'Maharashtra', Hindi: 'north India', Bengali: 'West Bengal',
+}
+/** Makes the patient talk like an ordinary local person, not like a textbook. */
+function localStyle(language: string, b: OsceBrief): string {
+  if (language === 'English') return ''
+  const where = b.patient?.address || REGION[language] || 'the region'
+  return `- Sound like a real local from ${where}: use the everyday SPOKEN ${language} of ordinary people there (colloquial words, short natural sentences, the usual spoken verb endings and fillers), NOT formal, textbook, newspaper or translated-from-English ${language}. Use the common village or town words for body parts, pain and symptoms, and speak to the student respectfully as a patient speaks to a "doctor". Never translate word by word from English.`
+}
+
 const SCRIPT: Record<string, string> = {
   English: 'English', Hindi: 'Hindi in Devanagari script', Kannada: 'Kannada in Kannada script', Tamil: 'Tamil in Tamil script',
   Telugu: 'Telugu in Telugu script', Malayalam: 'Malayalam in Malayalam script', Marathi: 'Marathi in Devanagari script', Bengali: 'Bengali in Bengali script',
@@ -77,13 +88,13 @@ export async function* answer(b: OsceBrief, history: string, utterance: string, 
   const local = examiner ? localAnswer(b, utterance) : null
   if (local) { yield { t: 'meta', role, src: 'local' }; yield { t: 'd', x: local }; yield { t: 'end' }; return }
 
-  const lang = examiner ? 'English' : language
+  const lang = examiner || language === 'English' ? 'English' : `${language}~v2` // v2: older answers in other languages were bookish, so they are not reused
   let canon = ''
   if (b.caseId) {
     try {
       const m = await lookupMemory(b.caseId, utterance, lang)
       if (m) { yield { t: 'meta', role, src: 'memory' }; yield { t: 'd', x: m.a }; yield { t: 'end' }; return }
-      canon = (await loadMemory(b.caseId)).slice(0, 12).map((x) => `Q: ${x.q} / A: ${x.a}`).join('\n')
+      canon = (await loadMemory(b.caseId)).filter((x) => x.lang === 'English' || x.lang === lang).slice(0, 12).map((x) => `Q: ${x.q} / A: ${x.a}`).join('\n')
     } catch {}
   }
 
@@ -103,6 +114,7 @@ RULES:
 - If asked something the sheet does not cover, invent a small plausible detail that fits the diagnosis, and stay consistent with the earlier answers below.
 ${examiner ? EXAM_RULES : '- If the question is vague, answer briefly as a real person would.'}
 - ${examiner ? 'Write in English.' : `Reply STRICTLY in ${SCRIPT[language] || language}, using only that language's own script and natural spoken words. No English sentences; only words people really say in English (BP, sugar, tablet, X-ray) may stay.`}
+${examiner ? '' : localStyle(language, b)}
 CASE SHEET:
 ${sheet(b)}
 ${examiner ? `Hidden diagnosis (only to keep findings consistent, never say it): ${b.provisionalDiagnosis}\n${ref ? `EXAMINATION REFERENCE (what the standard proforma for this case type examines; use its terms and signs):\n${ref}\n` : ''}` : ''}${canon ? `EARLIER ANSWERS GIVEN TO OTHER STUDENTS (stay consistent):\n${canon}` : ''}`

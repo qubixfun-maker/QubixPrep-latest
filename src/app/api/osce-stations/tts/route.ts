@@ -18,9 +18,18 @@ const cache = new Map<string, Buffer>()
 // OpenAI voices (paid members and admins, English and Hindi). Everything else keeps the Google voices above.
 //  - Jelly (kid=true): Marin, in a relaxed "chill" style.
 //  - OSCE stations: a voice per case. The case's gender and variant pick the person, so each patient or examiner sounds different.
-const OPENAI_LANGS = new Set(['en-IN', 'hi-IN'])
+const OPENAI_LANGS = LANGS // OpenAI voices for every language
 const OPENAI_VOICE = { male: ['cedar', 'onyx', 'ash'], female: ['coral', 'nova', 'shimmer'] } as const
 const JELLY_STYLE = 'Voice: bright, bubbly and cheerful, like a fun older sibling who loves teaching. Tone: playful, a smile in every sentence, lots of friendly energy. Pace: brisk and natural, like a quick-talking friend in a normal conversation, never slow or drawn out, with no long pauses between sentences. Keep every medical term and number crisp and clearly pronounced. Speak in the same language as the text.'
+const ACCENT: Record<string, string> = {
+  'kn-IN': ' Speak as a native Kannada speaker from Karnataka, with a natural local Kannada accent and rhythm, not an English or Hindi accent. Pronounce Kannada words as a native would.',
+  'hi-IN': ' Speak as a native Hindi speaker from India, with a natural Hindi accent and rhythm, not an English accent. Pronounce Hindi words as a native would.',
+  'ta-IN': ' Speak as a native Tamil speaker with a natural Tamil accent, not an English accent.',
+  'te-IN': ' Speak as a native Telugu speaker with a natural Telugu accent, not an English accent.',
+  'ml-IN': ' Speak as a native Malayalam speaker with a natural Malayalam accent, not an English accent.',
+  'mr-IN': ' Speak as a native Marathi speaker with a natural Marathi accent, not an English accent.',
+  'bn-IN': ' Speak as a native Bengali speaker with a natural Bengali accent, not an English accent.',
+}
 const CASE_STYLE = 'You are a real person in a clinical exam station in India, speaking naturally and conversationally with a clear Indian accent. Say exactly the words given, in the same language as the text. Do not sound like an announcer or a teacher.'
 async function openaiSpeech(text: string, voices: string[], instructions: string): Promise<{ audio: Buffer; voice: string } | null> {
   const key = process.env.OPENAI_API_KEY
@@ -91,7 +100,7 @@ export async function POST(req: NextRequest) {
       const ck = `oa|${kid ? 'kid' : gender}|${v}|${extra}|${clean}`
       audio = cache.get(ck)
       if (!audio) {
-        const out = await openaiSpeech(clean, voices, (kid ? JELLY_STYLE : CASE_STYLE) + extra)
+        const out = await openaiSpeech(clean, voices, (kid ? JELLY_STYLE : CASE_STYLE + (ACCENT[lang] || '') + (gender === 'male' ? ' You are a man: use a natural male, deeper tone.' : ' You are a woman: use a natural female tone.')) + extra)
         if (out) { audio = out.audio; if (cache.size > 300) cache.delete(cache.keys().next().value as string); cache.set(ck, out.audio) }
       }
     }
