@@ -173,6 +173,17 @@ export function createSpeaker(o: { lang: string; gender: Gender; variant?: numbe
 
 /* ---------------- Listening: keeps listening through pauses, sends after a real silence ---------------- */
 
+/** Joins two pieces of recognised speech. Some phones send the earlier words again inside every new result, so repeats are folded away. */
+function mergeText(a: string, b: string): string {
+  const x = (a || "").trim(), y = (b || "").trim()
+  if (!x) return y
+  if (!y) return x
+  const lx = x.toLowerCase(), ly = y.toLowerCase()
+  if (ly.startsWith(lx)) return y   // the new text already contains the earlier text
+  if (lx.endsWith(ly)) return x     // the new text only repeats the end of the earlier text
+  return `${x} ${y}`
+}
+
 export function useListen(lang: string, onFinal: (t: string) => void, silenceMs = 2500) {
   const [listening, setListening] = useState(false)
   const [interim, setInterim] = useState("")
@@ -180,16 +191,17 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
   const [error, setError] = useState("")
   const starting = useRef(false); const heard = useRef(false)
   const recRef = useRef<any>(null)
-  const finalRef = useRef(""); const interimRef = useRef("")
+  const finalRef = useRef(""); const interimRef = useRef(""); const baseRef = useRef(""); const lastSent = useRef({ t: "", at: 0 })
   const want = useRef(false); const timer = useRef<any>(null); const startedAt = useRef(0)
   const release = useRef<null | (() => void)>(null)
   const cb = useRef(onFinal); cb.current = onFinal
 
   const flush = useCallback(() => {
     setListening(false); clearTimeout(timer.current); release.current?.(); release.current = null
-    const t = `${finalRef.current} ${interimRef.current}`.trim()
-    finalRef.current = ""; interimRef.current = ""; setInterim("")
-    if (t) cb.current(t)
+    const t = mergeText(finalRef.current, interimRef.current)
+    finalRef.current = ""; interimRef.current = ""; baseRef.current = ""; setInterim("")
+    // the same sentence is never sent twice in a row
+    if (t && !(t === lastSent.current.t && Date.now() - lastSent.current.at < 3000)) { lastSent.current = { t, at: Date.now() }; cb.current(t) }
   }, [])
 
   const stop = useCallback(() => { want.current = false; clearTimeout(timer.current); try { recRef.current?.stop() } catch { flush() } }, [flush])
@@ -201,11 +213,13 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1
     r.onresult = (e: any) => {
       heard.current = true; setError("")
-      let it = ""
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      // Rebuild the whole sentence from every result each time instead of adding piece by piece.
+      let fin = "", it = ""
+      for (let i = 0; i < e.results.length; i++) {
         const res = e.results[i]
-        if (res.isFinal) finalRef.current = `${finalRef.current} ${res[0].transcript}`.trim(); else it += res[0].transcript
+        if (res.isFinal) fin = mergeText(fin, res[0].transcript); else it = mergeText(it, res[0].transcript)
       }
+      finalRef.current = mergeText(baseRef.current, fin)
       interimRef.current = it; setInterim(it); arm(silenceMs)
     }
     r.onerror = (e: any) => {
@@ -218,6 +232,8 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     }
     r.onend = () => {
       if (want.current && Date.now() - startedAt.current > 600) {
+        // a new listening round starts: keep what was heard so far as the base, so nothing is lost or counted twice
+        baseRef.current = mergeText(finalRef.current, interimRef.current); finalRef.current = baseRef.current; interimRef.current = ""
         try { const n = make(); recRef.current = n; startedAt.current = Date.now(); n.start(); return } catch {}
       }
       const quick = Date.now() - startedAt.current <= 600
@@ -238,7 +254,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     if (want.current || starting.current) return
     starting.current = true
     stopSpeaking(); primeAudio()
-    finalRef.current = ""; interimRef.current = ""; setInterim(""); setError(""); heard.current = false
+    finalRef.current = ""; interimRef.current = ""; baseRef.current = ""; setInterim(""); setError(""); heard.current = false
     // tell the "Hey Jelly" listener to let go of the microphone first (Chrome allows one speech recognizer at a time)
     release.current?.(); release.current = micAcquire()
     await new Promise((r) => setTimeout(r, 400))

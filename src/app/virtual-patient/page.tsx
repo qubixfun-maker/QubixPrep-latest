@@ -16,7 +16,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
 import { UpgradeGate } from "@/components/upgrade-gate"
 
-type LogEntry = { speaker: "you" | "patient" | "examiner" | "system"; text: string }
+type LogEntry = { en?: string; speaker: "you" | "patient" | "examiner" | "system"; text: string }
 type ChatMsg = { speaker: "you" | "examiner"; text: string }
 
 type Assessment = {
@@ -120,6 +120,7 @@ export default function OsceStationsPage() {
   const [imageCredit, setImageCredit] = useState<string | null>(null)
 
   const [studentPresentation, setStudentPresentation] = useState("")
+  const [draftBusy, setDraftBusy] = useState(false)
   const [assessment, setAssessment] = useState<Assessment | null>(null)
   const [setupError, setSetupError] = useState<string | null>(null)
 
@@ -327,6 +328,43 @@ export default function OsceStationsPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  /** What the student found out so far, as plain lines (the examiner's lines are the examination findings). */
+  function elicitedText(entries: LogEntry[]): string {
+    return entries.filter((e) => e.speaker !== "system" && (e.en || e.text).trim())
+      .map((e) => `${e.speaker === "you" ? "Student" : e.speaker === "examiner" ? "Examination finding" : "Patient"}: ${e.en || e.text}`).join("\n")
+  }
+  /** A simple draft built on the phone itself, used when the writing service is not reachable. */
+  function localDraft(entries: LogEntry[]): string {
+    const hist = entries.filter((e) => e.speaker === "patient" && (e.en || e.text).trim()).map((e) => `- ${(e.en || e.text).trim()}`)
+    const exam = entries.filter((e) => e.speaker === "examiner" && (e.en || e.text).trim()).map((e) => `- ${(e.en || e.text).trim()}`)
+    return [
+      brief ? `${brief.patient?.name || "The patient"}, ${brief.patient?.age || ""} year old ${brief.patient?.gender || ""}`.replace(/\s+/g, " ").trim() + "." : "",
+      "", "History (from the patient):", ...(hist.length ? hist : ["- "]),
+      "", "Examination findings:", ...(exam.length ? exam : ["- "]),
+      "", "Provisional diagnosis: ", "", "Differential diagnosis: ", "", "Management plan: ",
+    ].join("\n")
+  }
+  /** Opens the presentation step with the history and examination already written, so the student only adds the diagnosis and plan. */
+  async function startPresentation() {
+    setPhase("presentation")
+    if (studentPresentation.trim() || !brief || !user) return
+    setDraftBusy(true)
+    try {
+      const idToken = await user.getIdToken()
+      const p = brief.patient
+      const demo = p ? `${p.name || ""}, ${p.age || ""} year old ${p.gender || ""}${p.occupation ? ", " + p.occupation : ""}${p.address ? ", from " + p.address : ""}` : ""
+      const res = await fetch("/api/osce-stations/draft", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken, transcript: elicitedText(log), demo }),
+      })
+      const d = await res.json()
+      if (!res.ok || !d.draft) throw new Error("draft")
+      setStudentPresentation((cur) => (cur.trim() ? cur : d.draft))
+    } catch {
+      setStudentPresentation((cur) => (cur.trim() ? cur : localDraft(log)))
+    } finally { setDraftBusy(false) }
   }
 
   async function handleFinish() {
@@ -637,7 +675,7 @@ export default function OsceStationsPage() {
             ))}
           </div>
 
-          <Button onClick={() => setPhase("presentation")} className="w-full" disabled={busy}>
+          <Button onClick={startPresentation} className="w-full" disabled={busy}>
             Finish History & Examination
           </Button>
         </div>
@@ -647,9 +685,10 @@ export default function OsceStationsPage() {
         <Card className="glass border-none">
           <CardContent className="p-6 space-y-4">
             <p className="text-xs font-bold uppercase tracking-widest text-primary">Present Your Case</p>
-            <p className="text-sm text-muted-foreground">State your provisional diagnosis, differential diagnoses, and management plan - speak or type it below.</p>
+            <p className="text-sm text-muted-foreground">Your history and examination are already written below from what you found. Read it, correct anything, then add your provisional diagnosis, differential diagnoses and management plan - speak or type.</p>
+            {draftBusy && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Writing your case summary...</p>}
             <textarea
-              className="w-full min-h-[160px] rounded-xl glass border border-white/10 p-3 text-sm bg-transparent"
+              className="w-full min-h-[320px] rounded-xl glass border border-white/10 p-3 text-sm bg-transparent"
               placeholder="e.g. My provisional diagnosis is... The differentials are... I would manage this by..."
               value={studentPresentation}
               onChange={(e) => setStudentPresentation(e.target.value)}
