@@ -1,0 +1,366 @@
+=================== src/ai/chapter-notes-from-knowledge.ts
+'use server';
+import { callGeminiNative } from '@/ai/genkit';
+
+// Two-stage generation, purely from the model's own trained medical knowledge -
+// no textbook PDF, no chapterKnowledge extraction dependency. Stage 1 asks for a
+// topic breakdown; stage 2 writes each topic's notes independently (parallelized,
+// same pattern as chapter-notes-generator.ts) so one slow/failed topic doesn't
+// block the rest.
+
+function tryParseJson(raw: string): any | null {
+  const cleaned = raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf('[');
+    const end = cleaned.lastIndexOf(']');
+    if (start === -1 || end === -1 || end <= start) return null;
+    try {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function tryParseText(raw: string): string {
+  return raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
+}
+
+export type GeneratedTopic = { name: string; markdown: string; depth: number };
+export type GenerateFromKnowledgeOutput = { topics?: GeneratedTopic[]; error?: string };
+
+const TOPIC_LIST_PROMPT = (subjectName: string, chapterTitle: string) => `You are an expert Indian MBBS faculty member planning a revision-notes chapter for the topic "${chapterTitle}" in ${subjectName}, for an Indian medical undergraduate (following the depth, scope and emphasis typical of standard Indian MBBS textbooks for this subject, and the National Medical Commission's competency-based undergraduate curriculum for MBBS).
+
+Break this chapter down into the logical sequence of topics a student should study, in teaching order (not alphabetical). Use the granularity of a coaching-institute (e.g. Marrow-style) revision notes chapter - typically 4 to 10 topics, each a coherent, exam-relevant unit (not too broad, not trivially small).
+
+Return ONLY a JSON array of topic name strings, in study order, no commentary, no markdown fences. Example shape: ["Topic One", "Topic Two", "Topic Three"]`;
+
+const TOPIC_NOTES_PROMPT = (subjectName: string, chapterTitle: string, topicName: string) => `You are writing ONE topic's section of colorful, high-yield revision notes for Indian MBBS students, for the topic "${topicName}" (part of the chapter "${chapterTitle}", ${subjectName}). Write from your own medical knowledge, at the depth and scope typically covered in standard Indian MBBS textbooks for this subject and the NMC competency-based curriculum.
+
+FORMAT RULES - follow exactly:
+1. Start with a level-2 heading (##) naming the topic.
+2. Write dense, punchy bullet points and short paragraphs - NOT long prose. Bold (**text**) every key term, named structure, drug name, or numeric value a student must memorize.
+3. Wherever there is a natural sequential process, pathway, or mechanism (e.g. a physiological pathway, a diagnostic algorithm, a drug mechanism), render it as a flow block using EXACTLY this custom syntax (this is not real Markdown - a renderer parses it specially, follow the syntax precisely):
+
+\`\`\`flow
+Branch: optional label for this branch (omit the "Branch:" line entirely if there is only one branch)
+Step one text
+Step two text
+Step three text
+\`\`\`
+
+   - Each line inside the fence (other than a "Branch:" line) becomes one box in a downward arrow chain.
+   - To show branching (e.g. two pathways diverging from a shared point, or comparing parallel processes), include multiple "Branch:" groups separated by a single blank line within the SAME flow block - they render side by side.
+   - Use at least one flow block if the topic has any process, pathway, cycle, or mechanism - this is a core part of the format, not optional.
+4. Wherever the topic naturally involves comparing 2 or more named things across shared attributes (e.g. comparing conditions, drugs, structures), use a real Markdown table.
+5. Where there's a classic mnemonic, include it clearly under a "**Mnemonic:**" line.
+6. End the topic with 2 to 4 self-test questions using EXACTLY this custom syntax:
+
+\`\`\`quiz
+Q: question text
+A: answer text
+Q: question text
+A: answer text
+\`\`\`
+
+   Questions should test recall of the specific facts/values/names just covered in this topic, answerable in one short line.
+7. Write everything in plain text/Unicode only - never LaTeX or math notation (no $...$, no \\rightarrow, no \\mu, no \\text{}). Use the actual symbol directly, e.g. "→" not "$\\rightarrow$", and "μm" not "$\\mu\\text{m}$".
+8. Do not invent fake statistics or fabricate specific study citations - stated facts should reflect genuine, standard medical knowledge.
+
+Output ONLY the Markdown for this one topic - no preamble, no commentary, no outer code fences around the whole response.`;
+
+async function generateTopicList(subjectName: string, chapterTitle: string): Promise<{ topics: string[] | null; error?: string }> {
+  const prompt = TOPIC_LIST_PROMPT(subjectName, chapterTitle)
+  const MAX_ATTEMPTS = 2
+  let lastError = ''
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 1500, 128)
+      const parsed = tryParseJson(raw)
+      if (Array.isArray(parsed) && parsed.every((t) => typeof t === 'string') && parsed.length > 0) {
+        return { topics: parsed }
+      }
+      lastError = `Model response was not a valid JSON string array. Raw response: ${raw.slice(0, 300)}`
+    } catch (err: any) {
+      lastError = err.message || 'Unknown error calling Gemini'
+    }
+  }
+  return { topics: null, error: lastError }
+}
+
+async function generateOneTopicNotes(subjectName: string, chapterTitle: string, topicName: string): Promise<string> {
+  const prompt = TOPIC_NOTES_PROMPT(subjectName, chapterTitle, topicName)
+  const MAX_ATTEMPTS = 2
+  let lastError = ''
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const { content: raw } = await callGeminiNative([{ role: 'user', content: prompt }], 9000, 1024)
+      if (raw && raw.trim().length > 20) {
+        return tryParseText(raw)
+      }
+      lastError = 'Empty or too-short response'
+    } catch (err: any) {
+      lastError = err.message || 'Unknown error'
+    }
+  }
+  return `## ${topicName}\n\n*(Notes generation failed for this topic after retries: ${lastError})*`
+}
+
+export async function generateChapterNotesFromKnowledge(subjectName: string, chapterTitle: string, topicNamesOverride?: string[]): Promise<GenerateFromKnowledgeOutput> {
+  let topicNames: string[]
+  if (topicNamesOverride && topicNamesOverride.length > 0) {
+    topicNames = topicNamesOverride
+  } else {
+    const { topics, error: topicListError } = await generateTopicList(subjectName, chapterTitle)
+    if (!topics) return { error: `Could not generate a topic breakdown for this chapter. ${topicListError || ''}`.trim() }
+    topicNames = topics
+  }
+
+  const results: GeneratedTopic[] = new Array(topicNames.length)
+  const CONCURRENCY = 4
+  let nextIndex = 0
+  async function worker() {
+    while (true) {
+      const i = nextIndex++
+      if (i >= topicNames!.length) return
+      const markdown = await generateOneTopicNotes(subjectName, chapterTitle, topicNames![i])
+      results[i] = { name: topicNames![i], markdown, depth: 0 }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, topicNames.length) }, () => worker()))
+
+  return { topics: results }
+}
+=================== src/ai/chapter-notes-generator.ts
+'use server';
+import { callAIWithProvider, callGeminiNative } from '@/ai/genkit';
+import type { ChapterKnowledge } from '@/ai/chapter-knowledge';
+import { allTemplatesForPrompt } from '@/ai/subject-templates';
+import { searchWikimediaImage, buildImageMarkdown } from '@/ai/wikimedia-images';
+
+function tryParseText(raw: string): string {
+  return raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
+}
+
+function buildTopicPrompt(chapterTitle: string, subjectName: string, topicJson: string, format: { name: string; sections: string[]; renderAs?: 'subheadings' | 'table' | 'steps' }): string {
+  const renderAs = format.renderAs || 'subheadings'
+
+  let structureInstruction: string
+  if (renderAs === 'table') {
+    structureInstruction = `- Render this topic as ONE single Markdown table with columns in this order: ${format.sections.join(' | ')}. Use the actual real names being compared (e.g. real disease/drug names from the source data) as column headers in place of placeholder labels like "Entity A" - never leave a literal placeholder in the output. Do NOT add a separate subheading for each column name - the table's own header row is the only place those names should appear.`
+  } else if (renderAs === 'steps') {
+    structureInstruction = `- Render this topic as ONE single numbered list (1. 2. 3. ...), one step per list item, weaving the step name and its detail into a clear sentence per item. Do NOT add a separate subheading for each step.`
+  } else {
+    structureInstruction = `- Use a top-level heading with the topic name, then a subheading per format section, in this order: ${format.sections.join(' -> ')}. Skip a section only if the source data genuinely has nothing for it - do not pad with filler.`
+  }
+
+  return `You are writing ONE topic's section of student-facing study notes for "${chapterTitle}" (${subjectName}).
+
+SOURCE DATA (already extracted and verified from the textbook - use ONLY this, do not add outside facts):
+${topicJson}
+
+FORMAT TO USE: "${format.name}"
+
+TASK: Write clean, well-presented Markdown notes for this ONE topic, in the style of dense, high-yield coaching-institute revision notes (like Marrow-style notes) - NOT a textbook essay:
+${structureInstruction}
+- Bullet points and short, punchy lines are the default. Use full sentences only where a genuine explanation needs it - never default to paragraphs.
+- Reproduce named entities (eponyms, staging systems, classifications) exactly as given in the source data.
+- Do not invent examples, numbers, or facts beyond what's in the source data above.
+- Preserve the source's own mnemonics, arrows/flowchart-style sequences, and shorthand exactly as given - these are core to the format, not optional flourishes.
+- Write everything in plain text/Unicode only - never use LaTeX or math notation (no $...$, no \\rightarrow, no \\mu, no \\text{}, etc.). Use the actual symbol directly instead, e.g. "→" not "$\\rightarrow$", and "μm" not "$\\mu\\text{m}$".
+
+Output ONLY the Markdown notes for this topic - no preamble, no commentary, no code fences.`;
+}
+
+export type GenerateNotesOutput = {
+  topics?: { name: string; markdown: string; depth: number }[];
+  error?: string;
+};
+
+function insertImageAfterFirstHeading(markdown: string, imageMarkdown: string): string {
+  const lines = markdown.split('\n');
+  const headingIndex = lines.findIndex((l) => /^#{1,3}\s/.test(l));
+  if (headingIndex === -1) return `${imageMarkdown}\n${markdown}`; // no heading found, prepend
+  lines.splice(headingIndex + 1, 0, '', imageMarkdown);
+  return lines.join('\n');
+}
+
+async function renderOneTopic(chapterTitle: string, subjectName: string, topic: any, forceVertex?: boolean, useGeminiNative?: boolean): Promise<string> {
+  const formats = allTemplatesForPrompt(subjectName);
+  const formatName = topic.suggestedFormat || formats[0].name;
+  const match = formats.find((f) => f.name === formatName) || formats[0];
+
+  const topicJson = JSON.stringify(topic, null, 2);
+  const prompt = buildTopicPrompt(chapterTitle, subjectName, topicJson, match);
+
+  const MAX_ATTEMPTS = 2;
+  let lastError = '';
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const { content: raw } = useGeminiNative
+        ? await callGeminiNative([{ role: 'user', content: prompt }], 3000)
+        : await callAIWithProvider([{ role: 'user', content: prompt }], 3000, forceVertex);
+      if (raw && raw.trim().length > 20) {
+        const notesMarkdown = tryParseText(raw);
+        const image = await searchWikimediaImage(topic.name);
+        if (!image) return notesMarkdown;
+        return insertImageAfterFirstHeading(notesMarkdown, buildImageMarkdown(image));
+      }
+      lastError = 'Empty or too-short response';
+    } catch (err: any) {
+      lastError = err.message || 'Unknown error';
+    }
+  }
+  return `## ${topic.name}\n\n*(Notes generation failed for this topic after retries: ${lastError})*`;
+}
+
+function flattenTopics(topicList: any[], depth: number, out: { topic: any; depth: number }[]) {
+  for (const topic of topicList) {
+    out.push({ topic, depth });
+    if (topic.subtopics?.length) {
+      flattenTopics(topic.subtopics, depth + 1, out);
+    }
+  }
+}
+
+export async function generateChapterNotes(knowledge: ChapterKnowledge, forceVertex?: boolean, useGeminiNative?: boolean): Promise<GenerateNotesOutput> {
+  if (!knowledge.topics?.length) return { error: 'Chapter knowledge has no topics to render.' };
+
+  const flat: { topic: any; depth: number }[] = [];
+  flattenTopics(knowledge.topics, 0, flat);
+
+  const results: { name: string; markdown: string; depth: number }[] = new Array(flat.length);
+
+  const CONCURRENCY = 4;
+  let nextIndex = 0;
+  async function worker() {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= flat.length) return;
+      const { topic, depth } = flat[i];
+      const rendered = await renderOneTopic(knowledge.chapterTitle, knowledge.subjectName || '', topic, forceVertex, useGeminiNative);
+      results[i] = { name: topic.name, markdown: rendered, depth };
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, flat.length) }, () => worker()));
+
+  return { topics: results };
+}
+=================== src/app/api/admin/generate-chapter-notes/route.ts
+export const dynamic = "force-dynamic"
+export const maxDuration = 300
+
+import { NextRequest, NextResponse } from 'next/server'
+import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
+import { generateChapterNotesFromKnowledge } from '@/ai/chapter-notes-from-knowledge'
+
+// Notes generated this way have no source textbook, so they're filed under a fixed
+// synthetic textbookId ("ai-generated") - this keeps them compatible with the existing
+// /notes/{subjectId}/{textbookId}/{chapterId} viewer routes and textNotes doc-key
+// convention (${textbookId}__${chapterId}) without any changes to that viewer.
+const AI_GENERATED_TEXTBOOK_ID = 'ai-generated'
+
+function slugify(title: string): string {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'chapter'
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { idToken, subjectId, chapterTitle, topicNames } = await req.json()
+    if (!idToken || !subjectId || !chapterTitle?.trim()) {
+      return NextResponse.json({ error: 'Missing idToken, subjectId, or chapterTitle' }, { status: 400 })
+    }
+    const topicNamesOverride: string[] | undefined = Array.isArray(topicNames)
+      ? topicNames.map((t) => String(t).trim()).filter(Boolean)
+      : undefined
+
+    const decoded = await verifyIdToken(idToken)
+    const db = getAdminFirestore()
+    const userDoc = await db.collection('users').doc(decoded.uid).get()
+    if (userDoc.data()?.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    const subjectDoc = await db.collection('subjects').doc(subjectId).get()
+    const subjectName = subjectDoc.exists ? (subjectDoc.data() as any)?.name || subjectId : subjectId
+
+    const result = await generateChapterNotesFromKnowledge(subjectName, chapterTitle.trim(), topicNamesOverride && topicNamesOverride.length > 0 ? topicNamesOverride : undefined)
+    if (result.error || !result.topics) {
+      return NextResponse.json({ error: result.error || 'Notes generation failed' }, { status: 500 })
+    }
+
+    const chapterId = slugify(chapterTitle.trim())
+    const jobKey = `${AI_GENERATED_TEXTBOOK_ID}__${chapterId}`
+
+    await db.collection('subjects').doc(subjectId).collection('textNotes').doc(jobKey).set({
+      chapterId,
+      textbookId: AI_GENERATED_TEXTBOOK_ID,
+      chapterTitle: chapterTitle.trim(),
+      subjectId,
+      topics: result.topics,
+      topicCount: result.topics.length,
+      updatedAt: new Date().toISOString(),
+    })
+
+    return NextResponse.json({ success: true, topicCount: result.topics.length, textbookId: AI_GENERATED_TEXTBOOK_ID, chapterId })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || 'Notes generation failed', stack: e.stack }, { status: 500 })
+  }
+}
+=================== src/app/api/admin/master-generate-notes/route.ts
+export const dynamic = "force-dynamic"
+export const maxDuration = 300
+
+import { NextRequest, NextResponse } from 'next/server'
+import { verifyIdToken, getAdminFirestore } from '@/lib/firebase-admin'
+import { generateChapterNotes } from '@/ai/chapter-notes-generator'
+
+export async function POST(req: NextRequest) {
+  try {
+    const { idToken, subjectId, textbookId, chapterId, chapterTitle, useGeminiNative } = await req.json()
+
+    if (!idToken || !subjectId || !textbookId || !chapterId) {
+      return NextResponse.json({ error: 'Missing idToken, subjectId, textbookId, or chapterId.' }, { status: 400 })
+    }
+
+    const decoded = await verifyIdToken(idToken)
+    const db = getAdminFirestore()
+    const userDoc = await db.collection('users').doc(decoded.uid).get()
+    if (userDoc.data()?.role !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    }
+
+    const docKey = `${textbookId}__${chapterId}`
+    const knowledgeDoc = await db.collection('subjects').doc(subjectId).collection('chapterKnowledge').doc(docKey).get()
+    if (!knowledgeDoc.exists) {
+      return NextResponse.json({ error: 'No chapterKnowledge found for this chapter. Run Master Knowledge Extraction first.' }, { status: 404 })
+    }
+    const knowledge = knowledgeDoc.data() as any
+
+    const notesResult = await generateChapterNotes(knowledge, true, !!useGeminiNative)
+    if (notesResult.error || !notesResult.topics) {
+      return NextResponse.json({ error: notesResult.error || 'Notes generation failed' }, { status: 500 })
+    }
+
+    await db.collection('subjects').doc(subjectId).collection('textNotes').doc(docKey).set({
+      chapterId,
+      textbookId,
+      chapterTitle: chapterTitle || knowledge.chapterTitle,
+      subjectId,
+      topics: notesResult.topics,
+      topicCount: knowledge.topics.length,
+      updatedAt: new Date().toISOString(),
+    })
+
+    return NextResponse.json({ success: true, topicCount: notesResult.topics.length })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || 'Notes generation failed', stack: e.stack }, { status: 500 })
+  }
+}

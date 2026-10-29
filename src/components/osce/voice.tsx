@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { splitSentences, type Gender } from "@/lib/osce/shared"
 import { micAcquire } from "@/lib/mic-lock"
+import { useUser } from "@/firebase"
 
 /* ---------------- Problems are shown to the student instead of failing silently ---------------- */
 
@@ -195,6 +196,9 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
   const want = useRef(false); const timer = useRef<any>(null); const startedAt = useRef(0)
   const release = useRef<null | (() => void)>(null)
   const cb = useRef(onFinal); cb.current = onFinal
+  const { user: fbUser } = useUser(); const userRef = useRef<any>(null); userRef.current = fbUser
+  const recMode = useRef(""); const fallingBack = useRef(false); const startRef = useRef<() => void>(() => {})
+  const mr = useRef<any>(null); const chunks = useRef<Blob[]>([]); const vadStop = useRef<null | (() => void)>(null)
 
   const flush = useCallback(() => {
     setListening(false); clearTimeout(timer.current); release.current?.(); release.current = null
@@ -204,8 +208,61 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     if (t && !(t === lastSent.current.t && Date.now() - lastSent.current.at < 3000)) { lastSent.current = { t, at: Date.now() }; cb.current(t) }
   }, [])
 
-  const stop = useCallback(() => { want.current = false; clearTimeout(timer.current); try { recRef.current?.stop() } catch { flush() } }, [flush])
+  const stop = useCallback(() => { want.current = false; clearTimeout(timer.current); try { if (mr.current && mr.current.state !== "inactive") { mr.current.stop(); return } recRef.current?.stop() } catch { flush() } }, [flush])
   const arm = useCallback((ms: number) => { clearTimeout(timer.current); timer.current = setTimeout(stop, ms) }, [stop])
+
+  // Fallback for browsers that cannot recognise speech (or this language): record a short clip, transcribe it on the server.
+  const transcribe = useCallback(async (blob: Blob): Promise<string> => {
+    try {
+      const token = await userRef.current?.getIdToken()
+      const fd = new FormData(); fd.append("idToken", token || ""); fd.append("lang", lang)
+      fd.append("audio", blob, blob.type.includes("mp4") ? "speech.m4a" : blob.type.includes("ogg") ? "speech.ogg" : "speech.webm")
+      const res = await fetch("/api/osce-stations/stt", { method: "POST", body: fd })
+      const j: any = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(j.error || "Could not understand the audio. Please try again or type."); return "" }
+      return String(j.text || "").trim()
+    } catch { setError("Voice upload failed. Check your internet connection and try again."); return "" }
+  }, [lang])
+
+  const startRecorder = useCallback(async (stream: MediaStream): Promise<boolean> => {
+    const Rec = (window as any).MediaRecorder
+    const mime = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find((m) => { try { return Rec.isTypeSupported(m) } catch { return false } }) || ""
+    let r: any
+    try { r = mime ? new Rec(stream, { mimeType: mime }) : new Rec(stream) }
+    catch { stream.getTracks().forEach((t) => t.stop()); setError("This browser cannot record audio. Please type instead."); return false }
+    chunks.current = []; mr.current = r
+    r.ondataavailable = (e: any) => { if (e.data && e.data.size) chunks.current.push(e.data) }
+    r.onstop = async () => {
+      want.current = false
+      vadStop.current?.(); vadStop.current = null
+      stream.getTracks().forEach((t) => t.stop()); mr.current = null
+      clearTimeout(timer.current)
+      const blob = new Blob(chunks.current, { type: r.mimeType || mime || "audio/mp4" }); chunks.current = []
+      if (blob.size < 1500) { flush(); setError("I did not hear anything. Tap the mic and speak again."); return }
+      setInterim("Understanding...")
+      finalRef.current = await transcribe(blob); interimRef.current = ""
+      flush()
+    }
+    r.start()
+    // stop by itself after a real pause (skipped when the phone does not allow audio analysis; the student can tap to finish)
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext
+      const ctx = new AC(); try { await ctx.resume() } catch {}
+      if (ctx.state === "running") {
+        const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an)
+        const data = new Uint8Array(an.fftSize); let spoke = false; let last = Date.now(); const t0 = Date.now()
+        const iv = setInterval(() => {
+          an.getByteTimeDomainData(data)
+          let sum = 0; for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v }
+          if (Math.sqrt(sum / data.length) > 0.03) { spoke = true; last = Date.now() }
+          if ((spoke && Date.now() - last > 1800) || (!spoke && Date.now() - t0 > 10000)) stop()
+        }, 150)
+        vadStop.current = () => { clearInterval(iv); try { ctx.close() } catch {} }
+      } else { try { ctx.close() } catch {} }
+    } catch {}
+    setListening(true); arm(30000)
+    return true
+  }, [transcribe, flush, arm, stop])
 
   const make = useCallback(() => {
     const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -224,13 +281,21 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     }
     r.onerror = (e: any) => {
       const c = e?.error
-      if (c === "not-allowed" || c === "service-not-allowed") { want.current = false; setError("The microphone is blocked. Tap the lock icon in the address bar, allow Microphone for this site, then tap again.") }
+      // the browser cannot do speech recognition here (typical on iPhone for Indian languages): switch to recording
+      if ((c === "not-allowed" || c === "service-not-allowed" || c === "language-not-supported" || c === "network") && (window as any).MediaRecorder && recMode.current !== lang) {
+        recMode.current = lang; fallingBack.current = true; want.current = false
+        try { r.abort() } catch {}
+        setTimeout(() => { startRef.current() }, 150)
+        return
+      }
+      if (c === "not-allowed" || c === "service-not-allowed") { want.current = false; setError("The microphone is blocked. On iPhone: Settings > Safari > Microphone > Allow. On Chrome: tap the lock icon in the address bar and allow Microphone. Then tap again.") }
       else if (c === "audio-capture") { want.current = false; setError("No microphone was found, or another app is using it. Close other apps that use the mic and try again.") }
       else if (c === "network") { want.current = false; setError("Voice input needs an internet connection (it uses Google's speech service). Check your connection and try again.") }
       else if (c === "language-not-supported") { want.current = false; setError("This browser does not support voice input in the chosen language. Pick English or type instead.") }
       else if (c === "no-speech") setError("I did not hear anything. Tap the mic and speak again.")
     }
     r.onend = () => {
+      if (fallingBack.current) return
       if (want.current && Date.now() - startedAt.current > 600) {
         // a new listening round starts: keep what was heard so far as the base, so nothing is lost or counted twice
         baseRef.current = mergeText(finalRef.current, interimRef.current); finalRef.current = baseRef.current; interimRef.current = ""
@@ -246,13 +311,13 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    if (!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)) setSupported(false)
+    if (!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || (window as any).MediaRecorder)) setSupported(false)
     return () => { want.current = false; clearTimeout(timer.current); release.current?.(); release.current = null; try { recRef.current?.abort() } catch {} }
   }, [])
 
   const start = useCallback(async () => {
     if (want.current || starting.current) return
-    starting.current = true
+    starting.current = true; fallingBack.current = false
     stopSpeaking(); primeAudio()
     finalRef.current = ""; interimRef.current = ""; baseRef.current = ""; setInterim(""); setError(""); heard.current = false
     // tell the "Hey Jelly" listener to let go of the microphone first (Chrome allows one speech recognizer at a time)
@@ -260,19 +325,31 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
     await new Promise((r) => setTimeout(r, 400))
     try {
       // ask for the microphone first, so a blocked mic gives a clear message instead of silence
+      let stream: MediaStream | null = null
       if (navigator.mediaDevices?.getUserMedia) {
-        try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop()) }
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }) }
         catch (e: any) {
-          setError(e?.name === "NotFoundError" ? "No microphone was found on this device." : "The microphone is blocked. Tap the lock icon in the address bar, allow Microphone for this site, then tap again.")
+          setError(e?.name === "NotFoundError" ? "No microphone was found on this device." : "The microphone is blocked. On iPhone: Settings > Safari > Microphone > Allow. On Chrome: tap the lock icon in the address bar and allow Microphone. Then tap again.")
           release.current?.(); release.current = null
           return
         }
       }
+      const nativeOK = !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+      const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+      const useRec = !!stream && !!(window as any).MediaRecorder && (!nativeOK || recMode.current === lang || (ios && !/^en/i.test(lang)))
+      if (useRec && stream) {
+        want.current = true; startedAt.current = Date.now()
+        const ok = await startRecorder(stream)
+        if (!ok) { want.current = false; release.current?.(); release.current = null }
+        return
+      }
+      stream?.getTracks().forEach((t) => t.stop())
       const r = make(); recRef.current = r; want.current = true; startedAt.current = Date.now()
       r.start(); setListening(true); arm(9000)
     } catch (e: any) { want.current = false; setListening(false); release.current?.(); release.current = null; setError("Could not start the microphone (" + (e?.message || "unknown error") + ").") }
     finally { starting.current = false }
-  }, [make, arm])
+  }, [make, arm, startRecorder, lang])
+  startRef.current = start
 
   return { start, stop, listening, interim, supported, error }
 }
