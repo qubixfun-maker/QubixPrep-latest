@@ -59,7 +59,7 @@ async function renderOneTopic(chapterTitle: string, subjectName: string, topic: 
   const topicJson = JSON.stringify(topic, null, 2);
   const prompt = buildTopicPrompt(chapterTitle, subjectName, topicJson, match);
 
-  const MAX_ATTEMPTS = 2;
+  const MAX_ATTEMPTS = 4;
   let lastError = '';
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -75,6 +75,7 @@ async function renderOneTopic(chapterTitle: string, subjectName: string, topic: 
       lastError = 'Empty or too-short response';
     } catch (err: any) {
       lastError = err.message || 'Unknown error';
+      await new Promise((r) => setTimeout(r, 4000 * attempt));
     }
   }
   return `## ${topic.name}\n\n*(Notes generation failed for this topic after retries: ${lastError})*`;

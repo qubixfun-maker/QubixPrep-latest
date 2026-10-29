@@ -45,6 +45,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error || 'Notes generation failed' }, { status: 500 })
     }
 
+    const failedTopics = (result.topics as any[]).filter((t) => String(t?.markdown || '').includes('Notes generation failed for this topic'))
+    if (failedTopics.length) {
+      return NextResponse.json({ error: `${failedTopics.length} of ${result.topics.length} topics failed (AI busy). Nothing was saved - please try again in a few minutes.` }, { status: 503 })
+    }
+
     const chapterId = slugify(chapterTitle.trim())
     const jobKey = `${AI_GENERATED_TEXTBOOK_ID}__${chapterId}`
 

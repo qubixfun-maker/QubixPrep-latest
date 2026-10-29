@@ -32,6 +32,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: notesResult.error || 'Notes generation failed' }, { status: 500 })
     }
 
+    const failedTopics = (notesResult.topics as any[]).filter((t) => String(t?.markdown || '').includes('Notes generation failed for this topic'))
+    if (failedTopics.length) {
+      return NextResponse.json({ error: `${failedTopics.length} of ${notesResult.topics.length} topics failed (AI busy). Nothing was saved - please try again in a few minutes.` }, { status: 503 })
+    }
+
     await db.collection('subjects').doc(subjectId).collection('textNotes').doc(docKey).set({
       chapterId,
       textbookId,

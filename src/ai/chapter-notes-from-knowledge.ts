@@ -91,7 +91,7 @@ async function generateTopicList(subjectName: string, chapterTitle: string): Pro
 
 async function generateOneTopicNotes(subjectName: string, chapterTitle: string, topicName: string): Promise<string> {
   const prompt = TOPIC_NOTES_PROMPT(subjectName, chapterTitle, topicName)
-  const MAX_ATTEMPTS = 2
+  const MAX_ATTEMPTS = 4
   let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -102,9 +102,14 @@ async function generateOneTopicNotes(subjectName: string, chapterTitle: string, 
       lastError = 'Empty or too-short response'
     } catch (err: any) {
       lastError = err.message || 'Unknown error'
+      await new Promise((r) => setTimeout(r, 4000 * attempt))
     }
   }
   return `## ${topicName}\n\n*(Notes generation failed for this topic after retries: ${lastError})*`
+}
+
+export async function regenerateTopicNotes(subjectName: string, chapterTitle: string, topicName: string): Promise<string> {
+  return generateOneTopicNotes(subjectName, chapterTitle, topicName)
 }
 
 export async function generateChapterNotesFromKnowledge(subjectName: string, chapterTitle: string, topicNamesOverride?: string[]): Promise<GenerateFromKnowledgeOutput> {
