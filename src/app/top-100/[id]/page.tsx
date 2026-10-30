@@ -123,7 +123,7 @@ export default function Top100Viewer() {
   }, [user])
 
   return (
-    <div className="mx-auto max-w-3xl px-3 py-4 md:px-6">
+    <div className="mx-auto max-w-5xl px-3 py-4 md:px-6">
       <div className="mb-3 flex items-center gap-2">
         <Link href="/top-100" aria-label="Back" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card"><ArrowLeft className="h-5 w-5" /></Link>
         <div className="min-w-0 flex-1">
