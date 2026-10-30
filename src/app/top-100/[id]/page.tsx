@@ -1,95 +1,78 @@
 "use client"
-
-import { use, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useDoc, useFirestore, useUser } from "@/firebase"
-import { doc, getDoc } from "firebase/firestore"
-import { ChevronLeft, Loader2 } from "lucide-react"
-import { useRequireAuth } from "@/hooks/use-require-auth"
-import { usePlan } from "@/hooks/use-plan"
-import { getSubjectColor } from "@/lib/subject-colors"
-import { getCached, putCached, removeCached, clearTop100Cache } from "@/lib/top100-cache"
-import { NoteBody } from "@/components/notes/note-body"
-import { UpgradeGate } from "@/components/upgrade-gate"
+import { useParams } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from "lucide-react"
+import { useFirestore, useUser } from "@/firebase"
+import { loadTop100List, loadTop100Image, type Top100Page } from "@/lib/top100-pages"
 
-// Notes already opened in this visit open instantly when you come back to them (kept per account).
-const seen = new Map<string, any>()
-
-export default function Top100NotePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function Top100Viewer() {
+  const { id } = useParams<{ id: string }>()
   const db = useFirestore()
   const { user } = useUser()
-  const uid = user?.uid
-  const { checkingAuth } = useRequireAuth()
-  const { canAccessContent, loading: planLoading } = usePlan()
-  const profileRef = useMemo(() => (!db || !uid ? null : doc(db, "users", uid)), [db, uid])
-  const { data: profile, loading: profileLoading } = useDoc(profileRef)
-  const entitled = !!canAccessContent || (profile as any)?.role === "admin"
+  const [pages, setPages] = useState<Top100Page[] | null>(null)
+  const [src, setSrc] = useState("")
+  const [err, setErr] = useState("")
+  const [zoom, setZoom] = useState(false)
 
-  const [state, setState] = useState<"loading" | "ready" | "locked" | "missing" | "error">("loading")
-  const [note, setNote] = useState<any>(null)
+  useEffect(() => { if (db) loadTop100List(db).then(setPages).catch(() => setPages([])) }, [db])
+
+  const { page, prev, next } = useMemo(() => {
+    const list = pages || []
+    const cur = list.find((p) => p.id === id)
+    const same = cur ? list.filter((p) => p.subjectKey === cur.subjectKey) : []
+    const i = same.findIndex((p) => p.id === id)
+    return { page: cur, prev: i > 0 ? same[i - 1] : undefined, next: i >= 0 && i < same.length - 1 ? same[i + 1] : undefined }
+  }, [pages, id])
 
   useEffect(() => {
-    if (!db || !uid || checkingAuth || planLoading || profileLoading) return
-    let cancelled = false
-    ;(async () => {
-      const k = `${uid}:${id}`
-      let shown = false
-      // 1) show what is already on this device straight away (only for members whose plan is active)
-      const mem = entitled ? seen.get(k) : null
-      const saved = mem || (entitled ? await getCached(uid, id) : null)
-      if (cancelled) return
-      if (saved) { seen.set(k, saved); setNote(saved); setState("ready"); shown = true } else setState("loading")
-      // 2) check with the server in the background; this is also what keeps the lock honest
-      try {
-        const snap = await getDoc(doc(db, "top100Notes", id))
-        if (cancelled) return
-        if (!snap.exists()) {
-          seen.delete(k); removeCached(uid, id); setNote(null); setState("missing")
-          return
-        }
-        const data = snap.data()
-        seen.set(k, data); setNote(data); setState("ready")
-        putCached(uid, id, data)
-      } catch (e: any) {
-        if (cancelled) return
-        if (e?.code === "permission-denied") {
-          seen.delete(k); clearTop100Cache(); setNote(null); setState("locked")
-        } else if (!shown) {
-          setState("error")
-        } // offline with a saved copy: keep showing it
-      }
-    })()
-    return () => { cancelled = true }
-  }, [db, uid, id, checkingAuth, planLoading, profileLoading, entitled])
+    if (!db || !pages) return
+    setSrc(""); setErr(""); setZoom(false)
+    let live = true
+    loadTop100Image(db, id, page?.updatedAt || 0)
+      .then((s) => { if (live) setSrc(s) })
+      .catch((e) => { if (live) setErr(e?.message === "not-found" ? "This topic is not available yet." : "Could not open this topic. Check your plan and internet connection, then try again.") })
+    if (next) loadTop100Image(db, next.id, next.updatedAt || 0).catch(() => {}) // get the next topic ready
+    return () => { live = false }
+  }, [db, id, pages, page?.updatedAt, next?.id])
 
-  if (checkingAuth || planLoading || profileLoading || state === "loading") {
-    return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
-  }
-
-  const color = getSubjectColor(note?.subjectName || "")
+  // faint diagonal name on the sheet, so shared screenshots can be traced
+  const mark = useMemo(() => {
+    const t = (user?.email || user?.displayName || "QubixPrep").replace(/[<>&"']/g, "")
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240"><text x="20" y="150" transform="rotate(-25 180 120)" font-family="sans-serif" font-size="20" font-weight="700" fill="rgba(0,0,0,0.08)">${t}</text></svg>`
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+  }, [user])
 
   return (
-    <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8">
-      <Link href="/top-100" className="text-xs font-bold uppercase tracking-widest flex items-center gap-1 hover:underline w-fit text-primary">
-        <ChevronLeft className="h-3 w-3" /> Back to the 100 topics
-      </Link>
+    <div className="mx-auto max-w-3xl px-3 py-4 md:px-6">
+      <div className="mb-3 flex items-center gap-2">
+        <Link href="/top-100" aria-label="Back" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card"><ArrowLeft className="h-5 w-5" /></Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-bold leading-tight">{page?.title || "Top 100"}</h1>
+          {page && <p className="text-xs text-muted-foreground">{page.subject} · Topic {page.order}</p>}
+        </div>
+        <button onClick={() => setZoom((z) => !z)} aria-label="Zoom" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card">
+          {zoom ? <ZoomOut className="h-5 w-5" /> : <ZoomIn className="h-5 w-5" />}
+        </button>
+      </div>
 
-      {state === "locked" && (
-        <UpgradeGate type="content" title="The 100 Most Important Topics are for members" description="Get Scholar (₹999/year) to read all 100 high-yield topics with full notes." />
-      )}
-      {state === "missing" && <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">This topic is not available yet.</div>}
-      {state === "error" && <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">Could not load this topic. Check your connection and try again.</div>}
+      {!src && !err && <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+      {err && <p className="rounded-2xl bg-secondary px-4 py-6 text-center text-sm">{err}</p>}
 
-      {state === "ready" && note && (
-        <>
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{note.name}</h1>
-            <p className="text-muted-foreground mt-2">{note.chapterTitle || ""} &middot; {note.subjectName || ""}</p>
+      {src && (
+        <div className={`relative overflow-auto rounded-2xl border border-border bg-white ${zoom ? "max-h-[80vh]" : ""}`}
+          onContextMenu={(e) => e.preventDefault()} style={{ WebkitTouchCallout: "none", userSelect: "none" } as React.CSSProperties}>
+          <div className="relative" style={{ width: zoom ? "220%" : "100%" }}>
+            <img src={src} alt={page?.title || "Topic"} draggable={false} onClick={() => setZoom((z) => !z)} className="block w-full select-none" />
+            <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: mark }} />
           </div>
-          <NoteBody markdown={note.markdown || ""} borderClass={color.border} protectWith={user?.email || uid} />
-        </>
+        </div>
       )}
+
+      <div className="mt-4 flex gap-3">
+        {prev ? <Link href={`/top-100/${prev.id}`} className="flex flex-1 items-center gap-1 rounded-xl border border-border bg-card px-3 py-3 text-sm font-semibold"><ChevronLeft className="h-4 w-4 shrink-0" /><span className="truncate">{prev.title}</span></Link> : <span className="flex-1" />}
+        {next ? <Link href={`/top-100/${next.id}`} className="flex flex-1 items-center justify-end gap-1 rounded-xl border border-border bg-card px-3 py-3 text-sm font-semibold"><span className="truncate">{next.title}</span><ChevronRight className="h-4 w-4 shrink-0" /></Link> : <span className="flex-1" />}
+      </div>
     </div>
   )
 }
