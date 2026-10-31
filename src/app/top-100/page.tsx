@@ -5,6 +5,7 @@ import { ArrowLeft, BookOpen, Bone, Bug, ChevronRight, Dna, FlaskConical, HeartP
 import { useFirestore } from "@/firebase"
 import { useTopSearch } from "@/components/layout/top-search"
 import { loadTop100List, type Top100Page } from "@/lib/top100-pages"
+import { notesHref } from "@/lib/top100-link"
 
 // SUBJECT_STYLE: look of each big subject button (icon + colour)
 const SUBJECT_STYLE: Record<string, { icon: any; grad: string }> = {
@@ -89,7 +90,7 @@ export default function Top100Page() {
 
       <div className="mt-5 space-y-3">
         {shown.map((p) => (
-          <Link key={p.id} href={`/top-100/${p.id}`}
+          <Link key={p.id} href={p.notesLink ? notesHref(p.notesLink) : `/top-100/${p.id}`}
             className="flex items-center gap-4 rounded-3xl border border-border bg-card px-5 py-5 shadow-sm transition active:scale-[0.99] hover:border-primary/40">
             <BookOpen className="h-6 w-6 shrink-0 text-primary" />
             <span className="min-w-0 flex-1 text-lg font-medium leading-snug">

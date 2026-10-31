@@ -1,9 +1,10 @@
 // Top 100 topic sheets: one image per topic.
-//   top100Pages/{id}   -> { subject, subjectKey, order, title, updatedAt }   (small list entries)
+//   top100Pages/{id}   -> { subject, subjectKey, order, title, updatedAt, notesLink? }   (small list entries; notesLink opens the topic in Rapid Revision Notes)
 //   top100Images/{id}  -> { data (base64 webp), mime, w, h }                 (paid members and admins only)
 import { collection, doc, getDoc, getDocs, type Firestore } from "firebase/firestore"
+import { readNotesLink, type NotesLink } from "@/lib/top100-link"
 
-export type Top100Page = { id: string; subject: string; subjectKey: string; order: number; title: string; updatedAt?: number }
+export type Top100Page = { id: string; subject: string; subjectKey: string; order: number; title: string; updatedAt?: number; notesLink?: NotesLink }
 
 let listCache: Top100Page[] | null = null
 
@@ -11,7 +12,7 @@ export async function loadTop100List(db: Firestore, force = false): Promise<Top1
   if (listCache && !force) return listCache
   const snap = await getDocs(collection(db, "top100Pages"))
   const out: Top100Page[] = []
-  snap.forEach((d) => { const x: any = d.data(); out.push({ id: d.id, subject: x.subject || "", subjectKey: x.subjectKey || "", order: Number(x.order) || 0, title: x.title || d.id, updatedAt: x.updatedAt }) })
+  snap.forEach((d) => { const x: any = d.data(); out.push({ id: d.id, subject: x.subject || "", subjectKey: x.subjectKey || "", order: Number(x.order) || 0, title: x.title || d.id, updatedAt: x.updatedAt, notesLink: readNotesLink(x) }) })
   out.sort((a, b) => a.subject.localeCompare(b.subject) || a.order - b.order)
   listCache = out
   return out

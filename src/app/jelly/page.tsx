@@ -56,7 +56,7 @@ export default function JellyPlayground() {
     <div className="max-w-3xl mx-auto p-4 space-y-4">
       <div className="flex items-center gap-4 rounded-3xl border border-white/10 bg-gradient-to-r from-primary/15 to-accent/10 p-4">
         <div className={`rounded-full shrink-0 ${j.busy || j.listening ? "ring-2 ring-primary/60 animate-pulse" : "ring-1 ring-white/10"}`}>
-          <JellyAvatar size={72} mood={j.mood} talking={talking} />
+          <JellyAvatar size={72} mood={j.mood} talking={talking} touchy />
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold leading-tight">Jelly Playground</h1>

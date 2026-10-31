@@ -1719,6 +1719,11 @@ export default function AdminDashboard() {
               <BarChart3 className="h-4 w-4" /> Spotters upload
             </Button>
           </Link>
+          <Link href="/admin/top100-links">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-amber-500/30 text-amber-500 hover:bg-amber-500/10">
+              <BookOpenText className="h-4 w-4" /> Top 100 → Notes links
+            </Button>
+          </Link>
           <Link href="/admin/pyq-import">
             <Button variant="outline" className="rounded-xl gap-2 glass border-sky-500/30 text-sky-400 hover:bg-sky-500/10">
               <BarChart3 className="h-4 w-4" /> PYQ Import

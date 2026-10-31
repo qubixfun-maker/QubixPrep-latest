@@ -10,6 +10,7 @@ import { usePlan } from "@/hooks/use-plan"
 import { TopSearchProvider, useTopSearchState } from "@/components/layout/top-search"
 import dynamic from "next/dynamic"
 import { PlanRouteGuard } from "@/components/layout/plan-route-guard"
+import { UsageTracker } from "@/components/layout/usage-tracker"
 const AppSidebar = dynamic(() => import("@/components/layout/app-sidebar").then(mod => mod.AppSidebar), { ssr: false })
 
 const TABS = [
@@ -117,6 +118,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <AutoCollapse />
+      <UsageTracker />
       <MobileNav />
     </SidebarProvider>
     </TopSearchProvider>

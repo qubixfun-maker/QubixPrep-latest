@@ -31,7 +31,7 @@ import {
 const ITEM =
   "mx-2 px-3 h-10 rounded-xl font-semibold text-sidebar-foreground transition-all hover:bg-secondary hover:text-primary data-[active=true]:bg-secondary data-[active=true]:text-primary"
 
-type Item = { title: string; url: string; icon: any; lock?: boolean }
+type Item = { title: string; url: string; icon: any; lock?: boolean; also?: string[] }
 
 export function AppSidebar() {
   const pathname = usePathname()
@@ -54,28 +54,31 @@ export function AppSidebar() {
   const planLabel = isPro ? "Clinician" : isBasic ? "Scholar" : "Explorer"
   const name = user?.displayName?.split(" ")[0] || "Future doctor"
 
-  const learn: Item[] = [
-    { title: "Dashboard", url: "/", icon: Zap },
-    { title: "Notes", url: "/notes", icon: BookOpen },
+  const home: Item[] = [
+    { title: "Home", url: "/", icon: Zap },
+    { title: "Day Streak", url: "/streak", icon: Flame },
+    { title: "My Progress", url: "/my-progress", icon: BarChart3, also: ["/review", "/plan"] },
+  ]
+  const notes: Item[] = [
+    { title: "Rapid Revision Notes", url: "/notes", icon: BookOpen },
     { title: "Top 100 Topics", url: "/top-100", icon: Star },
-    { title: "Long Answers", url: "/long-answers", icon: GraduationCap },
+    { title: "University Exams", url: "/university-exams", icon: GraduationCap, also: ["/long-answers", "/spotters"] },
     { title: "Flashcards", url: "/flashcards", icon: Layers },
     { title: "Mind Maps", url: "/mindmaps", icon: Network },
-    { title: "Med Stories", url: "/stories", icon: Newspaper },
   ]
-  const practise: Item[] = [
-    { title: "Daily Review", url: "/review", icon: RotateCcw },
-    { title: "My Progress", url: "/my-progress", icon: BarChart3 },
-    { title: "Study Plan", url: "/plan", icon: CalendarDays },
+  const stories: Item[] = [{ title: "Med Stories", url: "/stories", icon: Newspaper }]
+  const qbank: Item[] = [
     { title: "QBank", url: "/qbank", icon: Database },
-    { title: "PYQ Series", url: "/pyq", icon: Trophy },
     { title: "Custom Quiz", url: "/test-series", icon: BrainCircuit, lock: !canAccessContent },
+  ]
+  const tests: Item[] = [
     { title: "Grand Test", url: "/grand-test", icon: Timer },
+    { title: "PYQ Series", url: "/pyq", icon: Trophy },
+  ]
+  const bedside: Item[] = [
     { title: "Ward Round", url: "/cases", icon: Stethoscope },
-    { title: "Arena", url: "/arena", icon: Swords },
     { title: "Virtual Patient", url: "/virtual-patient", icon: Stethoscope },
-    { title: "Case Presentation", url: "/case-presentation", icon: Stethoscope },
-    { title: "Spot & Identify", url: "/spotters", icon: Microscope },
+    { title: "Arena", url: "/arena", icon: Swords },
   ]
   const studio: Item[] = [
     { title: "Jelly AI", url: "/jelly", icon: Sparkles },
@@ -90,11 +93,11 @@ export function AppSidebar() {
     { title: "Support", url: "/support", icon: LifeBuoy },
   ]
 
-  const active = (url: string) => (url === "/" ? pathname === "/" : pathname.startsWith(url))
+  const active = (url: string, also: string[] = []) => (url === "/" ? pathname === "/" : [url, ...also].some((u) => pathname.startsWith(u)))
 
   const row = (item: Item) => (
     <SidebarMenuItem key={item.title}>
-      <SidebarMenuButton asChild isActive={active(item.url)} tooltip={item.title} className={ITEM}>
+      <SidebarMenuButton asChild isActive={active(item.url, item.also)} tooltip={item.title} className={ITEM}>
         <Link href={item.url} onClick={closeOnMobile}>
           <item.icon className="h-[18px] w-[18px]" />
           <span>{item.title}</span>
@@ -152,23 +155,50 @@ export function AppSidebar() {
         )}
 
         <SidebarGroup>
-          {label("Learn")}
+          {label("Home")}
           <SidebarGroupContent>
             <SidebarMenu>
-              {learn.slice(0, 5).map(row)}
-              <QuickCardsMenuItems pathname={pathname} onNavigate={closeOnMobile} />
-              {learn.slice(5).map(row)}
+              {home.map(row)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
         <SidebarGroup>
-          {label("Practise")}
+          {label("Notes")}
           <SidebarGroupContent>
             <SidebarMenu>
-              {practise.slice(0, 8).map(row)}
+              {notes.map(row)}
+              <QuickCardsMenuItems pathname={pathname} onNavigate={closeOnMobile} />
+              {stories.map(row)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {label("QBank")}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {qbank.map(row)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {label("Test")}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {tests.map(row)}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {label("Bedside")}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {bedside.slice(0, 1).map(row)}
               <CasePresentationMenuItem pathname={pathname} onNavigate={closeOnMobile} />
-              {practise.slice(8).map(row)}
+              {bedside.slice(1).map(row)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

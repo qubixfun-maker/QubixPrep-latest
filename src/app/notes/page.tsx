@@ -34,8 +34,8 @@ export default function NotesSubjectsPage() {
     <div className="max-w-7xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">Notes</h1>
-          <p className="text-muted-foreground text-lg">Topic-wise study notes, by subject.</p>
+          <h1 className="text-4xl font-bold tracking-tight">Rapid Revision Notes</h1>
+          <p className="text-muted-foreground text-lg">Here is the notes from standard textbooks.</p>
         </div>
       </div>
 
@@ -48,7 +48,7 @@ export default function NotesSubjectsPage() {
                 {sortedSubjects.map((subject: any) => {
                   const color = getSubjectColor(subject.name)
                   return (
-                    <SubjectArtCard key={subject.id} href={`/notes/${subject.id}`} name={subject.name} subtitle="Browse chapters as topic-wise notes." />
+                    <SubjectArtCard key={subject.id} href={`/notes/${subject.id}`} name={subject.name} subtitle="Unit by unit, in textbook order." />
                   )
                 })}
               </div>

@@ -36,6 +36,10 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
     return () => { cancelled = true }
   }, [db, user, subjectId, docKey])
 
+  // opened from Top 100: the Back button returns there. Read after load so the page needs no extra loading wrapper.
+  const [fromTop100, setFromTop100] = useState(false)
+  useEffect(() => { setFromTop100(new URLSearchParams(window.location.search).get('from') === 'top-100') }, [])
+
   const { checkingAuth } = useRequireAuth()
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
@@ -49,8 +53,8 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">
       <div>
-        <Link href={`/notes/${subjectId}/${textbookId}/${chapterId}`} className={`text-xs font-bold uppercase tracking-widest ${color.text} flex items-center gap-1 mb-4 hover:underline w-fit`}>
-          <ChevronLeft className="h-3 w-3" /> Back to Topics
+        <Link href={fromTop100 ? '/top-100' : `/notes/${subjectId}/${textbookId}/${chapterId}`} className={`text-xs font-bold uppercase tracking-widest ${color.text} flex items-center gap-1 mb-4 hover:underline w-fit`}>
+          <ChevronLeft className="h-3 w-3" /> {fromTop100 ? 'Back to Top 100' : 'Back to Topics'}
         </Link>
         {state === 'ready' && (
           <>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 
 export type Mood = "idle" | "happy" | "cheering" | "oops" | "sad" | "thinking" | "explaining" | "listening" | "sleep"
 
@@ -100,9 +100,14 @@ const CSS = `
 .jy-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 .jy-pop{animation:jyPop 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 .jy-z{animation:jyZ 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.jy-fx{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:5}
+.jy-bub{position:absolute;bottom:55%;border-radius:50%;opacity:0;background:radial-gradient(circle at 30% 28%,#fff 0 14%,rgba(190,170,255,.35) 38%,rgba(130,170,255,.28) 100%);border:1.5px solid rgba(255,255,255,.85);box-shadow:inset 0 0 6px rgba(150,130,255,.35),0 0 0 0 rgba(160,140,255,.5);animation-name:jyBub;animation-timing-function:ease-out;animation-fill-mode:forwards}
+.jy-ha{position:absolute;left:50%;top:-4%;transform:translateX(-50%);white-space:nowrap;font-weight:900;font-size:13px;color:#7552ee;background:#fff;border:1.5px solid #d9ccff;border-radius:999px;padding:2px 9px;box-shadow:0 4px 10px rgba(117,82,238,.18);animation:jyHa 1.5s ease-out forwards}
+@keyframes jyBub{0%{opacity:0;transform:translate(0,0) scale(.4)}10%{opacity:1}74%{opacity:1;transform:translate(var(--dx),-120px) scale(1)}80%{opacity:1;transform:translate(var(--dx),-128px) scale(1.35);box-shadow:inset 0 0 6px rgba(150,130,255,.35),0 0 0 6px rgba(160,140,255,.35)}100%{opacity:0;transform:translate(var(--dx),-134px) scale(1.7);box-shadow:inset 0 0 0 rgba(150,130,255,0),0 0 0 14px rgba(160,140,255,0)}}
+@keyframes jyHa{0%{opacity:0;transform:translate(-50%,8px) scale(.6)}15%{opacity:1;transform:translate(-50%,0) scale(1.08)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-14px) scale(1)}}
 .jy-ease{transition:transform .5s cubic-bezier(.34,1.45,.64,1)}
 .jy-fast{transition:transform .16s ease-out}
-@media (prefers-reduced-motion: reduce){.jy-float,.jy-breathe,.jy-talk,.jy-sway,.jy-bounce,.jy-arm,.jy-arm.jy-waving,.jy-pop,.jy-z{animation:none}.jy-ease,.jy-fast,.jy-armmove{transition:none}}
+@media (prefers-reduced-motion: reduce){.jy-float,.jy-breathe,.jy-talk,.jy-sway,.jy-bounce,.jy-arm,.jy-arm.jy-waving,.jy-pop,.jy-z{animation:none}.jy-ease,.jy-fast,.jy-armmove{transition:none}.jy-bub{animation-duration:1ms!important}}
 `
 
 const INK = "#1a1644"
@@ -113,9 +118,57 @@ function preload() {
   const i = new Image(); i.src = IMG
 }
 
-export function JellyAvatar({ mood = "idle", size = 80, talking = false, className = "" }: { mood?: Mood; size?: number; talking?: boolean; className?: string; doctor?: boolean }) {
+type Bubble = { id: number; x: number; s: number; dx: number; d: number; delay: number }
+const HA = ["ha ha!", "hehe!", "hihi!", "tee-hee!", "ha ha ha!"]
+let bubbleId = 0
+
+/** A soft "pop", made on the spot so no sound file is needed. Only ever played in answer to a tap. */
+function pop(ctx: AudioContext, at: number) {
+  try {
+    const o = ctx.createOscillator(), g = ctx.createGain()
+    o.type = "sine"
+    o.frequency.setValueAtTime(520 + Math.random() * 380, ctx.currentTime + at)
+    o.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + at + 0.07)
+    g.gain.setValueAtTime(0.05, ctx.currentTime + at)
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.09)
+    o.connect(g).connect(ctx.destination)
+    o.start(ctx.currentTime + at); o.stop(ctx.currentTime + at + 0.1)
+  } catch {}
+}
+
+export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talkingProp = false, className = "", touchy = false }: { mood?: Mood; size?: number; talking?: boolean; className?: string; doctor?: boolean; touchy?: boolean }) {
   useEffect(preload, [])
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "")
+
+  // touch: Jelly bursts out laughing and blows a stream of bubbles that pop
+  const [laugh, setLaugh] = useState(false)
+  const [bubbles, setBubbles] = useState<Bubble[]>([])
+  const [ha, setHa] = useState<{ id: number; t: string } | null>(null)
+  const timers = useRef<any[]>([])
+  const audio = useRef<AudioContext | null>(null)
+  useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
+  const poke = () => {
+    if (!touchy) return
+    setLaugh(true)
+    setHa({ id: ++bubbleId, t: HA[Math.floor(Math.random() * HA.length)] })
+    const fresh: Bubble[] = Array.from({ length: 9 + Math.floor(Math.random() * 4) }, () => ({
+      id: ++bubbleId, x: 22 + Math.random() * 56, s: 12 + Math.random() * 22, dx: (Math.random() - 0.5) * 70, d: 1100 + Math.random() * 900, delay: Math.random() * 450,
+    }))
+    setBubbles((b) => [...b, ...fresh])
+    try {
+      const AC = (window as any).AudioContext || (window as any).webkitAudioContext
+      if (AC) {
+        audio.current = audio.current || new AC()
+        if (audio.current!.state === "suspended") audio.current!.resume()
+        fresh.forEach((b) => pop(audio.current!, (b.delay + b.d * 0.78) / 1000))
+      }
+    } catch {}
+    timers.current.push(setTimeout(() => setBubbles((b) => b.filter((x) => !fresh.some((f) => f.id === x.id))), 2600))
+    timers.current.push(setTimeout(() => setLaugh(false), 1700))
+    timers.current.push(setTimeout(() => setHa(null), 1500))
+  }
+  const mood: Mood = laugh && moodProp !== "sleep" ? "cheering" : moodProp
+  const talking = laugh || talkingProp
   const M = MOOD[mood], F = FACE[mood]
 
   // gesture: cycles while speaking; an occasional spontaneous gesture when idle
@@ -183,8 +236,22 @@ export function JellyAvatar({ mood = "idle", size = 80, talking = false, classNa
   const mid = `m${uid}`
 
   return (
-    <div className={`jy-wrap ${className}`} style={{ width: size, height: size }} role="img" aria-label={`Jelly is ${mood}`}>
+    <div
+      className={`jy-wrap ${className}`}
+      style={{ width: size, height: size, ...(touchy ? { cursor: "pointer", WebkitTapHighlightColor: "transparent" } : null) }}
+      {...(touchy
+        ? { role: "button", tabIndex: 0, "aria-label": "Tap Jelly", onClick: poke, onKeyDown: (e: any) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); poke() } } }
+        : { role: "img", "aria-label": `Jelly is ${mood}` })}
+    >
       <style>{CSS}</style>
+      {touchy && (
+        <div className="jy-fx" aria-hidden="true">
+          {ha && <span key={ha.id} className="jy-ha">{ha.t}</span>}
+          {bubbles.map((b) => (
+            <i key={b.id} className="jy-bub" style={{ left: b.x + "%", width: b.s, height: b.s, animationDuration: b.d + "ms", animationDelay: b.delay + "ms", ["--dx" as any]: b.dx + "px" }} />
+          ))}
+        </div>
+      )}
       <div className="jy-box">
         <div className="jy-float">
           <div className={`jy-body ${talking ? "jy-talk" : mood === "listening" || mood === "thinking" ? "" : "jy-sway"}`}>

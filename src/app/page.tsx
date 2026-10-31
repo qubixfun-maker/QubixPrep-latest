@@ -3,19 +3,14 @@
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useUser, useCollection, useDoc, useFirestore } from "@/firebase"
-import { doc, getDoc, getDocs, collection, query, where } from "firebase/firestore"
+import { doc, collection } from "firebase/firestore"
 import { usePlan } from "@/hooks/use-plan"
-import { useFeatureSettings } from "@/hooks/use-quickcards"
-import { SORTED_FEATURES } from "@/lib/quickcards/cardFeatures"
-import { getFeatureIcon } from "@/components/quickcards/icons"
 import { useJelly } from "@/components/jelly/jelly-store"
 import { JellyAvatar } from "@/components/jelly/JellyAvatar"
-import { QuickDeckCard } from "@/components/quickcards/QuickDeckCard"
-import { MoreWays } from "@/components/dashboard/more-ways"
 import { Button } from "@/components/ui/button"
-import { loadStats, dayKey, recordDailyCase } from "@/lib/study"
-import { streakOf, doneToday } from "@/lib/streak"
-import { Loader2, CheckCircle2, ArrowRight, Sparkles } from "lucide-react"
+import { dayKey, recordDailyCase } from "@/lib/study"
+import { DAILY_GOAL_MIN, DAILY_GOAL_SEC, Usage, doneTodayUsage, getPendingSeconds, loadUsage, todaySeconds, usageStreak } from "@/lib/usage"
+import { Loader2, CheckCircle2, ArrowRight, Sparkles, Lock } from "lucide-react"
 import Link from "next/link"
 
 type DailyQuestion = {
@@ -30,76 +25,83 @@ type DailyQuestion = {
   explanation: string
 }
 
-type Feature = {
-  name: string; href: string; micro: string; title: string; tagline: string; emoji: string
-  bg: string; fg: string; chip: string; chipKind: "free" | "pro"; body: string; foot: string
-}
+type Item = { name: string; href: string; emoji: string; tint: string; desc: string; lock?: "basic" | "pro" }
+type Section = { key: string; label: string; items: Item[] }
 
-const FEATURES: Feature[] = [
-  { name: "Smart Notes", href: "/notes", micro: "LEARN · HIGH YIELD", title: "Notes that\nmake sense", tagline: "Big concepts, made simpler.", emoji: "📚", bg: "#dcecff", fg: "#254e83", chip: "FREE START", chipKind: "free", body: "Subject-wise notes, diagrams and exam pearls.", foot: "5 free per subject" },
-  { name: "100 Must-Know Topics", href: "/top-100", micro: "HIGH YIELD · SCHOLAR", title: "The 100 that\nmatter most", tagline: "Start with what is tested.", emoji: "⭐", bg: "#e7f6c9", fg: "#4a6a12", chip: "SCHOLAR", chipKind: "free", body: "Hand-picked must-know topics, with full notes.", foot: "Open the list" },
-  { name: "Question Bank", href: "/qbank", micro: "PRACTISE · MCQS", title: "Train your\nexam brain", tagline: "One question at a time.", emoji: "🎯", bg: "#ffe2d3", fg: "#8b4429", chip: "FREE START", chipKind: "free", body: "Topic-wise MCQs with explanations and insights.", foot: "10 free per subject" },
-  { name: "Flashcards", href: "/flashcards", micro: "REMEMBER · RECALL", title: "Make it\nstick!", tagline: "Little cards, mighty memory.", emoji: "🃏", bg: "#d8f4e9", fg: "#286c58", chip: "LEARN FREE", chipKind: "free", body: "Quick active recall decks for every subject.", foot: "Revise by subject" },
-  { name: "Mind Maps", href: "/mindmaps", micro: "CONNECT · VISUALISE", title: "See the\nbig picture", tagline: "Ideas connect. It clicks.", emoji: "🗺️", bg: "#eee5ff", fg: "#6243b4", chip: "3 FREE / SUBJECT", chipKind: "free", body: "Visual pathways from core concepts to details.", foot: "Explore a topic" },
-  { name: "QuickCards", href: "/quickcards", micro: "QUICK REVISION · PRO", title: "Rapid-fire\nrevision", tagline: "Exam-ready, at a glance.", emoji: "⚡", bg: "#fff0bf", fg: "#805716", chip: "🔒 SCHOLAR", chipKind: "pro", body: "Dense decks: ECG, drugs, fluids, OPD and more.", foot: "Reference sections" },
-  { name: "Ward Round", href: "/cases", micro: "THINK · DIAGNOSE", title: "Think like\na clinician", tagline: "Clues, reasoning, decisions.", emoji: "🩺", bg: "#d9f1f8", fg: "#245f78", chip: "100 LIVE CASES", chipKind: "free", body: "Build clinical reasoning with patient scenarios.", foot: "Start a case" },
-  { name: "The Arena", href: "/arena", micro: "PLAY · COMPETE", title: "Study with\nfriends", tagline: "Duels, co-op and seasons.", emoji: "⚔️", bg: "#efe0ff", fg: "#5b2d9c", chip: "MULTIPLAYER", chipKind: "free", body: "Race friends on MCQs, battle on flashcards, treat patients as a team.", foot: "Enter the arena" },
-  { name: "Virtual Patient", href: "/virtual-patient", micro: "SPEAK · PERFORM", title: "Practice the\nreal thing", tagline: "Meet your virtual patient.", emoji: "🗣️", bg: "#ffe0ec", fg: "#8d3c61", chip: "🔒 SCHOLAR", chipKind: "pro", body: "History, examination, viva and scored feedback.", foot: "100 ready cases" },
-  { name: "PYQ Series", href: "/pyq", micro: "PAST PAPERS · PATTERNS", title: "Study what\nshows up", tagline: "Learn from past questions.", emoji: "📄", bg: "#e4efda", fg: "#41633a", chip: "EXPLORE", chipKind: "free", body: "Year-wise NEET-PG, INI-CET and USMLE practice.", foot: "Browse question sets" },
-  { name: "Med Stories", href: "/stories", micro: "LIVE · MEDICAL NEWS", title: "Fresh from the\nmedical world", tagline: "Swipe through today's stories.", emoji: "📰", bg: "#fde4dc", fg: "#8a3a2a", chip: "LIVE · FREE", chipKind: "free", body: "New medical news as web stories, straight from trusted sources.", foot: "Open stories" },
-  { name: "Jelly AI", href: "/jelly", micro: "YOUR AI STUDY BUDDY", title: "Ask away.\nJelly knows.", tagline: "Doubts, quizzes, plans, viva.", emoji: "👻", bg: "#e8e0ff", fg: "#5b43a0", chip: "SCHOLAR", chipKind: "pro", body: "Explain, quiz, practise viva or plan your week.", foot: "Chat with Jelly" },
+const SECTIONS: Section[] = [
+  {
+    key: "home", label: "Home", items: [],
+  },
+  {
+    key: "notes", label: "Notes", items: [
+      { name: "Rapid Revision Notes", href: "/notes", emoji: "📚", tint: "#e6f0ff", desc: "Subject-wise notes, diagrams and exam pearls." },
+      { name: "Top 100 Topics", href: "/top-100", emoji: "⭐", tint: "#eaf6cf", desc: "The must-know topics, with full notes.", lock: "basic" },
+      { name: "University Exams", href: "/university-exams", emoji: "🎓", tint: "#ffe9d6", desc: "Long answers, plus spot and identify." },
+      { name: "Flashcards", href: "/flashcards", emoji: "🃏", tint: "#dcf5ea", desc: "Quick active recall for every subject." },
+      { name: "Mind Maps", href: "/mindmaps", emoji: "🗺️", tint: "#efe6ff", desc: "Visual pathways from concepts to details." },
+    ],
+  },
+  {
+    key: "qbank", label: "QBank", items: [
+      { name: "QBank", href: "/qbank", emoji: "🎯", tint: "#ffe6da", desc: "Topic-wise MCQs with explanations." },
+      { name: "Custom Quiz", href: "/test-series", emoji: "🧪", tint: "#f0e6ff", desc: "Build a quiz on exactly what you need.", lock: "basic" },
+    ],
+  },
+  {
+    key: "test", label: "Test", items: [
+      { name: "Grand Test", href: "/grand-test", emoji: "⏱️", tint: "#fff1c9", desc: "Full 200-question papers, timed." },
+      { name: "PYQ Series", href: "/pyq", emoji: "📄", tint: "#e4efda", desc: "NEET-PG, INI-CET and AIIMS past papers." },
+    ],
+  },
+  {
+    key: "bedside", label: "Bedside", items: [
+      { name: "Ward Round", href: "/cases", emoji: "🩺", tint: "#d9f1f8", desc: "Think through live patient cases." },
+      { name: "Case Presentation", href: "/case-presentation", emoji: "📋", tint: "#e8f0dc", desc: "Practise presenting like a clinician." },
+      { name: "Virtual Patients", href: "/virtual-patient", emoji: "🗣️", tint: "#ffe3ee", desc: "History, examination and viva, by voice." },
+      { name: "The Arena", href: "/arena", emoji: "⚔️", tint: "#f0e3ff", desc: "Duels, co-op and leaderboards.", lock: "pro" },
+    ],
+  },
 ]
 
-const SUBJECT_STYLES: { match: RegExp; emoji: string; bg: string; label: string }[] = [
-  { match: /anat/i, emoji: "🦴", bg: "#fff0e6", label: "STRUCTURE & FORM" },
-  { match: /physio/i, emoji: "❤️", bg: "#e4f5f0", label: "HOW THE BODY WORKS" },
-  { match: /bio.?chem/i, emoji: "🧬", bg: "#eae6ff", label: "MOLECULES & METABOLISM" },
-  { match: /patho/i, emoji: "🔬", bg: "#ffe6ed", label: "DISEASE MECHANISMS" },
-  { match: /pharm/i, emoji: "💊", bg: "#fff2cb", label: "DRUGS & ACTIONS" },
-  { match: /micro/i, emoji: "🦠", bg: "#dff0ff", label: "MICROBES & IMMUNITY" },
-  { match: /forensic/i, emoji: "⚖️", bg: "#efe9e0", label: "MEDICINE & LAW" },
-  { match: /surg/i, emoji: "🔪", bg: "#ffe4e1", label: "OPERATIVE CARE" },
-  { match: /med/i, emoji: "🩺", bg: "#d9f1f8", label: "CLINICAL PRACTICE" },
-  { match: /pead|paed/i, emoji: "🧸", bg: "#fff0bf", label: "CHILD HEALTH" },
-  { match: /obs|gyn/i, emoji: "🤰", bg: "#ffe0ec", label: "WOMEN'S HEALTH" },
-]
-const FALLBACK_BG = ["#fff0e6", "#e4f5f0", "#eae6ff", "#ffe6ed", "#fff2cb", "#dff0ff"]
-const QC_TINTS = ["#e8e0ff", "#d9f1f8", "#ffe4d6", "#ffe0ec", "#e4f5f0", "#fff0bf", "#eae6ff", "#dff0ff"]
-
-function subjectStyle(name: string, i: number) {
-  const hit = SUBJECT_STYLES.find((s) => s.match.test(name))
-  return hit || { emoji: "📘", bg: FALLBACK_BG[i % FALLBACK_BG.length], label: "SUBJECT" }
-}
+const TAB_KEY = "qp_home_tab"
 
 export default function Dashboard() {
   const { user, loading } = useUser()
   const db = useFirestore()
   const router = useRouter()
   const jelly = useJelly()
-  const { isFree, isBasic, isPro, canAccessContent, loading: planLoading } = usePlan()
-  const { settings: qcSettings } = useFeatureSettings()
-  const [checkingRole, setCheckingRole] = useState(true)
+  const { isFree, isBasic, isPro, loading: planLoading } = usePlan()
+  const [tab, setTabState] = useState("home")
+  const setTab = (k: string) => { setTabState(k); try { sessionStorage.setItem(TAB_KEY, k) } catch {} }
+  useEffect(() => {
+    try { const k = sessionStorage.getItem(TAB_KEY); if (k && SECTIONS.some((s) => s.key === k)) setTabState(k) } catch {}
+  }, [])
 
   const profileRef = useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user])
   const { data: profile } = useDoc(profileRef)
-  const [stats, setStats] = useState<Awaited<ReturnType<typeof loadStats>> | null>(null)
+  const isAdminUser = (profile as any)?.role === "admin"
+
+  // streak: counts days with at least DAILY_GOAL_MIN minutes in the app
+  const [usage, setUsage] = useState<Usage | null>(null)
+  const [, tick] = useState(0)
   useEffect(() => {
     if (!db || !user) return
     let on = true
-    loadStats(db, user.uid).then((x) => { if (on) setStats(x) }).catch(() => { if (on) setStats({}) })
+    loadUsage(db, user.uid).then((u) => { if (on) setUsage(u) }).catch(() => { if (on) setUsage({}) })
     return () => { on = false }
   }, [db, user])
-  const streak = streakOf(stats?.days)
-  const studiedToday = doneToday(stats?.days)
-  const answeredTotal = stats ? (stats.total?.a || 0) : null
-  const isAdminUser = (profile as any)?.role === "admin"
-
-  const subjectsQuery = useMemo(() => (db ? collection(db, "subjects") : null), [db])
-  const { data: rawSubjects } = useCollection(subjectsQuery)
-  const subjects = useMemo(() => {
-    const list = ((rawSubjects as any[]) || []).filter((s) => s?.name)
-    return list.sort((a, b) => String(a.name).localeCompare(String(b.name)))
-  }, [rawSubjects])
+  useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 5000); return () => clearInterval(t) }, [])
+  const liveUsage: Usage = (() => {
+    const days = { ...(usage?.days || {}) }
+    const k = dayKey()
+    days[k] = (days[k] || 0) + getPendingSeconds()
+    return { days }
+  })()
+  const streak = usageStreak(liveUsage)
+  const todaySec = todaySeconds(liveUsage)
+  const goalDone = doneTodayUsage(liveUsage)
+  const todayMin = Math.min(Math.floor(todaySec / 60), DAILY_GOAL_MIN)
+  const ringPct = Math.min(100, Math.round((todaySec / DAILY_GOAL_SEC) * 100))
 
   const bannersQuery = useMemo(() => (db ? collection(db, "dashboardBanners") : null), [db])
   const { data: rawBanners } = useCollection(bannersQuery)
@@ -114,26 +116,6 @@ export default function Dashboard() {
     return () => clearInterval(t)
   }, [activeBanners.length])
 
-  useEffect(() => {
-    let on = true
-    async function checkUserRole() {
-      if (loading) return
-      if (!user) { setCheckingRole(false); return }
-      if (!db) return
-      try {
-        const snap = await getDoc(doc(db, "users", user.uid))
-        if (on) {
-          setCheckingRole(false)
-        }
-      } catch (e) {
-        console.error("Error fetching user role:", e)
-        if (on) setCheckingRole(false)
-      }
-    }
-    checkUserRole()
-    return () => { on = false }
-  }, [user, loading, router, db])
-
   const [greeting, setGreeting] = useState("Hello")
   const [dateText, setDateText] = useState("")
   useEffect(() => {
@@ -145,7 +127,7 @@ export default function Dashboard() {
 
   const [countdown, setCountdown] = useState("--:--:--")
   useEffect(() => {
-    function tick() {
+    function t() {
       const now = new Date()
       const midnight = new Date(now)
       midnight.setHours(24, 0, 0, 0)
@@ -155,9 +137,9 @@ export default function Dashboard() {
       const s = String(diff % 60).padStart(2, "0")
       setCountdown(`${h}:${m}:${s}`)
     }
-    tick()
-    const t = setInterval(tick, 1000)
-    return () => clearInterval(t)
+    t()
+    const i = setInterval(t, 1000)
+    return () => clearInterval(i)
   }, [])
 
   const [dq, setDq] = useState<DailyQuestion | null>(null)
@@ -177,7 +159,7 @@ export default function Dashboard() {
     return () => { on = false }
   }, [])
 
-  if (loading || checkingRole || planLoading) {
+  if (loading || planLoading) {
     return (
       <div className="h-[70vh] flex items-center justify-center">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
@@ -186,11 +168,6 @@ export default function Dashboard() {
   }
 
   const firstName = user?.displayName?.split(" ")[0] || "future doctor"
-  const planLabel = isPro ? "Clinician" : isBasic ? "Scholar" : "Explorer"
-  const weekDays = Math.min(streak, 7)
-  const ringPct = Math.round((weekDays / 7) * 100)
-  const visibleQc = SORTED_FEATURES.filter((f) => qcSettings[f.slug]?.visible !== false)
-
   const rawOptions = dq
     ? [dq.option1, dq.option2, dq.option3, dq.option4].map((text, idx) => ({ text, idx })).filter((o) => !!o.text)
     : []
@@ -199,244 +176,225 @@ export default function Dashboard() {
     if (!db || !user) return
     const k = `qp_daily_${user.uid}_${dayKey()}`
     try { if (localStorage.getItem(k)) return; localStorage.setItem(k, "1") } catch {}
-    recordDailyCase(db, user.uid, ok).then(() => loadStats(db, user.uid)).then(setStats).catch(() => {})
+    recordDailyCase(db, user.uid, ok).catch(() => {})
   }
   const askJelly = () => { if (jelly.active) jelly.setOpen(true); else router.push("/jelly") }
-  const goTo = (href: string) => router.push(!user ? "/signup" : href)
+  const hrefFor = (href: string) => (user ? href : "/signup")
+  const locked = (l?: "basic" | "pro") => (l === "pro" ? !isPro : l === "basic" ? !isBasic : false)
+  const section = SECTIONS.find((s) => s.key === tab) || SECTIONS[0]
+
+  const card = "rounded-[22px] border border-[#e9e2fb] bg-white shadow-[0_1px_2px_rgba(80,55,160,.04)]"
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8 space-y-7">
+    <div className="min-h-[calc(100vh-70px)] bg-gradient-to-b from-[#f1ecff] via-white to-white">
+      <div className="mx-auto w-full max-w-[1100px] space-y-6 px-4 py-6 md:px-8 md:py-8">
 
-      {/* Heading */}
-      <div className="flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Your medical prep command center</div>
-          <h1 className="mt-1 mb-1.5 text-[clamp(26px,3vw,38px)] font-black leading-[1.08] tracking-tight">{greeting}, {firstName}! <span>👋</span></h1>
-          <p className="text-sm text-muted-foreground">A little progress every day adds up. Ready for today&apos;s round?</p>
-        </div>
-        {isAdminUser && <Link href="/admin" className="shrink-0 whitespace-nowrap rounded-xl bg-[#29233c] px-3.5 py-2.5 text-[13px] font-extrabold text-white shadow-md">⚙️ Admin dashboard</Link>}
-        {dateText && <div className="hidden sm:block whitespace-nowrap rounded-xl border border-border bg-card px-3 py-2.5 text-[13px] font-bold text-muted-foreground">📅 {dateText}</div>}
-      </div>
-
-      {/* Hero */}
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(250px,.8fr)]">
-        <div className="relative flex min-h-[210px] items-center justify-between gap-4 overflow-hidden rounded-[25px] bg-[#e8e0ff] p-6">
-          <div className="relative z-10 min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Today&apos;s mission ✨</div>
-            <h2 className="my-2 text-[23px] font-black leading-tight tracking-tight">Small steps. Big doctor energy.</h2>
-            <p className="mb-4 max-w-[320px] text-sm text-[#635985]">
-              {studiedToday ? (streak > 1 ? `Today is done. ${streak}-day streak, see you tomorrow!` : "Today is done. Come back tomorrow to build your streak!") : streak > 0 ? `You're on a ${streak}-day streak. Answer today's case to keep it going!` : "Answer today's case to start your streak."}
-            </p>
-            <button
-              onClick={() => document.getElementById("case-of-the-day")?.scrollIntoView({ behavior: "smooth" })}
-              className="rounded-[13px] bg-primary px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-primary/30"
-            >
-              Take today&apos;s case →
-            </button>
+        {/* Greeting */}
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-[clamp(24px,3vw,34px)] font-black leading-[1.1] tracking-tight">{greeting}, {firstName}! <span>👋</span></h1>
+            <p className="mt-1 text-sm text-muted-foreground">A little progress every day adds up.</p>
           </div>
-          <div className="relative z-10 grid h-[110px] w-[110px] shrink-0 place-items-center rounded-full sm:h-[124px] sm:w-[124px]" style={{ background: `conic-gradient(#7552ee 0 ${ringPct}%, #ffffffa8 ${ringPct}%)` }}>
-            <div className="absolute inset-[10px] rounded-full bg-[#e8e0ff]" />
-            <div className="relative text-center">
-              <b className="block text-2xl font-black">{weekDays}/7</b>
-              <span className="text-[10px] font-extrabold text-[#665b8e]">DAY STREAK</span>
-            </div>
-          </div>
-          <span className="qp-twinkle absolute right-[34%] top-5 text-[22px] text-primary">✦</span>
-        </div>
-
-        <div className="relative flex items-center gap-2 overflow-hidden rounded-[25px] border border-border bg-card p-5">
-          <div className="relative z-10 min-w-0 flex-1">
-            <span className="rounded-full bg-[#fff0d9] px-2 py-1 text-[10px] font-black text-[#a15e19]">JELLY SAYS HI!</span>
-            <h3 className="mb-1 mt-3 text-lg font-bold leading-tight">Let&apos;s crack one more topic 💜</h3>
-            <p className="mb-3 text-xs text-muted-foreground">Stuck on something? Ask for an explanation or a quick quiz.</p>
-            <button onClick={askJelly} className="text-sm font-extrabold text-primary">Ask Jelly →</button>
-          </div>
-          <div className="relative z-10 shrink-0">
-            <JellyAvatar mood="idle" size={104} />
+          <div className="flex shrink-0 items-center gap-2">
+            {isAdminUser && <Link href="/admin" className="whitespace-nowrap rounded-xl bg-[#29233c] px-3.5 py-2.5 text-[13px] font-extrabold text-white shadow-md">⚙️ Admin</Link>}
+            {dateText && <div className="hidden whitespace-nowrap rounded-xl border border-[#e9e2fb] bg-white px-3 py-2.5 text-[13px] font-bold text-muted-foreground sm:block">📅 {dateText}</div>}
           </div>
         </div>
-      </section>
 
-      {/* Stats */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { bg: "#fff0dc", icon: "🔥", value: `${streak} ${streak === 1 ? "day" : "days"}`, label: "Study streak" },
-          { bg: "#e7f8e9", icon: "✅", value: answeredTotal === null ? "…" : String(answeredTotal), label: "Questions answered" },
-          { bg: "#e8e0ff", icon: "📚", value: String(subjects.length), label: "Subjects to explore" },
-          { bg: "#ffe4ef", icon: "🎓", value: planLabel, label: "Your plan" },
-        ].map((s) => (
-          <div key={s.label} className="flex min-w-0 items-center gap-3 rounded-[18px] border border-border bg-card p-3.5">
-            <div className="grid h-[43px] w-[43px] shrink-0 place-items-center rounded-[14px] text-[22px]" style={{ background: s.bg }}>{s.icon}</div>
-            <div className="min-w-0">
-              <b className="block truncate text-[21px] leading-tight tracking-tight">{s.value}</b>
-              <small className="text-[11px] text-muted-foreground">{s.label}</small>
-            </div>
-          </div>
-        ))}
-      </section>
+        {/* Section switcher */}
+        <nav className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" aria-label="Sections">
+          {SECTIONS.map((s) => {
+            const on = s.key === tab
+            return (
+              <button key={s.key} onClick={() => setTab(s.key)} aria-pressed={on}
+                className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-extrabold transition-all ${on ? "bg-primary text-white shadow-md shadow-primary/25" : "border border-[#e9e2fb] bg-white text-muted-foreground hover:border-primary/40 hover:text-primary"}`}>
+                {s.label}
+              </button>
+            )
+          })}
+        </nav>
 
-      {/* Banners (managed from the admin panel) */}
-      {activeBanners.length > 0 && (() => {
-        const banner = activeBanners[bannerIdx % activeBanners.length]
-        const headlineStart = (banner.headline || "").replace(banner.headlineHighlight || "", "").trim()
-        return (
-          <div key={banner.id} className="space-y-2">
-            <Link href={banner.buttonLink || "/products"} className="block">
-              <div className="group relative overflow-hidden rounded-[25px] border border-primary/25 bg-gradient-to-br from-primary/15 via-secondary to-card p-6 md:p-8 transition-all hover:border-primary/50">
-                <div className="relative flex flex-col justify-between gap-6 md:flex-row md:items-center">
-                  <div className="max-w-xl space-y-3">
-                    {banner.badgeText && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
-                        <Sparkles className="h-3 w-3" /> {banner.badgeText}
-                      </span>
-                    )}
-                    <h3 className="text-xl font-bold leading-tight md:text-2xl">
-                      {headlineStart} <span className="text-primary">{banner.headlineHighlight}</span>
-                    </h3>
-                    <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                      {(banner.bullets || []).map((b: string, i: number) => (
-                        <span key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground md:text-sm">
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" /> {b}
-                        </span>
+        {/* HOME */}
+        {tab === "home" && (
+          <div className="space-y-4">
+            <section className="grid gap-4 md:grid-cols-2">
+              <div className={`${card} p-5`}>
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Today&apos;s mission ✨</div>
+                <h2 className="mt-2 text-xl font-black leading-tight tracking-tight">Small steps. Big doctor energy.</h2>
+                <p className="mb-4 mt-1.5 text-sm text-muted-foreground">
+                  {goalDone ? "Today's goal is done. Nice work!" : "Answer today's case to warm up."}
+                </p>
+                <button onClick={() => document.getElementById("case-of-the-day")?.scrollIntoView({ behavior: "smooth" })}
+                  className="rounded-[13px] bg-primary px-4 py-2.5 text-sm font-extrabold text-white shadow-lg shadow-primary/25">
+                  Take today&apos;s case →
+                </button>
+              </div>
+
+              <Link href={hrefFor("/streak")} className={`${card} flex items-center justify-between gap-4 p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10`}>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-primary">Day streak 🔥</div>
+                  <div className="mt-1.5 text-3xl font-black tracking-tight">{streak} <span className="text-base text-muted-foreground">{streak === 1 ? "day" : "days"}</span></div>
+                  <p className="mt-1 text-xs text-muted-foreground">{goalDone ? "Goal done today" : `${DAILY_GOAL_MIN} min a day keeps it alive`}</p>
+                  <span className="mt-3 inline-block text-sm font-extrabold text-primary">See rewards →</span>
+                </div>
+                <div className="relative grid h-[96px] w-[96px] shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#7552ee 0 ${ringPct}%, #efe9ff ${ringPct}%)` }}>
+                  <div className="absolute inset-[9px] rounded-full bg-white" />
+                  <div className="relative text-center leading-none">
+                    <b className="block text-xl font-black">{todayMin}<span className="text-xs text-muted-foreground">/{DAILY_GOAL_MIN}</span></b>
+                    <span className="text-[9px] font-extrabold text-muted-foreground">MIN TODAY</span>
+                  </div>
+                </div>
+              </Link>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-2">
+              <div className={`${card} relative flex items-center gap-2 p-5`}>
+                <div className="relative z-10 min-w-0 flex-1">
+                  <span className="rounded-full bg-[#f0eaff] px-2 py-1 text-[10px] font-black text-primary">JELLY</span>
+                  <h3 className="mb-3 mt-3 text-xl font-black leading-tight tracking-tight">Ask away.<br />Jelly knows.</h3>
+                  <button onClick={askJelly} className="text-sm font-extrabold text-primary">Ask Jelly →</button>
+                </div>
+                <div className="relative z-10 shrink-0">
+                  <JellyAvatar mood="idle" size={112} touchy />
+                </div>
+              </div>
+
+              <Link href={hrefFor("/my-progress")} className={`${card} flex items-center gap-4 p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/10`}>
+                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#e8f8ec] text-[28px]">📈</div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-lg font-black tracking-tight">My progress</h3>
+                  <p className="text-xs text-muted-foreground">Daily review, study plan, weak and strong topics.</p>
+                </div>
+                <ArrowRight className="h-5 w-5 shrink-0 text-primary" />
+              </Link>
+            </section>
+
+            {/* Case of the day */}
+            <section id="case-of-the-day" className={`${card} scroll-mt-24 p-5 md:p-6`}>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-primary">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+                  Case of the day
+                </div>
+                <div className="font-mono text-[11px] text-muted-foreground">
+                  Next case in <span className="font-semibold text-foreground">{countdown}</span>
+                </div>
+              </div>
+              {dqLoading ? (
+                <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+              ) : !dq ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">No question available right now. Check back once QBank has content for today.</p>
+              ) : (
+                <>
+                  <div className="mb-3 inline-block rounded-md bg-[#f0eaff] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary">{dq.topic_title}</div>
+                  <p className="mb-4 text-sm font-medium leading-relaxed md:text-[15px]">{dq.question_text}</p>
+                  <div className="flex flex-col gap-2">
+                    {rawOptions.map((opt) => {
+                      const answered = selectedIdx !== null
+                      const isCorrect = opt.idx === dq.correct_answer_index
+                      const wrong = answered && selectedIdx === opt.idx && !isCorrect
+                      let cls = "border-[#e9e2fb] bg-white hover:border-primary/40 hover:bg-[#f7f4ff]"
+                      if (answered && isCorrect) cls = "border-green-500/60 bg-green-500/10"
+                      else if (wrong) cls = "border-red-500/60 bg-red-500/10"
+                      else if (answered) cls = "border-[#e9e2fb] opacity-50"
+                      return (
+                        <button key={opt.idx} onClick={() => { if (answered) return; setSelectedIdx(opt.idx); recordDaily(opt.idx === dq.correct_answer_index) }} disabled={answered}
+                          className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-[13px] transition-all ${cls}`}>
+                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${answered && isCorrect ? "bg-green-500 text-white" : wrong ? "bg-red-500 text-white" : "bg-[#f0eaff] text-primary"}`}>
+                            {String.fromCharCode(65 + opt.idx)}
+                          </span>
+                          {opt.text}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {selectedIdx !== null && (
+                    <div className="mt-4 rounded-xl border border-[#e9e2fb] bg-[#f7f4ff] p-4 text-[12.5px] leading-relaxed text-muted-foreground">{dq.explanation}</div>
+                  )}
+                </>
+              )}
+            </section>
+
+            {/* Banners (managed from the admin panel) */}
+            {activeBanners.length > 0 && (() => {
+              const banner = activeBanners[bannerIdx % activeBanners.length]
+              const headlineStart = (banner.headline || "").replace(banner.headlineHighlight || "", "").trim()
+              return (
+                <div key={banner.id} className="space-y-2">
+                  <Link href={banner.buttonLink || "/products"} className="block">
+                    <div className={`${card} group relative overflow-hidden p-5 transition-all hover:border-primary/40 md:p-6`}>
+                      <div className="relative flex flex-col justify-between gap-5 md:flex-row md:items-center">
+                        <div className="max-w-xl space-y-2.5">
+                          {banner.badgeText && (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f0eaff] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                              <Sparkles className="h-3 w-3" /> {banner.badgeText}
+                            </span>
+                          )}
+                          <h3 className="text-lg font-bold leading-tight md:text-xl">
+                            {headlineStart} <span className="text-primary">{banner.headlineHighlight}</span>
+                          </h3>
+                          <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                            {(banner.bullets || []).map((b: string, i: number) => (
+                              <span key={i} className="flex items-center gap-1.5 text-xs text-muted-foreground md:text-sm">
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" /> {b}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <Button className="shrink-0 gap-2 rounded-xl font-bold shadow-lg shadow-primary/25">
+                          {banner.buttonText || "Learn More"} <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Link>
+                  {activeBanners.length > 1 && (
+                    <div className="flex justify-center gap-1.5">
+                      {activeBanners.map((_: any, i: number) => (
+                        <button key={i} aria-label={`Banner ${i + 1}`} onClick={() => setBannerIdx(i)}
+                          className={`h-1.5 rounded-full transition-all ${i === bannerIdx % activeBanners.length ? "w-6 bg-primary" : "w-1.5 bg-primary/25"}`} />
                       ))}
                     </div>
-                  </div>
-                  <Button className="shrink-0 gap-2 rounded-xl font-bold shadow-lg shadow-primary/30">
-                    {banner.buttonText || "Learn More"} <ArrowRight className="h-4 w-4" />
-                  </Button>
+                  )}
                 </div>
-              </div>
-            </Link>
-            {activeBanners.length > 1 && (
-              <div className="flex justify-center gap-1.5">
-                {activeBanners.map((_: any, i: number) => (
-                  <button key={i} aria-label={`Banner ${i + 1}`} onClick={() => setBannerIdx(i)}
-                    className={`h-1.5 rounded-full transition-all ${i === bannerIdx % activeBanners.length ? "w-6 bg-primary" : "w-1.5 bg-primary/25"}`} />
-                ))}
-              </div>
-            )}
+              )
+            })()}
           </div>
-        )
-      })()}
-
-      {/* Case of the day */}
-      <section id="case-of-the-day" className="scroll-mt-24 rounded-[25px] border border-border bg-card p-5 md:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-accent">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            Case of the day
-          </div>
-          <div className="font-mono text-[11px] text-muted-foreground">
-            Next case in <span className="font-semibold text-foreground">{countdown}</span>
-          </div>
-        </div>
-        {dqLoading ? (
-          <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-        ) : !dq ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">No question available right now — check back once QBank has content for today.</p>
-        ) : (
-          <>
-            <div className="mb-3 inline-block rounded-md bg-secondary px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary">{dq.topic_title}</div>
-            <p className="mb-4 text-sm font-medium leading-relaxed md:text-[15px]">{dq.question_text}</p>
-            <div className="flex flex-col gap-2">
-              {rawOptions.map((opt) => {
-                const answered = selectedIdx !== null
-                const isCorrect = opt.idx === dq.correct_answer_index
-                const wrong = answered && selectedIdx === opt.idx && !isCorrect
-                let cls = "border-border bg-card hover:border-primary/40 hover:bg-secondary"
-                if (answered && isCorrect) cls = "border-green-500/60 bg-green-500/10"
-                else if (wrong) cls = "border-red-500/60 bg-red-500/10"
-                else if (answered) cls = "border-border opacity-50"
-                return (
-                  <button key={opt.idx} onClick={() => { if (answered) return; setSelectedIdx(opt.idx); recordDaily(opt.idx === dq.correct_answer_index) }} disabled={answered}
-                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-[13px] transition-all ${cls}`}>
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${answered && isCorrect ? "bg-green-500 text-white" : wrong ? "bg-red-500 text-white" : "bg-muted text-muted-foreground"}`}>
-                      {String.fromCharCode(65 + opt.idx)}
-                    </span>
-                    {opt.text}
-                  </button>
-                )
-              })}
-            </div>
-            {selectedIdx !== null && (
-              <div className="mt-4 rounded-xl border border-primary/20 bg-secondary p-4 text-[12.5px] leading-relaxed text-muted-foreground">{dq.explanation}</div>
-            )}
-          </>
         )}
-      </section>
 
-      {/* Feature cards */}
-      <section>
-        <div className="mb-3.5 flex items-end justify-between gap-3">
-          <div>
-            <h2 className="text-[21px] font-black tracking-tight">Pick your next adventure 🚀</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Big goals begin with one tap. Choose how you want to learn.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2.5 md:gap-4 lg:grid-cols-3">
-          {FEATURES.map((f, i) => (
-            <article key={f.name} role="link" tabIndex={0} onClick={() => goTo(f.href)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goTo(f.href) } }}
-              className="group cursor-pointer overflow-hidden rounded-[22px] border border-border bg-card transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
-              <div className="relative flex h-[120px] items-center justify-between overflow-hidden p-3 md:h-[150px] md:px-5 md:py-[18px]" style={{ background: f.bg, color: f.fg }}>
-                <div className="relative z-10 max-w-[70%] md:max-w-[65%]">
-                  <div className="text-[9px] font-black uppercase tracking-[0.12em] opacity-80 md:text-[10px]">{f.micro}</div>
-                  <h3 className="my-1.5 whitespace-pre-line text-[20px] font-black leading-[1.03] tracking-tight md:my-[7px] md:text-[25px]">{f.title}</h3>
-                  <p className="hidden text-[11px] opacity-80 sm:block">{f.tagline}</p>
+        {/* NOTES / QBANK / TEST / BEDSIDE */}
+        {tab !== "home" && (
+          <section className={`grid gap-3 ${section.items.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
+            {section.items.map((it) => (
+              <Link key={it.name} href={hrefFor(it.href)}
+                className={`${card} group flex items-center gap-4 p-4 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10`}>
+                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-[28px]" style={{ background: it.tint }}>{it.emoji}</div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="flex items-center gap-1.5 text-[15px] font-black tracking-tight">
+                    <span className="truncate">{it.name}</span>
+                    {locked(it.lock) && <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />}
+                  </h3>
+                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{it.desc}</p>
                 </div>
-                <div className="qp-float relative z-10 text-[53px] leading-none drop-shadow-md md:text-[73px]" style={{ animationDelay: `${-(i % 3) * 1.1}s` }}>{f.emoji}</div>
-                <span className="qp-twinkle absolute right-[43%] top-4 text-[20px]">✦</span>
-              </div>
-              <div className="p-3 md:px-4 md:pb-4 md:pt-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`whitespace-nowrap rounded-full px-2 py-1 text-[9px] font-black md:text-[10px] ${f.chipKind === "pro" ? "bg-[#fff0c7] text-[#96600b]" : "bg-[#e6f6ed] text-[#28744d]"}`}>
-                    {f.name === "QuickCards" && canAccessContent ? "UNLOCKED" : f.chip}
-                  </span>
-                  <span className="text-muted-foreground">↗</span>
-                </div>
-                <h4 className="mb-1 mt-2.5 text-[13px] font-bold md:text-[15px]">{f.name}</h4>
-                <p className="min-h-[34px] text-[11px] text-muted-foreground md:text-xs">{f.body}</p>
-                <div className="mt-3 flex items-center justify-between text-[11px] font-bold text-muted-foreground"><span>{f.foot}</span><span>→</span></div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* More ways to study */}
-      <MoreWays loggedIn={!!user} />
-
-      {/* QuickCards */}
-      {visibleQc.length > 0 && (
-        <section>
-          <div className="mb-3.5 flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-[21px] font-black tracking-tight">QuickCards · rapid revision ⚡</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Exam-ready reference decks, designed for fast recall.</p>
-            </div>
-            {!canAccessContent && <span className="rounded-full bg-[#fff0c7] px-2 py-1 text-[10px] font-black text-[#96600b]">🔒 SCHOLAR</span>}
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {visibleQc.map((f, i) => (
-              <QuickDeckCard key={f.slug} slug={f.slug} name={f.name} description={f.description} tags={f.tags} index={i} />
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+              </Link>
             ))}
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {/* Upgrade */}
-      {isFree && (
-        <section className="relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl bg-[#29233c] p-5 text-white sm:flex-row sm:items-center md:px-6">
-          <div className="text-[43px] leading-none">👑</div>
-          <div>
-            <h3 className="mb-1 text-xl font-bold">Ready to unlock your full potential?</h3>
-            <p className="text-xs text-[#d1c9e7]">Full notes, every mind map, unlimited QBank, Virtual Patient and your Jelly AI companion.</p>
-          </div>
-          <Link href="/pricing" className="shrink-0 rounded-[13px] bg-[#ffb17e] px-4 py-3 text-sm font-black text-[#4d2c21] sm:ml-auto">
-            Explore Scholar · ₹999/year →
-          </Link>
-        </section>
-      )}
+        {/* Upgrade */}
+        {isFree && (
+          <section className="relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl bg-[#29233c] p-5 text-white sm:flex-row sm:items-center md:px-6">
+            <div className="text-[43px] leading-none">👑</div>
+            <div>
+              <h3 className="mb-1 text-xl font-bold">Ready to unlock your full potential?</h3>
+              <p className="text-xs text-[#d1c9e7]">Full notes, every mind map, unlimited QBank, Virtual Patient and your Jelly AI companion.</p>
+            </div>
+            <Link href="/pricing" className="shrink-0 rounded-[13px] bg-[#ffb17e] px-4 py-3 text-sm font-black text-[#4d2c21] sm:ml-auto">
+              Explore Scholar · ₹999/year →
+            </Link>
+          </section>
+        )}
+      </div>
     </div>
   )
 }

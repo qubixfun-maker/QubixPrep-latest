@@ -53,6 +53,19 @@ export default function MyProgress() {
         </div>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          { href: "/review", emoji: "🔁", title: "Daily review", sub: due > 0 ? `${due} due today` : "Spaced repetition, nothing due", tint: "#ede6ff" },
+          { href: "/plan", emoji: "🗓️", title: "Study plan", sub: "Plan your week", tint: "#dff3ff" },
+          { href: "/streak", emoji: "🔥", title: "Day streak", sub: "Progress and rewards", tint: "#ffe9d6" },
+        ].map((c) => (
+          <Link key={c.href} href={c.href} className="flex items-center gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-2xl" style={{ background: c.tint }}>{c.emoji}</div>
+            <div className="min-w-0"><b className="block text-[15px]">{c.title}</b><small className="text-xs text-muted-foreground">{c.sub}</small></div>
+          </Link>
+        ))}
+      </div>
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
           { l: "Questions answered", v: view.total.a, i: Target },
