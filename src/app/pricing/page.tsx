@@ -16,7 +16,7 @@ const PLANS = [
     color: "text-muted-foreground", border: "border-white/10",
     description: "Try the app before you buy",
     features: [
-      "A few free notes, QBank questions, flashcards, mind maps and long answers in every subject",
+      "A few free notes, QBank questions, flashcards and long answers in every subject",
       "1 free PYQ session",
       "1 free case presentation",
       "A few free spotters",
@@ -30,7 +30,7 @@ const PLANS = [
     description: "The full content library, no AI",
     features: [
       "Everything in Explorer",
-      "Unlimited notes, QBank, flashcards, mind maps and long answers",
+      "Unlimited notes, QBank, flashcards and long answers",
       "Full PYQ series with images",
       "Case Presentation and unlimited Ward Round",
       "All spotters and QuickCards",

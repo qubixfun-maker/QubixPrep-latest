@@ -300,7 +300,7 @@ export default function ProfilePage() {
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-white shadow-md shadow-primary/30"><Crown className="h-5 w-5" /></span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-black leading-tight">{isBasic ? "Go Clinician" : "Go Pro"}</span>
-            <span className="block text-xs text-muted-foreground">{isBasic ? "Unlock Virtual Patient, the Arena and more." : "Unlock every note, mind map and QBank."}</span>
+            <span className="block text-xs text-muted-foreground">{isBasic ? "Unlock Virtual Patient, the Arena and more." : "Unlock every note and QBank."}</span>
           </span>
           <ChevronRight className="h-4 w-4 shrink-0 text-primary transition-transform group-hover:translate-x-0.5" />
         </Link>

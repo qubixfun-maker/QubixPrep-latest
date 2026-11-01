@@ -129,7 +129,7 @@ export default function SearchPage() {
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-10">
       <div className="relative">
         <Search className="pointer-events-none absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
-        <input ref={inputRef} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes, flashcards, mind maps, questions…" className="h-16 w-full rounded-3xl border border-border bg-card pl-14 pr-14 text-lg font-semibold shadow-lg outline-none focus:border-primary md:h-20 md:text-2xl" />
+        <input ref={inputRef} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes, flashcards, questions…" className="h-16 w-full rounded-3xl border border-border bg-card pl-14 pr-14 text-lg font-semibold shadow-lg outline-none focus:border-primary md:h-20 md:text-2xl" />
         {q && <button onClick={() => { setQ(""); inputRef.current?.focus() }} aria-label="Clear" className="absolute right-5 top-1/2 -translate-y-1/2 rounded-full p-1.5 hover:bg-secondary"><X className="h-5 w-5" /></button>}
       </div>
 

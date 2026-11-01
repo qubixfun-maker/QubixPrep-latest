@@ -12,8 +12,8 @@ const CATS: Cat[] = [
   {
     id: "plans", title: "Plans & payments", icon: CreditCard,
     items: [
-      { q: "What do I get for free?", a: "The free Explorer plan gives you 5 free notes per subject, all video lectures, 3 free mind maps per subject, 10 QBank questions per subject and a basic dashboard. Top 100 Topics is free for everyone." },
-      { q: "What does the Scholar plan include?", a: "Scholar is ₹999 per year. It unlocks the full notes library, all mind maps, the full QBank for every subject, Custom Test Series, all video lectures and every QuickCards section. The AI Tools (AI Tutor, Summarizer, Quiz Generator, PDF AI Extraction) are not part of this plan." },
+      { q: "What do I get for free?", a: "The free Explorer plan gives you 5 free notes per subject, all video lectures, 10 QBank questions per subject and a basic dashboard. Top 100 Topics is free for everyone." },
+      { q: "What does the Scholar plan include?", a: "Scholar is ₹999 per year. It unlocks the full notes library, the full QBank for every subject, Custom Test Series, all video lectures and every QuickCards section. The AI Tools (AI Tutor, Summarizer, Quiz Generator, PDF AI Extraction) are not part of this plan." },
       { q: "How do I pay?", a: "Go to Pricing and tap Subscribe. Payment runs through Razorpay, and the payment options available to you are shown at checkout." },
       { q: "Does the plan renew automatically? Can I cancel?", a: "The plan renews yearly through Razorpay. You can cancel any time from your Profile page." },
       { q: "I paid but my plan is not active.", a: "First refresh the app and sign out and in once. If the plan still shows Explorer, message us on WhatsApp or email with the email you signed up with and a screenshot of the payment. We will sort it out." },
@@ -25,7 +25,6 @@ const CATS: Cat[] = [
     items: [
       { q: "How is the QBank organised?", a: "Pick a subject, then a topic, and answer one question at a time with instant feedback and an explanation. Your accuracy per topic is recorded so you can see your weak areas." },
       { q: "How do flashcards work now?", a: "Open a subject, pick a chapter and the study mode opens full screen. Tap the card to flip it, then press Got it or Review again. Your answers are saved to your account, so cards you miss come back for review." },
-      { q: "How do I use the mind maps?", a: "Drag to move, pinch or scroll to zoom, and tap a dot to open or close its sub-topics. The green button shows or hides the short notes, the arrows expand or collapse everything, and the frame button fits the whole map to your screen." },
       { q: "What are QuickCards?", a: "QuickCards are dense, one-page reference cards: lab records decoded, OPD clinical references, important drugs, emergency and procedure playbooks and more. They are included in the Scholar plan." },
       { q: "A question or answer looks wrong. What should I do?", a: "Please tell us. Use the Report option on the question if you see it, or message Support with the subject, topic and the question text. Corrections are reviewed and fixed." },
     ],

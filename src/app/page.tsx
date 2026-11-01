@@ -199,7 +199,7 @@ function DashboardInner() {
   const locked = (l?: "basic" | "pro") => (l === "pro" ? !isPro : l === "basic" ? !isBasic : false)
   const section = SECTIONS.find((s) => s.key === tab) || SECTIONS[0]
   // Mind Maps are hidden from students for now
-  const visibleItems = section.items.filter((it) => it.href !== "/mindmaps" || isAdminUser)
+  const visibleItems = section.items.filter((it) => it.href !== "/mindmaps")
 
   const card = "rounded-[22px] border border-[#e9e2fb] bg-white shadow-[0_1px_2px_rgba(80,55,160,.04)]"
 
@@ -393,7 +393,7 @@ function DashboardInner() {
             <div className="text-[43px] leading-none">👑</div>
             <div>
               <h3 className="mb-1 text-xl font-bold">Ready to unlock your full potential?</h3>
-              <p className="text-xs text-[#d1c9e7]">Full notes, every mind map, unlimited QBank, Virtual Patient and your Jelly AI companion.</p>
+              <p className="text-xs text-[#d1c9e7]">Full notes, unlimited QBank, Virtual Patient and your Jelly AI companion.</p>
             </div>
             <Link href="/pricing" className="shrink-0 rounded-[13px] bg-[#ffb17e] px-4 py-3 text-sm font-black text-[#4d2c21] sm:ml-auto">
               Explore Scholar · ₹999/year →
