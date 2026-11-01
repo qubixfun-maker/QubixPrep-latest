@@ -28,7 +28,14 @@ import {
   Upload,
   Crown,
   Zap,
-  BookOpen
+  BookOpen,
+  ShoppingBag,
+  Gift,
+  Tag,
+  HelpCircle,
+  LifeBuoy,
+  ChevronRight,
+  Sparkles
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
@@ -287,6 +294,38 @@ export default function ProfilePage() {
           <LogOut className="h-4 w-4" /> Sign Out
         </Button>
       </div>
+
+      {!isPro && (
+        <Link href="/pricing" className="group flex items-center gap-3 rounded-2xl border border-[#e4dcfa] bg-gradient-to-r from-[#f6f2ff] to-white p-3.5 pr-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:max-w-md">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary text-white shadow-md shadow-primary/30"><Crown className="h-5 w-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-black leading-tight">{isBasic ? "Go Clinician" : "Go Pro"}</span>
+            <span className="block text-xs text-muted-foreground">{isBasic ? "Unlock Virtual Patient, the Arena and more." : "Unlock every note, mind map and QBank."}</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-primary transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      )}
+
+      <section aria-label="Account and help" className="space-y-3">
+        <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground"><Sparkles className="h-3.5 w-3.5 text-primary" /> Account &amp; help</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          {[
+            { href: "/products", label: "Store", sub: "Notes packs and more", Icon: ShoppingBag, tint: "#e6f0ff", ink: "#1f4f8a" },
+            { href: "/affiliate", label: "Affiliate", sub: "Earn by sharing", Icon: Gift, tint: "#ffe9d6", ink: "#9a4a0c" },
+            { href: "/pricing", label: "Pricing", sub: "Plans and offers", Icon: Tag, tint: "#efe6ff", ink: "#5b3fc0" },
+            { href: "/faq", label: "Help & FAQ", sub: "Quick answers", Icon: HelpCircle, tint: "#dcf5ea", ink: "#17543f" },
+            { href: "/support", label: "Support", sub: "Talk to us", Icon: LifeBuoy, tint: "#ffe3ee", ink: "#9b2554" },
+          ].map(({ href, label, sub, Icon, tint, ink }) => (
+            <Link key={href} href={href} className="group flex flex-col gap-2 rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+              <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: tint, color: ink }}><Icon className="h-5 w-5" /></span>
+              <span>
+                <span className="flex items-center justify-between text-sm font-black">{label}<ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" /></span>
+                <span className="text-xs text-muted-foreground">{sub}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">

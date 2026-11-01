@@ -1,4 +1,5 @@
 "use client"
+import { compareSubjects } from "@/lib/subject-year"
 import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
 import { useTopSearch } from "@/components/layout/top-search"
 
@@ -24,7 +25,7 @@ export default function MindmapsSubjectsPage() {
     return subjects.filter((s: any) => s.name.toLowerCase().includes(search.toLowerCase()))
   }, [subjects, search])
 
-  const sortedSubjects = useMemo(() => [...filtered].sort((a: any, b: any) => String(a.name).localeCompare(String(b.name))), [filtered])
+  const sortedSubjects = useMemo(() => [...filtered].sort((a: any, b: any) => compareSubjects(String(a.name), String(b.name))), [filtered])
 
   const { checkingAuth } = useRequireAuth()
   if (checkingAuth) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>

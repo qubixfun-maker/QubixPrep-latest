@@ -1,4 +1,5 @@
 "use client"
+import { compareSubjects } from "@/lib/subject-year"
 import { DeepResults } from "@/components/layout/deep-search"
 import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
 import { useTopSearch } from "@/components/layout/top-search"
@@ -30,14 +31,7 @@ export default function LongAnswersSubjectsPage() {
 
   useEffect(() => {
     if (data) {
-      const sorted = [...data].sort((a: any, b: any) => {
-        const ai = SUBJECT_ORDER.indexOf(a.name)
-        const bi = SUBJECT_ORDER.indexOf(b.name)
-        if (ai === -1 && bi === -1) return a.name.localeCompare(b.name)
-        if (ai === -1) return 1
-        if (bi === -1) return -1
-        return ai - bi
-      })
+      const sorted = [...data].sort((a: any, b: any) => compareSubjects(a.name, b.name))
       setSubjects(sorted)
     }
   }, [data])

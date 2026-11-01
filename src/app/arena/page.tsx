@@ -1,4 +1,5 @@
 "use client"
+import { compareSubjects } from "@/lib/subject-year"
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -38,7 +39,7 @@ export default function ArenaHub() {
   useEffect(() => { if (!authLoading && !user) router.replace("/login?next=/arena") }, [authLoading, user, router])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t) }, [])
 
-  const subs = useMemo(() => [...((subjects as any[]) || [])].sort((a, b) => String(a.name).localeCompare(String(b.name))), [subjects])
+  const subs = useMemo(() => [...((subjects as any[]) || [])].sort((a, b) => compareSubjects(String(a.name), String(b.name))), [subjects])
   useEffect(() => { if (!subjectId && subs.length) setSubjectId(subs[0].id) }, [subs, subjectId])
 
   const create = async () => {

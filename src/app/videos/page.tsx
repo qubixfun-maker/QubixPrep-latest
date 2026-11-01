@@ -1,5 +1,6 @@
 
 "use client"
+import { compareSubjects } from "@/lib/subject-year"
 import { useTopSearch } from "@/components/layout/top-search"
 
 import { useMemo } from "react"
@@ -34,7 +35,8 @@ export default function VideoLibraryPage() {
     return collection(db, 'subjects')
   }, [db])
   
-  const { data: subjects, loading } = useCollection(subjectsQuery)
+  const { data: rawSubjects, loading } = useCollection(subjectsQuery)
+  const subjects = useMemo(() => (rawSubjects ? [...rawSubjects].sort((a: any, b: any) => compareSubjects(a.name, b.name)) : rawSubjects), [rawSubjects])
   const [search] = useTopSearch("Search subjects in Videos…")
 
   const { checkingAuth } = useRequireAuth()

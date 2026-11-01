@@ -1,4 +1,5 @@
 "use client"
+import { compareSubjects } from "@/lib/subject-year"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
@@ -28,7 +29,7 @@ export default function GrandTest() {
   const papers = useMemo(() => ((paperDocs as any[]) || []).map((p) => p as PaperMeta).sort((a, b) => a.n - b.n), [paperDocs])
   const subjectsQuery = useMemo(() => (db ? collection(db, "subjects") : null), [db])
   const { data: subjectDocs } = useCollection(subjectsQuery)
-  const subjects = useMemo(() => ((subjectDocs as any[]) || []).map((s) => ({ id: s.id as string, name: (s.name || s.id) as string })).sort((a, b) => a.name.localeCompare(b.name)), [subjectDocs])
+  const subjects = useMemo(() => ((subjectDocs as any[]) || []).map((s) => ({ id: s.id as string, name: (s.name || s.id) as string })).sort((a, b) => compareSubjects(a.name, b.name)), [subjectDocs])
 
   const [phase, setPhase] = useState<"setup" | "loading" | "exam" | "result">("setup")
   const [size, setSize] = useState(1)
@@ -94,7 +95,7 @@ export default function GrandTest() {
   const subjectChips = useMemo(() => {
     const m = new Map<string, number>()
     usable.forEach((p) => (p.subjects || []).forEach((s) => m.set(s.name, (m.get(s.name) || 0) + s.n)))
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, n]) => ({ name, n }))
+    return [...m.entries()].sort((a, b) => compareSubjects(a[0], b[0])).map(([name, n]) => ({ name, n }))
   }, [usable])
   const chosen = subjectChips.filter((s) => picked[s.name])
 

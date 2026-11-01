@@ -84,12 +84,7 @@ export function AppSidebar() {
     { title: "Jelly AI", url: "/jelly", icon: Sparkles },
   ]
   const account: Item[] = [
-    { title: "Store", url: "/products", icon: ShoppingBag },
-    { title: "Affiliate", url: "/affiliate", icon: Gift },
-    { title: "Profile", url: "/profile", icon: User },
-    { title: "Pricing", url: "/pricing", icon: Zap },
-    { title: "Help & FAQ", url: "/faq", icon: HelpCircle },
-    { title: "Support", url: "/support", icon: LifeBuoy },
+    { title: "Profile & account", url: "/profile", icon: User, also: ["/products", "/affiliate", "/pricing", "/faq", "/support"] },
   ]
 
   const active = (url: string, also: string[] = []) => (url === "/" ? pathname === "/" : [url, ...also].some((u) => pathname.startsWith(u)))

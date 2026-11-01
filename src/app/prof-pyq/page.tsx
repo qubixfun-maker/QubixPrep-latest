@@ -1,4 +1,5 @@
 "use client"
+import { compareSubjects } from "@/lib/subject-year"
 
 import { useMemo, useState } from "react"
 import { useCollection, useFirestore, useUser, useDoc } from "@/firebase"
@@ -57,14 +58,7 @@ export default function ProfPyqHubPage() {
 
   const subjects = useMemo(() => {
     const names = Object.keys(subjectCounts).filter((s) => !search.trim() || s.toLowerCase().includes(search.toLowerCase()))
-    return names.sort((a, b) => {
-      const ai = SUBJECT_ORDER.indexOf(a)
-      const bi = SUBJECT_ORDER.indexOf(b)
-      if (ai === -1 && bi === -1) return a.localeCompare(b)
-      if (ai === -1) return 1
-      if (bi === -1) return -1
-      return ai - bi
-    })
+    return names.sort((a, b) => compareSubjects(a, b))
   }, [subjectCounts, search])
 
   const { checkingAuth } = useRequireAuth()

@@ -1,4 +1,5 @@
 "use client"
+import { compareSubjects } from "@/lib/subject-year"
 
 import { useState, useMemo, useEffect } from "react"
 import { useCollection, useFirestore } from "@/firebase"
@@ -41,7 +42,8 @@ export default function TestSeriesPage() {
   const router = useRouter()
   const { checkingAuth } = useRequireAuth()
   const subjectsQuery = useMemo(() => (!db ? null : collection(db, 'subjects')), [db])
-  const { data: subjects, loading: subjectsLoading } = useCollection(subjectsQuery)
+  const { data: rawSubjects, loading: subjectsLoading } = useCollection(subjectsQuery)
+  const subjects = useMemo(() => (rawSubjects ? [...rawSubjects].sort((a: any, b: any) => compareSubjects(a.name, b.name)) : rawSubjects), [rawSubjects])
 
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
   const [curriculum, setCurriculum] = useState<any[]>([])

@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState, useMemo } from "react"
+import { Suspense, useEffect, useRef, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useUser, useCollection, useDoc, useFirestore } from "@/firebase"
 import { doc, collection } from "firebase/firestore"
@@ -147,13 +147,27 @@ function DashboardInner() {
   const [dq, setDq] = useState<DailyQuestion | null>(null)
   const [dqLoading, setDqLoading] = useState(true)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+  // today's case, once answered, stays on screen exactly as the student left it (same question, same answer, same explanation)
+  const restored = useRef(false)
+  useEffect(() => {
+    if (!user) return
+    try {
+      const raw = localStorage.getItem(`qp_daily_state_${user.uid}_${dayKey()}`)
+      const s = raw ? JSON.parse(raw) : null
+      if (s?.q && typeof s.idx === "number") { restored.current = true; setDq(s.q); setSelectedIdx(s.idx); setDqLoading(false) }
+    } catch {}
+  }, [user])
+  const saveDaily = (q: DailyQuestion, idx: number) => {
+    if (!user) return
+    try { localStorage.setItem(`qp_daily_state_${user.uid}_${dayKey()}`, JSON.stringify({ q, idx })) } catch {}
+  }
   useEffect(() => {
     let on = true
     async function fetchDaily() {
       try {
         const res = await fetch("/api/daily-question")
         const data = await res.json()
-        if (on) setDq(data.question || null)
+        if (on && !restored.current) setDq(data.question || null)
       } catch { if (on) setDq(null) }
       finally { if (on) setDqLoading(false) }
     }
@@ -289,7 +303,7 @@ function DashboardInner() {
                       else if (wrong) cls = "border-red-500/60 bg-red-500/10"
                       else if (answered) cls = "border-[#e9e2fb] opacity-50"
                       return (
-                        <button key={opt.idx} onClick={() => { if (answered) return; setSelectedIdx(opt.idx); recordDaily(opt.idx === dq.correct_answer_index) }} disabled={answered}
+                        <button key={opt.idx} onClick={() => { if (answered) return; setSelectedIdx(opt.idx); saveDaily(dq, opt.idx); recordDaily(opt.idx === dq.correct_answer_index) }} disabled={answered}
                           className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-[13px] transition-all ${cls}`}>
                           <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${answered && isCorrect ? "bg-green-500 text-white" : wrong ? "bg-red-500 text-white" : "bg-[#f0eaff] text-primary"}`}>
                             {String.fromCharCode(65 + opt.idx)}
