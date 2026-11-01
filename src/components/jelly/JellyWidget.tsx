@@ -23,6 +23,7 @@ const POS_KEY = "jelly.pos"
 export function JellyWidget() {
   const j = useJelly()
   const [pos, setPos] = useState({ r: 16, b: 16 })
+  const [pokes, setPokes] = useState(0)
   const [text, setText] = useState("")
   const [settings, setSettings] = useState(false)
   const drag = useRef<{ x: number; y: number; r: number; b: number; moved: boolean } | null>(null)
@@ -54,7 +55,7 @@ export function JellyWidget() {
     drag.current = null
     if (!d) return
     if (d.moved) { try { localStorage.setItem(POS_KEY, JSON.stringify(pos)) } catch {} }
-    else j.setOpen(!j.open)
+    else { setPokes((n) => n + 1); j.setOpen(!j.open) }
   }
 
   if (j.hidden) {
@@ -166,7 +167,7 @@ export function JellyWidget() {
         <div role="button" tabIndex={0} aria-label="Open Jelly" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") j.setOpen(!j.open) }}
           className="cursor-pointer touch-none select-none rounded-full drop-shadow-[0_6px_16px_rgba(124,58,237,0.35)]">
-          <JellyAvatar size={76} mood={j.active ? j.mood : "sleep"} talking={talking} />
+          <JellyAvatar size={76} mood={j.active ? j.mood : "sleep"} talking={talking} pokeKey={pokes} />
         </div>
       </div>
     </>

@@ -6,11 +6,14 @@ import { useFirestore, useUser } from '@/firebase'
 import { CARD_FEATURES, getFeature } from '@/lib/quickcards/cardFeatures'
 import type { FeatureSettings, QuickCard, CardImageUrls, CardState } from '@/types/quickcards'
 
+/** Decks held back from students for now. Admins still see them (marked Hidden) and can test them. */
+const PAUSED = new Set(['opd-cases'])
+
 /** Visible/gate settings for all features, falling back to the config defaults. */
 export function useFeatureSettings() {
   const db = useFirestore()
   const [settings, setSettings] = useState<Record<string, FeatureSettings>>(() =>
-    Object.fromEntries(CARD_FEATURES.map((f) => [f.slug, { visible: true, gate: f.defaultGate }]))
+    Object.fromEntries(CARD_FEATURES.map((f) => [f.slug, { visible: !PAUSED.has(f.slug), gate: f.defaultGate }]))
   )
   const [loading, setLoading] = useState(true)
 
@@ -23,8 +26,8 @@ export function useFeatureSettings() {
           setSettings((prev) => {
             const d = snap.data() as any
             const next: FeatureSettings = snap.exists()
-              ? { visible: d?.visible !== false, gate: ['free', 'basic', 'pro', 'addon'].includes(d?.gate) ? d.gate : f.defaultGate }
-              : { visible: true, gate: f.defaultGate }
+              ? { visible: !PAUSED.has(f.slug) && d?.visible !== false, gate: ['free', 'basic', 'pro', 'addon'].includes(d?.gate) ? d.gate : f.defaultGate }
+              : { visible: !PAUSED.has(f.slug), gate: f.defaultGate }
             return { ...prev, [f.slug]: next }
           })
           setLoading(false)

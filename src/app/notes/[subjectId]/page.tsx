@@ -1,10 +1,10 @@
 "use client"
 import { useTopSearch } from "@/components/layout/top-search"
 
-import { useMemo, use } from "react"
+import { useMemo, useState, use } from "react"
 import { useDoc, useCollection, useFirestore, useUser } from "@/firebase"
 import { doc, collection, query, where } from "firebase/firestore"
-import { ChevronRight, ChevronLeft, Loader2, BookOpen, Lock } from "lucide-react"
+import { ChevronRight, ChevronLeft, ChevronDown, Loader2, BookOpen, Lock } from "lucide-react"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
@@ -37,6 +37,7 @@ export default function NotesSubjectPage({ params }: { params: Promise<{ subject
 
   const { checkingAuth } = useRequireAuth()
   const [search] = useTopSearch("Search chapters…")
+  const [openUnit, setOpenUnit] = useState<string | null>(null)
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
   if (checkingAuth || subjectLoading || planLoading || profileLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
@@ -55,7 +56,7 @@ export default function NotesSubjectPage({ params }: { params: Promise<{ subject
           <ChevronLeft className="h-3 w-3" /> Back to Subjects
         </Link>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{subject ? (subject as any).name : 'Subject'}</h1>
-        <p className="text-muted-foreground mt-2">{layout ? `Unit by unit, in the order of ${layout.book}.` : "Pick a chapter to browse its notes by topic."}</p>
+        <p className="text-muted-foreground mt-2">{layout ? `Tap a unit to see its chapters, in the order of ${layout.book}.` : "Pick a chapter to browse its notes by topic."}</p>
       </div>
 
       {!entitled && notesList.length > 0 && (
@@ -70,38 +71,50 @@ export default function NotesSubjectPage({ params }: { params: Promise<{ subject
       {notesLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
       ) : notesList.length > 0 ? (
-        <div className="space-y-8">
+        <div className="space-y-3">
           {groups.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No chapter matches your search.</p>}
-          {groups.map((g, gi) => (
-            <section key={g.name + gi} className="space-y-3">
-              {g.name && (
-                <div className="flex items-center gap-3">
-                  <h2 className={`text-sm font-black uppercase tracking-wider ${g.extra ? "text-muted-foreground" : color.text}`}>{g.name}</h2>
-                  <span className="h-px flex-1 bg-border" />
-                  <span className="text-xs font-bold text-muted-foreground">{g.items.length}</span>
-                </div>
-              )}
-              <div className="grid md:grid-cols-2 gap-4">
-                {g.items.map((note: any) => {
-                  const locked = !entitled && !note.free
-                  return (
-                    <Link
-                      key={note.id}
-                      href={`/notes/${subjectId}/${note.textbookId}/${note.chapterId}`}
-                      className={`flex items-center justify-between gap-4 rounded-2xl glass border ${color.border} p-5 hover:bg-white/5 transition-colors`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <BookOpen className={`h-5 w-5 shrink-0 ${color.text}`} />
-                        <span className="min-w-0 break-words font-medium">{note.chapterTitle}</span>
-                        {!entitled && note.free && <span className="shrink-0 rounded-full bg-[#d9f6ec] px-2 py-0.5 text-[10px] font-black text-[#17543f]">FREE</span>}
-                      </div>
-                      {locked ? <Lock className="h-5 w-5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />}
-                    </Link>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
+          {groups.map((g, gi) => {
+            const key = g.name + gi
+            const isOpen = !!q || openUnit === key || groups.length === 1
+            return (
+              <section key={key} className={`rounded-2xl border ${color.border} bg-white overflow-hidden`}>
+                <button
+                  onClick={() => setOpenUnit(isOpen && openUnit === key ? null : key)}
+                  aria-expanded={isOpen}
+                  className="flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:bg-muted/60"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <BookOpen className={`h-5 w-5 shrink-0 ${color.text}`} />
+                    <span className={`min-w-0 break-words font-bold ${g.extra ? "text-muted-foreground" : ""}`}>{g.name || "Chapters"}</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-xs font-bold text-muted-foreground">{g.items.length} {g.items.length === 1 ? "chapter" : "chapters"}</span>
+                    <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="grid gap-2 border-t border-border p-3 md:grid-cols-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                    {g.items.map((note: any) => {
+                      const locked = !entitled && !note.free
+                      return (
+                        <Link
+                          key={note.id}
+                          href={`/notes/${subjectId}/${note.textbookId}/${note.chapterId}`}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-muted/60"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 break-words text-sm font-medium">{note.chapterTitle}</span>
+                            {!entitled && note.free && <span className="shrink-0 rounded-full bg-[#d9f6ec] px-2 py-0.5 text-[10px] font-black text-[#17543f]">FREE</span>}
+                          </div>
+                          {locked ? <Lock className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            )
+          })}
         </div>
       ) : (
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">

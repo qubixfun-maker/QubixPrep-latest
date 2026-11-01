@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* playful-theme */
-    --background: 41 69% 95%;
+    --background: 0 0% 100%;
     --foreground: 252 24% 19%;
     --card: 0 0% 100%;
     --card-foreground: 252 24% 19%;
@@ -15,23 +15,23 @@
     --primary-foreground: 0 0% 100%;
     --secondary: 256 100% 95%;
     --secondary-foreground: 252 24% 19%;
-    --muted: 41 45% 92%;
+    --muted: 255 30% 96%;
     --muted-foreground: 246 9% 43%;
     --accent: 24 80% 52%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 36 39% 89%;
-    --input: 36 39% 89%;
+    --border: 255 25% 92%;
+    --input: 255 25% 92%;
     --ring: 254 82% 63%;
     --radius: 1rem;
-    --sidebar-background: 40 100% 99%;
+    --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 252 14% 42%;
     --sidebar-primary: 254 82% 63%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 256 100% 95%;
     --sidebar-accent-foreground: 254 82% 63%;
-    --sidebar-border: 36 39% 89%;
+    --sidebar-border: 255 25% 92%;
     --sidebar-ring: 254 82% 63%;
     --chart-1: 254 82% 63%;
     --chart-2: 215 90% 55%;

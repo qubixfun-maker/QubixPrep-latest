@@ -107,8 +107,11 @@ export function AppSidebar() {
     </SidebarMenuItem>
   )
 
+  const TAB_OF: Record<string, string> = { Home: "/", Notes: "/?tab=notes", QBank: "/?tab=qbank", Test: "/?tab=test", Bedside: "/?tab=bedside" }
   const label = (t: string) => (
-    <SidebarGroupLabel className="px-5 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70">{t}</SidebarGroupLabel>
+    <SidebarGroupLabel className="px-5 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70">
+      {TAB_OF[t] ? <Link href={TAB_OF[t]} className="hover:text-primary">{t}</Link> : t}
+    </SidebarGroupLabel>
   )
 
   return (

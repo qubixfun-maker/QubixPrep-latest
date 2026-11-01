@@ -1,7 +1,7 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Menu, Search } from "lucide-react"
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar"
 import { useTrackPageView } from "@/hooks/use-track-page-view"
@@ -13,12 +13,13 @@ import { PlanRouteGuard } from "@/components/layout/plan-route-guard"
 import { UsageTracker } from "@/components/layout/usage-tracker"
 const AppSidebar = dynamic(() => import("@/components/layout/app-sidebar").then(mod => mod.AppSidebar), { ssr: false })
 
+// The five dashboard sections. Each opens the dashboard on that section; `match` keeps the right one lit on its own pages.
 const TABS = [
-  { label: "Home", url: "/", icon: "🏠" },
-  { label: "Notes", url: "/notes", icon: "📚" },
-  { label: "QBank", url: "/qbank", icon: "🎯" },
-  { label: "Jelly", url: "/jelly", icon: "👻" },
-  { label: "Profile", url: "/profile", icon: "👤" },
+  { label: "Home", key: "home", icon: "🏠", match: ["/streak"] },
+  { label: "Notes", key: "notes", icon: "📚", match: ["/notes", "/top-100", "/university-exams", "/flashcards", "/mindmaps"] },
+  { label: "QBank", key: "qbank", icon: "🎯", match: ["/qbank", "/test-series"] },
+  { label: "Test", key: "test", icon: "⏱️", match: ["/grand-test", "/pyq"] },
+  { label: "Bedside", key: "bedside", icon: "🩺", match: ["/cases", "/case-presentation", "/virtual-patient", "/arena"] },
 ]
 
 function TopBar() {
@@ -33,11 +34,11 @@ function TopBar() {
   const initial = (user?.displayName || user?.email || "D").trim().charAt(0).toUpperCase()
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur-md md:px-8">
+    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-white/90 px-4 py-3 backdrop-blur-md md:px-8">
       <button
         onClick={toggleSidebar}
         aria-label="Toggle menu"
-        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-accent"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white text-foreground transition-colors hover:bg-accent"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -79,12 +80,14 @@ function AutoCollapse() {
 
 function MobileNav() {
   const pathname = usePathname()
+  const params = useSearchParams()
+  const cur = params.get("tab") || "home"
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-border bg-sidebar/95 px-1 pt-2 backdrop-blur-md md:hidden" style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}>
+    <nav className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-border bg-white/95 px-1 pt-2 backdrop-blur-md md:hidden" style={{ paddingBottom: "max(8px, env(safe-area-inset-bottom))" }}>
       {TABS.map((t) => {
-        const on = t.url === "/" ? pathname === "/" : pathname.startsWith(t.url)
+        const on = pathname === "/" ? cur === t.key : t.match.some((m) => pathname.startsWith(m))
         return (
-          <Link key={t.label} href={t.url} className={`grid justify-items-center gap-0.5 px-2 text-[10px] font-extrabold ${on ? "text-primary" : "text-muted-foreground"}`}>
+          <Link key={t.key} href={t.key === "home" ? "/" : `/?tab=${t.key}`} className={`grid justify-items-center gap-0.5 px-2 text-[10px] font-extrabold ${on ? "text-primary" : "text-muted-foreground"}`}>
             <span className="text-xl leading-none">{t.icon}</span>
             {t.label}
           </Link>
@@ -119,7 +122,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       </div>
       <AutoCollapse />
       <UsageTracker />
-      <MobileNav />
+      <Suspense fallback={null}><MobileNav /></Suspense>
     </SidebarProvider>
     </TopSearchProvider>
   )

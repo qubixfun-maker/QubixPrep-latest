@@ -136,7 +136,7 @@ function pop(ctx: AudioContext, at: number) {
   } catch {}
 }
 
-export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talkingProp = false, className = "", touchy = false }: { mood?: Mood; size?: number; talking?: boolean; className?: string; doctor?: boolean; touchy?: boolean }) {
+export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talkingProp = false, className = "", touchy = false, pokeKey }: { mood?: Mood; size?: number; talking?: boolean; className?: string; doctor?: boolean; touchy?: boolean; pokeKey?: number }) {
   useEffect(preload, [])
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "")
 
@@ -147,8 +147,9 @@ export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talki
   const timers = useRef<any[]>([])
   const audio = useRef<AudioContext | null>(null)
   useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
+  const fx = touchy || pokeKey !== undefined
   const poke = () => {
-    if (!touchy) return
+    if (!fx) return
     setLaugh(true)
     setHa({ id: ++bubbleId, t: HA[Math.floor(Math.random() * HA.length)] })
     const fresh: Bubble[] = Array.from({ length: 9 + Math.floor(Math.random() * 4) }, () => ({
@@ -167,6 +168,9 @@ export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talki
     timers.current.push(setTimeout(() => setLaugh(false), 1700))
     timers.current.push(setTimeout(() => setHa(null), 1500))
   }
+  // a parent that handles the tap itself (the floating Jelly, which also drags) bumps pokeKey to make Jelly laugh
+  const firstKey = useRef(pokeKey)
+  useEffect(() => { if (pokeKey !== undefined && pokeKey !== firstKey.current) poke() }, [pokeKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const mood: Mood = laugh && moodProp !== "sleep" ? "cheering" : moodProp
   const talking = laugh || talkingProp
   const M = MOOD[mood], F = FACE[mood]
@@ -244,7 +248,7 @@ export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talki
         : { role: "img", "aria-label": `Jelly is ${mood}` })}
     >
       <style>{CSS}</style>
-      {touchy && (
+      {fx && (
         <div className="jy-fx" aria-hidden="true">
           {ha && <span key={ha.id} className="jy-ha">{ha.t}</span>}
           {bubbles.map((b) => (

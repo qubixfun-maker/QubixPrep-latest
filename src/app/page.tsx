@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState, useMemo } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useUser, useCollection, useDoc, useFirestore } from "@/firebase"
 import { doc, collection } from "firebase/firestore"
 import { usePlan } from "@/hooks/use-plan"
@@ -12,6 +12,7 @@ import { dayKey, recordDailyCase } from "@/lib/study"
 import { DAILY_GOAL_MIN, DAILY_GOAL_SEC, Usage, doneTodayUsage, getPendingSeconds, loadUsage, todaySeconds, usageStreak } from "@/lib/usage"
 import { Loader2, CheckCircle2, ArrowRight, Sparkles, Lock } from "lucide-react"
 import Link from "next/link"
+import { WaterHero } from "@/components/dashboard/water-hero"
 
 type DailyQuestion = {
   id: number
@@ -63,19 +64,19 @@ const SECTIONS: Section[] = [
   },
 ]
 
-const TAB_KEY = "qp_home_tab"
-
 export default function Dashboard() {
+  return <Suspense fallback={null}><DashboardInner /></Suspense>
+}
+
+function DashboardInner() {
   const { user, loading } = useUser()
   const db = useFirestore()
   const router = useRouter()
   const jelly = useJelly()
   const { isFree, isBasic, isPro, loading: planLoading } = usePlan()
-  const [tab, setTabState] = useState("home")
-  const setTab = (k: string) => { setTabState(k); try { sessionStorage.setItem(TAB_KEY, k) } catch {} }
-  useEffect(() => {
-    try { const k = sessionStorage.getItem(TAB_KEY); if (k && SECTIONS.some((s) => s.key === k)) setTabState(k) } catch {}
-  }, [])
+  const params = useSearchParams()
+  const q = params.get("tab") || "home"
+  const tab = SECTIONS.some((x) => x.key === q) ? q : "home"
 
   const profileRef = useMemo(() => (db && user ? doc(db, "users", user.uid) : null), [db, user])
   const { data: profile } = useDoc(profileRef)
@@ -186,33 +187,22 @@ export default function Dashboard() {
   const card = "rounded-[22px] border border-[#e9e2fb] bg-white shadow-[0_1px_2px_rgba(80,55,160,.04)]"
 
   return (
-    <div className="min-h-[calc(100vh-70px)] bg-gradient-to-b from-[#f1ecff] via-white to-white">
+    <div className="min-h-[calc(100vh-70px)] bg-gradient-to-b from-[#f6f2ff] via-white to-white">
       <div className="mx-auto w-full max-w-[1100px] space-y-6 px-4 py-6 md:px-8 md:py-8">
 
         {/* Greeting */}
+        <WaterHero>
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-[clamp(24px,3vw,34px)] font-black leading-[1.1] tracking-tight">{greeting}, {firstName}! <span>👋</span></h1>
-            <p className="mt-1 text-sm text-muted-foreground">A little progress every day adds up.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{tab === "home" ? "A little progress every day adds up." : section.label}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {isAdminUser && <Link href="/admin" className="whitespace-nowrap rounded-xl bg-[#29233c] px-3.5 py-2.5 text-[13px] font-extrabold text-white shadow-md">⚙️ Admin</Link>}
             {dateText && <div className="hidden whitespace-nowrap rounded-xl border border-[#e9e2fb] bg-white px-3 py-2.5 text-[13px] font-bold text-muted-foreground sm:block">📅 {dateText}</div>}
           </div>
         </div>
-
-        {/* Section switcher */}
-        <nav className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" aria-label="Sections">
-          {SECTIONS.map((s) => {
-            const on = s.key === tab
-            return (
-              <button key={s.key} onClick={() => setTab(s.key)} aria-pressed={on}
-                className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-extrabold transition-all ${on ? "bg-primary text-white shadow-md shadow-primary/25" : "border border-[#e9e2fb] bg-white text-muted-foreground hover:border-primary/40 hover:text-primary"}`}>
-                {s.label}
-              </button>
-            )
-          })}
-        </nav>
+        </WaterHero>
 
         {/* HOME */}
         {tab === "home" && (
