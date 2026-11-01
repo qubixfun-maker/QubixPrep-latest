@@ -39,7 +39,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: '#7552ee',
+  themeColor: '#14295c',
+  colorScheme: 'light', // stops phone browsers from force-darkening the white theme
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -51,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" style={{ colorScheme: "light" }}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

@@ -39,6 +39,7 @@ const SECTIONS: Section[] = [
       { name: "Top 100 Topics", href: "/top-100", emoji: "⭐", tint: "#eaf6cf", desc: "The must-know topics, with full notes.", lock: "basic" },
       { name: "University Exams", href: "/university-exams", emoji: "🎓", tint: "#ffe9d6", desc: "Long answers, plus spot and identify." },
       { name: "Flashcards", href: "/flashcards", emoji: "🃏", tint: "#dcf5ea", desc: "Quick active recall for every subject." },
+      { name: "Drug Classification", href: "/drug-classification", emoji: "💊", tint: "#fde4de", desc: "Every drug class as a colour chart, with doses." },
       { name: "Mind Maps", href: "/mindmaps", emoji: "🗺️", tint: "#efe6ff", desc: "Visual pathways from concepts to details." },
     ],
   },
@@ -201,10 +202,10 @@ function DashboardInner() {
   // Mind Maps are hidden from students for now
   const visibleItems = section.items.filter((it) => it.href !== "/mindmaps")
 
-  const card = "rounded-[22px] border border-[#e9e2fb] bg-white shadow-[0_1px_2px_rgba(80,55,160,.04)]"
+  const card = "rounded-[22px] border border-[#dde5f5] bg-white shadow-[0_1px_2px_rgba(20,41,92,.05)]"
 
   return (
-    <div className="min-h-[calc(100vh-70px)] bg-gradient-to-b from-[#f6f2ff] via-white to-white">
+    <div className="min-h-[calc(100vh-70px)] bg-gradient-to-b from-[#f3f6fd] via-white to-white">
       <div className="mx-auto w-full max-w-[1100px] space-y-6 px-4 py-6 md:px-8 md:py-8">
 
         {/* Greeting */}
@@ -243,7 +244,7 @@ function DashboardInner() {
                   <p className="mt-1 text-xs text-muted-foreground">{goalDone ? "Goal done today" : `${DAILY_GOAL_MIN} min a day keeps it alive`}</p>
                   <span className="mt-3 inline-block text-sm font-extrabold text-primary">See rewards →</span>
                 </div>
-                <div className="relative grid h-[96px] w-[96px] shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#7552ee 0 ${ringPct}%, #efe9ff ${ringPct}%)` }}>
+                <div className="relative grid h-[96px] w-[96px] shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#14295c 0 ${ringPct}%, #e3e9f7 ${ringPct}%)` }}>
                   <div className="absolute inset-[9px] rounded-full bg-white" />
                   <div className="relative text-center leading-none">
                     <b className="block text-xl font-black">{todayMin}<span className="text-xs text-muted-foreground">/{DAILY_GOAL_MIN}</span></b>
@@ -256,7 +257,7 @@ function DashboardInner() {
             <section className="grid gap-4 md:grid-cols-2">
               <div className={`${card} relative flex items-center gap-2 p-5`}>
                 <div className="relative z-10 min-w-0 flex-1">
-                  <span className="rounded-full bg-[#f0eaff] px-2 py-1 text-[10px] font-black text-primary">JELLY</span>
+                  <span className="rounded-full bg-[#e8eefb] px-2 py-1 text-[10px] font-black text-primary">JELLY</span>
                   <h3 className="mb-3 mt-3 text-xl font-black leading-tight tracking-tight">Ask away.<br />Jelly knows.</h3>
                   <button onClick={askJelly} className="text-sm font-extrabold text-primary">Ask Jelly →</button>
                 </div>
@@ -292,21 +293,21 @@ function DashboardInner() {
                 <p className="py-6 text-center text-sm text-muted-foreground">No question available right now. Check back once QBank has content for today.</p>
               ) : (
                 <>
-                  <div className="mb-3 inline-block rounded-md bg-[#f0eaff] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary">{dq.topic_title}</div>
+                  <div className="mb-3 inline-block rounded-md bg-[#e8eefb] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary">{dq.topic_title}</div>
                   <p className="mb-4 text-sm font-medium leading-relaxed md:text-[15px]">{dq.question_text}</p>
                   <div className="flex flex-col gap-2">
                     {rawOptions.map((opt) => {
                       const answered = selectedIdx !== null
                       const isCorrect = opt.idx === dq.correct_answer_index
                       const wrong = answered && selectedIdx === opt.idx && !isCorrect
-                      let cls = "border-[#e9e2fb] bg-white hover:border-primary/40 hover:bg-[#f7f4ff]"
+                      let cls = "border-[#dde5f5] bg-white hover:border-primary/40 hover:bg-[#f3f6fd]"
                       if (answered && isCorrect) cls = "border-green-500/60 bg-green-500/10"
                       else if (wrong) cls = "border-red-500/60 bg-red-500/10"
-                      else if (answered) cls = "border-[#e9e2fb] opacity-50"
+                      else if (answered) cls = "border-[#dde5f5] opacity-50"
                       return (
                         <button key={opt.idx} onClick={() => { if (answered) return; setSelectedIdx(opt.idx); saveDaily(dq, opt.idx); recordDaily(opt.idx === dq.correct_answer_index) }} disabled={answered}
                           className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-[13px] transition-all ${cls}`}>
-                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${answered && isCorrect ? "bg-green-500 text-white" : wrong ? "bg-red-500 text-white" : "bg-[#f0eaff] text-primary"}`}>
+                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ${answered && isCorrect ? "bg-green-500 text-white" : wrong ? "bg-red-500 text-white" : "bg-[#e8eefb] text-primary"}`}>
                             {String.fromCharCode(65 + opt.idx)}
                           </span>
                           {opt.text}
@@ -315,7 +316,7 @@ function DashboardInner() {
                     })}
                   </div>
                   {selectedIdx !== null && (
-                    <div className="mt-4 rounded-xl border border-[#e9e2fb] bg-[#f7f4ff] p-4 text-[12.5px] leading-relaxed text-muted-foreground">{dq.explanation}</div>
+                    <div className="mt-4 rounded-xl border border-[#dde5f5] bg-[#f3f6fd] p-4 text-[12.5px] leading-relaxed text-muted-foreground">{dq.explanation}</div>
                   )}
                 </>
               )}
@@ -332,7 +333,7 @@ function DashboardInner() {
                       <div className="relative flex flex-col justify-between gap-5 md:flex-row md:items-center">
                         <div className="max-w-xl space-y-2.5">
                           {banner.badgeText && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f0eaff] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e8eefb] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
                               <Sparkles className="h-3 w-3" /> {banner.badgeText}
                             </span>
                           )}

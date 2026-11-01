@@ -58,7 +58,7 @@ export default function StreakPage() {
           <div className="mt-1 text-5xl font-black tracking-tight">{streak} <span className="text-2xl">{streak === 1 ? "day" : "days"}</span> <span>🔥</span></div>
           <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">Use QubixPrep for at least {DAILY_GOAL_MIN} minutes a day to keep your streak alive.</p>
 
-          <div className="relative mx-auto mt-6 grid h-40 w-40 place-items-center rounded-full" style={{ background: `conic-gradient(#7552ee 0 ${pct}%, #efe9ff ${pct}%)` }}>
+          <div className="relative mx-auto mt-6 grid h-40 w-40 place-items-center rounded-full" style={{ background: `conic-gradient(#14295c 0 ${pct}%, #efe9ff ${pct}%)` }}>
             <div className="absolute inset-[11px] rounded-full bg-white" />
             <div className="relative">
               <b className="block text-3xl font-black">{Math.min(Math.floor(today / 60), DAILY_GOAL_MIN)}<span className="text-base text-muted-foreground">/{DAILY_GOAL_MIN} min</span></b>
@@ -104,7 +104,7 @@ export default function StreakPage() {
             {next && <span className="text-xs font-bold text-muted-foreground">{toNext} more day{toNext === 1 ? "" : "s"} to {next.title}</span>}
           </div>
           {next && (
-            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#efe9ff]"><div className="h-full rounded-full bg-gradient-to-r from-[#9a7bff] to-[#7552ee]" style={{ width: Math.max(4, nextPct) + "%" }} /></div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#efe9ff]"><div className="h-full rounded-full bg-gradient-to-r from-[#9a7bff] to-[#14295c]" style={{ width: Math.max(4, nextPct) + "%" }} /></div>
           )}
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             {REWARDS.map((r) => {

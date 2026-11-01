@@ -181,10 +181,10 @@ export function NoteBody({ markdown, borderClass = "border-white/10", protectWit
   return (
     <div className={protectWith ? "relative select-none print:hidden [-webkit-touch-callout:none]" : "relative"} onContextMenu={block} onCopy={block} onCut={block} onDragStart={block}>
       <div
-          className={`rounded-2xl glass border ${borderClass} p-6 md:p-8 prose max-w-none [--tw-prose-body:#2b2740] [--tw-prose-bullets:#7552ee] [--tw-prose-counters:#7552ee] text-[15.5px] leading-7
+          className={`rounded-2xl glass border ${borderClass} p-6 md:p-8 prose max-w-none [--tw-prose-body:#2b2740] [--tw-prose-bullets:#14295c] [--tw-prose-counters:#14295c] text-[15.5px] leading-7
             prose-headings:font-bold prose-headings:text-foreground
             prose-h1:text-2xl md:prose-h1:text-3xl
-            prose-h2:text-xl prose-h2:text-white prose-h2:bg-gradient-to-r prose-h2:from-[#7552ee] prose-h2:to-[#9b7bff] prose-h2:rounded-xl prose-h2:px-4 prose-h2:py-2.5 prose-h2:mt-9 prose-h2:mb-4 prose-h2:shadow-md prose-h2:shadow-primary/25
+            prose-h2:text-xl prose-h2:text-white prose-h2:bg-gradient-to-r prose-h2:from-[#14295c] prose-h2:to-[#9b7bff] prose-h2:rounded-xl prose-h2:px-4 prose-h2:py-2.5 prose-h2:mt-9 prose-h2:mb-4 prose-h2:shadow-md prose-h2:shadow-primary/25
             prose-h3:text-lg prose-h3:text-[#8a4b0b] prose-h3:bg-[#fff0d9] prose-h3:border-l-4 prose-h3:border-[#f4a36d] prose-h3:rounded-lg prose-h3:px-3.5 prose-h3:py-2 prose-h3:mt-7 prose-h3:mb-3 prose-h4:text-base prose-h4:text-[#17543f] prose-h4:bg-[#d8f4e9] prose-h4:border-l-4 prose-h4:border-[#40b89a] prose-h4:rounded-lg prose-h4:px-3 prose-h4:py-1.5 prose-h4:mt-5 prose-h4:mb-2
             prose-strong:text-[#4326b5] prose-strong:font-bold
             prose-a:text-primary prose-a:no-underline hover:prose-a:underline

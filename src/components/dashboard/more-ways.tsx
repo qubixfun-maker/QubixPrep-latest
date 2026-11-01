@@ -119,7 +119,7 @@ const AiArt = (
   <svg viewBox="0 0 160 160" className="h-full w-full" style={S} aria-hidden>
     <defs>
       <linearGradient id="ai-b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#6aa8ff" /><stop offset="1" stopColor="#3b64d8" /></linearGradient>
-      <radialGradient id="ai-orb" cx=".35" cy=".3" r=".9"><stop offset="0" stopColor="#fff" /><stop offset=".5" stopColor="#b6a5ff" /><stop offset="1" stopColor="#7552ee" /></radialGradient>
+      <radialGradient id="ai-orb" cx=".35" cy=".3" r=".9"><stop offset="0" stopColor="#fff" /><stop offset=".5" stopColor="#b6a5ff" /><stop offset="1" stopColor="#14295c" /></radialGradient>
     </defs>
     <path d="M22 26 h92 a14 14 0 0 1 14 14 v44 a14 14 0 0 1 -14 14 h-52 l-24 22 v-22 h-16 a14 14 0 0 1 -14 -14 v-44 a14 14 0 0 1 14 -14 z" fill="url(#ai-b)" />
     <rect x="34" y="44" width="62" height="7" rx="3.5" fill="#fff" opacity=".95" /><rect x="34" y="60" width="78" height="7" rx="3.5" fill="#fff" opacity=".7" /><rect x="34" y="76" width="44" height="7" rx="3.5" fill="#fff" opacity=".5" />
