@@ -64,7 +64,8 @@ export function AppSidebar() {
     { title: "Top 100 Topics", url: "/top-100", icon: Star },
     { title: "University Exams", url: "/university-exams", icon: GraduationCap, also: ["/long-answers", "/spotters"] },
     { title: "Flashcards", url: "/flashcards", icon: Layers },
-    { title: "Mind Maps", url: "/mindmaps", icon: Network },
+    // hidden from students for now; admins still see it
+    ...(isAdmin ? [{ title: "Mind Maps", url: "/mindmaps", icon: Network }] : []),
   ]
   const stories: Item[] = [{ title: "Med Stories", url: "/stories", icon: Newspaper }]
   const qbank: Item[] = [

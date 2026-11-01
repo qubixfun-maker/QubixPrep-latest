@@ -198,6 +198,8 @@ function DashboardInner() {
   const hrefFor = (href: string) => (user ? href : "/signup")
   const locked = (l?: "basic" | "pro") => (l === "pro" ? !isPro : l === "basic" ? !isBasic : false)
   const section = SECTIONS.find((s) => s.key === tab) || SECTIONS[0]
+  // Mind Maps are hidden from students for now
+  const visibleItems = section.items.filter((it) => it.href !== "/mindmaps" || isAdminUser)
 
   const card = "rounded-[22px] border border-[#e9e2fb] bg-white shadow-[0_1px_2px_rgba(80,55,160,.04)]"
 
@@ -367,8 +369,8 @@ function DashboardInner() {
 
         {/* NOTES / QBANK / TEST / BEDSIDE */}
         {tab !== "home" && (
-          <section className={`grid gap-3 ${section.items.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
-            {section.items.map((it) => (
+          <section className={`grid gap-3 ${visibleItems.length > 2 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
+            {visibleItems.map((it) => (
               <Link key={it.name} href={hrefFor(it.href)}
                 className={`${card} group flex items-center gap-4 p-4 transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10`}>
                 <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-[28px]" style={{ background: it.tint }}>{it.emoji}</div>

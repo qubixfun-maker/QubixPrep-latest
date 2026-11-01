@@ -10,7 +10,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 type Type = "Note" | "Video" | "Mindmap" | "Flashcard" | "QBank"
 type Item = { id: string; type: Type; title: string; body: string; category: string; meta?: string; href: string }
 
-const FILTERS = ["All", "Note", "Video", "Mindmap", "Flashcard", "QBank"] as const
+const FILTERS = ["All", "Note", "Video", "Flashcard", "QBank"] as const
 const STYLE: Record<Type, { icon: any; chip: string }> = {
   Note: { icon: FileText, chip: "bg-indigo-100 text-indigo-700" },
   Video: { icon: Video, chip: "bg-fuchsia-100 text-fuchsia-700" },
@@ -69,7 +69,8 @@ export default function SearchPage() {
           getDocs(collection(db, "subjects", s.id, "flashcardDecks")).catch(() => null),
         ])
         topics?.forEach((d) => { const x = d.data() as any; out.push({ id: d.id, type: x.contentType === "video" ? "Video" : "Note", title: x.title || "", body: "", category: name, meta: x.unitName, href: `/notes/${s.id}/${d.id}` }) })
-        maps?.forEach((d) => { const x = d.data() as any; out.push({ id: d.id, type: "Mindmap", title: x.title || "", body: "", category: name, meta: x.unitName, href: `/mindmaps/${s.id}/${d.id}` }) })
+        // Mind maps are hidden from students for now
+        // maps?.forEach((d) => { const x = d.data() as any; out.push({ id: d.id, type: "Mindmap", title: x.title || "", body: "", category: name, meta: x.unitName, href: `/mindmaps/${s.id}/${d.id}` }) })
         decks?.forEach((d) => {
           const x = d.data() as any
           const cards = (x.cards || []) as any[]
