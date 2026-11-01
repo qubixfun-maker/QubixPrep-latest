@@ -214,7 +214,6 @@ function DashboardInner() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {isAdminUser && <Link href="/admin" className="whitespace-nowrap rounded-xl bg-[#29233c] px-3.5 py-2.5 text-[13px] font-extrabold text-white shadow-md">⚙️ Admin</Link>}
-            {dateText && <div className="hidden whitespace-nowrap rounded-xl border border-[#e9e2fb] bg-white px-3 py-2.5 text-[13px] font-bold text-muted-foreground sm:block">📅 {dateText}</div>}
           </div>
         </div>
         </WaterHero>

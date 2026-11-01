@@ -6,7 +6,8 @@ import { useUser, useFirestore, useDoc } from "@/firebase"
 import { collection, doc, getDocs, writeBatch } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, ChevronDown, Loader2, Save, Wand2 } from "lucide-react"
-import { tokens, type NotesLink } from "@/lib/top100-link"
+import { type NotesLink } from "@/lib/top100-link"
+import { BANK_LOADERS, bankKeyFor, fromBank, rankTopics, TYPE_WEIGHT, type ExamQ, type Gap, type NoteTopicIn, type Ranked } from "@/lib/top100-rank"
 
 /**
  * Builds a subject's Top 100 from the University Exams question bank (long essays, short essays, short answers):
@@ -14,14 +15,9 @@ import { tokens, type NotesLink } from "@/lib/top100-link"
  * Each saved topic opens its own notes page.
  */
 
-type Ranked = { key: string; name: string; chapterTitle: string; link: NotesLink; score: number; questions: number; repeats: number; samples: string[] }
-
 const WEIGHT: Record<string, number> = { "long-essays": 3, "short-essays": 2, "short-answers": 1 }
 const flat = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-// words that open an exam question but say nothing about the topic
-const FILLER = new Set(["describe", "discuss", "explain", "write", "note", "notes", "short", "briefly", "enumerate", "classify", "define", "mention", "list", "outline", "give", "what", "how", "why", "mcq", "marks", "etc", "example", "examples", "management", "treatment", "causes", "features", "clinical", "diagnosis"])
-
 function qaTexts(html: string): string[] {
   const box = document.createElement("div")
   box.innerHTML = html
@@ -41,6 +37,8 @@ export default function Top100RankPage() {
   const [busy, setBusy] = useState("")
   const [msg, setMsg] = useState("")
   const [ranked, setRanked] = useState<Ranked[] | null>(null)
+  const [gaps, setGaps] = useState<Gap[]>([])
+  const [useBank, setUseBank] = useState(true)
   const [qCount, setQCount] = useState(0)
   const [off, setOff] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<string | null>(null)
@@ -56,72 +54,75 @@ export default function Top100RankPage() {
 
   async function analyse() {
     if (!db || !subjectId) return
-    setBusy("Reading the exam questions…"); setMsg(""); setRanked(null); setOff(new Set()); setOpen(null)
+    setBusy("Reading the exam questions…"); setMsg(""); setRanked(null); setGaps([]); setOff(new Set()); setOpen(null)
     try {
-      // 1) every exam question of this subject
-      const chapters = await getDocs(collection(db, "subjects", subjectId, "essayChapters"))
-      const all: { text: string; w: number }[] = []
-      let done = 0
-      for (const ch of chapters.docs) {
-        const snap = await getDocs(collection(db, "subjects", subjectId, "essayChapters", ch.id, "sections"))
-        snap.docs.forEach((d) => { const w = WEIGHT[d.id] || 1; qaTexts(String((d.data() as any).html || "")).forEach((t) => all.push({ text: t, w })) })
-        done++
-        setBusy(`Reading the exam questions… ${done}/${chapters.size} chapters`)
+      const subj = subjects.find((x) => x.id === subjectId)
+      const bankKey = bankKeyFor(subj?.name || subjectId)
+      let questions: ExamQ[] = []
+      let source = ""
+      if (bankKey && useBank) {
+        // 1) the exam question bank files: every question with the number of times it came up in past exams
+        const rows = (await BANK_LOADERS[bankKey]()).default
+        questions = fromBank(rows)
+        source = `exam question bank (${rows.length} questions, repeat counts included)`
+      } else {
+        // 1) the long answers stored in the app
+        const chapters = await getDocs(collection(db, "subjects", subjectId, "essayChapters"))
+        let done = 0
+        for (const ch of chapters.docs) {
+          const snap = await getDocs(collection(db, "subjects", subjectId, "essayChapters", ch.id, "sections"))
+          snap.docs.forEach((d) => { const w = WEIGHT[d.id] || 1; qaTexts(String((d.data() as any).html || "")).forEach((t) => questions.push({ text: t, w, chapter: String((ch.data() as any).title || "") })) })
+          done++
+          setBusy(`Reading the exam questions… ${done}/${chapters.size} chapters`)
+        }
+        source = "long answers in the app"
       }
-      setQCount(all.length)
+      setQCount(questions.length)
 
       // 2) every topic of the notes
       setBusy("Reading the notes…")
       const idx = await getDocs(collection(db, "notesIndex"))
-      type T = { name: string; chapterTitle: string; link: NotesLink; tk: string[]; depth: number }
-      const topics: T[] = []
+      const topics: NoteTopicIn[] = []
       idx.docs.forEach((d) => {
         const x: any = d.data()
         if (String(x.subjectId) !== subjectId) return
         ;(Array.isArray(x.topics) ? x.topics : []).forEach((t: any, i: number) => {
           if (!t?.name) return
-          const tk = tokens(String(t.name)).filter((w) => !FILLER.has(w))
-          if (!tk.length) return
-          topics.push({ name: String(t.name), chapterTitle: String(x.chapterTitle || ""), link: { subjectId, textbookId: String(x.textbookId), chapterId: String(x.chapterId), topicIndex: i }, tk, depth: Number(t.depth) || 0 })
+          topics.push({ name: String(t.name), chapterTitle: String(x.chapterTitle || ""), link: { subjectId, textbookId: String(x.textbookId), chapterId: String(x.chapterId), topicIndex: i }, depth: Number(t.depth) || 0 })
         })
       })
-      // names that recur in many chapters ("Classification", "Clinical features") are headings, not topics
-      const seen = new Map<string, Set<string>>()
-      topics.forEach((t) => { const k = t.tk.join(" "); (seen.get(k) || seen.set(k, new Set()).get(k)!).add(t.link.chapterId) })
-      const usable = topics.filter((t) => (seen.get(t.tk.join(" "))?.size || 0) < 3 && (t.tk.length >= 2 || t.tk[0].length >= 6))
 
       // 3) score
       setBusy("Matching questions to topics…")
-      const score = new Map<string, Ranked>()
-      const seenQ = new Map<string, number>()
-      all.forEach((q) => { const n = tokens(q.text).join(" "); seenQ.set(n, (seenQ.get(n) || 0) + 1) })
-      all.forEach((q) => {
-        const qs = new Set(tokens(q.text))
-        const hits = usable.filter((t) => t.tk.filter((w) => qs.has(w)).length / t.tk.length >= 0.85)
-        if (!hits.length) return
-        // the most specific topic wins ("bioavailability and bioequivalence" beats "bioavailability")
-        const best = Math.max(...hits.map((h) => h.tk.length))
-        const picked = hits.filter((h) => h.tk.length === best).slice(0, 2)
-        const repeat = (seenQ.get(tokens(q.text).join(" ")) || 1) > 1
-        picked.forEach((t) => {
-          const key = `${t.link.chapterId}|${t.link.topicIndex}`
-          const r = score.get(key) || { key, name: t.name, chapterTitle: t.chapterTitle, link: t.link, score: 0, questions: 0, repeats: 0, samples: [] }
-          r.score += q.w + (repeat ? 1 : 0); r.questions++; if (repeat) r.repeats++
-          if (r.samples.length < 4) r.samples.push(q.text)
-          score.set(key, r)
-        })
-      })
-      // one entry per topic name (a topic can sit in two chapters); keep the better scoring one
-      const byName = new Map<string, Ranked>()
-      Array.from(score.values()).forEach((r) => { const k = flat(r.name); const o = byName.get(k); if (!o || r.score > o.score) byName.set(k, r) })
-      const out = Array.from(byName.values()).sort((a, b) => b.score - a.score || b.questions - a.questions)
-      setRanked(out)
-      setMsg(all.length === 0 ? "No exam questions were found for this subject." : `${all.length} exam questions read. ${out.length} notes topics are asked about.`)
+      const { ranked: out, gaps: g } = rankTopics(questions, topics)
+      setRanked(out); setGaps(g)
+      setMsg(questions.length === 0 ? "No exam questions were found for this subject." : topics.length === 0 ? "This subject has no notes topics yet." : `${questions.length} questions read from the ${source}. ${out.length} of your notes topics are asked about.`)
     } catch (e: any) { setMsg("Failed: " + (e?.message || e)) }
     setBusy("")
   }
 
   const chosen = useMemo(() => (ranked || []).filter((r) => !off.has(r.key)).slice(0, limit), [ranked, off, limit])
+
+  // writes one subject's list to top100Pages, replacing what was there
+  async function writeList(subj: { id: string; name: string }, items: { name: string; link: NotesLink; questions?: number }[]) {
+    if (!db) return
+    const existing = await getDocs(collection(db, "top100Pages"))
+    const mine = existing.docs.filter((d) => { const x: any = d.data(); return flat(String(x.subjectKey || "")) === flat(subj.id) || flat(String(x.subjectKey || "")) === flat(subj.name) || flat(String(x.subject || "")) === flat(subj.name) })
+    const first: any = mine[0]?.data()
+    const subjectKey = first?.subjectKey || slug(subj.name)
+    const subjectLabel = first?.subject || subj.name
+    const ids = new Set(items.map((_, i) => `${subjectKey}-${String(i + 1).padStart(2, "0")}`))
+    let batch = writeBatch(db); let n = 0
+    const flush = async () => { await batch.commit(); batch = writeBatch(db); n = 0 }
+    const now = Date.now()
+    for (let i = 0; i < items.length; i++) {
+      const r = items[i]
+      batch.set(doc(db, "top100Pages", `${subjectKey}-${String(i + 1).padStart(2, "0")}`), { subject: subjectLabel, subjectKey, order: i + 1, title: r.name, updatedAt: now, notesLink: r.link, source: "exam-question-bank", questionCount: r.questions ?? 0 })
+      if (++n >= 400) await flush()
+    }
+    for (const d of mine) { if (!ids.has(d.id)) { batch.delete(doc(db, "top100Pages", d.id)); if (++n >= 400) await flush() } }
+    if (n) await flush()
+  }
 
   async function save() {
     if (!db || !ranked || !chosen.length) return
@@ -129,24 +130,45 @@ export default function Top100RankPage() {
     if (!confirm(`Replace the Top list for ${subj.name} with these ${chosen.length} topics? Each opens its Rapid Revision Notes page.`)) return
     setSaving(true); setMsg("")
     try {
-      const existing = await getDocs(collection(db, "top100Pages"))
-      const mine = existing.docs.filter((d) => { const x: any = d.data(); return flat(String(x.subjectKey || "")) === flat(subj.id) || flat(String(x.subjectKey || "")) === flat(subj.name) || flat(String(x.subject || "")) === flat(subj.name) })
-      const first: any = mine[0]?.data()
-      const subjectKey = first?.subjectKey || slug(subj.name)
-      const subjectLabel = first?.subject || subj.name
-      const ids = new Set(chosen.map((_, i) => `${subjectKey}-${String(i + 1).padStart(2, "0")}`))
-      let batch = writeBatch(db); let n = 0
-      const flush = async () => { await batch.commit(); batch = writeBatch(db); n = 0 }
-      const now = Date.now()
-      for (let i = 0; i < chosen.length; i++) {
-        const r = chosen[i]
-        batch.set(doc(db, "top100Pages", `${subjectKey}-${String(i + 1).padStart(2, "0")}`), { subject: subjectLabel, subjectKey, order: i + 1, title: r.name, updatedAt: now, notesLink: r.link, source: "university-exams", questionCount: r.questions })
-        if (++n >= 400) await flush()
-      }
-      for (const d of mine) { if (!ids.has(d.id)) { batch.delete(doc(db, "top100Pages", d.id)); if (++n >= 400) await flush() } }
-      if (n) await flush()
-      setMsg(`Saved. ${subjectLabel} now has ${chosen.length} topics, each opening its notes page. Students may need to reopen the app to see it.`)
+      await writeList(subj, chosen.map((r) => ({ name: r.name, link: r.link, questions: r.questions })))
+      setMsg(`Saved. ${subj.name} now has ${chosen.length} topics, each opening its notes page. Students may need to reopen the app to see it.`)
     } catch (e: any) { setMsg("Save failed: " + (e?.message || e)) }
+    setSaving(false)
+  }
+
+  // a file with every notes topic, to hand to Claude for matching
+  async function exportNotes() {
+    if (!db) return
+    setBusy("Collecting your notes topics…"); setMsg("")
+    try {
+      const idx = await getDocs(collection(db, "notesIndex"))
+      const bySubject = new Map<string, any[]>()
+      idx.docs.forEach((d) => {
+        const x: any = d.data()
+        const list = bySubject.get(String(x.subjectId)) || []
+        list.push({ ch: String(x.chapterId), tb: String(x.textbookId), title: String(x.chapterTitle || ""), topics: (Array.isArray(x.topics) ? x.topics : []).map((t: any) => String(t?.name || "")) })
+        bySubject.set(String(x.subjectId), list)
+      })
+      const out = { exportedAt: new Date().toISOString(), subjects: subjects.map((s) => ({ id: s.id, name: s.name, chapters: bySubject.get(s.id) || [] })) }
+      const blob = new Blob([JSON.stringify(out)], { type: "application/json" })
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "notes-topics.json"; a.click()
+      setMsg(`Downloaded notes-topics.json (${idx.size} chapters). Send that file to Claude.`)
+    } catch (e: any) { setMsg("Export failed: " + (e?.message || e)) }
+    setBusy("")
+  }
+
+  // a ready-made list from Claude: { lists: [{ subjectId, subjectName, items: [{ name, link }] }] }
+  async function importLists(file: File) {
+    if (!db) return
+    setSaving(true); setMsg("")
+    try {
+      const data = JSON.parse(await file.text())
+      const lists = Array.isArray(data?.lists) ? data.lists : []
+      if (!lists.length) throw new Error("No lists found in this file")
+      if (!confirm(`Replace the Top list for ${lists.map((l: any) => l.subjectName).join(", ")}?`)) { setSaving(false); return }
+      for (const l of lists) await writeList({ id: String(l.subjectId), name: String(l.subjectName) }, (l.items || []).map((i: any) => ({ name: String(i.name), link: i.link, questions: i.questions })))
+      setMsg(`Imported ${lists.length} subject list${lists.length === 1 ? "" : "s"}. Students may need to reopen the app to see them.`)
+    } catch (e: any) { setMsg("Import failed: " + (e?.message || e)) }
     setSaving(false)
   }
 
@@ -160,7 +182,7 @@ export default function Top100RankPage() {
         <h1 className="text-xl font-bold">Build Top 100 from exam questions</h1>
       </div>
       <p className="text-sm text-muted-foreground">
-        Reads every long essay, short essay and short answer of a subject, finds which Rapid Revision Notes topics they are about, and ranks the topics by how often they are asked. Long essays count most; a question that appears more than once counts extra. Only topics that exist in the notes can be picked, so each one opens its notes page.
+        Finds which Rapid Revision Notes topics the exams ask about most, and ranks them. For the subjects with an exam question bank (Anatomy, Physiology, Forensic Medicine, ENT, Ophthalmology, Community Medicine, Medicine, Surgery, OBG, Paediatrics, Orthopaedics) it uses every question with the number of times it came up in past exams. Other subjects use the long answers in the app. Long essays count most, and a question asked four times counts four times. Only topics that exist in your notes can be picked, so each one opens its notes page. Questions that no note covers are listed at the bottom, so you know what to write next.
       </p>
 
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border bg-white p-4">
@@ -172,8 +194,19 @@ export default function Top100RankPage() {
         <label className="text-xs font-bold">How many topics
           <input type="number" min={10} max={200} value={limit} onChange={(e) => setLimit(Math.max(10, Math.min(200, Number(e.target.value) || 100)))} className="mt-1 block w-24 rounded-lg border px-3 py-2 text-sm font-medium" />
         </label>
+        {bankKeyFor(subjects.find((x) => x.id === subjectId)?.name || "") && (
+          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={useBank} onChange={(e) => setUseBank(e.target.checked)} className="h-4 w-4" /> Use the exam question bank (with repeat counts)</label>
+        )}
         <Button onClick={analyse} disabled={!!busy || !subjectId} className="gap-2">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Analyse</Button>
         {busy && <span className="text-xs text-muted-foreground">{busy}</span>}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed bg-white p-4">
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground"><b className="text-foreground">Let Claude do the matching:</b> download your notes topics, send the file to Claude, then import the finished lists it gives you.</p>
+        <Button variant="outline" onClick={exportNotes} disabled={!!busy || subjects.length === 0}>Download notes topics</Button>
+        <label className="inline-flex cursor-pointer items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-slate-50">
+          Import finished lists
+          <input type="file" accept="application/json,.json" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) importLists(f); e.currentTarget.value = "" }} />
+        </label>
       </div>
       {msg && <p className="rounded-xl bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-900">{msg}</p>}
 
@@ -196,7 +229,7 @@ export default function Top100RankPage() {
                       <p className="break-words text-sm font-bold">{r.name}</p>
                       <p className="break-words text-xs text-muted-foreground">{r.chapterTitle}</p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-black text-violet-800">{r.questions} Q{r.repeats ? ` · ${r.repeats} repeated` : ""}</span>
+                    <span className="shrink-0 rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-black text-violet-800">{r.questions} Q · score {Math.round(r.score)}</span>
                     <button onClick={() => setOpen(open === r.key ? null : r.key)} aria-label="Show questions" className="shrink-0 p-1"><ChevronDown className={`h-4 w-4 transition-transform ${open === r.key ? "rotate-180" : ""}`} /></button>
                   </div>
                   {open === r.key && <ul className="space-y-1 border-t px-4 py-3 text-xs text-muted-foreground">{r.samples.map((s, i) => <li key={i}>• {s}</li>)}</ul>}
@@ -204,6 +237,14 @@ export default function Top100RankPage() {
               )
             })}
           </ol>
+          {gaps.length > 0 && (
+            <details className="rounded-2xl border bg-white p-4">
+              <summary className="cursor-pointer text-sm font-bold">Asked often, but not in your notes ({gaps.length}) · worth writing notes for</summary>
+              <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                {gaps.map((g, i) => <li key={i}>• <b className="text-foreground">{g.label}</b> · score {Math.round(g.score)}</li>)}
+              </ul>
+            </details>
+          )}
         </>
       )}
     </div>

@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from "react"
 
 /**
  * A real-time water surface drawn on the graphics card (WebGL), in the colours of the QubixPrep icon:
- * midnight navy and royal blue water, gold light playing on the bed, gold glints, and the shield of the icon
- * resting under the surface, wobbling as the water moves. Touch or drag across it and rings spread from your finger.
+ * midnight navy and royal blue water with gold light and gold glints, and the QubixPrep shield floating on it.
+ * Touch or drag across it and rings spread from your finger.
  */
 
 const VERT = `attribute vec2 p; varying vec2 vUv; void main(){ vUv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`
@@ -93,20 +93,6 @@ void main(){
   vec2 bed = p + n.xy*.35;
   float cau = caustics(bed*.55, t);
   body += vec3(.95, .72, .28) * cau * .42;
-
-  // the shield of the icon, lying under the water: refracted so it wobbles with the swell
-  vec2 sp = p + n.xy*.035 - vec2(uRes.x/uRes.y*.80, .52);
-  vec2 sq = sp / .30;
-  float ax = abs(sq.x);
-  float side = sq.y < 0. ? .78*(1. - pow(clamp(-sq.y/1.25, 0., 1.), 1.7)) : .78;
-  float d = max(ax - side, max(sq.y - 1., -sq.y - 1.25));
-  float outer = smoothstep(.07, .0, abs(d + .03));
-  float inner = smoothstep(.05, .0, abs(d + .20));
-  // a caduceus-like staff and two wings, drawn simply
-  float staff = smoothstep(.07, .0, ax - .03) * step(-1.0, sq.y) * step(sq.y, .62);
-  float wing = smoothstep(.06, .0, abs(sq.y - .50 - .35*ax*ax*.9 + .02*sin(ax*8.)) ) * step(ax, .62) * step(.05, ax);
-  float gold = clamp(outer + inner*.5 + staff*.8 + wing*.8, 0., 1.);
-  body = mix(body, vec3(.95, .76, .34), gold * .55);
 
   // sky in the reflection: deep blue to pale gold, with moving cloud
   float cl = fbm(p*1.4 + n.xy*1.5 + vec2(t*.03, 0.));
@@ -216,6 +202,9 @@ export function WaterHero({ children }: { children: React.ReactNode }) {
       style={{ background: "linear-gradient(160deg,#143a80,#0c2250 60%,#07122b)" }}
     >
       <canvas ref={cvs} aria-hidden="true" className="absolute inset-0 -z-10 h-full w-full" style={{ display: gl ? "block" : "none" }} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/brand/logo-mark-512.png" alt="" aria-hidden="true" draggable={false} className="wh-logo pointer-events-none absolute right-4 top-1/2 z-0 h-[84%] w-auto select-none opacity-30 sm:opacity-95 md:right-10" />
+      <style>{`.wh-logo{filter:drop-shadow(0 10px 22px rgba(2,10,40,.65)) drop-shadow(0 0 18px rgba(212,170,70,.35));animation:whBob 6s ease-in-out infinite;transform:translateY(-50%)}@keyframes whBob{0%,100%{transform:translateY(-50%) rotate(-1.2deg)}50%{transform:translateY(-54%) rotate(1.2deg)}}@media (prefers-reduced-motion:reduce){.wh-logo{animation:none}}`}</style>
       <div className="pointer-events-none relative px-5 pb-12 pt-7 md:px-8 md:pb-14 md:pt-9 [&_a]:pointer-events-auto [&_button]:pointer-events-auto">{children}</div>
     </div>
   )
