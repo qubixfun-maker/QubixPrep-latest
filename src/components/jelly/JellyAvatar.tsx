@@ -100,6 +100,9 @@ const CSS = `
 .jy-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 .jy-pop{animation:jyPop 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 .jy-z{animation:jyZ 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.jy-wigA{animation:jyWig .6s ease-out}.jy-wigB{animation:jyWigB .6s ease-out}
+@keyframes jyWig{0%{transform:scale(1)}20%{transform:scale(1.18,.84) rotate(-6deg)}45%{transform:scale(.92,1.1) rotate(6deg)}70%{transform:scale(1.05,.97) rotate(-3deg)}100%{transform:scale(1)}}
+@keyframes jyWigB{0%{transform:scale(1)}20%{transform:scale(1.18,.84) rotate(-6deg)}45%{transform:scale(.92,1.1) rotate(6deg)}70%{transform:scale(1.05,.97) rotate(-3deg)}100%{transform:scale(1)}}
 .jy-fx{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:5}
 .jy-bub{position:absolute;bottom:55%;border-radius:50%;opacity:0;background:radial-gradient(circle at 30% 28%,#fff 0 14%,rgba(190,170,255,.35) 38%,rgba(130,170,255,.28) 100%);border:1.5px solid rgba(255,255,255,.85);box-shadow:inset 0 0 6px rgba(150,130,255,.35),0 0 0 0 rgba(160,140,255,.5);animation-name:jyBub;animation-timing-function:ease-out;animation-fill-mode:forwards}
 .jy-ha{position:absolute;left:50%;top:-4%;transform:translateX(-50%);white-space:nowrap;font-weight:900;font-size:13px;color:#7552ee;background:#fff;border:1.5px solid #d9ccff;border-radius:999px;padding:2px 9px;box-shadow:0 4px 10px rgba(117,82,238,.18);animation:jyHa 1.5s ease-out forwards}
@@ -136,7 +139,7 @@ function pop(ctx: AudioContext, at: number) {
   } catch {}
 }
 
-export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talkingProp = false, className = "", touchy = false, pokeKey }: { mood?: Mood; size?: number; talking?: boolean; className?: string; doctor?: boolean; touchy?: boolean; pokeKey?: number }) {
+export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talkingProp = false, className = "", touchy = false, pokeKey, moveKey }: { mood?: Mood; size?: number; talking?: boolean; className?: string; doctor?: boolean; touchy?: boolean; pokeKey?: number; moveKey?: number }) {
   useEffect(preload, [])
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "")
 
@@ -147,9 +150,11 @@ export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talki
   const timers = useRef<any[]>([])
   const audio = useRef<AudioContext | null>(null)
   useEffect(() => () => { timers.current.forEach(clearTimeout) }, [])
-  const fx = touchy || pokeKey !== undefined
+  const fx = touchy || pokeKey !== undefined || moveKey !== undefined
+  const [wig, setWig] = useState(0)
   const poke = () => {
     if (!fx) return
+    setWig((n) => n + 1)
     setLaugh(true)
     setHa({ id: ++bubbleId, t: HA[Math.floor(Math.random() * HA.length)] })
     const fresh: Bubble[] = Array.from({ length: 9 + Math.floor(Math.random() * 4) }, () => ({
@@ -171,7 +176,18 @@ export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talki
   // a parent that handles the tap itself (the floating Jelly, which also drags) bumps pokeKey to make Jelly laugh
   const firstKey = useRef(pokeKey)
   useEffect(() => { if (pokeKey !== undefined && pokeKey !== firstKey.current) poke() }, [pokeKey]) // eslint-disable-line react-hooks/exhaustive-deps
-  const mood: Mood = laugh && moodProp !== "sleep" ? "cheering" : moodProp
+  // being dragged around: a happy wobble and a few bubbles (quieter than a tap, no sound)
+  const firstMove = useRef(moveKey)
+  useEffect(() => {
+    if (moveKey === undefined || moveKey === firstMove.current) return
+    setWig((n) => n + 1)
+    setLaugh(true)
+    const fresh: Bubble[] = Array.from({ length: 3 }, () => ({ id: ++bubbleId, x: 25 + Math.random() * 50, s: 10 + Math.random() * 14, dx: (Math.random() - 0.5) * 60, d: 900 + Math.random() * 600, delay: Math.random() * 200 }))
+    setBubbles((b) => [...b.slice(-12), ...fresh])
+    timers.current.push(setTimeout(() => setBubbles((b) => b.filter((x) => !fresh.some((f) => f.id === x.id))), 1800))
+    timers.current.push(setTimeout(() => setLaugh(false), 900))
+  }, [moveKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const mood: Mood = laugh ? "cheering" : moodProp
   const talking = laugh || talkingProp
   const M = MOOD[mood], F = FACE[mood]
 
@@ -241,7 +257,7 @@ export function JellyAvatar({ mood: moodProp = "idle", size = 80, talking: talki
 
   return (
     <div
-      className={`jy-wrap ${className}`}
+      className={`jy-wrap ${wig ? (wig % 2 ? "jy-wigA" : "jy-wigB") : ""} ${className}`}
       style={{ width: size, height: size, ...(touchy ? { cursor: "pointer", WebkitTapHighlightColor: "transparent" } : null) }}
       {...(touchy
         ? { role: "button", tabIndex: 0, "aria-label": "Tap Jelly", onClick: poke, onKeyDown: (e: any) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); poke() } } }

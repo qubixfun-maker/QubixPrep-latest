@@ -11,9 +11,9 @@ import { Avatar } from "@/components/arena/arena-bits"
 
 type Mode = "duel" | "flash" | "coop" | "challenge"
 const MODES: { id: Mode; title: string; sub: string; emoji: string; grad: string }[] = [
-  { id: "duel", title: "QBank Duel", sub: "Live race, up to 6 friends", emoji: "⚔️", grad: "from-violet-600 to-fuchsia-500" },
+  { id: "duel", title: "QuizCombat", sub: "Live race, up to 6 friends", emoji: "⚔️", grad: "from-violet-600 to-fuchsia-500" },
   { id: "flash", title: "Flashcard Battle", sub: "Fastest recall wins", emoji: "🃏", grad: "from-emerald-500 to-teal-500" },
-  { id: "coop", title: "Ward Round Co-op", sub: "Treat one patient as a team", emoji: "🩺", grad: "from-rose-500 to-orange-400" },
+  { id: "coop", title: "Wardmates", sub: "Treat one patient as a team", emoji: "🩺", grad: "from-rose-500 to-orange-400" },
   { id: "challenge", title: "Challenge a Friend", sub: "Send a link, play any time", emoji: "🔗", grad: "from-sky-500 to-indigo-500" },
 ]
 const dhm = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h ${Math.floor((s % 3600) / 60)}m` }
@@ -37,7 +37,6 @@ export default function ArenaHub() {
 
   useEffect(() => { if (!authLoading && !user) router.replace("/login?next=/arena") }, [authLoading, user, router])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t) }, [])
-  useEffect(() => { if (user) arena(user, "leaderboard").then(setBoard).catch(() => setBoard({ error: true })) }, [user])
 
   const subs = useMemo(() => [...((subjects as any[]) || [])].sort((a, b) => String(a.name).localeCompare(String(b.name))), [subjects])
   useEffect(() => { if (!subjectId && subs.length) setSubjectId(subs[0].id) }, [subs, subjectId])
@@ -135,32 +134,11 @@ export default function ArenaHub() {
             <p className="mb-3 text-xs font-extrabold uppercase tracking-widest text-muted-foreground">Your stats</p>
             {me ? (
               <div className="grid grid-cols-3 gap-2 text-center">
-                {[["XP", me.xp], ["Season", me.seasonXp], ["Rank", me.seasonRank ? "#" + me.seasonRank : "–"], ["Played", me.played], ["Wins", me.wins], ["Co-op", me.coop]].map(([l, v]) => (
+                {[["XP", me.xp], ["Season", me.seasonXp], ["Played", me.played], ["Wins", me.wins], ["Wardmates", me.coop]].map(([l, v]) => (
                   <div key={l as string} className="rounded-2xl bg-slate-50 py-2.5"><p className="text-lg font-black">{v}</p><p className="text-[10px] font-extrabold uppercase text-muted-foreground">{l}</p></div>
                 ))}
               </div>
             ) : <p className="text-sm text-muted-foreground">Play your first game to appear on the ladder.</p>}
-          </div>
-
-          <div className="rounded-3xl border border-black/5 bg-white p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-widest text-muted-foreground"><Trophy className="h-4 w-4" /> Leaderboard</p>
-              <div className="flex gap-1 rounded-full bg-slate-100 p-0.5 text-[11px] font-extrabold">
-                {(["season", "all"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 ${tab === t ? "bg-white shadow" : "text-muted-foreground"}`}>{t === "season" ? "Season" : "All-time"}</button>)}
-              </div>
-            </div>
-            {!board ? <Loader2 className="mx-auto my-6 h-6 w-6 animate-spin text-primary" /> : board.error ? <p className="text-sm text-rose-600">Could not load the leaderboard.</p> : rows.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">No one here yet. Be the first!</p> : (
-              <ol className="space-y-1.5">
-                {rows.slice(0, 15).map((r, i) => (
-                  <li key={r.uid} className={`flex items-center gap-2.5 rounded-xl px-2 py-1.5 ${r.uid === user.uid ? "bg-primary/10" : ""}`}>
-                    <span className="w-6 text-center text-sm font-black">{i < 3 ? ["🥇", "🥈", "🥉"][i] : i + 1}</span>
-                    <Avatar name={r.name} i={i} size={28} />
-                    <span className="min-w-0 flex-1 truncate text-sm font-bold">{r.name}</span>
-                    <span className="flex items-center gap-1 text-xs font-black text-primary"><Zap className="h-3 w-3" />{r.xp}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
           </div>
         </div>
       </div>

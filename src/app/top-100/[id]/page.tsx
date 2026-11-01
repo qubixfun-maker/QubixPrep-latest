@@ -1,9 +1,11 @@
 "use client"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Minus, Plus, RotateCcw } from "lucide-react"
 import { useFirestore, useUser } from "@/firebase"
+import { notesHref } from "@/lib/top100-link"
+import { resolveTop100Links } from "@/lib/top100-resolve"
 import { loadTop100List, loadTop100Image, type Top100Page } from "@/lib/top100-pages"
 
 export default function Top100Viewer() {
@@ -11,6 +13,7 @@ export default function Top100Viewer() {
   const db = useFirestore()
   const { user } = useUser()
   const [pages, setPages] = useState<Top100Page[] | null>(null)
+  const router = useRouter()
   const [src, setSrc] = useState("")
   const [err, setErr] = useState("")
   // ---- zoom: pinch with two fingers, drag to move, double-tap to zoom, or use the + / - buttons ----
@@ -103,6 +106,15 @@ export default function Top100Viewer() {
     const i = same.findIndex((p) => p.id === id)
     return { page: cur, prev: i > 0 ? same[i - 1] : undefined, next: i >= 0 && i < same.length - 1 ? same[i + 1] : undefined }
   }, [pages, id])
+
+  // The sheet picture is only a last resort: a topic that has notes always opens its Rapid Revision Notes page.
+  useEffect(() => {
+    if (!db || !page) return
+    if (page.notesLink) { router.replace(notesHref(page.notesLink)); return }
+    let on = true
+    resolveTop100Links(db, page.subjectKey, page.subject, [page]).then((f) => { if (on && f[page.id]) router.replace(notesHref(f[page.id])) }).catch(() => {})
+    return () => { on = false }
+  }, [db, page, router])
 
   useEffect(() => {
     if (!db || !pages) return

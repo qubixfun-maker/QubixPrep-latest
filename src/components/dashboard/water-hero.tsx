@@ -1,58 +1,208 @@
 "use client"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
-/** A calm water surface behind the greeting: drifting waves, rising bubbles, and a ripple wherever you tap. */
+/**
+ * A real-time water surface drawn on the graphics card (WebGL): rolling swells with fine ripples,
+ * light bending through the surface (caustics), sun glints and a sky reflection that gets stronger at shallow angles.
+ * Touch or drag across it and rings spread out from your finger.
+ */
+
+const VERT = `attribute vec2 p; varying vec2 vUv; void main(){ vUv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`
+
+const FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform vec2 uRes;
+uniform float uTime;
+uniform vec4 uRip[8];   // x, y (0..1 of height-normalised space), start time, strength
+
+float hash(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.-2.*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x), mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
+}
+float fbm(vec2 p){
+  float a = .5, s = 0.;
+  for(int i=0;i<5;i++){ s += a*noise(p); p = mat2(1.6,1.2,-1.2,1.6)*p; a *= .5; }
+  return s;
+}
+
+// surface height at a point
+float height(vec2 p, float t){
+  float h = 0.;
+  // long swells travelling in two directions
+  h += sin(dot(p, vec2(1.2, .5))*2.2 + t*.9) * .22;
+  h += sin(dot(p, vec2(-.6, 1.1))*3.1 - t*1.1) * .13;
+  // choppy detail that drifts
+  h += (fbm(p*3.2 + vec2(t*.16, -t*.1)) - .5) * .5;
+  h += (fbm(p*7.5 - vec2(t*.22, t*.12)) - .5) * .18;
+  // rings from touches
+  for(int i=0;i<8;i++){
+    vec4 r = uRip[i];
+    if(r.w > 0.){
+      float age = t - r.z;
+      if(age > 0. && age < 4.){
+        float d = distance(p, r.xy);
+        float front = age*.55;
+        float env = exp(-pow((d-front)*5., 2.)) * exp(-age*.9);
+        h += sin((d-front)*38.) * env * r.w * .42;
+      }
+    }
+  }
+  return h;
+}
+
+// bright web of focused light on the bed, as seen through a rippling surface
+float caustics(vec2 uv, float t){
+  vec2 p = mod(uv*6.2831*1.4, 6.2831) - 250.;
+  vec2 i = p;
+  float c = 1., inten = .005;
+  for(int n=0;n<4;n++){
+    float tt = t*.5*(1. - 3.5/float(n+1));
+    i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
+    c += 1./length(vec2(p.x/(sin(i.x+tt)/inten), p.y/(cos(i.y+tt)/inten)));
+  }
+  c /= 4.;
+  c = 1.17 - pow(c, 1.4);
+  return pow(abs(c), 8.);
+}
+
+void main(){
+  float asp = uRes.x/uRes.y;
+  vec2 p = vec2(vUv.x*asp, vUv.y);
+  float t = uTime;
+
+  float e = .004;
+  float h  = height(p, t);
+  float hx = height(p+vec2(e,0.), t);
+  float hy = height(p+vec2(0.,e), t);
+  vec3 n = normalize(vec3(-(hx-h)/e*.045, -(hy-h)/e*.045, 1.));
+
+  vec3 V = vec3(0.,0.,1.);
+  vec3 L = normalize(vec3(-.35, .55, .75));
+  float fres = pow(1. - max(dot(n,V),0.), 3.);
+  fres = mix(.06, 1., fres);
+
+  // colour of the water itself: deeper towards the bottom of the panel, lighter near the top
+  vec3 deep    = vec3(.06, .16, .46);
+  vec3 shallow = vec3(.30, .72, .90);
+  vec3 body = mix(deep, shallow, smoothstep(.0, 1.05, vUv.y + (h*.35)));
+
+  // light on the bed, bent by the surface
+  vec2 bed = p + n.xy*.35;
+  float cau = caustics(bed*.55, t);
+  body += vec3(.55, .95, 1.) * cau * .55;
+
+  // sky in the reflection: soft lavender to white, with moving cloud
+  float cl = fbm(p*1.4 + n.xy*1.5 + vec2(t*.03, 0.));
+  vec3 sky = mix(vec3(.78,.74,1.), vec3(1.), smoothstep(.2,.8,cl));
+  vec3 col = mix(body, sky, fres*.8);
+
+  // sun glints
+  vec3 R = reflect(-L, n);
+  float spec = pow(max(dot(R, V), 0.), 140.);
+  col += vec3(1.,.97,.9) * spec * 1.5;
+  col += vec3(.7,.8,1.) * pow(max(dot(R,V),0.), 18.) * .12;
+
+  // light foam where a ring crests
+  float crest = smoothstep(.5, 1.2, abs(h));
+  col = mix(col, vec3(1.), crest*.22);
+
+  // soft darkening at the edges so it sits like a window
+  vec2 q = vUv - .5;
+  col *= 1. - dot(q,q)*.45;
+
+  gl_FragColor = vec4(col, 1.);
+}
+`
+
+type Rip = { x: number; y: number; t: number; s: number }
+
 export function WaterHero({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [ripples, setRipples] = useState<{ id: number; x: number; y: number }[]>([])
-  const n = useRef(0)
+  const wrap = useRef<HTMLDivElement>(null)
+  const cvs = useRef<HTMLCanvasElement>(null)
+  const ripples = useRef<Rip[]>([])
+  const clock = useRef(0)
+  const [gl, setGl] = useState(true)
 
-  const tap = (e: React.PointerEvent) => {
-    const r = ref.current?.getBoundingClientRect()
-    if (!r) return
-    const id = ++n.current
-    setRipples((l) => [...l.slice(-4), { id, x: e.clientX - r.left, y: e.clientY - r.top }])
-    setTimeout(() => setRipples((l) => l.filter((x) => x.id !== id)), 1400)
+  useEffect(() => {
+    const canvas = cvs.current, box = wrap.current
+    if (!canvas || !box) return
+    const ctx = (canvas.getContext("webgl", { antialias: true, alpha: false, powerPreference: "low-power" }) || canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null
+    if (!ctx) { setGl(false); return }
+    const g = ctx
+
+    const mk = (type: number, src: string) => { const s = g.createShader(type)!; g.shaderSource(s, src); g.compileShader(s); return s }
+    const vs = mk(g.VERTEX_SHADER, VERT), fs = mk(g.FRAGMENT_SHADER, FRAG)
+    const prog = g.createProgram()!
+    g.attachShader(prog, vs); g.attachShader(prog, fs); g.linkProgram(prog)
+    if (!g.getProgramParameter(prog, g.LINK_STATUS)) { setGl(false); return }
+    g.useProgram(prog)
+    const buf = g.createBuffer()
+    g.bindBuffer(g.ARRAY_BUFFER, buf)
+    g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW)
+    const loc = g.getAttribLocation(prog, "p")
+    g.enableVertexAttribArray(loc)
+    g.vertexAttribPointer(loc, 2, g.FLOAT, false, 0, 0)
+    const uRes = g.getUniformLocation(prog, "uRes"), uTime = g.getUniformLocation(prog, "uTime"), uRip = g.getUniformLocation(prog, "uRip")
+
+    const reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches
+    let raf = 0, visible = true, last = performance.now()
+    const resize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+      const w = Math.max(2, Math.round(box.clientWidth * dpr)), h = Math.max(2, Math.round(box.clientHeight * dpr))
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; g.viewport(0, 0, w, h) }
+    }
+    const draw = () => {
+      resize()
+      const now = clock.current
+      g.uniform2f(uRes, canvas.width, canvas.height)
+      g.uniform1f(uTime, now)
+      const arr = new Float32Array(32)
+      ripples.current = ripples.current.filter((r) => now - r.t < 4).slice(-8)
+      ripples.current.forEach((r, i) => { arr[i * 4] = r.x; arr[i * 4 + 1] = r.y; arr[i * 4 + 2] = r.t; arr[i * 4 + 3] = r.s })
+      g.uniform4fv(uRip, arr)
+      g.drawArrays(g.TRIANGLE_STRIP, 0, 4)
+    }
+    const loop = (ts: number) => {
+      const dt = Math.min((ts - last) / 1000, 0.05); last = ts
+      clock.current += dt
+      if (visible) draw()
+      raf = requestAnimationFrame(loop)
+    }
+    clock.current = 3 + Math.random() * 20
+    if (reduced) { draw() } else { raf = requestAnimationFrame(loop) }
+
+    const io = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver(([e]) => { visible = e.isIntersecting }) : null
+    io?.observe(box)
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => { if (reduced) draw() }) : null
+    ro?.observe(box)
+    return () => { cancelAnimationFrame(raf); io?.disconnect(); ro?.disconnect() }
+  }, [])
+
+  // where a pointer is, in the shader's own space (x scaled by the panel's shape, y from the bottom)
+  const spot = (e: React.PointerEvent) => {
+    const r = wrap.current!.getBoundingClientRect()
+    return { x: ((e.clientX - r.left) / r.height), y: 1 - (e.clientY - r.top) / r.height }
+  }
+  const lastTrail = useRef(0)
+  const drop = (e: React.PointerEvent, strength: number) => {
+    if (!wrap.current) return
+    const p = spot(e)
+    ripples.current.push({ x: p.x, y: p.y, t: clock.current, s: strength })
   }
 
   return (
-    <div ref={ref} onPointerDown={tap} className="wh relative overflow-hidden rounded-[26px] border border-[#e4dcfa] bg-gradient-to-br from-[#faf8ff] via-white to-[#efe9ff] px-5 pb-16 pt-6 md:px-7">
-      <style>{CSS}</style>
-      <div className="relative z-10">{children}</div>
-
-      <svg className="wh-wave wh-w1" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0 60 C150 20 250 100 400 60 S650 20 800 60 S1050 100 1200 60 V120 H0Z" fill="#b9a5f7" fillOpacity=".35" />
-        <path d="M0 60 C150 20 250 100 400 60 S650 20 800 60 S1050 100 1200 60 V120 H0Z" transform="translate(1200 0)" fill="#b9a5f7" fillOpacity=".35" />
-      </svg>
-      <svg className="wh-wave wh-w2" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0 70 C200 110 300 30 500 70 S800 110 1000 70 S1150 40 1200 70 V120 H0Z" fill="#8f73f0" fillOpacity=".3" />
-        <path d="M0 70 C200 110 300 30 500 70 S800 110 1000 70 S1150 40 1200 70 V120 H0Z" transform="translate(1200 0)" fill="#8f73f0" fillOpacity=".3" />
-      </svg>
-      <svg className="wh-wave wh-w3" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0 85 C180 55 320 115 520 85 S850 55 1020 85 S1150 105 1200 85 V120 H0Z" fill="#7552ee" fillOpacity=".25" />
-        <path d="M0 85 C180 55 320 115 520 85 S850 55 1020 85 S1150 105 1200 85 V120 H0Z" transform="translate(1200 0)" fill="#7552ee" fillOpacity=".25" />
-      </svg>
-
-      {[8, 22, 37, 55, 71, 86].map((l, i) => (
-        <i key={i} className="wh-bub" style={{ left: `${l}%`, animationDelay: `${i * 0.9}s`, width: 6 + (i % 3) * 4, height: 6 + (i % 3) * 4 }} />
-      ))}
-
-      {ripples.map((r) => (
-        <span key={r.id} className="wh-rip" style={{ left: r.x, top: r.y }} />
-      ))}
+    <div
+      ref={wrap}
+      onPointerDown={(e) => drop(e, 1)}
+      onPointerMove={(e) => { const n = performance.now(); if ((e.buttons || e.pointerType === "mouse") && n - lastTrail.current > 110) { lastTrail.current = n; drop(e, 0.45) } }}
+      className="relative isolate overflow-hidden rounded-[28px] border border-white/60 shadow-[0_18px_50px_-18px_rgba(30,70,160,.55)]"
+      style={{ background: "linear-gradient(160deg,#5ec3e6,#2c6fcf 60%,#14337f)" }}
+    >
+      <canvas ref={cvs} aria-hidden="true" className="absolute inset-0 -z-10 h-full w-full" style={{ display: gl ? "block" : "none" }} />
+      <div className="pointer-events-none relative px-5 pb-12 pt-7 md:px-8 md:pb-14 md:pt-9 [&_a]:pointer-events-auto [&_button]:pointer-events-auto">{children}</div>
     </div>
   )
 }
-
-const CSS = `
-.wh-wave{position:absolute;left:0;bottom:0;width:200%;height:64px;pointer-events:none}
-.wh-w1{animation:whSlide 14s linear infinite}
-.wh-w2{animation:whSlide 9s linear infinite reverse;height:52px}
-.wh-w3{animation:whSlide 6s linear infinite;height:40px}
-@keyframes whSlide{to{transform:translateX(-50%)}}
-.wh-bub{position:absolute;bottom:-12px;border-radius:50%;background:rgba(255,255,255,.7);border:1px solid rgba(117,82,238,.35);pointer-events:none;animation:whRise 7s ease-in infinite}
-@keyframes whRise{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:.9}100%{transform:translateY(-150px) scale(1.1);opacity:0}}
-.wh-rip{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;border:2px solid rgba(117,82,238,.55);pointer-events:none;animation:whRip 1.3s ease-out forwards}
-@keyframes whRip{0%{transform:scale(.3);opacity:.9}100%{transform:scale(14);opacity:0}}
-@media (prefers-reduced-motion:reduce){.wh-wave,.wh-bub,.wh-rip{animation:none}}
-`

@@ -7,7 +7,7 @@ import { CARD_FEATURES, getFeature } from '@/lib/quickcards/cardFeatures'
 import type { FeatureSettings, QuickCard, CardImageUrls, CardState } from '@/types/quickcards'
 
 /** Decks held back from students for now. Admins still see them (marked Hidden) and can test them. */
-const PAUSED = new Set(['opd-cases'])
+const PAUSED = { has: (_slug: string) => true } // all QuickCards decks are hidden from students for now; admins can still open them
 
 /** Visible/gate settings for all features, falling back to the config defaults. */
 export function useFeatureSettings() {

@@ -44,6 +44,7 @@ export default function QuickCardsHubPage() {
     return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
   }
 
+  if (!isAdmin) return <div className="max-w-md mx-auto py-24 text-center text-muted-foreground">This section is not available right now.</div>
   const sq = search.trim().toLowerCase()
   const features = SORTED_FEATURES.filter((f) => isAdmin || settings[f.slug]?.visible !== false).filter((f) => !sq || `${f.name} ${f.description} ${(f.tags || []).join(' ')}`.toLowerCase().includes(sq))
 

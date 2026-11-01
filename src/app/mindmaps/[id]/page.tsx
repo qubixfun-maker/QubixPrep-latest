@@ -11,6 +11,7 @@ import { UpgradeGate } from "@/components/upgrade-gate"
 import { getSubjectColor } from "@/lib/subject-colors"
 import { groupByUnit } from "@/lib/unit-sort"
 import { hueOf } from "@/components/flashcards/ImmersiveDeck"
+import { groupByTextbook, layoutFor } from "@/lib/textbook-order"
 import ChapterTile from "@/components/lists/ChapterTile"
 
 const FREE_LIMIT = 3
@@ -47,8 +48,9 @@ export default function MindmapsSubjectPage({ params }: { params: Promise<{ id: 
   const grouped = useMemo(() => {
     const needle = q.trim().toLowerCase()
     const list = all.filter((m) => (!needle || String(m.title || "").toLowerCase().includes(needle)) && (filter === "all" || (filter === "saved" ? saved.includes(m.id) : revise.includes(m.id))))
-    return groupByUnit(list as any)
-  }, [all, q, filter, saved, revise])
+    const tb = groupByTextbook(list as any[], (m: any) => String(m.title || ""), layoutFor(subjectId, subject ? (subject as any).name : ""))
+    return tb || groupByUnit(list as any)
+  }, [all, q, filter, saved, revise, subjectId, subject])
 
   const { checkingAuth } = useRequireAuth()
   const subjectName = subject ? (subject as any).name : subjectId

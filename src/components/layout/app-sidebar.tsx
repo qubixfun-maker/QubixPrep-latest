@@ -82,7 +82,6 @@ export function AppSidebar() {
   ]
   const studio: Item[] = [
     { title: "Jelly AI", url: "/jelly", icon: Sparkles },
-    { title: "AI Tools", url: "/ai-tools", icon: Wand2, lock: !canAccessAI },
   ]
   const account: Item[] = [
     { title: "Store", url: "/products", icon: ShoppingBag },
@@ -172,7 +171,6 @@ export function AppSidebar() {
             <SidebarMenu>
               {notes.map(row)}
               <QuickCardsMenuItems pathname={pathname} onNavigate={closeOnMobile} />
-              {stories.map(row)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -202,6 +200,7 @@ export function AppSidebar() {
               {bedside.slice(0, 1).map(row)}
               <CasePresentationMenuItem pathname={pathname} onNavigate={closeOnMobile} />
               {bedside.slice(1).map(row)}
+              {stories.map(row)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

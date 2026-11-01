@@ -9,6 +9,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
 import { groupByUnit } from "@/lib/unit-sort"
 import { hueOf } from "@/components/flashcards/ImmersiveDeck"
+import { groupByTextbook, layoutFor } from "@/lib/textbook-order"
 import ChapterTile from "@/components/lists/ChapterTile"
 
 function groupDecksByChapter(decks: any[]) {
@@ -51,8 +52,9 @@ export default function FlashcardDecksPage({ params }: { params: Promise<{ subje
   const grouped = useMemo(() => {
     const needle = q.trim().toLowerCase()
     const list = needle ? chapters.filter((c) => c.chapterName.toLowerCase().includes(needle)) : chapters
-    return groupByUnit(list as any)
-  }, [chapters, q])
+    const tb = groupByTextbook(list as any[], (c: any) => c.chapterName, layoutFor(subjectId, subject ? (subject as any).name : ""))
+    return tb || groupByUnit(list as any)
+  }, [chapters, q, subjectId, subject])
 
   const { checkingAuth } = useRequireAuth()
   const subjectName = subject ? (subject as any).name : subjectId

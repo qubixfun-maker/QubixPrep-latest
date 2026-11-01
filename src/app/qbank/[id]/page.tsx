@@ -39,6 +39,7 @@ import { UpgradeGate } from '@/components/upgrade-gate'
 import { useRequireAuth } from '@/hooks/use-require-auth'
 import { useJelly } from "@/components/jelly/jelly-store"
 import { recordQbankAnswer } from "@/lib/study"
+import { groupByTextbook, layoutFor } from "@/lib/textbook-order"
 import ReportQuestion from "@/components/qbank/ReportQuestion"
 
 export default function QuizSubjectCurriculumPage({ params }: { params: Promise<{ id: string }> }) {
@@ -96,6 +97,13 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
   }, [subjectId, toast])
 
   const groupedQBank = useMemo(() => {
+    // topic -> its questions
+    const byTopic: Record<string, any[]> = {}
+    questions.forEach(q => { const t = q.topic_title || "General"; (byTopic[t] = byTopic[t] || []).push(q) })
+    const entries = Object.entries(byTopic).map(([topic, qs]) => ({ topic, qs }))
+    // chapters grouped by textbook unit, in textbook order (same as Rapid Revision Notes)
+    const tb = groupByTextbook(entries, (e) => e.topic, layoutFor(subjectId, subject ? (subject as any).name : ""))
+    if (tb) return tb.map(g => ({ title: g.unitName, topics: Object.fromEntries(g.items.map(e => [e.topic, e.qs])) as Record<string, any[]> }))
     const units: Record<string, { title: string, topics: Record<string, any[]> }> = {}
     questions.forEach(q => {
       const uTitle = q.unit_title || "General Curriculum"
@@ -105,7 +113,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
       units[uTitle].topics[tTitle].push(q)
     })
     return Object.values(units)
-  }, [questions])
+  }, [questions, subjectId, subject])
 
   if (checkingAuth || subjectLoading || qLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>
 
@@ -383,7 +391,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
           <ArrowLeft className="h-3 w-3" /> Back to QBank
         </Link>
         <h1 className="text-5xl font-bold tracking-tighter capitalize">{subject ? (subject as any).name : 'Subject'} Curriculum</h1>
-        <p className="text-muted-foreground text-lg mt-4">Select a unit to view topics and begin clinical assessments.</p>
+        <p className="text-muted-foreground text-lg mt-4">Select a unit to see its chapters, then begin clinical assessments.</p>
       </div>
 
       <div className="space-y-6">
@@ -399,7 +407,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                         <span className="text-2xl font-bold tracking-tight">{unit.title}</span>
                       </div>
                     </AccordionTrigger>
-                    <AccordionContent className="pb-6 pt-2 space-y-3">
+                    <AccordionContent className="pb-6 pt-2 grid gap-3 md:grid-cols-2">
                       {Object.entries(unit.topics).map(([topicTitle, topicQs], tIdx) => (
                         <div 
                           key={tIdx} 
@@ -446,7 +454,7 @@ export default function QuizSubjectCurriculumPage({ params }: { params: Promise<
                       <span className="text-2xl font-bold tracking-tight">{unit.title}</span>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="pb-6 pt-2 space-y-3">
+                  <AccordionContent className="pb-6 pt-2 grid gap-3 md:grid-cols-2">
                     {Object.entries(unit.topics).map(([topicTitle, topicQs], tIdx) => (
                       <div 
                         key={tIdx} 

@@ -307,3 +307,15 @@ export function groupChapters<T extends { chapterTitle?: string }>(items: T[], l
   if (rest.length) groups.push({ name: groups.length ? "More chapters" : "", items: rest.sort(byTitle), extra: true })
   return groups
 }
+
+/**
+ * Units in textbook order for any list of items that has a chapter-like title (flashcards, mind maps, QBank topics).
+ * Returns null when the subject has no textbook layout or nothing matched, so the caller can keep its own grouping.
+ */
+export function groupByTextbook<T>(items: T[], titleOf: (t: T) => string, layout: Layout | null): { unitName: string; items: T[]; extra?: boolean }[] | null {
+  if (!layout || items.length === 0) return null
+  const wrapped = items.map((it) => ({ chapterTitle: titleOf(it), it }))
+  const groups = groupChapters(wrapped, layout)
+  if (!groups.some((g) => !g.extra)) return null
+  return groups.map((g) => ({ unitName: g.name || "Chapters", items: g.items.map((w) => w.it), extra: g.extra }))
+}

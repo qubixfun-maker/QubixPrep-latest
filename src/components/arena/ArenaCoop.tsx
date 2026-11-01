@@ -43,7 +43,7 @@ export function ArenaCoop({ room, user, code }: { room: any; user: any; code: st
     return (
       <div className="space-y-5">
         <div className="rounded-3xl bg-gradient-to-br from-rose-500 via-fuchsia-500 to-violet-600 p-6 text-white shadow-xl">
-          <p className="text-xs font-black uppercase tracking-widest opacity-80">Ward Round · Co-op</p>
+          <p className="text-xs font-black uppercase tracking-widest opacity-80">Wardmates</p>
           <h2 className="mt-1 text-2xl font-black">Treat one patient together</h2>
           <p className="mt-1 text-sm opacity-90">Everyone votes on each step. The team's choice decides what happens to the patient. The player leading a step has a vote that counts 1.5×.</p>
         </div>

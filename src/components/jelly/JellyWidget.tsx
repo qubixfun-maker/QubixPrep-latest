@@ -24,6 +24,8 @@ export function JellyWidget() {
   const j = useJelly()
   const [pos, setPos] = useState({ r: 16, b: 16 })
   const [pokes, setPokes] = useState(0)
+  const [moves, setMoves] = useState(0)
+  const lastMove = useRef(0)
   const [text, setText] = useState("")
   const [settings, setSettings] = useState(false)
   const drag = useRef<{ x: number; y: number; r: number; b: number; moved: boolean } | null>(null)
@@ -41,6 +43,7 @@ export function JellyWidget() {
 
   const onDown = (e: React.PointerEvent) => {
     drag.current = { x: e.clientX, y: e.clientY, r: pos.r, b: pos.b, moved: false }
+    setPokes((n) => n + 1) // Jelly giggles the moment it is touched
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
   const onMove = (e: React.PointerEvent) => {
@@ -48,6 +51,7 @@ export function JellyWidget() {
     if (!d) return
     const dx = d.x - e.clientX; const dy = d.y - e.clientY
     if (Math.abs(dx) + Math.abs(dy) > 6) d.moved = true
+    if (d.moved && Date.now() - lastMove.current > 700) { lastMove.current = Date.now(); setMoves((n) => n + 1) }
     if (d.moved) setPos({ r: Math.min(Math.max(d.r + dx, 8), window.innerWidth - 90), b: Math.min(Math.max(d.b + dy, 8), window.innerHeight - 90) })
   }
   const onUp = () => {
@@ -55,7 +59,7 @@ export function JellyWidget() {
     drag.current = null
     if (!d) return
     if (d.moved) { try { localStorage.setItem(POS_KEY, JSON.stringify(pos)) } catch {} }
-    else { setPokes((n) => n + 1); j.setOpen(!j.open) }
+    else j.setOpen(!j.open)
   }
 
   if (j.hidden) {
@@ -167,7 +171,7 @@ export function JellyWidget() {
         <div role="button" tabIndex={0} aria-label="Open Jelly" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") j.setOpen(!j.open) }}
           className="cursor-pointer touch-none select-none rounded-full drop-shadow-[0_6px_16px_rgba(124,58,237,0.35)]">
-          <JellyAvatar size={76} mood={j.active ? j.mood : "sleep"} talking={talking} pokeKey={pokes} />
+          <JellyAvatar size={76} mood={j.active ? j.mood : "sleep"} talking={talking} pokeKey={pokes} moveKey={moves} />
         </div>
       </div>
     </>

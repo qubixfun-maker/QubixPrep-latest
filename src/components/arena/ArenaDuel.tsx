@@ -26,7 +26,7 @@ export function ArenaDuel({ room, user, code }: Props) {
     return (
       <div className="space-y-5">
         <div className="rounded-3xl bg-gradient-to-br from-violet-600 to-fuchsia-500 p-6 text-white shadow-xl">
-          <p className="text-xs font-black uppercase tracking-widest opacity-80">{room.source?.type === "flashcards" ? "Flashcard Battle" : "QBank Duel"} · {room.qCount} questions</p>
+          <p className="text-xs font-black uppercase tracking-widest opacity-80">{room.source?.type === "flashcards" ? "Flashcard Battle" : "QuizCombat"} · {room.qCount} questions</p>
           <h2 className="mt-1 text-2xl font-black">{room.source?.label}</h2>
           <p className="mt-1 text-sm opacity-90">{room.sec}s per question. Faster correct answers score more, and streaks add bonus points.</p>
         </div>

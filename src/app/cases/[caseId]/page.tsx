@@ -330,7 +330,6 @@ export default function WardRoundPlayer({ params }: { params: Promise<{ caseId: 
 
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button variant="outline" className="h-12 flex-1 gap-2 rounded-2xl" onClick={restart}><RotateCcw className="h-4 w-4" /> Retry this case</Button>
-            <Link href={`/search?q=${encodeURIComponent(c.finalDiagnosis || c.title || "")}`} className="flex-1"><Button variant="outline" className="h-12 w-full gap-2 rounded-2xl"><BookOpen className="h-4 w-4" /> Revise this topic</Button></Link>
             <Link href="/cases" className="flex-1"><Button className="h-12 w-full gap-2 rounded-2xl"><Trophy className="h-4 w-4" /> More cases</Button></Link>
           </div>
         </div>

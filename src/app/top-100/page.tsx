@@ -3,12 +3,10 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, BookOpen, Bone, Bug, ChevronRight, Dna, FlaskConical, HeartPulse, Loader2, Microscope, Pill, Scale, Stethoscope, Users } from "lucide-react"
 import { useFirestore } from "@/firebase"
-import { collection, getDocs, query, where } from "firebase/firestore"
 import { useTopSearch } from "@/components/layout/top-search"
 import { loadTop100List, type Top100Page } from "@/lib/top100-pages"
-import { candidatesFor, notesHref, type NoteTopicRef, type NotesLink } from "@/lib/top100-link"
-
-const flat = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "")
+import { notesHref, type NotesLink } from "@/lib/top100-link"
+import { resolveTop100Links } from "@/lib/top100-resolve"
 
 // SUBJECT_STYLE: look of each big subject button (icon + colour)
 const SUBJECT_STYLE: Record<string, { icon: any; grad: string }> = {
@@ -37,36 +35,14 @@ export default function Top100Page() {
 
   // Topics an admin has not linked by hand are matched to the notes automatically when their subject opens.
   const [auto, setAuto] = useState<Record<string, NotesLink>>({})
-  const [subjectList, setSubjectList] = useState<{ id: string; name: string }[] | null>(null)
   useEffect(() => {
-    if (!db) return
-    getDocs(collection(db, "subjects")).then((sn) => setSubjectList(sn.docs.map((d) => ({ id: d.id, name: String((d.data() as any).name || "") })))).catch(() => setSubjectList([]))
-  }, [db])
-  useEffect(() => {
-    if (!db || !subject || !pages || !subjectList) return
+    if (!db || !subject || !pages) return
     const rows = pages.filter((p) => p.subjectKey === subject && !p.notesLink)
     if (!rows.length) return
-    const name = rows[0].subject
-    const hit = subjectList.find((s) => flat(s.id) === flat(subject) || flat(s.name) === flat(subject) || flat(s.name) === flat(name))
-    if (!hit) return
     let on = true
-    getDocs(query(collection(db, "notesIndex"), where("subjectId", "==", hit.id))).then((sn) => {
-      const pool: NoteTopicRef[] = []
-      sn.docs.forEach((d) => {
-        const x = d.data() as any
-        ;(Array.isArray(x.topics) ? x.topics : []).forEach((t: any, i: number) => {
-          if (t?.name) pool.push({ subjectId: String(x.subjectId), textbookId: String(x.textbookId), chapterId: String(x.chapterId), topicIndex: i, name: String(t.name), chapterTitle: String(x.chapterTitle || "") })
-        })
-      })
-      const found: Record<string, NotesLink> = {}
-      rows.forEach((r) => {
-        const best = candidatesFor(r.title, pool)[0]
-        if (best && best.score >= 0.55) found[r.id] = { subjectId: best.subjectId, textbookId: best.textbookId, chapterId: best.chapterId, topicIndex: best.topicIndex }
-      })
-      if (on) setAuto((a) => ({ ...a, ...found }))
-    }).catch(() => {})
+    resolveTop100Links(db, subject, rows[0].subject, rows).then((found) => { if (on) setAuto((a) => ({ ...a, ...found })) }).catch(() => {})
     return () => { on = false }
-  }, [db, subject, pages, subjectList])
+  }, [db, subject, pages])
 
   const subjects = useMemo(() => {
     const m = new Map<string, { name: string; n: number }>()

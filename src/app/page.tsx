@@ -59,6 +59,7 @@ const SECTIONS: Section[] = [
       { name: "Ward Round", href: "/cases", emoji: "🩺", tint: "#d9f1f8", desc: "Think through live patient cases." },
       { name: "Case Presentation", href: "/case-presentation", emoji: "📋", tint: "#e8f0dc", desc: "Practise presenting like a clinician." },
       { name: "Virtual Patients", href: "/virtual-patient", emoji: "🗣️", tint: "#ffe3ee", desc: "History, examination and viva, by voice." },
+      { name: "Med Stories", href: "/stories", emoji: "📰", tint: "#fde8e0", desc: "Medicine's best stories, made easy to remember." },
       { name: "The Arena", href: "/arena", emoji: "⚔️", tint: "#f0e3ff", desc: "Duels, co-op and leaderboards.", lock: "pro" },
     ],
   },
@@ -194,8 +195,8 @@ function DashboardInner() {
         <WaterHero>
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[clamp(24px,3vw,34px)] font-black leading-[1.1] tracking-tight">{greeting}, {firstName}! <span>👋</span></h1>
-            <p className="mt-1 text-sm text-muted-foreground">{tab === "home" ? "A little progress every day adds up." : section.label}</p>
+            <h1 className="text-[clamp(24px,3vw,34px)] font-black leading-[1.1] tracking-tight text-white [text-shadow:0_2px_14px_rgba(10,30,90,.45)]">{greeting}, {firstName}! <span>👋</span></h1>
+            <p className="mt-1 text-sm font-semibold text-white/90 [text-shadow:0_1px_8px_rgba(10,30,90,.45)]">{tab === "home" ? "A little progress every day adds up." : section.label}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {isAdminUser && <Link href="/admin" className="whitespace-nowrap rounded-xl bg-[#29233c] px-3.5 py-2.5 text-[13px] font-extrabold text-white shadow-md">⚙️ Admin</Link>}
