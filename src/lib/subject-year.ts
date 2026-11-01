@@ -29,7 +29,15 @@ const YEAR_MAP: Record<string, SubjectYear> = {
 }
 
 export function getSubjectYear(subjectName: string): SubjectYear {
-  return YEAR_MAP[subjectName] || { label: "Other", order: 99 }
+  // by name as written in the curriculum first, then by the looser matching used for ordering
+  // ("Otorhinolaryngology (ENT)", "Forensic Medicine & Toxicology" and so on)
+  if (YEAR_MAP[subjectName]) return YEAR_MAP[subjectName]
+  const r = subjectRank(subjectName)
+  if (r < 9999) {
+    const y = Math.floor(r / 100)
+    return { label: ["1st Year", "2nd Year", "3rd Year", "4th Year"][y], order: y + 1 }
+  }
+  return { label: "Other", order: 99 }
 }
 
 // The order every subject list in the app follows: year by year, and in this order inside each year.
@@ -37,7 +45,7 @@ const SEQUENCE: string[][] = [
   ["anatomy", "physiology", "biochemistry"],
   ["pathology", "pharmacology", "microbiology"],
   ["community", "forensic", "ent", "ophthal"],
-  ["medicine", "surgery", "obstetric", "gynae", "paediatric", "pediatric", "orthop", "psychiatry", "dermat", "radiolog", "anaesth", "anesth"],
+  ["medicine", "surgery", "obstetric", "gynae", "paediatric", "pediatric", "orthop", "psychiatry", "dermat", "radio", "anaesth", "anesth", "emergency"],
 ]
 
 /** Lower comes first. Unknown subjects go last, A to Z. */
@@ -50,7 +58,7 @@ export function subjectRank(name: string): number {
       const hit = k === "ent" ? n === "ent" || n.startsWith("entear") || n.startsWith("earnose") || n.includes("otorhino") : n.includes(k)
       if (hit) {
         // plain "medicine" must not swallow "community medicine" or "forensic medicine"
-        if (k === "medicine" && (n.includes("community") || n.includes("forensic"))) continue
+        if (k === "medicine" && (n.includes("community") || n.includes("forensic") || n.includes("emergency"))) continue
         return y * 100 + i
       }
     }
