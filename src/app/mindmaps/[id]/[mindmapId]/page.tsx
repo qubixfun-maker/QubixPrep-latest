@@ -5,7 +5,7 @@ import { useDoc, useFirestore, useUser } from "@/firebase"
 import { doc, getDoc, setDoc } from "firebase/firestore"
 import { ChevronLeft, Loader2, Share2, Bookmark, Flag, HelpCircle, X } from "lucide-react"
 import Link from "next/link"
-import MindMapCanvas from "@/components/mindmap/MindMapCanvas"
+import MindMapRadial from "@/components/mindmap/MindMapRadial"
 import SafeBoundary from "@/components/mindmap/SafeBoundary"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
@@ -82,10 +82,10 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
   const tile = "grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-slate-200/80 bg-white/90 shadow-[0_4px_16px_rgba(30,41,59,.1)] backdrop-blur transition active:scale-95 hover:bg-white sm:h-14 sm:w-14"
 
   return (
-    <div className="fixed inset-0 z-[70] bg-[#f3f4f8] text-slate-900">
+    <div className="fixed inset-0 z-[70] bg-white text-slate-900">
       <div className="absolute inset-0">
         {mapData ? (
-          <SafeBoundary><MindMapCanvas root={{ name: mapData.centralTopic, branches: mapData.branches }} /></SafeBoundary>
+          <SafeBoundary><MindMapRadial root={{ name: mapData.centralTopic || mm.title, branches: mapData.branches }} storageKey={mindmapId} /></SafeBoundary>
         ) : mm.imageUrl ? (
           <div className="flex h-full items-center justify-center overflow-auto p-4 pt-28"><img src={mm.imageUrl} alt={mm.title} className="max-w-full rounded-2xl" /></div>
         ) : (
@@ -94,7 +94,7 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* header */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-2.5 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:px-5" style={{ background: "linear-gradient(180deg, rgba(243,244,248,.96) 55%, rgba(243,244,248,0))" }}>
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-2.5 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:gap-3 sm:px-5" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.97) 60%, rgba(255,255,255,0))" }}>
         <Link href={`/mindmaps/${subjectId}`} aria-label="Back" className={`pointer-events-auto ${tile}`}><ChevronLeft className="h-6 w-6 text-slate-700" /></Link>
         <div className="pointer-events-none min-w-0 flex-1 px-1">
           <h1 className="line-clamp-2 break-words text-xl font-extrabold leading-tight tracking-tight sm:text-2xl">{mm.title}</h1>
@@ -113,11 +113,11 @@ export default function MindmapViewPage({ params }: { params: Promise<{ id: stri
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
             <div className="mb-3 flex items-center justify-between"><p className="text-lg font-extrabold">How to use this map</p><button onClick={() => setHelp(false)} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-slate-100"><X className="h-4 w-4" /></button></div>
             <ul className="space-y-2.5 text-sm text-slate-600">
-              <li><b className="text-slate-800">Drag</b> to move around, <b className="text-slate-800">pinch</b> or scroll to zoom.</li>
-              <li><b className="text-slate-800">Tap a dot</b> (or its name) to open or close its sub-topics. The orange dot marks nodes with sub-topics.</li>
-              <li><b className="text-emerald-600">Green page button</b> shows or hides the short notes under each node.</li>
-              <li><b className="text-sky-600">Arrows</b> expand or collapse the whole map. The frame button fits it to your screen.</li>
-              <li><b className="text-slate-800">Bookmark</b> and <b className="text-amber-500">flag</b> save this map on this device for later revision.</li>
+              <li><b className="text-slate-800">Tap a bubble</b> to see that branch below.</li>
+              <li><b className="text-slate-800">Tap a point</b> with a number to open or close its sub-points.</li>
+              <li><b className="text-emerald-600">Page button</b> shows or hides the short notes.</li>
+              <li><b className="text-slate-800">Mark revised</b> puts a green tick on the bubble. Tap the <b className="text-slate-800">grey bar</b> to enlarge the details.</li>
+              <li><b className="text-slate-800">Bookmark</b> and <b className="text-amber-500">flag</b> save this map on this device.</li>
             </ul>
           </div>
         </div>

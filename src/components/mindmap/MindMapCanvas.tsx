@@ -13,7 +13,7 @@ export type MindmapNode = {
 
 // Generated maps sometimes carry lists or objects where text is expected; flatten everything to plain text.
 const str = (v: any, d = 0): string => v == null ? "" : d > 4 ? "" : Array.isArray(v) ? v.map((x) => str(x, d + 1)).filter(Boolean).join(" ") : typeof v === "object" ? Object.values(v).map((x) => str(x, d + 1)).filter(Boolean).join(" ") : String(v)
-function sanitize(n: any, d = 0): MindmapNode {
+export function sanitize(n: any, d = 0): MindmapNode {
   const o: MindmapNode = { name: str(n?.name).trim() || "Untitled" }
   const def = str(n?.definition).trim(), mech = str(n?.mechanism).trim(), ex = str(n?.examples).trim()
   if (def) o.definition = def
