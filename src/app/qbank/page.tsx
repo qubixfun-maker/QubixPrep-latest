@@ -1,5 +1,6 @@
 
 "use client"
+import { SubjectYearGrid } from "@/components/subjects/SubjectYearGrid"
 import { compareSubjects } from "@/lib/subject-year"
 import { DeepResults } from "@/components/layout/deep-search"
 import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
@@ -70,20 +71,15 @@ export default function QBankPage() {
             <Loader2 className="h-10 w-10 text-primary animate-spin" />
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {subjects?.filter((s: any) => !search.trim() || String(s.name).toLowerCase().includes(search.trim().toLowerCase())).map((subject: any) => {
-              const Icon = ICON_MAP[subject.name] || Database
-              return (
-                <SubjectArtCard key={subject.id} href={`/qbank/${subject.id}`} name={subject.name} subtitle="Board-standard MCQs, subject by subject." />
-              )
-            })}
+                    <>
+            <SubjectYearGrid items={(subjects || []).filter((s: any) => !search.trim() || String(s.name).toLowerCase().includes(search.trim().toLowerCase()))} hrefBase="/qbank" subtitle="Board-standard MCQs, subject by subject." />
             {!loading && (!subjects || subjects.length === 0) && (
               <div className="col-span-full py-20 text-center text-muted-foreground glass rounded-3xl">
                 <Database className="h-12 w-12 mx-auto mb-4 opacity-10" />
                 <p>No question banks found. Add subjects in the Admin Panel.</p>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>

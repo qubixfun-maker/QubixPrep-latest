@@ -17,15 +17,15 @@ const YEAR_MAP: Record<string, SubjectYear> = {
   "ENT": { label: "3rd Year", order: 3 },
   "Ophthalmology": { label: "3rd Year", order: 3 },
 
-  "Medicine": { label: "Final Year", order: 4 },
-  "Surgery": { label: "Final Year", order: 4 },
-  "Obstetrics & Gynaecology": { label: "Final Year", order: 4 },
-  "Paediatrics": { label: "Final Year", order: 4 },
-  "Orthopaedics": { label: "Final Year", order: 4 },
-  "Anaesthesia": { label: "Final Year", order: 4 },
-  "Radiology": { label: "Final Year", order: 4 },
-  "Psychiatry": { label: "Final Year", order: 4 },
-  "Dermatology": { label: "Final Year", order: 4 },
+  "Medicine": { label: "4th Year", order: 4 },
+  "Surgery": { label: "4th Year", order: 4 },
+  "Obstetrics & Gynaecology": { label: "4th Year", order: 4 },
+  "Paediatrics": { label: "4th Year", order: 4 },
+  "Orthopaedics": { label: "4th Year", order: 4 },
+  "Anaesthesia": { label: "4th Year", order: 4 },
+  "Radiology": { label: "4th Year", order: 4 },
+  "Psychiatry": { label: "4th Year", order: 4 },
+  "Dermatology": { label: "4th Year", order: 4 },
 }
 
 export function getSubjectYear(subjectName: string): SubjectYear {

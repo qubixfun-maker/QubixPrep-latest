@@ -1,4 +1,5 @@
 "use client"
+import { SubjectYearGrid } from "@/components/subjects/SubjectYearGrid"
 import { compareSubjects } from "@/lib/subject-year"
 import { SubjectArtCard } from "@/components/subjects/SubjectArtCard"
 import { useTopSearch } from "@/components/layout/top-search"
@@ -42,14 +43,7 @@ export default function MindmapsSubjectsPage() {
       {loading ? (
         <div className="h-64 flex items-center justify-center"><Loader2 className="h-10 w-10 text-primary animate-spin" /></div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortedSubjects.map((subject: any) => {
-                  const color = getSubjectColor(subject.name)
-                  return (
-                    <SubjectArtCard key={subject.id} href={`/mindmaps/${subject.id}`} name={subject.name} subtitle="Explore chapters as visual mind maps." />
-                  )
-                })}
-              </div>
+        <SubjectYearGrid items={sortedSubjects} hrefBase="/mindmaps" subtitle="Explore chapters as visual mind maps." />
       )}
     </div>
   )
