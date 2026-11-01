@@ -7,6 +7,8 @@ import { ChevronDown, ChevronLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
+import { useLongAnswerAccess } from "@/hooks/use-long-answer-access"
+import { UpgradeGate } from "@/components/upgrade-gate"
 
 const SECTION_LABEL: Record<string, string> = {
   'long-essays': 'Long Essays',
@@ -49,9 +51,15 @@ export default function LongAnswersQuestionsPage({ params }: { params: Promise<{
   }, [section])
 
   const { checkingAuth } = useRequireAuth()
+  const access = useLongAnswerAccess(subjectId)
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
-  if (checkingAuth || subjectLoading || chapterLoading || sectionLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  if (checkingAuth || access.loading || subjectLoading || chapterLoading || sectionLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  if (access.isLocked(chapterId)) return (
+    <div className="max-w-xl mx-auto p-6 pt-12">
+      <UpgradeGate type="content" title="This chapter is for subscribers" description="The first chapter of every subject is free. Subscribe to Scholar (₹999/year) to unlock all long answers." />
+    </div>
+  )
 
   function toggle(index: number) {
     setExpanded((prev) => ({ ...prev, [index]: !prev[index] }))

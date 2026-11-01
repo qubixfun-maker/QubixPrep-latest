@@ -4,10 +4,11 @@ import { useTopSearch } from "@/components/layout/top-search"
 import { useMemo, use } from "react"
 import { useDoc, useCollection, useFirestore } from "@/firebase"
 import { doc, collection, query, orderBy } from "firebase/firestore"
-import { ChevronRight, ChevronLeft, Loader2, BookOpen } from "lucide-react"
+import { ChevronRight, ChevronLeft, Loader2, BookOpen, Lock } from "lucide-react"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
+import { useLongAnswerAccess } from "@/hooks/use-long-answer-access"
 
 export default function LongAnswersChaptersPage({ params }: { params: Promise<{ subjectId: string }> }) {
   const { subjectId } = use(params)
@@ -20,6 +21,7 @@ export default function LongAnswersChaptersPage({ params }: { params: Promise<{ 
   const { data: chapters, loading: chaptersLoading } = useCollection(chaptersQuery)
 
   const { checkingAuth } = useRequireAuth()
+  const { isLocked, canAccessContent } = useLongAnswerAccess(subjectId)
   const [search] = useTopSearch("Search chapters…")
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
@@ -33,6 +35,7 @@ export default function LongAnswersChaptersPage({ params }: { params: Promise<{ 
         </Link>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{subject ? (subject as any).name : 'Subject'}</h1>
         <p className="text-muted-foreground mt-2">Pick a chapter to see its Long Essays, Short Essays &amp; Short Answers.</p>
+        {!canAccessContent && <p className="mt-2 text-sm font-semibold text-accent">The first chapter is free. <Link href="/pricing" className="underline">Unlock all chapters</Link></p>}
       </div>
 
       {chaptersLoading ? (
@@ -42,6 +45,7 @@ export default function LongAnswersChaptersPage({ params }: { params: Promise<{ 
           {chapters.filter((c: any) => !search.trim() || String(c.title).toLowerCase().includes(search.trim().toLowerCase())).map((ch: any) => {
             const counts = ch.sectionCounts || {}
             const total = (counts['long-essays'] || 0) + (counts['short-essays'] || 0) + (counts['short-answers'] || 0)
+            const locked = isLocked(ch.id)
             return (
               <Link key={ch.id} href={`/long-answers/${subjectId}/${ch.id}`}>
                 <div className={`p-6 rounded-2xl glass border ${color.border} hover:bg-white/5 transition-all duration-300 group flex items-center justify-between gap-4`}>
@@ -54,7 +58,7 @@ export default function LongAnswersChaptersPage({ params }: { params: Promise<{ 
                       <p className="text-xs text-muted-foreground mt-1">{total} question{total !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
-                  <ChevronRight className={`h-4 w-4 ${color.text} group-hover:translate-x-1 transition-transform shrink-0`} />
+                  {locked ? <Lock className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className={`h-4 w-4 ${color.text} group-hover:translate-x-1 transition-transform shrink-0`} />}
                 </div>
               </Link>
             )

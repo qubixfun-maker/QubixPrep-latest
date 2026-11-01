@@ -7,6 +7,8 @@ import { ChevronRight, ChevronLeft, Loader2, FileText, FileQuestion, List } from
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
+import { useLongAnswerAccess } from "@/hooks/use-long-answer-access"
+import { UpgradeGate } from "@/components/upgrade-gate"
 
 const SECTION_META: Record<string, { label: string; icon: any }> = {
   'long-essays': { label: 'Long Essays', icon: FileText },
@@ -25,9 +27,15 @@ export default function LongAnswersSectionChoicePage({ params }: { params: Promi
   const { data: chapter, loading: chapterLoading } = useDoc(chapterRef)
 
   const { checkingAuth } = useRequireAuth()
+  const access = useLongAnswerAccess(subjectId)
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
-  if (checkingAuth || subjectLoading || chapterLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  if (checkingAuth || access.loading || subjectLoading || chapterLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
+  if (access.isLocked(chapterId)) return (
+    <div className="max-w-xl mx-auto p-6 pt-12">
+      <UpgradeGate type="content" title="This chapter is for subscribers" description="The first chapter of every subject is free. Subscribe to Scholar (₹999/year) to unlock all long answers." />
+    </div>
+  )
 
   const counts: Record<string, number> = (chapter as any)?.sectionCounts || {}
   const availableSections = (['long-essays', 'short-essays', 'short-answers'] as const).filter(key => (counts[key] || 0) > 0)
