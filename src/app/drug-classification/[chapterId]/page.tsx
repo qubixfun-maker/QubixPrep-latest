@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link"
 import { use, useEffect, useState } from "react"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Minus, Plus } from "lucide-react"
 import { DRUG_CHAPTERS } from "@/data/drug-classification"
 import { DrugChartView } from "@/components/drugs/DrugChartView"
 
@@ -11,6 +11,8 @@ export default function DrugChapterPage({ params }: { params: Promise<{ chapterI
   const [view, setView] = useState<"chart" | "list">("chart")
   const [doses, setDoses] = useState(true)
   const [brands, setBrands] = useState(true)
+  const [zoom, setZoom] = useState(1)
+  const zoomBy = (f: number) => setZoom((z) => Math.min(3, Math.max(0.5, Math.round(z * f * 100) / 100)))
   // the wide chart needs sideways scrolling on a phone, so phones start on the simple list
   useEffect(() => { if (window.innerWidth < 640) setView("list") }, [])
 
@@ -35,6 +37,11 @@ export default function DrugChapterPage({ params }: { params: Promise<{ chapterI
         <button className={pill(view === "chart")} onClick={() => setView("chart")}>Chart</button>
         <button className={pill(view === "list")} onClick={() => setView("list")}>List</button>
         <button className={pill(doses)} onClick={() => setDoses((v) => !v)} aria-pressed={doses}>Doses</button>
+        <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-[#f3c9c0] bg-white p-0.5">
+          <button aria-label="Zoom out" className="grid h-9 w-9 place-items-center rounded-full text-[#7a1212] hover:bg-[#fde4de]" onClick={() => zoomBy(1 / 1.2)}><Minus className="h-4 w-4" /></button>
+          <button aria-label="Reset zoom" className="min-w-[48px] text-xs font-bold text-[#7a1212]" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
+          <button aria-label="Zoom in" className="grid h-9 w-9 place-items-center rounded-full text-[#7a1212] hover:bg-[#fde4de]" onClick={() => zoomBy(1.2)}><Plus className="h-4 w-4" /></button>
+        </span>
         {view === "list" && <button className={pill(brands)} onClick={() => setBrands((v) => !v)} aria-pressed={brands}>Brands</button>}
       </div>
       <div className="flex gap-2 overflow-x-auto pb-2 pt-1" style={{ scrollbarWidth: "none" }}>
@@ -42,7 +49,7 @@ export default function DrugChapterPage({ params }: { params: Promise<{ chapterI
       </div>
 
       <div className="mt-2 space-y-5">
-        {chapter.charts.map((c) => <section key={c.id} id={c.id} className="scroll-mt-32"><DrugChartView chart={c} showDoses={doses} showBrands={brands} view={view} /></section>)}
+        {chapter.charts.map((c) => <section key={c.id} id={c.id} className="scroll-mt-32"><DrugChartView chart={c} showDoses={doses} showBrands={brands} view={view} zoom={zoom} onZoom={zoomBy} /></section>)}
       </div>
       <p className="mt-6 text-center text-xs text-muted-foreground">Doses and brand names are for quick revision. The chart shows names and short doses; the List shows full doses and brands. Check a current formulary before prescribing.</p>
     </div>

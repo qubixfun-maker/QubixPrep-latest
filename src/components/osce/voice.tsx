@@ -185,7 +185,7 @@ function mergeText(a: string, b: string): string {
   return `${x} ${y}`
 }
 
-export function useListen(lang: string, onFinal: (t: string) => void, silenceMs = 2500) {
+export function useListen(lang: string, onFinal: (t: string) => void, silenceMs = 2500, mixed = false) {
   const [listening, setListening] = useState(false)
   const [interim, setInterim] = useState("")
   const [supported, setSupported] = useState(true)
@@ -197,6 +197,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
   const release = useRef<null | (() => void)>(null)
   const cb = useRef(onFinal); cb.current = onFinal
   const { user: fbUser } = useUser(); const userRef = useRef<any>(null); userRef.current = fbUser
+  const mixedRef = useRef(mixed); mixedRef.current = mixed
   const recMode = useRef(""); const fallingBack = useRef(false); const startRef = useRef<() => void>(() => {})
   const mr = useRef<any>(null); const chunks = useRef<Blob[]>([]); const vadStop = useRef<null | (() => void)>(null)
 
@@ -215,7 +216,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
   const transcribe = useCallback(async (blob: Blob): Promise<string> => {
     try {
       const token = await userRef.current?.getIdToken()
-      const fd = new FormData(); fd.append("idToken", token || ""); fd.append("lang", lang)
+      const fd = new FormData(); fd.append("idToken", token || ""); fd.append("lang", mixedRef.current ? "auto" : lang)
       fd.append("audio", blob, blob.type.includes("mp4") ? "speech.m4a" : blob.type.includes("ogg") ? "speech.ogg" : "speech.webm")
       const res = await fetch("/api/osce-stations/stt", { method: "POST", body: fd })
       const j: any = await res.json().catch(() => ({}))
@@ -238,7 +239,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
       stream.getTracks().forEach((t) => t.stop()); mr.current = null
       clearTimeout(timer.current)
       const blob = new Blob(chunks.current, { type: r.mimeType || mime || "audio/mp4" }); chunks.current = []
-      if (blob.size < 1500) { flush(); setError("I did not hear anything. Tap the mic and speak again."); return }
+      if (blob.size < 1200) { flush(); setError("I did not hear anything. Tap the mic and speak again."); return }
       setInterim("Understanding...")
       finalRef.current = await transcribe(blob); interimRef.current = ""
       flush()
@@ -251,11 +252,16 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
       if (ctx.state === "running") {
         const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an)
         const data = new Uint8Array(an.fftSize); let spoke = false; let last = Date.now(); const t0 = Date.now()
+        let floor = 0; let n = 0 // quiet-room level, measured during the first moments, so soft voices and noisy rooms both work
+        const pause = mixedRef.current ? 2400 : 1900 // people who switch language pause to find the word, so wait a little longer
         const iv = setInterval(() => {
           an.getByteTimeDomainData(data)
           let sum = 0; for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v }
-          if (Math.sqrt(sum / data.length) > 0.03) { spoke = true; last = Date.now() }
-          if ((spoke && Date.now() - last > 1800) || (!spoke && Date.now() - t0 > 10000)) stop()
+          const lvl = Math.sqrt(sum / data.length)
+          if (Date.now() - t0 < 500) { floor = (floor * n + lvl) / (n + 1); n++; return }
+          const th = Math.max(0.012, floor * 2.6)
+          if (lvl > th) { spoke = true; last = Date.now() }
+          if ((spoke && Date.now() - last > pause) || (!spoke && Date.now() - t0 > 10000)) stop()
         }, 150)
         vadStop.current = () => { clearInterval(iv); try { ctx.close() } catch {} }
       } else { try { ctx.close() } catch {} }
@@ -327,7 +333,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
       // ask for the microphone first, so a blocked mic gives a clear message instead of silence
       let stream: MediaStream | null = null
       if (navigator.mediaDevices?.getUserMedia) {
-        try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }) }
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }) }
         catch (e: any) {
           setError(e?.name === "NotFoundError" ? "No microphone was found on this device." : "The microphone is blocked. On iPhone: Settings > Safari > Microphone > Allow. On Chrome: tap the lock icon in the address bar and allow Microphone. Then tap again.")
           release.current?.(); release.current = null
@@ -336,7 +342,7 @@ export function useListen(lang: string, onFinal: (t: string) => void, silenceMs 
       }
       const nativeOK = !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
       const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-      const useRec = !!stream && !!(window as any).MediaRecorder && (!nativeOK || recMode.current === lang || (ios && !/^en/i.test(lang)))
+      const useRec = !!stream && !!(window as any).MediaRecorder && (mixedRef.current || !nativeOK || recMode.current === lang || (ios && !/^en/i.test(lang)))
       if (useRec && stream) {
         want.current = true; startedAt.current = Date.now()
         const ok = await startRecorder(stream)
@@ -358,7 +364,13 @@ export function VoiceOrTextInput({ onSubmit, disabled, lang, placeholder, autoSt
   onSubmit: (text: string) => void; disabled?: boolean; lang: string; placeholder?: string; autoStartKey?: number; extra?: React.ReactNode
 }) {
   const [typed, setTyped] = useState("")
-  const { start, stop, listening, interim, supported, error } = useListen(lang, (t) => onSubmit(t))
+  // Mixed language: records the clip and lets the server work out which language each word is in (the browser's own recogniser can only follow one language).
+  const [mixed, setMixed] = useState<boolean>(() => { try { const v = localStorage.getItem("vp-mixed"); return v === null ? !/^en/i.test(lang) : v === "1" } catch { return !/^en/i.test(lang) } })
+  const [review, setReview] = useState<boolean>(() => { try { return localStorage.getItem("vp-review") === "1" } catch { return false } })
+  const reviewRef = useRef(review); reviewRef.current = review
+  const { start, stop, listening, interim, supported, error } = useListen(lang, (t) => { if (reviewRef.current) setTyped(t); else onSubmit(t) }, 2500, mixed)
+  const toggle = (on: boolean, set: (v: boolean) => void, key: string) => { set(!on); try { localStorage.setItem(key, !on ? "1" : "0") } catch {} }
+  const chip = (on: boolean) => `rounded-full border px-3 py-1 text-[11px] font-bold transition ${on ? "border-primary bg-primary text-white" : "border-border bg-white text-muted-foreground"}`
   const voiceIssue = useVoiceIssue()
   const last = useRef(autoStartKey || 0)
   useEffect(() => {
@@ -374,11 +386,17 @@ export function VoiceOrTextInput({ onSubmit, disabled, lang, placeholder, autoSt
           {listening ? <><Square className="h-4 w-4" /> Listening... tap when finished</> : <><Mic className="h-4 w-4" /> Tap to speak</>}
         </Button>
       )}
+      {supported && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={chip(mixed)} aria-pressed={mixed} onClick={() => toggle(mixed, setMixed, "vp-mixed")} title="Use this when you mix languages while speaking">Mixed language {mixed ? "on" : "off"}</button>
+          <button type="button" className={chip(review)} aria-pressed={review} onClick={() => toggle(review, setReview, "vp-review")} title="Shows what was heard in the box so you can fix it before sending">Check before sending {review ? "on" : "off"}</button>
+        </div>
+      )}
       {listening && interim && <p className="text-xs text-muted-foreground italic px-1">{interim}</p>}
       {error && <p className="text-xs rounded-lg bg-red-100 text-red-800 px-3 py-2">{error}</p>}
       {voiceIssue && <p className="text-xs rounded-lg bg-amber-100 text-amber-900 px-3 py-2">{voiceIssue}</p>}
       <div className="flex gap-2">
-        <Input placeholder={placeholder || "Or type here..."} value={typed} onChange={(e) => setTyped(e.target.value)} disabled={disabled}
+        <Input placeholder={review && !typed ? "What I heard will appear here. Fix it, then press Send." : (placeholder || "Or type here...")} value={typed} onChange={(e) => { if (!typed && e.target.value) stopSpeaking(); setTyped(e.target.value) }} disabled={disabled}
           onKeyDown={(e) => { if (e.key === "Enter" && typed.trim()) { onSubmit(typed.trim()); setTyped("") } }} />
         <Button disabled={disabled || !typed.trim()} onClick={() => { onSubmit(typed.trim()); setTyped("") }}>Send</Button>
       </div>

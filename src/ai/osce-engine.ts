@@ -110,6 +110,7 @@ export async function* answer(b: OsceBrief, history: string, utterance: string, 
 This is a clinical long-case exam for an Indian MBBS student.
 RULES:
 - Answer ONLY what was asked, in ${examiner ? '1 to 3 short factual sentences (under 50 words)' : '1 or 2 short sentences (under 35 words)'}. Do not volunteer extra ${examiner ? 'findings' : 'symptoms'}.
+- The student's words come from speech recognition. They may mix languages (for example Hindi or Kannada with English medical words), or contain small recognition mistakes or missing words. Work out what a medical student most likely meant and answer that; never ask them to repeat unless the question is truly impossible to guess.
 - Stay consistent with the CASE SHEET. Never reveal or hint at the diagnosis, differentials or management.
 - If asked something the sheet does not cover, invent a small plausible detail that fits the diagnosis, and stay consistent with the earlier answers below.
 ${examiner ? EXAM_RULES : '- If the question is vague, answer briefly as a real person would.'}

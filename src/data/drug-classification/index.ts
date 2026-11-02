@@ -12,6 +12,11 @@ import c11 from "./chapter-11.json"
 import c12 from "./chapter-12.json"
 import c13 from "./chapter-13.json"
 import c14 from "./chapter-14.json"
+import i1 from "./info-1.json"
+import i2 from "./info-2.json"
+import i3 from "./info-3.json"
+import i4 from "./info-4.json"
+import i5 from "./info-5.json"
 
 export type Drug = string | { n: string; d?: string; b?: string }
 export type DrugNode = { name: string; drugs?: Drug[]; children?: DrugNode[] }
@@ -24,3 +29,7 @@ export const DRUG_CHAPTERS: DrugChapter[] = ([c1, c2, c3, c4, c5, c6, c7, c8, c9
 export const drugName = (d: Drug) => (typeof d === "string" ? d : d.n)
 export const drugDose = (d: Drug) => (typeof d === "string" ? "" : d.d || "")
 export const drugBrand = (d: Drug) => (typeof d === "string" ? "" : d.b || "")
+
+/** Quick-revision summary for each chart (class): mechanism, uses, side effects, contraindications. Phrases are separated by "; ". */
+export type ClassInfo = { moa: string; uses: string; adr: string; ci: string }
+export const CLASS_INFO: Record<string, ClassInfo> = { ...i1, ...i2, ...i3, ...i4, ...i5 } as Record<string, ClassInfo>

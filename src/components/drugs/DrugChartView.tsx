@@ -1,7 +1,8 @@
 "use client"
 
-import { useLayoutEffect, useRef, useState } from "react"
-import { drugBrand, drugDose, drugName, type DrugChart, type DrugNode } from "@/data/drug-classification"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { ChevronDown } from "lucide-react"
+import { CLASS_INFO, drugBrand, drugDose, drugName, type DrugChart, type DrugNode } from "@/data/drug-classification"
 
 // Look of the printed classification charts: red boxes for the branches, a salmon heading over a white list of drugs,
 // red connecting lines, doses in maroon.
@@ -74,10 +75,46 @@ function Outline({ node, showDoses, showBrands, depth = 0 }: { node: DrugNode; s
   )
 }
 
-export function DrugChartView({ chart, showDoses, showBrands = true, view }: { chart: DrugChart; showDoses: boolean; showBrands?: boolean; view: "chart" | "list" }) {
+const INFO_SECTIONS: { key: "moa" | "uses" | "adr" | "ci"; label: string; color: string }[] = [
+  { key: "moa", label: "Mechanism of action", color: "#1d4ed8" },
+  { key: "uses", label: "Uses", color: "#15803d" },
+  { key: "adr", label: "Side effects", color: "#b45309" },
+  { key: "ci", label: "Contraindications", color: "#b91c1c" },
+]
+
+function InfoPanel({ id }: { id: string }) {
+  const [open, setOpen] = useState(false)
+  const info = CLASS_INFO[id]
+  if (!info) return null
+  return (
+    <div className="border-b border-[#f3c9c0] bg-[#fffaf8]">
+      <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex min-h-[44px] w-full items-center justify-between px-4 text-left text-sm font-bold text-[#7a1212]">
+        <span>Mechanism, uses, side effects &amp; contraindications</span>
+        <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="grid gap-3 px-4 pb-4 sm:grid-cols-2">
+          {INFO_SECTIONS.map((sec) => (
+            <div key={sec.key} className="rounded-xl border bg-white p-3" style={{ borderColor: sec.color + "33" }}>
+              <div className="mb-1 text-xs font-extrabold uppercase tracking-wide" style={{ color: sec.color }}>{sec.label}</div>
+              <ul className="list-disc space-y-0.5 pl-4 text-[13px] leading-snug text-slate-800">
+                {info[sec.key].split("; ").map((t, i) => <li key={i}>{t}</li>)}
+              </ul>
+            </div>
+          ))}
+          <p className="text-[11px] text-slate-500 sm:col-span-2">Quick-revision summary for the whole class. Individual drugs differ; check a standard text or formulary.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function DrugChartView({ chart, showDoses, showBrands = true, view, zoom = 1, onZoom }: { chart: DrugChart; showDoses: boolean; showBrands?: boolean; view: "chart" | "list"; zoom?: number; onZoom?: (factor: number) => void }) {
   const box = useRef<HTMLDivElement>(null)
   const inner = useRef<HTMLDivElement>(null)
-  const [fit, setFit] = useState({ k: 1, h: 0 })
+  const [fit, setFit] = useState({ k: 1, w: 0, h: 0 })
+  const zoomCb = useRef(onZoom)
+  zoomCb.current = onZoom
 
   useLayoutEffect(() => {
     if (view !== "chart") return
@@ -86,35 +123,63 @@ export function DrugChartView({ chart, showDoses, showBrands = true, view }: { c
     const measure = () => {
       const w = inn.scrollWidth, h = inn.scrollHeight
       const k = Math.max(0.62, Math.min(1, (el.clientWidth - 8) / w))
-      setFit({ k, h: h * k })
+      setFit({ k, w, h })
     }
     measure()
     const ro = new ResizeObserver(measure); ro.observe(el); ro.observe(inn)
     return () => ro.disconnect()
   }, [view, showDoses, chart])
 
+  // pinch with two fingers, or Ctrl + mouse wheel / trackpad pinch, zooms every chart
+  const body = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = body.current
+    if (!el) return
+    let d0 = 0
+    const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
+    const wheel = (e: WheelEvent) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoomCb.current?.(e.deltaY < 0 ? 1.1 : 1 / 1.1) } }
+    const start = (e: TouchEvent) => { if (e.touches.length === 2) d0 = dist(e.touches) }
+    const move = (e: TouchEvent) => {
+      if (e.touches.length === 2 && d0) {
+        e.preventDefault()
+        const d = dist(e.touches)
+        if (Math.abs(d / d0 - 1) > 0.04) { zoomCb.current?.(d / d0); d0 = d }
+      }
+    }
+    const end = () => { d0 = 0 }
+    el.addEventListener("wheel", wheel, { passive: false })
+    el.addEventListener("touchstart", start, { passive: true })
+    el.addEventListener("touchmove", move, { passive: false })
+    el.addEventListener("touchend", end)
+    return () => { el.removeEventListener("wheel", wheel); el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end) }
+  }, [])
+
+  const scale = fit.k * zoom
   return (
     <div className="overflow-hidden rounded-3xl border border-[#f3c9c0] bg-white shadow-sm">
       <div className="flex items-center gap-3 px-4 py-3" style={{ background: "#fde4de" }}>
         <span className="h-5 w-1.5 rounded-full" style={{ background: RED }} />
         <h2 className="text-[15px] font-extrabold text-[#5a1010]">{chart.title}</h2>
       </div>
-      {view === "chart" ? (
-        <div ref={box} className="overflow-x-auto px-1 py-4" style={{ WebkitOverflowScrolling: "touch" }}>
-          <style>{CSS}</style>
-          <div style={{ height: fit.h || undefined, minWidth: "min-content" }}>
-            <div ref={inner} className="dtree mx-auto w-max origin-top-left" style={{ transform: `scale(${fit.k})`, marginLeft: fit.k < 1 ? 0 : undefined }}>
-              <ul><Node node={chart.root} showDoses={showDoses} top /></ul>
+      <InfoPanel id={chart.id} />
+      <div ref={body} style={{ touchAction: "pan-x pan-y" }}>
+        {view === "chart" ? (
+          <div ref={box} className="overflow-auto px-1 py-4" style={{ WebkitOverflowScrolling: "touch", maxHeight: zoom > 1 ? "85vh" : undefined }}>
+            <style>{CSS}</style>
+            <div className="mx-auto" style={{ width: fit.w ? fit.w * scale : undefined, height: fit.h ? fit.h * scale : undefined }}>
+              <div ref={inner} className="dtree w-max origin-top-left" style={{ transform: `scale(${scale})` }}>
+                <ul><Node node={chart.root} showDoses={showDoses} top /></ul>
+              </div>
             </div>
+            {chart.footnote && <p className="mt-2 px-3 text-xs text-slate-600">{chart.footnote}</p>}
           </div>
-          {chart.footnote && <p className="mt-2 px-3 text-xs text-slate-600">{chart.footnote}</p>}
-        </div>
-      ) : (
-        <div className="px-4 py-4">
-          <Outline node={chart.root} showDoses={showDoses} showBrands={showBrands} />
-          {chart.footnote && <p className="mt-2 text-xs text-slate-600">{chart.footnote}</p>}
-        </div>
-      )}
+        ) : (
+          <div className="px-4 py-4" style={{ zoom } as React.CSSProperties}>
+            <Outline node={chart.root} showDoses={showDoses} showBrands={showBrands} />
+            {chart.footnote && <p className="mt-2 text-xs text-slate-600">{chart.footnote}</p>}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

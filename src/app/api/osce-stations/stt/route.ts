@@ -7,7 +7,7 @@ import { isClinician } from '@/lib/require-clinician'
 
 // Speech to text for phones whose browser cannot recognise speech in Indian languages (e.g. iPhone Safari).
 // The app records a short clip and sends it here; OpenAI turns it into text.
-const LANGS = new Set(['en', 'hi', 'kn', 'ta', 'te', 'ml', 'mr', 'bn'])
+const LANGS = new Set(['en', 'hi', 'kn', 'ta', 'te', 'ml', 'mr', 'bn', 'auto'])
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,9 +33,10 @@ export async function POST(req: NextRequest) {
       const fd = new FormData()
       fd.append('file', audio, (audio as any).name || 'speech.m4a')
       fd.append('model', model)
-      fd.append('language', lang)
+      // "auto" = the student mixes languages (e.g. Kannada or Hindi with English medical words), so the model decides by itself
+      if (lang !== 'auto') fd.append('language', lang)
       fd.append('response_format', 'json')
-      fd.append('prompt', 'A doctor and a patient talking in India. Medical terms may be said in English.')
+      fd.append('prompt', lang === 'auto' ? 'A medical student in India taking a clinical history and examining a patient. They freely mix Hindi, Kannada, Tamil, Telugu, Marathi, Bengali or Malayalam with English. Write every English or medical word (blood pressure, pulse, chest pain, fever, cough, breathlessness, ECG, X-ray, ultrasound, tablet, diabetes, jaundice, vomiting, bowel, urine) in English letters, and the other words in their own language script.' : 'A doctor and a patient talking in India. Medical terms may be said in English. Write English medical words (blood pressure, pulse, X-ray, ECG) in English letters.')
       const r = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd })
       if (r.ok) {
         const j: any = await r.json()
