@@ -1,11 +1,12 @@
 "use client"
-import { Suspense, useEffect, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Menu, Search } from "lucide-react"
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar"
 import { useTrackPageView } from "@/hooks/use-track-page-view"
-import { useUser } from "@/firebase"
+import { useUser, useDoc, useFirestore } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { usePlan } from "@/hooks/use-plan"
 import { TopSearchProvider, useTopSearchState } from "@/components/layout/top-search"
 import dynamic from "next/dynamic"
@@ -16,7 +17,7 @@ const AppSidebar = dynamic(() => import("@/components/layout/app-sidebar").then(
 // The five dashboard sections. Each opens the dashboard on that section; `match` keeps the right one lit on its own pages.
 const TABS = [
   { label: "Home", key: "home", icon: "🏠", match: ["/streak"] },
-  { label: "Notes", key: "notes", icon: "📚", match: ["/notes", "/top-100", "/university-exams", "/flashcards", "/mindmaps"] },
+  { label: "Notes", key: "notes", icon: "📚", match: ["/notes", "/top-100", "/university-exams", "/flashcards", "/mindmaps", "/drug-classification"] },
   { label: "QBank", key: "qbank", icon: "🎯", match: ["/qbank", "/test-series"] },
   { label: "Test", key: "test", icon: "⏱️", match: ["/grand-test", "/pyq"] },
   { label: "Bedside", key: "bedside", icon: "🩺", match: ["/cases", "/case-presentation", "/virtual-patient", "/arena"] },
@@ -31,6 +32,10 @@ function TopBar() {
   const ts = useTopSearchState()
   const scoped = ts?.placeholder ?? null
   const planLabel = isPro ? "Clinician" : isBasic ? "Scholar" : "Explorer"
+  const db = useFirestore()
+  const profileRef = useMemo(() => (!db || !user) ? null : doc(db, "users", user.uid), [db, user])
+  const { data: prof } = useDoc(profileRef)
+  const photo: string = (prof as any)?.photoData || user?.photoURL || ""
   const initial = (user?.displayName || user?.email || "D").trim().charAt(0).toUpperCase()
 
   return (
@@ -58,8 +63,8 @@ function TopBar() {
         <Link href="/pricing" className="hidden rounded-full border border-border bg-card px-3.5 py-2 text-[13px] font-bold text-muted-foreground sm:block">
           🎓 {planLabel}
         </Link>
-        <Link href="/profile" aria-label="Profile" className="grid h-[38px] w-[38px] place-items-center rounded-full bg-[#d9f0d9] font-black text-[#316b48]">
-          {initial}
+        <Link href="/profile" aria-label="Profile" className="grid h-[38px] w-[38px] place-items-center overflow-hidden rounded-full bg-[#d9f0d9] font-black text-[#316b48]">
+          {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : initial}
         </Link>
       </div>
     </header>

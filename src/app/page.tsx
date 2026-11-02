@@ -212,7 +212,7 @@ function DashboardInner() {
         <WaterHero>
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-[clamp(24px,3vw,34px)] font-black leading-[1.1] tracking-tight text-white [text-shadow:0_2px_14px_rgba(10,30,90,.45)]">{greeting}, {firstName}! <span>👋</span></h1>
+            <h1 className="text-[clamp(24px,3vw,34px)] font-black leading-[1.1] tracking-tight text-white [text-shadow:0_2px_14px_rgba(10,30,90,.45)]">{greeting}, {firstName}!</h1>
             <p className="mt-1 text-sm font-semibold text-white/90 [text-shadow:0_1px_8px_rgba(10,30,90,.45)]">{tab === "home" ? "A little progress every day adds up." : section.label}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">

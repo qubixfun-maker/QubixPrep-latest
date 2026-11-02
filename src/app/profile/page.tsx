@@ -5,7 +5,6 @@ import { useMemo, useState, useEffect, useRef } from "react"
 import { useUser, useDoc, useFirestore, useAuth } from "@/firebase"
 import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { updateProfile, sendPasswordResetEmail, signOut } from "firebase/auth"
-import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -149,24 +148,22 @@ export default function ProfilePage() {
 
     setIsUploading(true)
     try {
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.uid}-${Math.random()}.${fileExt}`
-      const filePath = `avatars/${fileName}`
-
-      // Upload to Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from('mindmaps') // Reusing existing bucket or assume an 'avatars' bucket exists
-        .upload(filePath, file)
-
-      if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('mindmaps')
-        .getPublicUrl(filePath)
-
-      // Update both Auth and Firestore
-      await updateProfile(user, { photoURL: publicUrl })
-      await updateDoc(profileRef, { photoURL: publicUrl })
+      if (!file.type.startsWith("image/")) throw new Error("Please choose a photo (JPG or PNG).")
+      // Shrink the photo to a small square first, so any phone photo uploads quickly and fits in the profile.
+      const bmp = await new Promise<HTMLImageElement>((ok, bad) => {
+        const url = URL.createObjectURL(file)
+        const im = new Image()
+        im.onload = () => { URL.revokeObjectURL(url); ok(im) }
+        im.onerror = () => { URL.revokeObjectURL(url); bad(new Error("That photo could not be opened. Try another one.")) }
+        im.src = url
+      })
+      const side = Math.min(bmp.naturalWidth, bmp.naturalHeight)
+      const canvas = document.createElement("canvas")
+      canvas.width = 320; canvas.height = 320
+      const ctx = canvas.getContext("2d")!
+      ctx.drawImage(bmp, (bmp.naturalWidth - side) / 2, (bmp.naturalHeight - side) / 2, side, side, 0, 0, 320, 320)
+      const photoData = canvas.toDataURL("image/jpeg", 0.85)
+      await updateDoc(profileRef, { photoData })
 
       toast({ title: "Photo Updated", description: "Your profile picture is now live." })
     } catch (e: any) {
@@ -257,7 +254,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-6">
           <div className="relative group">
             <Avatar className="h-24 w-24 border-4 border-primary/20 shadow-2xl overflow-hidden">
-              <AvatarImage src={user.photoURL || ""} className="object-cover" />
+              <AvatarImage src={(profile as any)?.photoData || user.photoURL || ""} className="object-cover" />
               <AvatarFallback className="bg-primary/10 text-primary text-3xl font-bold">
                 {user.displayName?.[0] || user.email?.[0]?.toUpperCase() || "D"}
               </AvatarFallback>

@@ -4,7 +4,7 @@ import { BrandLockup } from "@/components/brand-mark"
 import { useMemo } from "react"
 import {
   BookOpen, GraduationCap, Layers, Network, Flame, Database, Trophy, BrainCircuit, Stethoscope,
-  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords, HelpCircle, LifeBuoy, RotateCcw, BarChart3, CalendarDays, Timer, Microscope,
+  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords, HelpCircle, LifeBuoy, RotateCcw, BarChart3, CalendarDays, Timer, Microscope, Pill,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -51,6 +51,7 @@ export function AppSidebar() {
   const { data: profile } = useDoc(profileRef)
   const isAdmin = profile && (profile as any).role === "admin"
   const year = (profile as any)?.currentYear
+  const photo: string = (profile as any)?.photoData || user?.photoURL || ""
   const planLabel = isPro ? "Clinician" : isBasic ? "Scholar" : "Explorer"
   const name = user?.displayName?.split(" ")[0] || "Future doctor"
 
@@ -64,6 +65,7 @@ export function AppSidebar() {
     { title: "Top 100 Topics", url: "/top-100", icon: Star },
     { title: "University Exams", url: "/university-exams", icon: GraduationCap, also: ["/long-answers", "/spotters"] },
     { title: "Flashcards", url: "/flashcards", icon: Layers },
+    { title: "Drug Classification", url: "/drug-classification", icon: Pill },
     // Mind Maps are hidden for everyone for now (admins can still open /mindmaps directly)
   ]
   const stories: Item[] = [{ title: "Med Stories", url: "/stories", icon: Newspaper }]
@@ -116,7 +118,7 @@ export function AppSidebar() {
         </Link>
         {user && (
           <Link href="/profile" onClick={closeOnMobile} className="flex items-center gap-2.5 rounded-2xl bg-secondary p-3 min-w-0">
-            <div className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-[#ffe0cb] text-lg shrink-0">🩺</div>
+            <div className="flex h-[38px] w-[38px] items-center justify-center overflow-hidden rounded-full bg-[#ffe0cb] text-lg shrink-0">{photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : "🩺"}</div>
             <div className="min-w-0">
               <strong className="block truncate text-[13px]">Hey, {name}!</strong>
               <small className="block truncate text-muted-foreground">{planLabel}{year ? ` • ${year}` : ""}</small>
