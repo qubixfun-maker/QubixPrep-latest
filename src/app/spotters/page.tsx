@@ -1,72 +1,70 @@
 "use client"
 import { useTopSearch } from "@/components/layout/top-search"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Loader2, Microscope, ScanSearch, Timer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useSpots } from "@/lib/spotters/remote"
+import { groupsWithCounts, subjectLabel, subjectsWithCounts } from "@/lib/spotters/subjects"
 
 export default function SpottersPage() {
   const { checkingAuth } = useRequireAuth()
-  const { spots: SPOTS, groups: GROUPS } = useSpots()
+  const { spots: SPOTS } = useSpots()
   const [search] = useTopSearch("Search spotters…")
+  const [subject, setSubjectState] = useState<string>("All")
   const [group, setGroup] = useState<string>("All")
-  const [subject, setSubject] = useState<string>("All")
 
-  const groupCounts = useMemo(() => {
-    const m: Record<string, number> = { All: SPOTS.length }
-    SPOTS.forEach((s) => { m[s.group] = (m[s.group] || 0) + 1 })
-    return m
-  }, [SPOTS])
+  // remember the subject when coming back from a photo
+  useEffect(() => { try { const v = sessionStorage.getItem("spot-subject"); if (v) setSubjectState(v) } catch {} }, [])
+  const setSubject = (v: string) => { setSubjectState(v); setGroup("All"); try { sessionStorage.setItem("spot-subject", v) } catch {} }
 
-  const subjects = useMemo(() => {
-    const set = new Set<string>()
-    SPOTS.filter((s) => group === "All" || s.group === group).forEach((s) => set.add(s.subject))
-    return ["All", ...Array.from(set).sort()]
-  }, [group, SPOTS])
+  const subjects = useMemo(() => subjectsWithCounts(SPOTS), [SPOTS])
+  const groups = useMemo(() => groupsWithCounts(SPOTS, subject), [SPOTS, subject])
+  const activeSubject = subject === "All" || subjects.some((x) => x.subject === subject) ? subject : "All"
 
   const list = useMemo(() => {
     const q = search.trim().toLowerCase()
     return SPOTS.filter((s) =>
+      (activeSubject === "All" || s.subject === activeSubject) &&
       (group === "All" || s.group === group) &&
-      (subject === "All" || s.subject === subject) &&
-      (!q || (s.name + " " + (s.aka || "") + " " + s.topic + " " + s.subject).toLowerCase().includes(q)),
+      (!q || (s.name + " " + (s.aka || "") + " " + s.topic + " " + s.subject + " " + s.group).toLowerCase().includes(q)),
     )
-  }, [SPOTS, group, subject, search])
+  }, [SPOTS, activeSubject, group, search])
 
   if (checkingAuth) return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
 
+  const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-sm font-medium transition ${on ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 px-3 py-4 md:px-6 md:py-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl"><Microscope className="h-6 w-6 text-primary" /> Spot &amp; Identify</h1>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Real practical-exam photos: instruments, gross specimens, pathology and histology slides. Open any photo for identification points, notes, viva questions and MCQs.
+            Practical-exam photos, subject by subject. Pick a subject, then a type (instruments, specimens, slides, X-rays, drugs and more). Open any photo for identification points, notes, viva questions and MCQs.
           </p>
         </div>
         <Button asChild className="gap-2"><Link href="/spotters/test"><Timer className="h-4 w-4" /> Spotter test</Link></Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {["All", ...GROUPS].map((g) => (
-          <button key={g} onClick={() => { setGroup(g); setSubject("All") }}
-            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${group === g ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}>
-            {g} <span className="opacity-70">({groupCounts[g] || 0})</span>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+        <button onClick={() => setSubject("All")} className={`rounded-xl border p-3 text-left transition ${activeSubject === "All" ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}>
+          <p className="text-sm font-bold">All</p><p className="text-xs opacity-75">{SPOTS.length} photos</p>
+        </button>
+        {subjects.map(({ subject: sb, count }) => (
+          <button key={sb} onClick={() => setSubject(sb)} className={`rounded-xl border p-3 text-left transition ${activeSubject === sb ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}>
+            <p className="text-sm font-bold leading-tight">{subjectLabel(sb)}</p><p className="text-xs opacity-75">{count} photos</p>
           </button>
         ))}
       </div>
 
-      {subjects.length > 2 && (
+      {groups.length > 1 && (
         <div className="flex flex-wrap gap-2">
-          {subjects.map((s) => (
-            <button key={s} onClick={() => setSubject(s)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition ${subject === s ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>
-              {s === "All" ? "All subjects" : s}
-            </button>
+          <button onClick={() => setGroup("All")} className={chip(group === "All")}>All types</button>
+          {groups.map(({ group: g, count }) => (
+            <button key={g} onClick={() => setGroup(g)} className={chip(group === g)}>{g} <span className="opacity-70">({count})</span></button>
           ))}
         </div>
       )}
@@ -87,8 +85,8 @@ export default function SpottersPage() {
               <div className="space-y-1 p-2.5">
                 <p className="line-clamp-2 text-sm font-semibold leading-snug">{s.name}</p>
                 <div className="flex flex-wrap gap-1">
-                  <Badge variant="secondary" className="text-[10px]">{s.subject === "Obstetrics & Gynaecology" ? "OBG" : s.subject}</Badge>
-                  <Badge variant="outline" className="text-[10px]">{s.topic}</Badge>
+                  <Badge variant="secondary" className="text-[10px]">{subjectLabel(s.subject)}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{s.group === "Instruments" ? s.topic : s.group + " · " + s.topic}</Badge>
                 </div>
               </div>
             </Link>

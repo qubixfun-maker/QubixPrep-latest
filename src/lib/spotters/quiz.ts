@@ -11,7 +11,7 @@ export type SpotQ = {
   srsQuestion: string
 }
 
-const SINGULAR: Record<string, string> = { Instruments: "instrument", "Gross specimens": "specimen", "Pathology slides": "slide", "Histology slides": "slide" }
+const SINGULAR: Record<string, string> = { Instruments: "instrument", "Gross specimens": "specimen", "Pathology slides": "slide", "Histology slides": "slide", "Clinical signs": "clinical sign", "X-rays": "X-ray", Imaging: "image", Laboratory: "report", Drugs: "drug", Vaccines: "vaccine", Contraceptives: "contraceptive", "Charts and scores": "chart", "Charts and screening": "chart" }
 export const singular = (g: string) => SINGULAR[g] || "item"
 
 /** "Name this ..." question that uses the photo. Wrong options come from similar items. */

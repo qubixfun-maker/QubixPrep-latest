@@ -29,7 +29,7 @@ export default function SpotDetailPage({ params }: { params: Promise<{ id: strin
   const [img, setImg] = useState(0)
   const [zoom, setZoom] = useState<number | null>(null)
 
-  const siblings = useMemo(() => (spot ? SPOTS.filter((s) => s.group === spot.group) : []), [spot, SPOTS])
+  const siblings = useMemo(() => (spot ? SPOTS.filter((s) => s.group === spot.group && s.subject === spot.subject) : []), [spot, SPOTS])
   const at = siblings.findIndex((s) => s.id === id)
   const prev = at > 0 ? siblings[at - 1] : null
   const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null

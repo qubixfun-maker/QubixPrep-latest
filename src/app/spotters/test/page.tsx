@@ -9,6 +9,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useUser, useFirestore } from "@/firebase"
 import { recordBulk } from "@/lib/study"
 import { useSpots } from "@/lib/spotters/remote"
+import { groupsWithCounts, subjectsWithCounts } from "@/lib/spotters/subjects"
 import { buildQuestions, type SpotQ } from "@/lib/spotters/quiz"
 
 const COUNTS = [10, 20, 30]
@@ -16,7 +17,7 @@ const SECONDS = 40
 
 export default function SpotterTestPage() {
   const { checkingAuth } = useRequireAuth()
-  const { spots: SPOTS, groups: GROUPS } = useSpots()
+  const { spots: SPOTS } = useSpots()
   const { user } = useUser()
   const db = useFirestore()
 
@@ -32,11 +33,8 @@ export default function SpotterTestPage() {
   const [left, setLeft] = useState(SECONDS)
   const saved = useRef(false)
 
-  const subjects = useMemo(() => {
-    const set = new Set<string>()
-    SPOTS.filter((s) => group === "All" || s.group === group).forEach((s) => set.add(s.subject))
-    return ["All", ...Array.from(set).sort()]
-  }, [group, SPOTS])
+  const subjects = useMemo(() => ["All", ...subjectsWithCounts(SPOTS).map((x) => x.subject)], [SPOTS])
+  const groupList = useMemo(() => ["All", ...groupsWithCounts(SPOTS, subject).map((x) => x.group)], [SPOTS, subject])
   const pool = useMemo(() => SPOTS.filter((s) => (group === "All" || s.group === group) && (subject === "All" || s.subject === subject)), [SPOTS, group, subject])
 
   const q = qs ? qs[i] : null
@@ -83,9 +81,9 @@ export default function SpotterTestPage() {
           <p className="mt-1 text-sm text-muted-foreground">A photo appears and you pick its name, like a practical exam. Photos that already carry a label are asked as written questions instead.</p>
         </div>
 
-        <Section title="Topic">
-          <Chips value={group} options={["All", ...GROUPS]} onChange={(v) => { setGroup(v); setSubject("All") }} />
-          {subjects.length > 2 && <Chips value={subject} options={subjects} onChange={setSubject} small />}
+        <Section title="Subject and type">
+          <Chips value={subject} options={subjects} onChange={(v) => { setSubject(v); setGroup("All") }} />
+          {groupList.length > 2 && <Chips value={group} options={groupList} onChange={setGroup} small />}
         </Section>
         <Section title="Number of questions"><Chips value={String(count)} options={COUNTS.map(String)} onChange={(v) => setCount(Number(v))} /></Section>
         <label className="flex items-center justify-between rounded-xl border bg-card p-3 text-sm">
