@@ -9,12 +9,14 @@ import { isFieldFilled, buildSection } from "@/lib/casepres/format"
 import { diagnosisHints } from "@/lib/casepres/insights"
 import { FieldView } from "./fields"
 
-export function CaseForm({ caseDef, answers, setField, onPresent, saveState }: {
+export function CaseForm({ caseDef, answers, setField, onPresent, saveState, saveErr, onRetry }: {
   caseDef: CaseDef
   answers: Answers
   setField: (id: string, v: any) => void
   onPresent: () => void
   saveState: "idle" | "saving" | "saved" | "error"
+  saveErr?: string
+  onRetry?: () => void
 }) {
   const [idx, setIdx] = useState(0)
   const sec = caseDef.sections[idx]
@@ -88,7 +90,7 @@ export function CaseForm({ caseDef, answers, setField, onPresent, saveState }: {
           <div className="flex-1 text-xs text-muted-foreground flex items-center justify-center gap-1.5 min-w-0">
             {saveState === "saving" && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving</>}
             {saveState === "saved" && <><Check className="h-3.5 w-3.5 text-emerald-400" /> Saved</>}
-            {saveState === "error" && <span className="text-destructive">Not saved</span>}
+            {saveState === "error" && <button onClick={onRetry} className="truncate text-destructive underline" title={saveErr}>Not saved{saveErr ? ` (${saveErr.replace("permission-denied", "no permission")})` : ""} – tap to retry</button>}
             {saveState === "idle" && <><Save className="h-3.5 w-3.5" /> {done}/{caseDef.sections.length} sections</>}
           </div>
           <Button onClick={onPresent} className="gap-2 font-bold"><Presentation className="h-4 w-4" /> Present case</Button>

@@ -63,6 +63,18 @@ const QUICK_ACTIONS = [
   "Relevant investigations",
 ]
 
+
+/** A big Stop button that floats on the screen while the patient or examiner is talking, so the student can cut in at any moment. */
+function StopVoice({ speaking, onStop }: { speaking: boolean; onStop: () => void }) {
+  if (!speaking) return null
+  return (
+    <button onClick={onStop} aria-label="Stop speaking"
+      className="fixed bottom-28 left-1/2 z-[60] flex -translate-x-1/2 items-center gap-2 rounded-full bg-red-600 px-6 py-3.5 text-base font-extrabold text-white shadow-[0_10px_30px_rgba(220,38,38,.45)] transition active:scale-95 md:bottom-8">
+      <VolumeX className="h-5 w-5" /> Stop speaking
+    </button>
+  )
+}
+
 function DoctorAvatar({ speaking }: { speaking: boolean }) {
   return (
     <div className="flex items-center justify-center py-2">
@@ -684,6 +696,7 @@ export default function OsceStationsPage() {
             </CardContent>
           </Card>
 
+          <StopVoice speaking={speaking} onStop={silence} />
           {role && (
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{speaking ? "Speaking..." : `Answering: ${role.label}`} - {language}</span>
@@ -744,6 +757,7 @@ export default function OsceStationsPage() {
 
       {phase === "feedback" && assessment && (
         <div className="space-y-4">
+          <StopVoice speaking={speaking} onStop={silence} />
           <DoctorAvatar speaking={speaking} />
 
           <Card className="glass border-none">
@@ -795,6 +809,7 @@ export default function OsceStationsPage() {
 
       {phase === "viva" && (
         <div className="space-y-4">
+          <StopVoice speaking={speaking} onStop={silence} />
           <DoctorAvatar speaking={speaking} />
           <Card className="glass border-none">
             <CardContent className="p-4 space-y-2">
