@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useSpots } from "@/lib/spotters/remote"
-import { groupsWithCounts, subjectLabel, subjectsWithCounts } from "@/lib/spotters/subjects"
+import { SUBJECT_ORDER, groupsWithCounts, subjectLabel, subjectsWithCounts } from "@/lib/spotters/subjects"
 
 export default function SpottersPage() {
   const { checkingAuth } = useRequireAuth()
@@ -22,6 +22,13 @@ export default function SpottersPage() {
   const setSubject = (v: string) => { setSubjectState(v); setGroup("All"); try { sessionStorage.setItem("spot-subject", v) } catch {} }
 
   const subjects = useMemo(() => subjectsWithCounts(SPOTS), [SPOTS])
+  // every subject always gets a card, in the usual order; ones without photos yet say "Coming soon"
+  const tiles = useMemo(() => {
+    const have = new Map(subjects.map((x) => [x.subject, x.count]))
+    const base = SUBJECT_ORDER.map((sb) => ({ subject: sb, count: have.get(sb) || 0 }))
+    const extra = subjects.filter((x) => !SUBJECT_ORDER.includes(x.subject))
+    return [...base, ...extra]
+  }, [subjects])
   const groups = useMemo(() => groupsWithCounts(SPOTS, subject), [SPOTS, subject])
   const activeSubject = subject === "All" || subjects.some((x) => x.subject === subject) ? subject : "All"
 
@@ -49,14 +56,18 @@ export default function SpottersPage() {
         <Button asChild className="gap-2"><Link href="/spotters/test"><Timer className="h-4 w-4" /> Spotter test</Link></Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-        <button onClick={() => setSubject("All")} className={`rounded-xl border p-3 text-left transition ${activeSubject === "All" ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}>
-          <p className="text-sm font-bold">All</p><p className="text-xs opacity-75">{SPOTS.length} photos</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <button onClick={() => setSubject("All")} className={`rounded-2xl border p-4 text-left transition ${activeSubject === "All" ? "border-primary bg-primary text-primary-foreground shadow" : "bg-card hover:bg-muted"}`}>
+          <p className="text-base font-bold">All subjects</p><p className="mt-0.5 text-xs opacity-75">{SPOTS.length} photos</p>
         </button>
-        {subjects.map(({ subject: sb, count }) => (
-          <button key={sb} onClick={() => setSubject(sb)} className={`rounded-xl border p-3 text-left transition ${activeSubject === sb ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted"}`}>
-            <p className="text-sm font-bold leading-tight">{subjectLabel(sb)}</p><p className="text-xs opacity-75">{count} photos</p>
+        {tiles.map(({ subject: sb, count }) => count > 0 ? (
+          <button key={sb} onClick={() => setSubject(sb)} className={`rounded-2xl border p-4 text-left transition ${activeSubject === sb ? "border-primary bg-primary text-primary-foreground shadow" : "bg-card hover:bg-muted"}`}>
+            <p className="text-base font-bold leading-tight">{subjectLabel(sb)}</p><p className="mt-0.5 text-xs opacity-75">{count} photos</p>
           </button>
+        ) : (
+          <div key={sb} className="rounded-2xl border border-dashed bg-muted/30 p-4 text-left text-muted-foreground">
+            <p className="text-base font-bold leading-tight">{subjectLabel(sb)}</p><p className="mt-0.5 text-xs">Coming soon</p>
+          </div>
         ))}
       </div>
 
