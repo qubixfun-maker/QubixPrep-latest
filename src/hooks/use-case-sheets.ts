@@ -65,19 +65,38 @@ export async function deleteCaseSheet(db: any, uid: string, id: string) {
 
 export function useCaseSheet(id: string | null) {
   const db = useFirestore()
-  const { user } = useUser()
+  const { user, loading: userLoading } = useUser()
   const [sheet, setSheet] = useState<CaseSheet | null>(null)
   const [loading, setLoading] = useState(!!id)
+  const [error, setError] = useState(false)
   useEffect(() => {
-    if (!id || !db || !user) { setLoading(false); return }
-    setLoading(true)
-    // One-shot read: later edits are local state, so the live listener would fight with typing.
-    const unsub = onSnapshot(doc(db, "users", user.uid, "caseSheets", id), (snap) => {
-      setSheet(snap.exists() ? ({ ...(snap.data() as any), id: snap.id } as CaseSheet) : null)
-      setLoading(false)
-      unsub()
-    }, () => setLoading(false))
-    return () => unsub()
-  }, [id, db, user])
-  return { sheet, loading }
+    if (!id) { setLoading(false); return }
+    // wait for sign-in to finish: reading before that looks like "no such case" and used to open an empty form
+    if (userLoading || !db) { setLoading(true); return }
+    if (!user) { setLoading(false); return }
+    setLoading(true); setError(false)
+    let done = false
+    let unsub: (() => void) | null = null
+    // One-shot read: later edits are local state, so a live listener would fight with typing.
+    unsub = onSnapshot(
+      doc(db, "users", user.uid, "caseSheets", id),
+      { includeMetadataChanges: true },
+      (snap) => {
+        if (snap.exists()) {
+          setSheet({ ...(snap.data() as any), id: snap.id } as CaseSheet)
+        } else if (snap.metadata.fromCache) {
+          return // an empty answer from the local cache is not proof the case is gone; wait for the server
+        } else {
+          setSheet(null)
+        }
+        setLoading(false)
+        done = true
+        if (unsub) unsub()
+      },
+      () => { setError(true); setLoading(false) }
+    )
+    if (done) unsub()
+    return () => { if (unsub) unsub() }
+  }, [id, db, user, userLoading])
+  return { sheet, loading, error }
 }
