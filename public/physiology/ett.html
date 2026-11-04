@@ -1,0 +1,391 @@
+<!doctype html><html lang="en" data-sim="ett"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Exercise Tolerance Test</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* QubixPrep look: Inter, navy primary with orange accent, 1rem radius, soft borders. Violet primary in dark mode. */
+:root{
+  --bg:#ffffff; --fg:#1b2338; --card:#ffffff; --pri:#152d65; --pri-fg:#ffffff; --sec:#e9eefb; --muted:#f2f4f8; --mfg:#626a79;
+  --acc:#e67123; --bd:#e2e6ee; --ok:#168a5b; --bad:#d63b3b; --blue:#2f6df0; --shadow:0 1px 2px #1b23380d,0 8px 24px -12px #1b23382e;
+  --scene:#eef2fa; --scene2:#dfe7f6; --skin:#f1c9a9; --skin2:#e2b08c;
+  --f:'Inter','Segoe UI',system-ui,sans-serif; --r:16px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d0d16; --fg:#f4f5f8; --card:#161622; --pri:#8f6ce0; --pri-fg:#fff; --sec:#23232f; --muted:#23232f; --mfg:#a2a7b2;
+  --acc:#428bf0; --bd:#2b2b3b; --ok:#3fc58c; --bad:#f06a6a; --blue:#6aa2ff; --shadow:0 1px 2px #0006,0 10px 30px -14px #000;
+  --scene:#12121c; --scene2:#1b1b2a; --skin:#c79b7c; --skin2:#a97f63; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d0d16; --fg:#f4f5f8; --card:#161622; --pri:#8f6ce0; --pri-fg:#fff; --sec:#23232f; --muted:#23232f; --mfg:#a2a7b2;
+  --acc:#428bf0; --bd:#2b2b3b; --ok:#3fc58c; --bad:#f06a6a; --blue:#6aa2ff; --shadow:0 1px 2px #0006,0 10px 30px -14px #000;
+  --scene:#12121c; --scene2:#1b1b2a; --skin:#c79b7c; --skin2:#a97f63; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--f);padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1160px;margin:0 auto}
+h1,h2,h3{margin:0;letter-spacing:-.015em}
+h1{font-size:clamp(24px,4vw,34px);font-weight:700;line-height:1.1}
+h2{font-size:18px;font-weight:650}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-bottom:6px}
+.sub{color:var(--mfg);margin:6px 0 0}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
+.btn{font:600 14px var(--f);border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:12px;padding:9px 14px;cursor:pointer}
+.btn:hover{border-color:var(--pri)} .btn.pri{background:var(--pri);color:var(--pri-fg);border-color:var(--pri)} .btn.acc{background:var(--acc);color:#fff;border-color:var(--acc)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.chip{font:600 13px var(--f);border:1px solid var(--bd);background:var(--muted);color:var(--fg);border-radius:99px;padding:7px 13px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--pri);color:var(--pri-fg);border-color:var(--pri)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600;background:var(--sec);color:var(--pri)}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .mut{color:var(--mfg)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+input[type=number],select{font:500 14px var(--f);background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:12px;padding:9px 11px;width:100%}
+.lab{font-size:12px;font-weight:600;color:var(--mfg);margin-bottom:4px;display:block}
+.seg{display:inline-flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.seg button{background:var(--card);color:var(--mfg);border:0;padding:7px 12px;font:600 13px var(--f);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--pri);color:var(--pri-fg)}
+[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+header{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.st{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:99px;background:var(--muted);color:var(--mfg);font-weight:600;font-size:13px;border:1px solid transparent}
+.st b{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;background:var(--bd);color:var(--fg);font-size:11px}
+.st.on{background:var(--pri);color:var(--pri-fg)} .st.on b{background:#ffffff33;color:inherit}
+.st.done{color:var(--ok);background:var(--sec)} .st.done b{background:var(--ok);color:#fff}
+.lab-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:18px;align-items:start}
+@media(max-width:920px){.lab-grid{grid-template-columns:minmax(0,1fr)}}
+.scene{background:linear-gradient(180deg,var(--scene),var(--scene2));border-radius:var(--r);border:1px solid var(--bd);padding:10px;position:relative;overflow:hidden}
+#room{width:100%;display:block;height:auto;max-height:620px}
+.tray{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.el{border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:12px;padding:6px 0;font:600 12px var(--f);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.el i{width:14px;height:14px;border-radius:50%;border:1px solid #0003}
+.el.sel{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)} .el.on{opacity:.5}
+.site{fill:#ffffff00;stroke:var(--mfg);stroke-width:1.2;stroke-dasharray:3 3;cursor:pointer}
+.site.hint{stroke:var(--acc);stroke-dasharray:0;animation:pl 1.4s ease-in-out infinite}
+@keyframes pl{50%{stroke-width:3;opacity:.55}}
+.machine{background:linear-gradient(160deg,#e9edf5,#cfd7e6);border-radius:22px;padding:14px;border:1px solid #b8c2d6;box-shadow:0 24px 40px -24px #0f1c3a88,inset 0 1px 0 #fff}
+:root[data-theme=dark] .machine{background:linear-gradient(160deg,#2a2a3a,#1b1b28);border-color:#3a3a4e}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .machine{background:linear-gradient(160deg,#2a2a3a,#1b1b28);border-color:#3a3a4e}}
+.brand{display:flex;justify-content:space-between;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#59657f;margin:0 4px 8px}
+.lcd{background:#06130f;border-radius:12px;padding:8px;border:3px solid #0003;position:relative}
+.lcd canvas{width:100%;height:170px;display:block;border-radius:6px}
+.lcd .hud{position:absolute;left:14px;top:10px;font:600 12px ui-monospace,Menlo,monospace;color:#6dffb4;text-shadow:0 0 6px #6dffb488}
+.lcd .hud2{position:absolute;right:14px;top:10px;font:600 11px ui-monospace,Menlo,monospace;color:#6dffb4aa}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 2px 0}
+.ctl .lab{margin:0;color:#59657f}
+.lead-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 2px}
+.lead-grid button{border:1px solid #aeb8cc;background:linear-gradient(#fff,#e4e9f3);border-radius:8px;padding:7px 0;font:700 12px var(--f);color:#26324e;cursor:pointer;position:relative;box-shadow:0 2px 0 #aeb8cc}
+.lead-grid button[aria-pressed=true]{background:var(--acc);color:#fff;border-color:var(--acc);box-shadow:0 2px 0 #00000033;transform:translateY(1px)}
+.lead-grid button.done::after{content:"";position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.slot{height:9px;background:#0b1020;border-radius:6px;margin:12px 6px 0;box-shadow:inset 0 2px 3px #000}
+.paperwrap{margin:0 14px;border-radius:0 0 6px 6px;overflow:hidden;box-shadow:0 8px 14px -8px #0008}
+#paper{width:100%;height:210px;display:block}
+.coach{margin-top:18px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center}
+@media(max-width:700px){.coach{grid-template-columns:minmax(0,1fr)}}
+.coach h2{margin-bottom:4px}
+.msg{min-height:22px;font-size:14px;margin-top:8px}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:12px}
+.ck{display:flex;gap:8px;align-items:center;padding:9px 12px;border-radius:12px;background:var(--muted);font-size:14px;font-weight:500}
+.ck span:first-child{font-weight:700;width:16px}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:14px}
+@media(max-width:700px){.two{grid-template-columns:minmax(0,1fr)}}
+.score{font-size:54px;font-weight:800;line-height:1;letter-spacing:-.03em} .score small{font-size:15px;color:var(--mfg);font-weight:500}
+#sheet{width:100%;height:auto;border-radius:10px;display:block;border:1px solid var(--bd)}
+
+.detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:16px;padding-top:16px;border-top:1px solid var(--bd)}
+@media(max-width:760px){.detail{grid-template-columns:minmax(0,1fr)}}
+.detail h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin:0 0 6px;font-weight:700}
+.detail ol,.detail ul{margin:0 0 12px;padding-left:20px} .detail li{margin:4px 0;font-size:14px} .detail p{margin:0 0 12px;font-size:14px;color:var(--mfg)}
+.coach{grid-template-columns:minmax(0,1fr) auto}
+#tm{width:100%;height:auto;display:block}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+@media(max-width:560px){.kv{grid-template-columns:repeat(2,1fr)}}
+.kv div{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:8px 10px;font-size:12px;color:var(--mfg)} .kv b{display:block;color:var(--fg);font-size:18px}
+.stagebar{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:10px}
+.stagebar div{border-radius:10px;padding:7px 4px;text-align:center;font-size:11px;font-weight:600;background:var(--muted);color:var(--mfg);border:1px solid transparent}
+.stagebar div.on{background:var(--acc);color:#fff} .stagebar div.done{background:var(--sec);color:var(--pri);border-color:var(--bd)}
+.stagebar b{display:block;font-size:14px}
+.vit{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 2px 0}
+.vit div{background:#06130f;color:#6dffb4;border-radius:10px;padding:7px 8px;font:600 11px ui-monospace,Menlo,monospace} .vit b{display:block;font-size:19px;color:#b6ffd9}
+.vit .red b{color:#ff8b8b}
+.log{margin:12px 2px 0;font:500 12px ui-monospace,Menlo,monospace;color:#59657f;max-height:88px;overflow:auto;line-height:1.6}
+.opts{display:grid;gap:8px;margin-top:10px}
+.opts label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--bd);border-radius:12px;cursor:pointer;font-size:14px}
+.opts input{margin-top:3px;accent-color:var(--acc)}
+.hist{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin:12px 0}
+.hist div{background:var(--muted);border-radius:12px;padding:10px 12px;font-size:14px} .hist b{display:block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mfg);margin-bottom:2px}
+table{border-collapse:collapse;width:100%;font-size:14px} td,th{border-bottom:1px solid var(--bd);padding:8px;text-align:left} th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--mfg)}
+.scroll{overflow-x:auto}
+
+</style>
+<style>
+/* embedded inside QubixPrep: hide the standalone title block, keep the subject chip */
+html.emb body{padding-block:4px 24px;padding-left:0;padding-right:0}
+html.emb .wrap{max-width:none}
+html.emb header>div:first-child{display:none}
+html.emb header{justify-content:flex-end;margin-bottom:6px}
+html.emb header:empty{display:none}
+</style>
+<div class="wrap">
+<header>
+  <div><div class="eyebrow">Physiology practical · Virtual lab</div><h1>Exercise Tolerance Test</h1><p class="sub">Treadmill stress test with the Bruce protocol. Screen the patient, prepare, run the stages, watch for stop criteria, then interpret.</p></div>
+  <div class="pill" id="pt"></div>
+</header>
+<div class="steps" id="steps"></div>
+<div id="screen" class="card" style="margin-bottom:18px"></div>
+<div id="run" class="lab-grid">
+  <div>
+    <div class="scene"><svg id="tm" viewBox="0 20 440 300" role="img" aria-label="Patient on the treadmill"></svg>
+      <div class="kv" id="rd"></div></div>
+    <div class="stagebar" id="stagebar"></div>
+  </div>
+  <div>
+    <div class="machine">
+      <div class="brand"><span>QubixStress 6</span><span id="mset">Lead V5 · 25 mm/s</span></div>
+      <div class="lcd"><div class="hud" id="hud">V5</div><div class="hud2" id="hud2"></div><canvas id="lcd" aria-label="Live ECG monitor"></canvas></div>
+      <div class="vit" id="vit"></div>
+      <div class="ctl">
+        <button class="btn" id="bRest">Record resting ECG</button>
+        <button class="btn" id="bBP">Record BP and RPE</button>
+        <button class="btn acc" id="bStart">Start test</button>
+        <button class="btn" id="bStop" style="border-color:var(--bad);color:var(--bad)">Stop test</button>
+        <div class="seg" id="mult"><button data-v="18">Normal</button><button data-v="40">Fast</button></div>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+</div>
+<div class="card coach" id="coachCard" style="margin-top:18px">
+  <div><div class="pill" id="stepTag"></div><h2 id="cTitle" style="margin-top:8px"></h2><div class="mut" id="cText"></div><div class="msg" id="cMsg"></div><div id="cBody"></div></div>
+  <div class="row"><button class="btn" id="back">Back</button><button class="btn pri" id="next">Next</button></div>
+</div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.floor(Math.random()*a.length)];
+const LEADS=['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6'];
+const LANG={I:0,II:60,III:120,aVR:-150,aVL:-30,aVF:90};
+const CH={V1:{p:.06,q:0,r:.25,s:1.1,t:-.1},V2:{p:.08,q:0,r:.5,s:1.0,t:.35},V3:{p:.09,q:.02,r:.8,s:.7,t:.4},V4:{p:.1,q:.05,r:1.3,s:.35,t:.45},V5:{p:.1,q:.1,r:1.4,s:.1,t:.38},V6:{p:.09,q:.1,r:1.1,s:.05,t:.3}};
+const RHY=[{k:'nsr',n:'Normal sinus rhythm',hr:[62,92],pr:.16},{k:'tachy',n:'Sinus tachycardia',hr:[108,135],pr:.14},{k:'brady',n:'Sinus bradycardia',hr:[42,54],pr:.18},{k:'af',n:'Atrial fibrillation',hr:[95,150],pr:0},{k:'avb1',n:'First-degree AV block',hr:[60,78],pr:.30}];
+const AXES=[{k:'n',n:'Normal axis',a:[30,75]},{k:'lad',n:'Left axis deviation',a:[-60,-35]},{k:'rad',n:'Right axis deviation',a:[105,135]}];
+let P,B;
+const g=(d,c,s)=>Math.exp(-.5*((d-c)/s)**2);
+function genBeats(){B=[];let t=-1.2;const rr0=60/P.hr;while(t<420){const af=P.rhythm.k==='af';const rr=af?rr0*(.5+.95*Math.random()):rr0*(1+(Math.random()-.5)*.04);t+=rr;B.push({t,rr,pr:P.rhythm.pr})}}
+function newPatientData(forceNsr){const r=forceNsr?RHY[0]:pick(RHY),a=!forceNsr&&Math.random()>.6?pick(AXES.slice(1)):AXES[0];
+  P={rhythm:r,axisK:a,axis:Math.round(rnd(a.a[0],a.a[1])),hr:forceNsr?75:Math.round(rnd(r.hr[0],r.hr[1]))};genBeats();return P}
+function lb(t){let lo=0,hi=B.length;while(lo<hi){const m=(lo+hi)>>1;if(B[m].t<t)lo=m+1;else hi=m}return lo}
+function params(l,axis){const ax=axis===undefined?P.axis:axis;if(LANG[l]===undefined)return CH[l];
+  const a=LANG[l],v=Math.cos((ax-a)*Math.PI/180),d=x=>Math.cos(x*Math.PI/180);
+  return{p:.15*d(60-a),q:v>.2?.07:0,r:Math.max(v,0)*1.25+.12,s:Math.max(-v,0)*1.1+.12,t:.35*d(45-a)}}
+function beatVal(d,rr,pr,pm,af){let v=-pm.q*g(d,-.028,.008)+pm.r*g(d,0,.011)-pm.s*g(d,.026,.010)+pm.t*g(d,.17+.10*Math.sqrt(rr),.05);if(!af)v+=pm.p*g(d,-pr+.01,.022);return v}
+function val(t,pm){let v=0,i=lb(t-.75);for(;i<B.length&&B[i].t<t+.45;i++){const b=B[i];v+=beatVal(t-b.t,b.rr,b.pr,pm,P.rhythm.k==='af')}
+  v+=.03*Math.sin(6.28*.22*t);if(P.rhythm.k==='af')v+=.05*Math.sin(6.28*6*t)+.03*Math.sin(6.28*7.3*t+1);
+  const n=Math.sin(Math.floor(t*400)*12.9898)*43758.5453;v+=.014*((n-Math.floor(n))-.5);return v}
+function drawGrid(c,W,H,pxmm,off,bgc){
+  c.fillStyle=bgc||'#fdeff1';c.fillRect(0,0,W,H);const base=W-off,a=((base%pxmm)+pxmm)%pxmm;
+  for(let x=a;x<=W+1;x+=pxmm){const k=Math.round((x-base)/pxmm),M=((k%5)+5)%5===0;c.strokeStyle=M?'#e48a9d':'#f4c3cc';c.lineWidth=M?1.1:.6;c.beginPath();c.moveTo(Math.round(x)+.5,0);c.lineTo(Math.round(x)+.5,H);c.stroke()}
+  for(let j=-Math.ceil(H/2/pxmm);j<=Math.ceil(H/2/pxmm);j++){const y=H/2+j*pxmm,M=((j%5)+5)%5===0;c.strokeStyle=M?'#e48a9d':'#f4c3cc';c.lineWidth=M?1.1:.6;c.beginPath();c.moveTo(0,Math.round(y)+.5);c.lineTo(W,Math.round(y)+.5);c.stroke()}}
+function fitCanvas(cv){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);cv.width=Math.max(1,r.width*d);cv.height=Math.max(1,r.height*d);const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);return{c,W:r.width,H:r.height}}
+
+
+const STG=[[1.7,10,4.6],[2.5,12,7],[3.4,14,10],[4.2,16,12.9],[5.0,18,15],[5.5,20,17]];
+const NAMES=['Ravi K.','Sneha P.','Imran S.','Anita R.','Mahesh D.','Farah N.','Kiran B.','Lakshmi T.'];
+const CONTRA=['Acute myocardial infarction within 2 days','Unstable angina','Uncontrolled arrhythmia with symptoms','Symptomatic severe aortic stenosis','Acute pulmonary embolism','Decompensated heart failure','Acute aortic dissection'];
+let E;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function newSubject(){
+  const r=Math.random(),type=r<.33?'normal':r<.63?'isch':r<.83?'hypo':'contra';
+  const age=Math.round(rnd(38,64)),sex=pick(['M','F']),rest={hr:Math.round(rnd(66,80)),sys:Math.round(rnd(118,138)),dia:Math.round(rnd(74,86))};
+  const hist={normal:['Atypical chest discomfort, not related to exertion','No known heart disease','Non-smoker, no diabetes'],isch:['Chest tightness on climbing stairs for 2 months','Smoker for 20 years','Father had a heart attack at 52'],hypo:['Breathlessness on exertion for 3 months','Hypertension on treatment','Feels dizzy on rapid walking'],contra:['Admitted yesterday with a heart attack (acute MI)','Now pain free and stable','Troponin raised, on treatment']}[type];
+  E={step:0,type,age,sex,rest,hist,name:pick(NAMES),mphr:220-age,prep:{},screen:null,restEcg:false,restBP:false,tgt:'',run:{on:false,simT:0,over:false,stopT:null,reason:'',bp:[],log:[],mult:18,sym:false},rec:{on:false,t:0,bp:false},ans:null,done:false};
+  E.thr=Math.round(.85*E.mphr);
+  const shown=type==='contra'?['Age','Sex','History']:['Age','Sex'];
+  $('#pt').textContent=`Patient: ${E.name} · ${age} y · ${sex}`;
+  P={rhythm:RHY[0],axis:60,hr:rest.hr};B=[];ecgT=0;nextBeat=-.5;
+  render();
+}
+/* physiology model, simT in simulated seconds */
+function phys(t){
+  const s=E,r=E.rest,type=E.type;let hr,sys,dia,st=0,sym=null;
+  if(type==='normal'){const f=clamp(t/900,0,1);hr=r.hr+(.93*s.mphr-r.hr)*f;sys=r.sys+55*f;dia=r.dia+3*f}
+  else if(type==='isch'){const f=clamp(t/600,0,1);hr=r.hr+(.86*s.mphr-r.hr)*f;sys=r.sys+38*f;dia=r.dia+4*f;st=clamp((t-330)/90,0,4);if(t>=500)sym='chest tightness'}
+  else{const f=clamp(t/360,0,1);hr=r.hr+(.78*s.mphr-r.hr)*clamp(t/600,0,1);sys=r.sys+45*f-(t>360?(t-360)*.2:0);dia=r.dia+2*f;if(t>=480)sym='dizziness and light-headedness'}
+  return{hr:Math.round(hr),sys:Math.round(sys),dia:Math.round(dia),st,sym,rpe:Math.round(clamp(6+13*t/960,6,19)*(type==='isch'?1.05:1))};
+}
+const stageAt=t=>Math.min(6,Math.floor(t/180)+1);
+function critT(){return E.type==='isch'?480:E.type==='hypo'?420:(()=>{for(let t=0;t<1000;t+=10)if(phys(t).hr>=E.thr)return t;return 900})()}
+/* ECG (real time) */
+let ecgT=0,nextBeat=0;
+function ecgState(){const r=E.run;if(E.rec.on){const rt=E.rec.t,pk=phys(E.run.stopT??0);const f=Math.exp(-rt/90);return{hr:Math.round(E.rest.hr+(pk.hr-E.rest.hr)*f+8*Math.exp(-rt/400)),st:pk.st*Math.exp(-rt/160),noise:0}}
+  return{hr:phys(r.simT).hr,st:phys(r.simT).st,noise:r.on?Math.min(1,.2+r.simT/700):0}}
+function stepBeats(dt){ecgT+=dt;const s=ecgState();while(nextBeat<ecgT+.6){const rr=60/s.hr*(1+(Math.random()-.5)*.02);nextBeat+=rr;B.push({t:nextBeat,rr,pr:Math.max(.12,.16-.0004*(s.hr-70))})}
+  if(B.length>400)B.splice(0,100);return s}
+function valE(t,pm,st,noise){let v=val(t,pm);
+  if(st>0){let i=lb(t-.75);for(;i<B.length&&B[i].t<t+.45;i++){const d=t-B[i].t;v-=st*.1*.5*(Math.tanh((d-.05)/.012)-Math.tanh((d-.3)/.03))}}
+  if(noise)v+=noise*(.05*Math.sin(t*41)+.04*Math.sin(t*67+1)+.03*Math.sin(t*113));return v}
+/* treadmill scene */
+function buildTm(){
+  $('#tm').innerHTML=`<defs><linearGradient id="wl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--scene2)"/><stop offset="1" stop-color="var(--scene)"/></linearGradient></defs>
+  <rect width="440" height="300" fill="url(#wl)"/>
+  <g id="tmg"><g id="belt"><path d="M60 236 L400 236 L400 252 L60 252Z" fill="#2b3340"/><path id="tr" d="M64 244 L396 244" stroke="#8a95a8" stroke-width="3" stroke-dasharray="14 22"/></g>
+   <rect x="52" y="250" width="356" height="12" rx="6" fill="#3c465a"/><path d="M62 262 L62 288 M398 262 L398 288" stroke="#3c465a" stroke-width="6" stroke-linecap="round"/>
+   <path d="M384 236 L384 150 L350 150" stroke="#98a3b8" stroke-width="6" fill="none" stroke-linecap="round"/>
+   <g id="cons"><rect x="326" y="118" width="86" height="40" rx="8" fill="#1b2338"/><text id="consT" x="369" y="143" text-anchor="middle" font-size="13" font-weight="700" font-family="Inter,sans-serif" fill="#6dffb4">0.0 mph</text></g>
+   <g id="fig" stroke-linecap="round" stroke-linejoin="round" fill="none"></g></g>
+  <text x="14" y="26" font-size="12" font-weight="700" font-family="Inter,sans-serif" style="fill:var(--mfg)" id="tmLab">Standing</text>
+  <g id="bub" style="display:none"><rect x="24" y="40" width="190" height="34" rx="12" style="fill:var(--card);stroke:var(--bd)"/><text id="bubT" x="119" y="62" text-anchor="middle" font-size="12" font-weight="600" font-family="Inter,sans-serif" style="fill:var(--bad)"></text></g>`;
+}
+let phase=0;
+function drawFig(speed,grade,sym){
+  const hipX=210,hipY=190,L=44;phase+=speed*.12;const g=document.getElementById('fig');
+  const lean=.12+speed*.03,tx=hipX+Math.sin(lean)*70,ty=hipY-Math.cos(lean)*70;
+  const leg=(ph,col)=>{const a=(speed?.7:0)*Math.sin(ph)+.05,k=(speed?.9:0)*(.5+.5*Math.sin(ph+1.6)),kx=hipX+Math.sin(a)*L,ky=hipY+Math.cos(a)*L,fa=a-k,fx=kx+Math.sin(fa)*L,fy=Math.min(236,ky+Math.cos(fa)*L);return `<path d="M${hipX} ${hipY} L${kx} ${ky} L${fx} ${Math.min(236,fy)} l12 0" stroke="${col}" stroke-width="9"/>`};
+  const arm=(ph,col)=>{const a=(speed?.8:0)*Math.sin(ph),sx=tx-4,sy=ty+8,ex=sx+Math.sin(a)*30+10,ey=sy+Math.cos(a)*28,hx=ex+Math.sin(a-.9)*28,hy=ey+Math.cos(a-.9)*20;return `<path d="M${sx} ${sy} L${ex} ${ey} L${hx} ${hy}" stroke="${col}" stroke-width="7"/>`};
+  const pale=sym?'#e8b0a0':'var(--skin)';
+  g.innerHTML=leg(phase+3.14,'#3d5ba8')+arm(phase,'var(--skin2)')+`<path d="M${hipX} ${hipY} L${tx} ${ty}" stroke="#e67123" stroke-width="22"/><circle cx="${tx+8}" cy="${ty-16}" r="13" style="fill:${pale};stroke:var(--skin2)" stroke-width="1.5"/>`+leg(phase,'#2f4a8f')+arm(phase+3.14,'var(--skin)');
+  document.getElementById('tmg').setAttribute('transform',`rotate(${-Math.atan(grade/100)*57.3} 400 244)`);
+  $('#tr').style.strokeDashoffset=(-(performance.now()/1000)*speed*14)%36;
+}
+function speedNow(){if(E.rec.on)return Math.max(0,1.5-E.rec.t/60);if(!E.run.on&&E.step!==2)return 0;if(E.run.over)return 0;if(!E.run.on)return 0;return STG[stageAt(E.run.simT)-1][0]}
+function gradeNow(){return E.run.on&&!E.run.over&&!E.rec.on?STG[stageAt(E.run.simT)-1][1]:0}
+/* steps */
+const STEPS=[
+ {tag:'Step 1 of 5',t:'Screen the patient',d:'Read the history and decide whether it is safe to put this patient on the treadmill.',
+  do:['Take the history: chest pain, breathlessness, recent heart attack, medicines, other illness.','Check the list of absolute contraindications one by one.','If any absolute contraindication is present, do not do the test. Refer back to the cardiologist.','If none is present, go ahead. Relative contraindications need a senior opinion.'],
+  why:'Exercise raises heart rate, blood pressure and oxygen demand. In a patient with an acute coronary event, this can cause a fatal arrhythmia or extend the infarct. Screening is the most important safety step.',tips:['Absolute: acute MI under 2 days, unstable angina, uncontrolled arrhythmia, severe symptomatic aortic stenosis, acute PE, decompensated heart failure, acute aortic dissection.']},
+ {tag:'Step 2 of 5',t:'Prepare and record baseline',d:'Prepare the patient and machine, record resting ECG and BP, and work out the target heart rate.',
+  do:['Explain the test and take written consent. Tell the patient to report chest pain, dizziness or breathlessness.','Check that the defibrillator, crash cart and oxygen are ready.','Prepare the skin and place chest and limb electrodes on the torso (Mason-Likar placement).','Record a resting 12-lead ECG and a resting BP. Calculate the target heart rate.'],
+  why:'Baseline ECG and BP are what you compare against during the test. Target heart rate = 85 percent of the age-predicted maximum (220 minus age). Reaching it makes a negative test reliable.',tips:['Patient should wear comfortable clothes and shoes and avoid a heavy meal 2 to 3 hours before.','Beta-blockers lower the heart rate and may make the test inconclusive.']},
+ {tag:'Step 3 of 5',t:'Run the Bruce protocol',d:'Start the test. Every stage lasts 3 minutes and speed and slope rise. Record BP and RPE each stage and stop the test at the right moment.',
+  do:['Press Start. The patient walks at 1.7 mph and 10 percent slope. Stage changes every 3 minutes.','At each stage press Record BP and RPE. Watch the ECG for ST depression and ask about symptoms.','Stop at once if you see a stop criterion (see the tips below) or the patient asks to stop.','Do not stop early without reason: the test needs the target heart rate to be reliable.'],
+  why:'Increasing workload brings out ischaemia that is not present at rest. A narrowed coronary artery cannot raise blood flow, so the ST segment goes down and the patient may get angina. Stopping late is unsafe, stopping early gives an inconclusive test.',tips:['Stop criteria: ST depression 2 mm or more (horizontal or downsloping), moderate to severe angina, fall in systolic BP of 10 mmHg or more, dizziness, serious arrhythmia, patient request.','Bruce stages: 1.7/10%, 2.5/12%, 3.4/14%, 4.2/16%, 5.0/18%, 5.5/20% (mph / slope).']},
+ {tag:'Step 4 of 5',t:'Recovery',d:'Do not let the patient sit down suddenly. Keep monitoring until heart rate and ST segment return to baseline.',
+  do:['Let the patient walk slowly for 1 to 2 minutes (cool-down).','Then seat or lay the patient down and keep the ECG on.','Record BP at 1, 3 and 6 minutes of recovery.','Continue until symptoms and ECG changes settle, for at least 6 minutes.'],
+  why:'Blood pools in the legs after a sudden stop, which can cause fainting. Ischaemic ST changes may appear or persist during recovery, and slow fall of heart rate in the first minute is a bad sign.',tips:['Heart rate recovery under 12 beats in the first minute is abnormal.']},
+ {tag:'Step 5 of 5',t:'Report and interpret',d:'Look at your test summary and decide: positive, negative or inconclusive.',
+  do:['Compare peak heart rate with 85 percent of maximum.','Look for ST depression, symptoms and BP response.','Positive: ST depression of 1 mm or more with symptoms, or abnormal BP response.','Negative: target reached without ST change or symptoms.'],
+  why:'The result decides the next step. A positive test needs further investigation such as coronary angiography. A negative test with a good workload makes serious coronary disease unlikely.',tips:[]}];
+function detail(s){return `<div class="detail"><div><h3>What to do</h3><ol>${s.do.map(x=>`<li>${x}</li>`).join('')}</ol></div><div><h3>Why it matters</h3><p>${s.why}</p>${s.tips.length?`<h3>Examiner's tips</h3><ul>${s.tips.map(x=>`<li>${x}</li>`).join('')}</ul>`:''}</div></div>`}
+const PREPS=[['consent','Explain the test and take written consent'],['cart','Check defibrillator, crash cart and oxygen'],['skin','Prepare the skin and place the electrodes']];
+function render(){
+  const st=STEPS[E.step];$('#steps').innerHTML=STEPS.map((s,i)=>`<div class="st ${i===E.step?'on':i<E.step?'done':''}"><b>${i<E.step?'✓':i+1}</b>${s.t}</div>`).join('');
+  $('#stepTag').textContent=st.tag;$('#cTitle').textContent=st.t;$('#cText').textContent=st.d;
+  const isRun=E.step>=1&&E.step<=3&&!(E.type==='contra');$('#run').hidden=!isRun;
+  const scr=$('#screen');scr.hidden=!(E.step===0||E.step===4||E.type==='contra'&&E.step>0);
+  let body='',ok=false,msg='',mc='msg';
+  if(E.step===0){
+    scr.innerHTML=`<div class="eyebrow">Patient file</div><h2>${E.name}, ${E.age} y, ${E.sex}</h2><div class="hist">${E.hist.map((h,i)=>`<div><b>${['Complaint','Background','Risk'][i]}</b>${h}</div>`).join('')}<div><b>Resting BP</b>${E.rest.sys}/${E.rest.dia} mmHg</div></div>
+    <span class="lab">Your decision</span><div class="opts"><label><input type="radio" name="dec" value="go" ${E.screen?.dec==='go'?'checked':''}> No absolute contraindication. Proceed with the test.</label><label><input type="radio" name="dec" value="stop" ${E.screen?.dec==='stop'?'checked':''}> An absolute contraindication is present. Defer the test.</label></div>
+    <div id="cwrap" ${E.screen?.dec==='stop'?'':'hidden'} style="margin-top:12px"><span class="lab">Which one?</span><select id="cs"><option value="">Select</option>${CONTRA.map((c,i)=>`<option value="${i}" ${E.screen?.c==i?'selected':''}>${c}</option>`).join('')}</select></div>`;
+    scr.querySelectorAll('[name=dec]').forEach(r=>r.addEventListener('change',()=>{E.screen={dec:r.value,c:''};render()}));const cs=$('#cs');if(cs)cs.addEventListener('change',()=>{E.screen.c=cs.value;render()});
+    ok=E.screen&&(E.screen.dec==='go'||E.screen.c!=='');}
+  if(E.step===1){
+    const prepOk=PREPS.every(([k])=>E.prep[k])&&E.restEcg&&E.restBP&&Math.abs(+E.tgt-E.thr)<=3;
+    body=`<div class="opts" style="margin-top:12px">${PREPS.map(([k,l])=>`<label><input type="checkbox" data-p="${k}" ${E.prep[k]?'checked':''}> ${l}</label>`).join('')}</div>
+    <div class="checks"><div class="ck"><span class="${E.restEcg?'ok':'mut'}">${E.restEcg?'✓':'○'}</span><span>Resting ECG recorded (use the button on the monitor)</span></div><div class="ck"><span class="${E.restBP?'ok':'mut'}">${E.restBP?'✓':'○'}</span><span>Resting BP: ${E.restBP?E.rest.sys+'/'+E.rest.dia+' mmHg':'press Record BP and RPE'}</span></div></div>
+    <div style="max-width:380px;margin-top:12px"><span class="lab">Target heart rate (85% of 220 minus age ${E.age})</span><input type="number" id="tgt" inputmode="numeric" value="${E.tgt}" placeholder="beats per minute"></div>`;
+    if(E.tgt!==''&&Math.abs(+E.tgt-E.thr)>3){mc='msg bad';msg='Target heart rate is 85 percent of (220 minus age). Recalculate.'}
+    ok=prepOk;}
+  if(E.step===2){ok=E.run.over;
+    if(E.run.over){mc='msg ok';msg='Test ended: '+E.run.reason}else if(!E.run.on){msg='Press Start test when the patient is ready.'}}
+  if(E.step===3){ok=E.rec.t>=360||E.rec.bp&&E.rec.t>=180;msg=E.rec.t>=360?'Recovery complete.':'Keep monitoring. Press Record BP and RPE at 1, 3 and 6 minutes.'}
+  if(E.step===4){ok=false;scr.innerHTML=reportHTML();wireReport()}
+  $('#cBody').innerHTML=body+detail(st);
+  $$('[data-p]').forEach(c=>c.addEventListener('change',()=>{E.prep[c.dataset.p]=c.checked;render()}));const tg=$('#tgt');if(tg)tg.addEventListener('change',()=>{E.tgt=tg.value;render()});
+  $('#back').disabled=E.step===0||E.step===2&&E.run.on&&!E.run.over;$('#next').hidden=E.step===4;$('#next').disabled=!ok;
+  const m=$('#cMsg');m.className=mc;m.textContent=msg;
+  $('#bRest').hidden=E.step!==1;$('#bStart').hidden=E.step!==2;$('#bStop').hidden=E.step!==2;$('#mult').hidden=E.step!==2;
+  $('#bStart').disabled=E.run.on||E.run.over;$('#bStop').disabled=!E.run.on||E.run.over;$('#bBP').disabled=!(E.step===1||E.step===2&&E.run.on&&!E.run.over||E.step===3);
+  $$('#mult button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.v===E.run.mult));
+  renderStagebar();renderLog();
+}
+function renderStagebar(){const sg=E.run.on||E.run.over?stageAt(E.run.simT):0;$('#stagebar').innerHTML=STG.map((s,i)=>`<div class="${i+1<sg||(E.run.over&&i+1<=sg)?'done':i+1===sg?'on':''}"><b>Stage ${i+1}</b>${s[0]} mph · ${s[1]}%</div>`).join('')}
+function logLine(m){E.run.log.push(m);renderLog()}
+function renderLog(){$('#log').innerHTML=E.run.log.slice(-6).map(l=>`<div>› ${l}</div>`).join('')||'<div>› Monitor ready.</div>';$('#log').scrollTop=1e5}
+/* controls */
+$('#bRest').addEventListener('click',()=>{E.restEcg=true;logLine(`Resting ECG: sinus rhythm, rate ${E.rest.hr}, no ST change.`);render()});
+$('#bBP').addEventListener('click',()=>{
+  if(E.step===1){E.restBP=true;logLine(`Resting BP ${E.rest.sys}/${E.rest.dia} mmHg.`);render();return}
+  if(E.step===2){const p=phys(E.run.simT),sg=stageAt(E.run.simT);E.run.bp.push({stage:sg,t:E.run.simT,sys:p.sys,dia:p.dia,hr:p.hr,rpe:p.rpe});logLine(`Stage ${sg}: BP ${p.sys}/${p.dia}, HR ${p.hr}, RPE ${p.rpe}.`)}
+  if(E.step===3){E.rec.bp=true;const p=ecgState(),pk=phys(E.run.stopT);const s=Math.round(E.rest.sys+(pk.sys-E.rest.sys)*Math.exp(-E.rec.t/150)),d=Math.round(E.rest.dia+(pk.dia-E.rest.dia)*Math.exp(-E.rec.t/150));logLine(`Recovery ${Math.round(E.rec.t/60)} min: BP ${s}/${d}, HR ${p.hr}.`)}
+  render()});
+$('#bStart').addEventListener('click',()=>{E.run.on=true;E.run.log=[];logLine('Test started. Stage 1: 1.7 mph, 10%.');lastStage=1;render()});
+$('#bStop').addEventListener('click',()=>endRun('Stopped by the examiner.'));
+$$('#mult button').forEach(b=>b.addEventListener('click',()=>{E.run.mult=+b.dataset.v;render()}));
+$('#next').addEventListener('click',()=>{
+  if(E.step===0){const sc=E.screen;if(E.type==='contra'){E.done=true;E.step=4;render();return}if(sc.dec==='stop'){/* wrong: no contraindication */}}
+  if(E.step===2&&E.run.over){E.rec={on:true,t:0,bp:false};logLine('Recovery started.')}
+  E.step++;render()});
+$('#back').addEventListener('click',()=>{if(E.step>0){E.step--;if(E.step<3)E.rec.on=false;render()}});
+function endRun(reason){const r=E.run;if(r.over)return;r.over=true;r.on=true;r.stopT=r.simT;r.reason=reason+' at '+fmtT(r.simT)+' (stage '+stageAt(r.simT)+').';logLine('TEST ENDED. '+r.reason);const p=phys(r.simT);r.peak=p;E.run.sym2=p.sym;render()}
+const fmtT=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+let lastStage=1;
+/* report */
+function result(){
+  const r=E.run,p=r.peak||phys(r.stopT||0),pkHR=p.hr,pct=Math.round(pkHR/E.mphr*100),dropped=r.bp.length>1&&r.bp.some((b,i)=>i>0&&b.sys<Math.max(...r.bp.slice(0,i).map(x=>x.sys))-10)||(E.type==='hypo'&&(r.stopT||0)>420);
+  const st=p.st,pos=st>=1||dropped||(p.sym&&E.type==='isch');
+  return{pkHR,pct,st,sym:p.sym,drop:dropped,res:pos?'Positive':pct>=85?'Negative':'Inconclusive',mets:STG[stageAt(r.stopT||0)-1][2]}}
+function reportHTML(){
+  if(E.type==='contra'){const ok=E.screen&&E.screen.dec==='stop'&&E.screen.c==0;return `<div class="eyebrow">Examiner's report</div><h2>Test not performed</h2><p>${E.name} was admitted yesterday with an acute myocardial infarction. That is an <b>absolute contraindication</b> to exercise testing (acute MI within 2 days).</p><p class="${ok?'ok':'bad'}"><b>${ok?'Correct decision: you deferred the test and named the contraindication. 1 / 1':'Unsafe decision: you chose to proceed or named the wrong reason. 0 / 1'}</b></p><div class="row"><button class="btn pri" id="again">New patient</button></div>`}
+  const r=E.run,R=result(),stopOk=(()=>{const ct=critT();if(E.type==='normal')return r.stopT>=ct;return r.stopT>=ct&&r.stopT<=ct+300})();
+  const unsafe=(E.type!=='normal')&&r.stopT>ct0()+300;
+  const sel=E.ans;
+  return `<div class="eyebrow">Test summary</div><h2>${E.name}, ${E.age} y</h2><div class="scroll"><table><tr><th>Item</th><th>Result</th></tr>
+  <tr><td>Duration / stage reached</td><td>${fmtT(r.stopT)} · stage ${stageAt(r.stopT)} (${R.mets} METs)</td></tr>
+  <tr><td>Peak heart rate</td><td>${R.pkHR} /min = ${R.pct}% of maximum (target ${E.thr})</td></tr>
+  <tr><td>Resting → peak BP</td><td>${E.rest.sys}/${E.rest.dia} → ${r.bp.length?r.bp[r.bp.length-1].sys+'/'+r.bp[r.bp.length-1].dia:'not recorded'}${R.drop?' (fell during exercise)':''}</td></tr>
+  <tr><td>ST segment (V5)</td><td>${R.st>0?'Horizontal/downsloping depression '+R.st.toFixed(1)+' mm':'No significant change'}</td></tr>
+  <tr><td>Symptoms</td><td>${R.sym||'None'}</td></tr><tr><td>BP recorded in stages</td><td>${new Set(r.bp.map(b=>b.stage)).size} of ${stageAt(r.stopT)}</td></tr></table></div>
+  <div class="two" style="max-width:640px"><div><span class="lab">Your interpretation</span><select id="aRes" ${sel?'disabled':''}><option value="">Select</option>${['Positive','Negative','Inconclusive'].map(x=>`<option ${sel&&sel.res===x?'selected':''}>${x}</option>`).join('')}</select></div>
+  <div><span class="lab">Next step</span><select id="aAdv" ${sel?'disabled':''}><option value="">Select</option><option value="A" ${sel&&sel.adv==='A'?'selected':''}>Reassure and advise regular exercise</option><option value="B" ${sel&&sel.adv==='B'?'selected':''}>Refer for coronary angiography / cardiology</option><option value="C" ${sel&&sel.adv==='C'?'selected':''}>Repeat with imaging or pharmacological stress</option></select></div></div>
+  <div class="row" style="margin-top:12px"><button class="btn acc" id="sub" ${sel?'disabled':''}>Submit to examiner</button></div><div id="rep">${sel?scoreHTML(R,stopOk,unsafe):''}</div>`}
+function ct0(){return critT()}
+function scoreHTML(R,stopOk,unsafe){
+  const r=E.run,sel=E.ans,scr=E.screen.dec==='go'?1:0,prep=PREPS.filter(([k])=>E.prep[k]).length+(E.restEcg&&E.restBP?1:0)+(Math.abs(+E.tgt-E.thr)<=3?1:0)>=5?5:PREPS.filter(([k])=>E.prep[k]).length+(E.restEcg&&E.restBP?1:0)+(Math.abs(+E.tgt-E.thr)<=3?1:0);
+  const mon=new Set(r.bp.map(b=>b.stage)).size>=stageAt(r.stopT)-1?1:0,stop=stopOk&&!unsafe?2:0,rOk=sel.res===R.res?1:0,aOk=sel.adv===({Positive:'B',Negative:'A',Inconclusive:'C'}[R.res])?1:0,tot=scr+prep+mon+stop+rOk+aOk,mx=11;
+  const row=(ok,t)=>`<div class="ck"><span class="${ok?'ok':'bad'}">${ok?'✓':'✗'}</span><span>${t}</span></div>`;
+  return `<div class="score" style="margin-top:18px">${tot}<small> / ${mx}</small></div><div class="checks">${row(scr,'Screening: no contraindication, correct to proceed')}${row(prep===5,`Preparation and baseline: ${prep} of 5`)}${row(mon,'BP and RPE recorded in each stage')}
+  ${row(stop===2,stop===2?'Stopped at the right time':E.type==='normal'?'Stopped before the target heart rate was reached':unsafe?'Stopped too late. This is unsafe.':'Stopped before a stop criterion appeared')}
+  ${row(rOk,'Interpretation: '+R.res)}${row(aOk,'Next step')}</div><div class="row" style="margin-top:12px"><button class="btn pri" id="again">New patient</button></div>`}
+function wireReport(){const s=$('#sub');if(s)s.addEventListener('click',()=>{const res=$('#aRes').value,adv=$('#aAdv').value;if(!res||!adv)return;E.ans={res,adv};render()});const a=$('#again');if(a)a.addEventListener('click',newSubject)}
+/* loop */
+let L,last=performance.now();
+function sizes(){L=fitCanvas($('#lcd'))}
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;
+  const r=E.run;
+  if(r.on&&!r.over){r.simT+=dt*r.mult;const sg=stageAt(r.simT);if(sg!==lastStage){lastStage=sg;logLine(`Stage ${sg}: ${STG[sg-1][0]} mph, ${STG[sg-1][1]}%.`)}
+    const p=phys(r.simT);if(p.sym&&!r.sym){r.sym=true;logLine('Patient: "I have '+p.sym+'."')}
+    const end={normal:960,isch:720,hypo:690}[E.type];if(r.simT>=end){endRun(E.type==='normal'?'Patient exhausted, stopped at peak effort':'Patient could not continue (test continued too long)')}}
+  if(E.rec.on&&E.step===3)E.rec.t+=dt*18;
+  const s=stepBeats(dt),pm=Math.max(2.6,L.W/118);const{c,W,H}=L,off=ecgT*25*pm;
+  c.fillStyle='#06130f';c.fillRect(0,0,W,H);c.strokeStyle='#0f3a2a';c.lineWidth=1;for(let x=(W-off)%(pm*5);x<W;x+=pm*5){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke()}for(let y=H/2%(pm*5);y<H;y+=pm*5){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke()}
+  c.strokeStyle='#6dffb4';c.lineWidth=2;c.shadowColor='#6dffb4';c.shadowBlur=7;c.beginPath();const pmx=params('V5');
+  for(let x=0;x<=W;x+=.5){const v=valE(ecgT-(W-x)/(pm*25),pmx,s.st,s.noise),y=clamp(H/2-v*10*pm*.8,6,H-6);x?c.lineTo(x,y):c.moveTo(x,y)}c.stroke();c.shadowBlur=0;
+  const p=E.run.on?phys(r.simT):{hr:s.hr,sys:E.rest.sys,dia:E.rest.dia,st:0,rpe:6};const hrN=E.rec.on?s.hr:p.hr;
+  const lastBP=E.rec.on?null:r.bp[r.bp.length-1];
+  $('#vit').innerHTML=`<div class="${hrN>=E.thr?'':''}">HR<b>${hrN}</b></div><div class="${(E.rec.on?s.st:p.st)>=1?'red':''}">ST V5<b>${(E.rec.on?-s.st:-p.st).toFixed(1)} mm</b></div><div>BP<b>${lastBP?lastBP.sys+'/'+lastBP.dia:E.restBP?E.rest.sys+'/'+E.rest.dia:'--'}</b></div><div>TIME<b>${E.rec.on?'R '+fmtT(E.rec.t):fmtT(r.simT)}</b></div>`;
+  $('#hud2').textContent=r.over?'TEST ENDED':r.on?'EXERCISE':E.rec.on?'RECOVERY':'RESTING';
+  /* scene */
+  const sp=speedNow(),gr=gradeNow();drawFig(sp,gr,E.run.sym&&!E.rec.on&&!r.over);
+  $('#consT').textContent=sp.toFixed(1)+' mph';$('#tmLab').textContent=E.rec.on?'Cool-down':r.over?'Stopped':r.on?'Stage '+stageAt(r.simT)+' · '+STG[stageAt(r.simT)-1][1]+'% slope':'Standing';
+  const sy=E.run.sym&&r.on&&!r.over;$('#bub').style.display=sy?'block':'none';if(sy)$('#bubT').textContent='"'+E.run.sym2text()+'"';
+  const m=phys(r.simT).sym;
+  $('#rd').innerHTML=`<div>Speed<b>${sp.toFixed(1)} mph</b></div><div>Slope<b>${gr}%</b></div><div>Workload<b>${r.on?STG[stageAt(r.simT)-1][2]+' METs':'-'}</b></div><div>Target HR<b>${E.thr}</b></div>`;
+  requestAnimationFrame(loop)}
+Object.defineProperty(Object.prototype,'sym2text',{value:function(){return E.type==='isch'?'My chest feels tight':'I feel dizzy'},enumerable:false});
+buildTm();new ResizeObserver(sizes).observe($('#lcd'));newSubject();sizes();requestAnimationFrame(loop);
+
+</script>
+<script>
+(function(){
+ var ID=document.documentElement.getAttribute('data-sim')||'';
+ if(window.parent===window)return;
+ document.documentElement.classList.add('emb');
+ function theme(){try{var d=parent.document.documentElement.classList.contains('dark');document.documentElement.setAttribute('data-theme',d?'dark':'light')}catch(e){}}
+ theme();try{new MutationObserver(theme).observe(parent.document.documentElement,{attributes:true,attributeFilter:['class']})}catch(e){}
+ var last='';
+ function post(){var h=document.documentElement.scrollHeight;parent.postMessage({qp:'height',h:h},'*');
+  var s=document.querySelector('.score');if(s){var m=s.textContent.replace(/\s+/g,'').match(/^(\d+)\/(\d+)/);if(m){var k=m[1]+'/'+m[2];if(k!==last){last=k;parent.postMessage({qp:'score',tot:+m[1],max:+m[2]},'*')}}}}
+ try{new MutationObserver(post).observe(document.body,{childList:true,subtree:true,attributes:true});new ResizeObserver(post).observe(document.body)}catch(e){}
+ window.addEventListener('load',post);setTimeout(post,300);
+})();
+</script></body></html>

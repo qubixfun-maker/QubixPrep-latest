@@ -4,7 +4,7 @@ import { BrandLockup } from "@/components/brand-mark"
 import { useMemo } from "react"
 import {
   BookOpen, GraduationCap, Layers, Network, Flame, Database, Trophy, BrainCircuit, Stethoscope,
-  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords, HelpCircle, LifeBuoy, RotateCcw, BarChart3, CalendarDays, Timer, Microscope, Pill,
+  Sparkles, Wand2, ShoppingBag, Gift, User, Zap, CloudUpload, Lock, Plus, Star, Newspaper, Swords, HelpCircle, LifeBuoy, RotateCcw, BarChart3, CalendarDays, Timer, Microscope, Pill, Activity,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -66,6 +66,7 @@ export function AppSidebar() {
     { title: "University Exams", url: "/university-exams", icon: GraduationCap, also: ["/long-answers", "/spotters"] },
     { title: "Flashcards", url: "/flashcards", icon: Layers },
     { title: "Drug Classification", url: "/drug-classification", icon: Pill },
+    { title: "Physiology Practicals", url: "/physiology-practicals", icon: Activity },
     // Mind Maps are hidden for everyone for now (admins can still open /mindmaps directly)
   ]
   const stories: Item[] = [{ title: "Med Stories", url: "/stories", icon: Newspaper }]

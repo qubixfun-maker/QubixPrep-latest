@@ -17,7 +17,7 @@ const AppSidebar = dynamic(() => import("@/components/layout/app-sidebar").then(
 // The five dashboard sections. Each opens the dashboard on that section; `match` keeps the right one lit on its own pages.
 const TABS = [
   { label: "Home", key: "home", icon: "🏠", match: ["/streak"] },
-  { label: "Notes", key: "notes", icon: "📚", match: ["/notes", "/top-100", "/university-exams", "/flashcards", "/mindmaps", "/drug-classification"] },
+  { label: "Notes", key: "notes", icon: "📚", match: ["/notes", "/top-100", "/university-exams", "/flashcards", "/mindmaps", "/drug-classification", "/physiology-practicals"] },
   { label: "QBank", key: "qbank", icon: "🎯", match: ["/qbank", "/test-series"] },
   { label: "Test", key: "test", icon: "⏱️", match: ["/grand-test", "/pyq"] },
   { label: "Bedside", key: "bedside", icon: "🩺", match: ["/cases", "/case-presentation", "/virtual-patient", "/arena"] },

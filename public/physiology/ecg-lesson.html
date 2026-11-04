@@ -1,0 +1,282 @@
+<!doctype html><html lang="en" data-sim="ecg-lesson"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Understand the ECG</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* QubixPrep look: Inter, navy primary with orange accent, 1rem radius, soft borders. Violet primary in dark mode. */
+:root{
+  --bg:#ffffff; --fg:#1b2338; --card:#ffffff; --pri:#152d65; --pri-fg:#ffffff; --sec:#e9eefb; --muted:#f2f4f8; --mfg:#626a79;
+  --acc:#e67123; --bd:#e2e6ee; --ok:#168a5b; --bad:#d63b3b; --blue:#2f6df0; --shadow:0 1px 2px #1b23380d,0 8px 24px -12px #1b23382e;
+  --scene:#eef2fa; --scene2:#dfe7f6; --skin:#f1c9a9; --skin2:#e2b08c;
+  --f:'Inter','Segoe UI',system-ui,sans-serif; --r:16px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d0d16; --fg:#f4f5f8; --card:#161622; --pri:#8f6ce0; --pri-fg:#fff; --sec:#23232f; --muted:#23232f; --mfg:#a2a7b2;
+  --acc:#428bf0; --bd:#2b2b3b; --ok:#3fc58c; --bad:#f06a6a; --blue:#6aa2ff; --shadow:0 1px 2px #0006,0 10px 30px -14px #000;
+  --scene:#12121c; --scene2:#1b1b2a; --skin:#c79b7c; --skin2:#a97f63; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d0d16; --fg:#f4f5f8; --card:#161622; --pri:#8f6ce0; --pri-fg:#fff; --sec:#23232f; --muted:#23232f; --mfg:#a2a7b2;
+  --acc:#428bf0; --bd:#2b2b3b; --ok:#3fc58c; --bad:#f06a6a; --blue:#6aa2ff; --shadow:0 1px 2px #0006,0 10px 30px -14px #000;
+  --scene:#12121c; --scene2:#1b1b2a; --skin:#c79b7c; --skin2:#a97f63; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--f);padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1160px;margin:0 auto}
+h1,h2,h3{margin:0;letter-spacing:-.015em}
+h1{font-size:clamp(24px,4vw,34px);font-weight:700;line-height:1.1}
+h2{font-size:18px;font-weight:650}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--acc);margin-bottom:6px}
+.sub{color:var(--mfg);margin:6px 0 0}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);box-shadow:var(--shadow);padding:18px}
+.btn{font:600 14px var(--f);border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:12px;padding:9px 14px;cursor:pointer}
+.btn:hover{border-color:var(--pri)} .btn.pri{background:var(--pri);color:var(--pri-fg);border-color:var(--pri)} .btn.acc{background:var(--acc);color:#fff;border-color:var(--acc)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.chip{font:600 13px var(--f);border:1px solid var(--bd);background:var(--muted);color:var(--fg);border-radius:99px;padding:7px 13px;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--pri);color:var(--pri-fg);border-color:var(--pri)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:600;background:var(--sec);color:var(--pri)}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .mut{color:var(--mfg)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+input[type=number],select{font:500 14px var(--f);background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:12px;padding:9px 11px;width:100%}
+.lab{font-size:12px;font-weight:600;color:var(--mfg);margin-bottom:4px;display:block}
+.seg{display:inline-flex;border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.seg button{background:var(--card);color:var(--mfg);border:0;padding:7px 12px;font:600 13px var(--f);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--pri);color:var(--pri-fg)}
+[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+header{margin-bottom:16px}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:16px;padding-bottom:2px}
+.tab{flex:none;display:flex;align-items:center;gap:8px;padding:9px 15px;border-radius:99px;background:var(--muted);color:var(--mfg);border:1px solid transparent;font:600 14px var(--f);cursor:pointer}
+.tab[aria-selected=true]{background:var(--pri);color:var(--pri-fg)}
+.lesson{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:18px;align-items:start}
+@media(max-width:920px){.lesson{grid-template-columns:minmax(0,1fr)}}
+.stage{background:linear-gradient(180deg,var(--scene),var(--scene2));border:1px solid var(--bd);border-radius:var(--r);padding:12px}
+#heart{width:100%;height:auto;display:block;max-height:420px}
+.ecgbox{background:#fdeff1;border-radius:12px;overflow:hidden;border:1px solid var(--bd)}
+.ecgbox canvas{width:100%;height:230px;display:block}
+.cap{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:14px;background:var(--sec);margin-top:12px;min-height:84px}
+.cap b{display:block;font-size:16px;color:var(--pri)}
+:root[data-theme=dark] .cap b{color:var(--fg)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .cap b{color:var(--fg)}}
+.dot{width:14px;height:14px;border-radius:50%;flex:none;margin-top:4px}
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+input[type=range]{accent-color:var(--acc);width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.legend span{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:600;color:var(--mfg)}
+.legend i{width:10px;height:10px;border-radius:3px;display:block}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}
+.kv div{background:var(--muted);border-radius:12px;padding:10px 12px;font-size:13px;color:var(--mfg)} .kv b{display:block;color:var(--fg);font-size:18px}
+.axgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.axgrid div{background:#fdeff1;border-radius:10px;overflow:hidden;position:relative;border:1px solid var(--bd)}
+.axgrid canvas{width:100%;height:92px;display:block}
+.axgrid span{position:absolute;left:8px;top:5px;font:700 12px var(--f);color:#26324e}
+.q{margin-top:14px} .q h3{font-size:16px;margin-bottom:10px;font-weight:600}
+.opt{display:block;width:100%;text-align:left;margin:6px 0;border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:12px;padding:11px 14px;font:500 14px var(--f);cursor:pointer}
+.opt:hover{border-color:var(--pri)} .opt.right{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,var(--card))} .opt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,var(--card))}
+.why{margin-top:8px;font-size:14px;color:var(--mfg)}
+
+</style>
+<style>
+/* embedded inside QubixPrep: hide the standalone title block, keep the subject chip */
+html.emb body{padding-block:4px 24px;padding-left:0;padding-right:0}
+html.emb .wrap{max-width:none}
+html.emb header>div:first-child{display:none}
+html.emb header{justify-content:flex-end;margin-bottom:6px}
+html.emb header:empty{display:none}
+</style>
+<div class="wrap">
+<header><div class="eyebrow">Physiology practical · Guided lesson</div><h1>Understand the ECG</h1><p class="sub">Watch the impulse travel through the heart, see how it draws the tracing, then practise reading rate and axis.</p></header>
+<div class="tabs" role="tablist" id="tabs">
+  <button class="tab" role="tab" data-t="flow" aria-selected="true">1 · Conduction</button>
+  <button class="tab" role="tab" data-t="paper" aria-selected="false">2 · Paper and rate</button>
+  <button class="tab" role="tab" data-t="axis" aria-selected="false">3 · Axis and leads</button>
+  <button class="tab" role="tab" data-t="quiz" aria-selected="false">4 · Quiz</button>
+</div>
+
+<section id="s-flow" class="lesson">
+  <div class="stage"><svg id="heart" viewBox="-30 0 360 330" role="img" aria-label="Heart conduction animation"></svg>
+    <div class="legend"><span><i style="background:var(--acc)"></i>Depolarising</span><span><i style="background:var(--blue)"></i>Repolarising</span><span><i style="background:var(--bd)"></i>Resting</span></div></div>
+  <div>
+    <div class="ecgbox"><canvas id="beat" aria-label="One heartbeat on ECG paper"></canvas></div>
+    <div class="cap" id="cap"><span class="dot" id="capDot"></span><div><b id="capT"></b><span id="capD" class="mut"></span></div></div>
+    <div class="ctl"><button class="btn pri" id="play">Pause</button><div class="seg" id="spd"><button data-v=".15">Very slow</button><button data-v=".3">Slow</button><button data-v="1">Real time</button></div></div>
+    <div class="ctl"><label class="lab" for="scrub" style="margin:0;white-space:nowrap">Scrub the beat</label><input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Scrub the beat"></div>
+  </div>
+</section>
+
+<section id="s-paper" class="lesson" hidden>
+  <div class="card"><h2>Measure the heart rate</h2><p class="mut">Tap two neighbouring R waves on the strip. One small box is 1 mm, which is 0.04 s at 25 mm/s.</p>
+    <div class="kv" id="kv"></div>
+    <div class="ctl"><button class="btn" id="newStrip">New strip</button><button class="btn" id="showAns">Show answer</button></div>
+    <div class="why" id="rateMsg"></div></div>
+  <div><div class="ecgbox"><canvas id="rate" aria-label="ECG strip to measure"></canvas></div>
+    <div class="cap"><span class="dot" style="background:var(--acc)"></span><div><b>Rate formulas</b><span class="mut">1500 ÷ RR in small boxes. Or 300 ÷ large boxes. For an irregular rhythm, count R waves in 6 s and multiply by 10.</span></div></div></div>
+</section>
+
+<section id="s-axis" class="lesson" hidden>
+  <div class="stage"><svg id="hexa" viewBox="0 0 300 300" role="img" aria-label="Hexaxial reference system"></svg>
+    <div class="ctl"><label class="lab" for="ang" style="margin:0;white-space:nowrap">QRS axis</label><input type="range" id="ang" min="-90" max="180" value="60" aria-label="QRS axis in degrees"></div></div>
+  <div class="card"><h2>What each lead sees</h2><p class="mut" id="axTxt"></p><div class="axgrid" id="axgrid"></div>
+    <div class="why"><b>Quick check:</b> look at leads I and aVF. Both upright means normal axis. I upright and aVF downward means left axis deviation. I downward and aVF upright means right axis deviation.</div></div>
+</section>
+
+<section id="s-quiz" hidden><div class="card" style="max-width:760px"><h2>Check yourself</h2><div id="qz"></div><div class="row" style="margin-top:14px;justify-content:space-between"><span class="pill" id="qScore"></span><button class="btn" id="qReset">Restart</button></div></div></section>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const rnd=(a,b)=>a+Math.random()*(b-a),pick=a=>a[Math.floor(Math.random()*a.length)];
+const LEADS=['I','II','III','aVR','aVL','aVF','V1','V2','V3','V4','V5','V6'];
+const LANG={I:0,II:60,III:120,aVR:-150,aVL:-30,aVF:90};
+const CH={V1:{p:.06,q:0,r:.25,s:1.1,t:-.1},V2:{p:.08,q:0,r:.5,s:1.0,t:.35},V3:{p:.09,q:.02,r:.8,s:.7,t:.4},V4:{p:.1,q:.05,r:1.3,s:.35,t:.45},V5:{p:.1,q:.1,r:1.4,s:.1,t:.38},V6:{p:.09,q:.1,r:1.1,s:.05,t:.3}};
+const RHY=[{k:'nsr',n:'Normal sinus rhythm',hr:[62,92],pr:.16},{k:'tachy',n:'Sinus tachycardia',hr:[108,135],pr:.14},{k:'brady',n:'Sinus bradycardia',hr:[42,54],pr:.18},{k:'af',n:'Atrial fibrillation',hr:[95,150],pr:0},{k:'avb1',n:'First-degree AV block',hr:[60,78],pr:.30}];
+const AXES=[{k:'n',n:'Normal axis',a:[30,75]},{k:'lad',n:'Left axis deviation',a:[-60,-35]},{k:'rad',n:'Right axis deviation',a:[105,135]}];
+let P,B;
+const g=(d,c,s)=>Math.exp(-.5*((d-c)/s)**2);
+function genBeats(){B=[];let t=-1.2;const rr0=60/P.hr;while(t<420){const af=P.rhythm.k==='af';const rr=af?rr0*(.5+.95*Math.random()):rr0*(1+(Math.random()-.5)*.04);t+=rr;B.push({t,rr,pr:P.rhythm.pr})}}
+function newPatientData(forceNsr){const r=forceNsr?RHY[0]:pick(RHY),a=!forceNsr&&Math.random()>.6?pick(AXES.slice(1)):AXES[0];
+  P={rhythm:r,axisK:a,axis:Math.round(rnd(a.a[0],a.a[1])),hr:forceNsr?75:Math.round(rnd(r.hr[0],r.hr[1]))};genBeats();return P}
+function lb(t){let lo=0,hi=B.length;while(lo<hi){const m=(lo+hi)>>1;if(B[m].t<t)lo=m+1;else hi=m}return lo}
+function params(l,axis){const ax=axis===undefined?P.axis:axis;if(LANG[l]===undefined)return CH[l];
+  const a=LANG[l],v=Math.cos((ax-a)*Math.PI/180),d=x=>Math.cos(x*Math.PI/180);
+  return{p:.15*d(60-a),q:v>.2?.07:0,r:Math.max(v,0)*1.25+.12,s:Math.max(-v,0)*1.1+.12,t:.35*d(45-a)}}
+function beatVal(d,rr,pr,pm,af){let v=-pm.q*g(d,-.028,.008)+pm.r*g(d,0,.011)-pm.s*g(d,.026,.010)+pm.t*g(d,.17+.10*Math.sqrt(rr),.05);if(!af)v+=pm.p*g(d,-pr+.01,.022);return v}
+function val(t,pm){let v=0,i=lb(t-.75);for(;i<B.length&&B[i].t<t+.45;i++){const b=B[i];v+=beatVal(t-b.t,b.rr,b.pr,pm,P.rhythm.k==='af')}
+  v+=.03*Math.sin(6.28*.22*t);if(P.rhythm.k==='af')v+=.05*Math.sin(6.28*6*t)+.03*Math.sin(6.28*7.3*t+1);
+  const n=Math.sin(Math.floor(t*400)*12.9898)*43758.5453;v+=.014*((n-Math.floor(n))-.5);return v}
+function drawGrid(c,W,H,pxmm,off,bgc){
+  c.fillStyle=bgc||'#fdeff1';c.fillRect(0,0,W,H);const base=W-off,a=((base%pxmm)+pxmm)%pxmm;
+  for(let x=a;x<=W+1;x+=pxmm){const k=Math.round((x-base)/pxmm),M=((k%5)+5)%5===0;c.strokeStyle=M?'#e48a9d':'#f4c3cc';c.lineWidth=M?1.1:.6;c.beginPath();c.moveTo(Math.round(x)+.5,0);c.lineTo(Math.round(x)+.5,H);c.stroke()}
+  for(let j=-Math.ceil(H/2/pxmm);j<=Math.ceil(H/2/pxmm);j++){const y=H/2+j*pxmm,M=((j%5)+5)%5===0;c.strokeStyle=M?'#e48a9d':'#f4c3cc';c.lineWidth=M?1.1:.6;c.beginPath();c.moveTo(0,Math.round(y)+.5);c.lineTo(W,Math.round(y)+.5);c.stroke()}}
+function fitCanvas(cv){const r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);cv.width=Math.max(1,r.width*d);cv.height=Math.max(1,r.height*d);const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);return{c,W:r.width,H:r.height}}
+
+
+/* ---- Section 1: conduction ---- */
+const RRs=.8,T0=-.3,T1=.5; /* beat window relative to R peak */
+const PH=[ /* [start,end,title,desc,colour] */
+ [-.30,-.20,'Sinus node fires','The SA node in the right atrium starts the impulse. It is the pacemaker, about 60 to 100 per minute. No wave is seen on the ECG yet.','var(--acc)'],
+ [-.20,-.12,'P wave: atria depolarise','The impulse spreads across both atria and they contract. This is the small round P wave, under 0.12 s.','var(--acc)'],
+ [-.12,-.04,'PR segment: AV node delay','The AV node holds the impulse for about 0.1 s so the ventricles can fill. The trace is flat. PR interval 0.12 to 0.20 s.','var(--acc)'],
+ [-.04,-.02,'His bundle and branches','The impulse races down the bundle of His and the left and right bundle branches.','var(--acc)'],
+ [-.02,.07,'QRS: ventricles depolarise','Purkinje fibres spread the impulse through both ventricles at once. Big, narrow QRS, under 0.12 s. Atrial repolarisation is hidden here.','var(--acc)'],
+ [.07,.17,'ST segment','Ventricles are fully depolarised (plateau phase). The trace returns to baseline. ST elevation or depression is abnormal.','var(--acc)'],
+ [.17,.40,'T wave: ventricles repolarise','Ventricular recovery gives the T wave, normally upright in most leads. QT interval is start of QRS to end of T.','var(--blue)'],
+ [.40,.50,'Rest','All cells reset and wait for the next impulse from the SA node.','var(--mfg)']];
+function build(){
+  $('#heart').innerHTML=`<defs><radialGradient id="hg" cx=".4" cy=".3" r=".9"><stop offset="0" stop-color="var(--card)"/><stop offset="1" stop-color="var(--muted)"/></radialGradient></defs>
+  <path d="M104 166 C 88 190 76 238 112 288 C 130 310 150 314 150 314 L 150 162Z" id="rv" fill="var(--muted)" stroke="var(--mfg)" stroke-width="2"/>
+  <path d="M196 166 C 212 190 224 238 188 288 C 170 310 150 314 150 314 L 150 162Z" id="lv" fill="var(--muted)" stroke="var(--mfg)" stroke-width="2"/>
+  <path d="M148 150 C 120 150 84 140 78 98 C 74 62 104 36 148 38Z" id="ra" fill="var(--muted)" stroke="var(--mfg)" stroke-width="2"/>
+  <path d="M152 150 C 180 150 216 140 222 98 C 226 62 196 36 152 38Z" id="la" fill="var(--muted)" stroke="var(--mfg)" stroke-width="2"/>
+  <g stroke="var(--fg)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".55" id="path">
+   <path id="p1" d="M104 76 C 112 104 132 126 150 150"/><path id="p2" d="M150 150 L150 192"/><path id="p3" d="M150 192 C 132 226 122 252 120 276"/><path id="p4" d="M150 192 C 168 226 178 252 180 276"/></g>
+  <circle cx="104" cy="74" r="8" id="sa" fill="var(--muted)" stroke="var(--fg)" stroke-width="2"/><circle cx="150" cy="150" r="8" id="av" fill="var(--muted)" stroke="var(--fg)" stroke-width="2"/>
+  <g font-size="11" font-weight="700" style="fill:var(--mfg)" font-family="Inter,sans-serif"><g text-anchor="end"><text x="68" y="74">SA node</text><text x="68" y="108">Right atrium</text><text x="68" y="232">Right ventricle</text><text x="108" y="288">Purkinje</text></g><g text-anchor="start"><text x="232" y="108">Left atrium</text><text x="168" y="154">AV node</text><text x="232" y="194">His bundle</text><text x="232" y="232">Left ventricle</text></g></g>
+  <circle id="pulse" r="7" fill="var(--acc)" opacity="0"/>`;
+}
+const col=(id,c)=>{$('#'+id).style.fill=c};
+let anim=T0,playing=true,speed=.3,cvB,ecgB;
+const PM=()=>Math.max(2.6,cvB.W/ (T1-T0)/ 25);
+function beatSig(d){return beatVal(d,RRs,.16,params('II',60),false)}
+function showState(t){
+  const D='var(--acc)',R='var(--blue)',N='var(--bd)';
+  const at=t>-.2&&t<-.1,vt=t>-.02&&t<.17,vr=t>.17&&t<.4;
+  col('ra',t>-.2&&t<-.02?D:N);col('la',t>-.2&&t<-.02?D:N);
+  const vc=vt?D:vr?R:N;['rv','lv'].forEach(i=>col(i,vc));
+  col('sa',t>-.3&&t<-.2?D:N);col('av',t>-.12&&t<-.04?D:N);
+  ['p1','p2','p3','p4'].forEach(i=>{$('#'+i).style.stroke='var(--fg)';$('#'+i).style.strokeWidth=2.5});
+  const pl=$('#pulse'),stepPath=(id,a,b)=>{const el=$('#'+id),f=Math.min(1,Math.max(0,(t-a)/(b-a))),pt=el.getPointAtLength(el.getTotalLength()*f);pl.setAttribute('cx',pt.x);pl.setAttribute('cy',pt.y);pl.setAttribute('opacity',1);el.style.stroke='var(--acc)';el.style.strokeWidth=5};
+  pl.setAttribute('opacity',0);
+  if(t>=-.2&&t<-.12)stepPath('p1',-.2,-.12);else if(t>=-.12&&t<-.04){$('#p1').style.stroke='var(--acc)';$('#p1').style.strokeWidth=5;pl.setAttribute('cx',150);pl.setAttribute('cy',150);pl.setAttribute('opacity',.9)}
+  else if(t>=-.04&&t<-.02){$('#p1').style.stroke='var(--acc)';$('#p1').style.strokeWidth=5;stepPath('p2',-.04,-.02)}
+  else if(t>=-.02&&t<.07){$('#p1').style.stroke='var(--acc)';$('#p1').style.strokeWidth=5;$('#p2').style.stroke='var(--acc)';$('#p2').style.strokeWidth=5;stepPath(t<.02?'p3':'p4',-.02,.07)}
+  const ph=PH.find(p=>t>=p[0]&&t<p[1])||PH[PH.length-1];
+  $('#capT').textContent=ph[2];$('#capD').textContent=ph[3];$('#capDot').style.background=ph[4];
+}
+function drawBeat(t){
+  const{c,W,H}=cvB,pm=Math.max(3,W/ ((T1-T0)*25)),sx=W/(T1-T0);
+  drawGrid(c,W,H,pm,W);
+  const col={P:'#2f6df0',QRS:'#e67123',T:'#16a06b'};
+  const band=(a,b,color,label)=>{c.fillStyle=color+'26';c.fillRect((a-T0)*sx,0,(b-a)*sx,H);c.fillStyle=color;c.font='700 12px Inter,sans-serif';c.textAlign='center';c.fillText(label,((a+b)/2-T0)*sx,18)};
+  band(-.20,-.12,col.P,'P');band(-.02,.07,col.QRS,'QRS');band(.17,.40,col.T,'T');
+  const y=d=>H*.64-beatSig(d)*H*.34;
+  c.lineWidth=1.5;c.strokeStyle='#1b121555';c.beginPath();for(let x=0;x<=W;x+=.5){const d=T0+x/sx;x?c.lineTo(x,y(d)):c.moveTo(x,y(d))}c.stroke();
+  c.strokeStyle='#1b1215';c.lineWidth=2.2;c.beginPath();const xe=(t-T0)*sx;for(let x=0;x<=xe;x+=.5){const d=T0+x/sx;x?c.lineTo(x,y(d)):c.moveTo(x,y(d))}c.stroke();
+  c.strokeStyle='#e67123';c.lineWidth=1.5;c.setLineDash([4,4]);c.beginPath();c.moveTo(xe,0);c.lineTo(xe,H);c.stroke();c.setLineDash([]);
+  c.fillStyle='#e67123';c.beginPath();c.arc(xe,y(t),5,0,7);c.fill();
+  c.fillStyle='#26324e';c.font='600 11px Inter,sans-serif';c.textAlign='left';c.fillText('Lead II · zoomed to one beat',8,H-8);
+}
+let lastT=performance.now(),scrubbing=false;
+function tick(now){const dt=Math.min(.05,(now-lastT)/1000);lastT=now;
+  if(!$('#s-flow').hidden){if(playing&&!scrubbing){anim+=dt*speed;if(anim>T1)anim=T0}
+    showState(anim);drawBeat(anim);if(!scrubbing)$('#scrub').value=Math.round((anim-T0)/(T1-T0)*1000)}
+  requestAnimationFrame(tick)}
+$('#play').addEventListener('click',()=>{playing=!playing;$('#play').textContent=playing?'Pause':'Play'});
+$$('#spd button').forEach(b=>b.addEventListener('click',()=>{speed=+b.dataset.v;$$('#spd button').forEach(x=>x.setAttribute('aria-pressed',x===b))}));
+$$('#spd button')[1].setAttribute('aria-pressed',true);
+$('#scrub').addEventListener('input',e=>{scrubbing=true;playing=false;$('#play').textContent='Play';anim=T0+(+e.target.value/1000)*(T1-T0)});
+$('#scrub').addEventListener('change',()=>{scrubbing=false});
+/* ---- Section 2: rate ---- */
+let cvR,rp=[],rx=[],showA=false;
+function newStrip(){newPatientData(false);if(P.rhythm.k==='af'){} rp=[];showA=false;$('#rateMsg').textContent='';drawRate();kv()}
+function drawRate(){const{c,W,H}=cvR,pm=W/150,sec=150/25;drawGrid(c,W,H,pm,W);const t0=3;
+  c.strokeStyle='#1b1215';c.lineWidth=1.6;c.beginPath();for(let x=0;x<=W;x+=.5){const v=val(t0+x/(pm*25),params('II',P.axis));const y=H/2-v*10*pm;x?c.lineTo(x,y):c.moveTo(x,y)}c.stroke();
+  cvR.t0=t0;cvR.pm=pm;rx=B.filter(b=>b.t>=t0&&b.t<=t0+sec).map(b=>(b.t-t0)*25*pm);
+  rp.forEach(x=>{c.strokeStyle='#2f6df0';c.lineWidth=1.5;c.setLineDash([5,4]);c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();c.setLineDash([])});
+  if(showA){c.fillStyle='#e67123';rx.forEach(x=>{c.beginPath();c.arc(x,12,5,0,7);c.fill()})}}
+function kv(){const el=$('#kv');if(rp.length<2){el.innerHTML=`<div>Boxes between R waves<b>-</b></div><div>RR interval<b>-</b></div><div>Heart rate<b>-</b></div>`;return}
+  const mm=Math.abs(rp[1]-rp[0])/cvR.pm,s=mm/25;el.innerHTML=`<div>Boxes between R waves<b>${mm.toFixed(1)} small</b></div><div>RR interval<b>${Math.round(s*1000)} ms</b></div><div>Heart rate<b style="color:var(--acc)">${Math.round(60/s)} /min</b></div>`;
+  $('#rateMsg').textContent=P.rhythm.k==='af'?'This rhythm is irregular. A single RR is unreliable. Count R waves in the 6 s strip and multiply by 10.':'Tap "Show answer" to compare with the true rate.'}
+$('#rate').addEventListener('click',e=>{const x=e.clientX-$('#rate').getBoundingClientRect().left;const snap=rx.reduce((a,b)=>Math.abs(b-x)<Math.abs(a-x)?b:a,rx[0]);if(rp.length>=2)rp=[];rp.push(snap);drawRate();kv()});
+$('#newStrip').addEventListener('click',newStrip);
+$('#showAns').addEventListener('click',()=>{showA=true;drawRate();$('#rateMsg').innerHTML=`True average rate about <b>${P.hr} /min</b>. Rhythm: <b>${P.rhythm.n}</b>. ${rx.length} R waves in 6 s gives ${rx.length*10} /min by counting.`});
+/* ---- Section 3: axis ---- */
+function hexa(){const a=+$('#ang').value,s=$('#hexa'),C=150,R=112;let h=`<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="var(--bd)" stroke-width="2"/>`;
+  [['I',0],['II',60],['III',120],['aVF',90],['aVR',-150],['aVL',-30]].forEach(([n,d])=>{const r=d*Math.PI/180,x=C+Math.cos(r)*R,y=C+Math.sin(r)*R,x2=C-Math.cos(r)*R*.0,y2=C-Math.sin(r)*R*.0;
+    h+=`<line x1="${C}" y1="${C}" x2="${x}" y2="${y}" stroke="var(--mfg)" stroke-width="1.5" opacity=".6"/><text x="${C+Math.cos(r)*(R+14)}" y="${C+Math.sin(r)*(R+14)+4}" text-anchor="middle" font-size="12" font-weight="700" font-family="Inter,sans-serif" style="fill:var(--fg)">${n}</text>`});
+  const r=a*Math.PI/180,x=C+Math.cos(r)*R*.92,y=C+Math.sin(r)*R*.92;
+  const normal=a>=-30&&a<=90;
+  h+=`<path d="M${C} ${C} L${C+Math.cos(-30*Math.PI/180)*R} ${C+Math.sin(-30*Math.PI/180)*R} A${R} ${R} 0 0 1 ${C+Math.cos(90*Math.PI/180)*R} ${C+Math.sin(90*Math.PI/180)*R}Z" fill="var(--ok)" opacity=".12"/>
+   <line x1="${C}" y1="${C}" x2="${x}" y2="${y}" stroke="var(--acc)" stroke-width="5" stroke-linecap="round"/><circle cx="${x}" cy="${y}" r="7" fill="var(--acc)"/>`;
+  s.innerHTML=h;
+  $('#axTxt').innerHTML=`Axis <b>${a}°</b>: <b class="${normal?'ok':'bad'}">${normal?'normal (−30° to +90°)':a<-30?'left axis deviation':'right axis deviation'}</b>. The QRS is tallest and most upright in the lead that points the same way as the axis, and equiphasic in the lead at 90° to it.`;
+  const g=$('#axgrid');g.innerHTML=['I','II','III','aVR','aVL','aVF'].map(l=>`<div><span>${l}</span><canvas data-l="${l}"></canvas></div>`).join('');
+  $$('#axgrid canvas').forEach(cv=>{const{c,W,H}=fitCanvas(cv),pm=Math.max(2.5,W/45),pmx=params(cv.dataset.l,a);drawGrid(c,W,H,pm,W);c.strokeStyle='#1b1215';c.lineWidth=1.8;c.beginPath();for(let x=0;x<=W;x+=.5){const d=-.25+x/(pm*25);const v=beatVal(d,.8,.16,pmx,false);const y=H/2-v*10*pm*.55;x?c.lineTo(x,y):c.moveTo(x,y)}c.stroke()});
+}
+$('#ang').addEventListener('input',hexa);
+/* ---- Section 4: quiz ---- */
+const QZ=[
+['One small box on ECG paper at 25 mm/s equals:','0.04 s','0.2 s','0.1 s','0.4 s','1 mm is 0.04 s; a large box of 5 mm is 0.2 s.'],
+['Which wave represents ventricular repolarisation?','T wave','P wave','QRS complex','U wave','The T wave is recovery of the ventricles. The P wave is atrial depolarisation.'],
+['Between two R waves there are 20 small boxes. The heart rate is:','75 /min','60 /min','100 /min','150 /min','1500 ÷ 20 = 75 per minute.'],
+['Normal PR interval is:','0.12 to 0.20 s','0.04 to 0.08 s','0.20 to 0.30 s','Under 0.12 s','Longer than 0.20 s is first-degree AV block.'],
+['Lead I is upright and aVF is downward. The axis is:','Left axis deviation','Normal axis','Right axis deviation','Cannot say','Axis points toward I and away from aVF, so beyond −30°.'],
+['Why does the AV node delay the impulse?','To let the ventricles fill','To speed up the atria','To protect the SA node','To create the T wave','The delay lets atrial contraction finish before the ventricles contract.']];
+let qa={};
+function quiz(){$('#qz').innerHTML=QZ.map((q,i)=>{const opts=[q[1],q[2],q[3],q[4]].map((t,j)=>[t,j===0]);const order=(window['_o'+i]=window['_o'+i]||opts.sort(()=>Math.random()-.5));
+  return `<div class="q"><h3>${i+1}. ${q[0]}</h3>${order.map(([t,ok],j)=>{const s=qa[i];const cls=s===undefined?'':ok?'right':(s===j?'wrong':'');return `<button class="opt ${cls}" data-q="${i}" data-j="${j}" ${s!==undefined?'disabled':''}>${t}</button>`}).join('')}${qa[i]!==undefined?`<div class="why">${q[5]}</div>`:''}</div>`}).join('');
+  $$('.opt').forEach(b=>b.addEventListener('click',()=>{qa[b.dataset.q]=+b.dataset.j;quiz()}));
+  const done=Object.keys(qa).length,right=Object.keys(qa).filter(i=>window['_o'+i][qa[i]][1]).length;$('#qScore').textContent=`Score ${right} of ${QZ.length} · answered ${done}`}
+$('#qReset').addEventListener('click',()=>{qa={};QZ.forEach((_,i)=>delete window['_o'+i]);quiz()});
+/* tabs */
+$$('.tab').forEach(b=>b.addEventListener('click',()=>{$$('.tab').forEach(x=>x.setAttribute('aria-selected',x===b));['flow','paper','axis','quiz'].forEach(t=>$('#s-'+t).hidden=t!==b.dataset.t);
+  if(b.dataset.t==='paper'){cvR=Object.assign(cvR||{},fitCanvas($('#rate')));drawRate()}if(b.dataset.t==='axis')hexa();if(b.dataset.t==='flow')cvB=fitCanvas($('#beat'))}));
+build();newPatientData(true);cvB=fitCanvas($('#beat'));cvR=fitCanvas($('#rate'));
+window.addEventListener('resize',()=>{if(!$('#s-flow').hidden)cvB=fitCanvas($('#beat'))});
+quiz();requestAnimationFrame(tick);
+
+</script>
+<script>
+(function(){
+ var ID=document.documentElement.getAttribute('data-sim')||'';
+ if(window.parent===window)return;
+ document.documentElement.classList.add('emb');
+ function theme(){try{var d=parent.document.documentElement.classList.contains('dark');document.documentElement.setAttribute('data-theme',d?'dark':'light')}catch(e){}}
+ theme();try{new MutationObserver(theme).observe(parent.document.documentElement,{attributes:true,attributeFilter:['class']})}catch(e){}
+ var last='';
+ function post(){var h=document.documentElement.scrollHeight;parent.postMessage({qp:'height',h:h},'*');
+  var s=document.querySelector('.score');if(s){var m=s.textContent.replace(/\s+/g,'').match(/^(\d+)\/(\d+)/);if(m){var k=m[1]+'/'+m[2];if(k!==last){last=k;parent.postMessage({qp:'score',tot:+m[1],max:+m[2]},'*')}}}}
+ try{new MutationObserver(post).observe(document.body,{childList:true,subtree:true,attributes:true});new ResizeObserver(post).observe(document.body)}catch(e){}
+ window.addEventListener('load',post);setTimeout(post,300);
+})();
+</script></body></html>

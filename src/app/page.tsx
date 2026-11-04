@@ -40,6 +40,7 @@ const SECTIONS: Section[] = [
       { name: "University Exams", href: "/university-exams", emoji: "🎓", tint: "#ffe9d6", desc: "Long answers, plus spot and identify." },
       { name: "Flashcards", href: "/flashcards", emoji: "🃏", tint: "#dcf5ea", desc: "Quick active recall for every subject." },
       { name: "Drug Classification", href: "/drug-classification", emoji: "💊", tint: "#fde4de", desc: "Every drug class as a colour chart, with doses." },
+      { name: "Physiology Practicals", href: "/physiology-practicals", emoji: "🔬", tint: "#d9f1f8", desc: "Virtual practicals: ECG, BP, spirometry, vision and more." },
       { name: "Mind Maps", href: "/mindmaps", emoji: "🗺️", tint: "#efe6ff", desc: "Visual pathways from concepts to details." },
     ],
   },
