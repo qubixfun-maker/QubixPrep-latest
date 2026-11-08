@@ -3,6 +3,7 @@ import { INSIGHTS, type Hint, type Viva } from './insights-data'
 import { INSIGHTS2 } from './insights-data2'
 import { INSIGHTS3 } from './insights-data3'
 import { INSIGHTS_OBG } from './insights-obg'
+import { modelOf } from './models-obg'
 const ALL = { ...INSIGHTS, ...INSIGHTS2, ...INSIGHTS3, ...INSIGHTS_OBG }
 import { buildDocument, buildSection, openingStatement, isFieldFilled, type ExamItem } from './format'
 
@@ -113,4 +114,8 @@ export function shortCase(c: CaseDef, ans: Answers): ShortCase {
   const text = parts.join('\n\n')
   const words = text.split(/\s+/).filter(Boolean).length
   return { text, words, seconds: Math.round((words / 130) * 60) }
+}
+
+export function modelFor(c: CaseDef) {
+  return modelOf(c.id)
 }

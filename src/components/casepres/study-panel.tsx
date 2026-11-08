@@ -4,13 +4,14 @@ import { useMemo, useState } from "react"
 import { Check, Copy, Circle, CheckCircle2, ChevronDown, Lightbulb } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CaseDef, Answers } from "@/lib/casepres/types"
-import { diagnosisHints, examChecklist, shortCase, vivaFor } from "@/lib/casepres/insights"
+import { diagnosisHints, examChecklist, modelFor, shortCase, vivaFor } from "@/lib/casepres/insights"
 
 const TABS = [
   { id: "short", label: "Short case" },
   { id: "viva", label: "Viva questions" },
   { id: "check", label: "Exam checklist" },
   { id: "dx", label: "Diagnosis hint" },
+  { id: "model", label: "Model case" },
 ] as const
 type Tab = (typeof TABS)[number]["id"]
 
@@ -22,6 +23,7 @@ export function StudyPanel({ caseDef, answers }: { caseDef: CaseDef; answers: An
   const viva = useMemo(() => vivaFor(caseDef), [caseDef])
   const chk = useMemo(() => examChecklist(caseDef, answers), [caseDef, answers])
   const hints = useMemo(() => diagnosisHints(caseDef, answers), [caseDef, answers])
+  const model = useMemo(() => modelFor(caseDef), [caseDef])
   const mins = Math.floor(sc.seconds / 60), secs = sc.seconds % 60
 
   const copy = async () => {
@@ -93,6 +95,26 @@ export function StudyPanel({ caseDef, answers }: { caseDef: CaseDef; answers: An
             </div>
           )}
           <p className="text-xs text-muted-foreground">A step counts as done when you marked it present or absent. Anything left grey was skipped.</p>
+        </div>
+      )}
+
+      {tab === "model" && (
+        <div className="mt-3 space-y-3">
+          {!model && <p className="text-sm text-muted-foreground">No model case for this sheet yet.</p>}
+          {model && (
+            <>
+              <p className="text-sm text-muted-foreground">A sample spoken presentation. It shows the order and the wording an examiner expects. Use your own patient's findings, not these.</p>
+              <div className="rounded-2xl bg-white text-slate-900 p-5 space-y-3 leading-[1.8] text-[16px]">
+                {model.text.split("\n\n").map((p, i) => <p key={i}>{p}</p>)}
+              </div>
+              {model.check && model.check.length > 0 && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+                  <div className="font-medium mb-1">Check before you copy</div>
+                  <ul className="list-disc pl-5 space-y-1 text-muted-foreground">{model.check.map((c) => <li key={c}>{c}</li>)}</ul>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
