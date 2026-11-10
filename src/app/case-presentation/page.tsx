@@ -14,7 +14,7 @@ export default function CasePresentationHub() {
   const { user, allowed, loading } = useCaseAccess()
   const { sheets, loading: sheetsLoading } = useMyCaseSheets()
   const db = useFirestore()
-  const [open, setOpen] = useState<string | null>("medicine")
+  const [open, setOpen] = useState<string | null>("proforma:medicine")
   const [search] = useTopSearch("Search cases…")
   const q = search.trim().toLowerCase()
 
@@ -31,7 +31,7 @@ export default function CasePresentationHub() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Case <span className="text-accent">Presentation</span></h1>
         <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-          Pick a subject and case type. The proforma questions are already there: tap the options that apply, type anything extra, then press <b>Present case</b> for a professional write-up you can print or present.
+          Pick a proforma, or a ready-made sample case. The questions are already there: tap the options that apply, type anything extra, then press <b>Present case</b> for a professional write-up you can print or present.
         </p>
         {!allowed && (
           <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/10 p-4 flex items-center gap-3 flex-wrap">
@@ -66,43 +66,53 @@ export default function CasePresentationHub() {
         </section>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-bold">Start a new case</h2>
-        <div className="space-y-3">
-          {SUBJECTS.map((s) => {
-            const cases = casesFor(s.id).filter((c) => !q || `${c.title} ${c.blurb}`.toLowerCase().includes(q))
-            if (q && cases.length === 0) return null
-            const isOpen = !!q || open === s.id
-            return (
-              <div key={s.id} className="glass rounded-3xl border border-white/10 overflow-hidden">
-                <button onClick={() => setOpen(isOpen ? null : s.id)} className="w-full flex items-center gap-3 p-5 text-left">
-                  <div className="p-3 rounded-2xl bg-primary/10 text-primary"><Stethoscope className="h-5 w-5" /></div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold">{s.name}</div>
-                    <div className="text-xs text-muted-foreground">{s.blurb}</div>
-                  </div>
-                  <Badge variant="outline">{cases.length} cases</Badge>
-                  <ChevronRight className={`h-5 w-5 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
-                </button>
-                {isOpen && (
-                  <div className="grid gap-2 sm:grid-cols-2 p-4 pt-0">
-                    {cases.map((c) => (
-                      <Link key={c.id} href={`/case-presentation/${c.id}/new`} className="rounded-2xl border border-white/10 p-4 hover:border-primary/50 transition-colors flex items-start gap-3">
-                        <FileText className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                        <div className="min-w-0">
-                          <div className="font-semibold leading-tight">{c.title}</div>
-                          <div className="text-xs text-muted-foreground mt-1">{c.blurb}</div>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        <p className="text-xs text-muted-foreground">{ALL_CASES.length} case types across {SUBJECTS.length} subjects.</p>
-      </section>
+      {(["proforma", "sample"] as const).map((kind) => (
+        <section key={kind} className="space-y-3">
+          <div>
+            <h2 className="text-lg font-bold">{kind === "proforma" ? "Proformas" : "Sample cases"}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
+              {kind === "proforma"
+                ? "The blank college proformas for each subject. Fill in your own patient."
+                : "Ready-made cases on common topics, each with a topic checklist, exam checklist, viva questions and a model case presentation to learn from."}
+            </p>
+          </div>
+          <div className="space-y-3">
+            {SUBJECTS.map((s) => {
+              const cases = casesFor(s.id, kind).filter((c) => !q || `${c.title} ${c.blurb}`.toLowerCase().includes(q))
+              if (cases.length === 0) return null
+              const key = `${kind}:${s.id}`
+              const isOpen = !!q || open === key
+              return (
+                <div key={key} className="glass rounded-3xl border border-white/10 overflow-hidden">
+                  <button onClick={() => setOpen(isOpen ? null : key)} className="w-full flex items-center gap-3 p-5 text-left">
+                    <div className="p-3 rounded-2xl bg-primary/10 text-primary"><Stethoscope className="h-5 w-5" /></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold">{s.name}</div>
+                      <div className="text-xs text-muted-foreground">{s.blurb}</div>
+                    </div>
+                    <Badge variant="outline">{cases.length} {kind === "proforma" ? (cases.length === 1 ? "proforma" : "proformas") : (cases.length === 1 ? "case" : "cases")}</Badge>
+                    <ChevronRight className={`h-5 w-5 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="grid gap-2 sm:grid-cols-2 p-4 pt-0">
+                      {cases.map((c) => (
+                        <Link key={c.id} href={`/case-presentation/${c.id}/new`} className="rounded-2xl border border-white/10 p-4 hover:border-primary/50 transition-colors flex items-start gap-3">
+                          <FileText className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="font-semibold leading-tight">{c.title}</div>
+                            <div className="text-xs text-muted-foreground mt-1">{c.blurb}</div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+      <p className="text-xs text-muted-foreground">{ALL_CASES.filter((c) => c.kind === "proforma").length} proformas and {ALL_CASES.filter((c) => c.kind === "sample").length} sample cases across {SUBJECTS.length} subjects.</p>
     </div>
   )
 }

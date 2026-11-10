@@ -34,6 +34,8 @@ export type CaseDef = {
   subject: SubjectId
   title: string
   blurb: string
+  /** 'proforma' = the blank college proforma; 'sample' = a topic case built from the shared case files (has a topic checklist and a model case). */
+  kind?: 'proforma' | 'sample'
   sections: Section[]
 }
 
@@ -41,10 +43,10 @@ export type SymptomAnswer = { s?: 'p' | 'a'; a?: Record<string, string | string[
 export type Answers = Record<string, any>
 
 export const SUBJECTS: { id: SubjectId; name: string; blurb: string }[] = [
-  { id: 'medicine', name: 'Medicine', blurb: 'GIT, CNS, respiratory, CVS, anaemia, fever, diabetes, renal, rheumatology, poisoning' },
+  { id: 'medicine', name: 'Medicine', blurb: 'GIT, CNS, respiratory and CVS proformas, with sample cases such as RHD, COPD, stroke, GBS and liver disease' },
   { id: 'surgery', name: 'Surgery', blurb: 'Varicose veins, hernia, thyroid, breast, ulcer and more' },
   { id: 'paediatrics', name: 'Paediatrics', blurb: 'GI, nutrition, newborn, CNS, respiratory, CVS' },
-  { id: 'obg', name: 'Obstetrics & Gynaecology', blurb: 'Gynaecology, antenatal, labour, postnatal, high-risk pregnancy, early pregnancy bleeding, prolapse and infertility' },
+  { id: 'obg', name: 'Obstetrics & Gynaecology', blurb: 'Gynaecology, antenatal, labour and postnatal proformas, with sample cases from fibroid to family planning' },
   { id: 'ent', name: 'ENT', blurb: 'Ear, nose and throat' },
   { id: 'orthopaedics', name: 'Orthopaedics', blurb: 'Fracture, joints, bone infection, tumours, spine, nerve injury' },
   { id: 'psychiatry', name: 'Psychiatry', blurb: 'Depression, mania, psychosis, anxiety and OCD, alcohol and substance use, delirium and dementia' },

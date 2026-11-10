@@ -173,7 +173,7 @@ const obsAuscultation = (): Section =>
   ], "Johnson's formula: EFW (g) = (SFH in cm minus n) x 155. n = 12 if the head is not engaged, 11 if engaged.")
 
 /* ====================================================================
-   OBSTETRICS AND GYNAECOLOGY: built on "The White Army" comprehensive
+   OBSTETRICS AND GYNAECOLOGY: built on the comprehensive
    clinical case proforma (Gynaecology, Antenatal, Post-natal) and on the
    topic case presentations in the shared OBG folder.
    ==================================================================== */
@@ -216,7 +216,7 @@ const abdomenExtras = (): Section =>
   sec('abdExtra', 'Abdomen: measurements and other findings', [
     txt('girth', 'Abdominal girth (cm)', { half: true }), txt('xu', 'Xiphisternum to umbilicus distance (cm)', { half: true }),
     txt('up', 'Umbilicus to pubic symphysis distance (cm)', { half: true }), txt('weeks', 'Lump corresponds to how many weeks', { half: true }),
-    fd('extraF', 'Percussion and palpation (White Army list)', ['Tidal percussion positive', 'Fluid thrill positive', 'Cardiac dullness normal', 'Liver dullness normal', 'Can get above the swelling', 'Can get below the swelling', 'Renal angle tenderness', 'Palpable spleen', 'Palpable liver']),
+    fd('extraF', 'Percussion and palpation', ['Tidal percussion positive', 'Fluid thrill positive', 'Cardiac dullness normal', 'Liver dullness normal', 'Can get above the swelling', 'Can get below the swelling', 'Renal angle tenderness', 'Palpable spleen', 'Palpable liver']),
   ])
 
 const WA_CC = [
@@ -266,7 +266,7 @@ const ancInvest = (): Section =>
 /* ---------------- 1. Gynaecology ---------------- */
 
 const gyn: CaseDef = {
-  id: 'obg-gyn', subject: 'obg', title: 'Gynaecology case (White Army proforma)',
+  id: 'obg-gyn', subject: 'obg', title: 'Gynaecology case',
   blurb: 'Complete gynaecology case: complaints, menstrual, marital, obstetric, personal and environmental history, abdomen, speculum and bimanual examination',
   sections: [
     partWA('gyn'),
@@ -329,7 +329,7 @@ const ancCollege = (): Section[] => [
 /* ---------------- 2. Obstetrics: antenatal case ---------------- */
 
 const anc: CaseDef = {
-  id: 'obg-anc', subject: 'obg', title: 'Obstetrics: antenatal case (White Army proforma)',
+  id: 'obg-anc', subject: 'obg', title: 'Obstetrics: antenatal case',
   blurb: 'Complete antenatal case: trimester-wise history, past obstetric table, Leopold grips, SFH, FHS, investigations and management',
   sections: [
     partWA('anc'),
@@ -457,7 +457,7 @@ const labour: CaseDef = {
 /* ---------------- 3. Obstetrics: post-natal case ---------------- */
 
 const pnc: CaseDef = {
-  id: 'obg-pnc', subject: 'obg', title: 'Obstetrics: post-natal case (White Army proforma)',
+  id: 'obg-pnc', subject: 'obg', title: 'Obstetrics: post-natal case',
   blurb: 'Complete post-natal case: antenatal, intra-natal and post-natal history, lochia, breast feeding, wound and perineum, baby',
   sections: [
     partWA('pnc'),
@@ -509,7 +509,7 @@ const pnc: CaseDef = {
 }
 
 /* ====================================================================
-   TOPIC CASES: each one is a White Army sheet with the complaints that
+   TOPIC CASES: each one is a base sheet with the complaints that
    belong to the topic put first, plus a "Focus" section of the points an
    examiner expects for that topic. Content follows the case presentations
    in the shared OBG folder.

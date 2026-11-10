@@ -1,0 +1,132 @@
+import type { Answers } from '../types'
+import { P, A, F, who, merge, lines } from './kit'
+
+const ok = { consc: ['Conscious, cooperative, well oriented to time, place and person'] }
+const pers = (diet: string, appetite = 'Normal', sleep = 'Normal', bowel = 'Regular', bladder = 'Normal'): Answers => ({ diet: [diet], appetite: [appetite], sleep: [sleep], bowel: [bowel], bladder: [bladder] })
+const env = (ses = 'Lower middle', people = '5'): Answers => ({ house: ['Pakka'], ventilation: ['Adequate'], cooking: ['LPG'], water: ['Tap / piped'], sanitation: ['Toilet in house'], people, income: 'Rs 15,000 per month', ses: [ses] })
+const clean = F([], ['Pallor', 'Icterus', 'Cyanosis', 'Clubbing', 'Pedal oedema', 'Generalised lymphadenopathy'])
+const v = (pulse: string, bp: string, rr: string, temp: string, weight: string, extra: Record<string, string> = {}) => ({ vitals: { pulse, bp, rr, temp, spo2: '98% on room air', weight, ...extra } })
+const smokeNo = F([], ['Smoking', 'Alcohol', 'Tobacco chewing'])
+
+export const SAMPLES_SUR_A: Record<string, Answers> = {
+  'sur-hydrocele': merge(who('Mr. H.', '45', 'Male', 'Farmer', 'Gadag, Karnataka'), ok, pers('Mixed'), env(), {
+    cc: { 'Swelling in the scrotum': '2 years', 'Heaviness': '1 year' },
+    swell: P({ onset: ['Insidious'], duration: ['More than 1 year'], progression: ['Progressive'], side: ['Right'], first: ['Swelling in the scrotum', 'Painless swelling'], red: ['No change on lying down'], cough: ['No change'] }),
+    pain: A, trauma: A, fever: A, infertility: A,
+    assoc: F(['Filariasis / travel to endemic area'], ['Burning micturition', 'Urethral discharge', 'Weight loss', 'Undescended testis', 'Mumps', 'Previous scrotal surgery']),
+    pastHx: F([], ['Diabetes mellitus', 'Hypertension', 'Tuberculosis', 'Previous surgery']), pastNotes: 'No history of trauma, infection or surgery of the scrotum.', habits: smokeNo, famHx: F([], ['Similar illness']),
+    histS: lines('• 45-year-old farmer with painless swelling of the right scrotum for 2 years, slowly increasing', '• Feels heavy; no pain, fever or urinary symptoms', '• Lives in a filariasis endemic area'),
+    built: ['Moderately built'], nourish: ['Moderately nourished'], signs: clean, ...v('78', '124/80', '16', '37.0 C', '64'),
+    side: ['Right'], size: ['Large (extends above)'], inspF: F(['Skin normal', 'Can get above the swelling', 'Testis not palpable', 'Transillumination positive', 'Fluctuation'], ['Cough impulse', 'Reducible', 'Tender', 'Cord thickened', 'Hard nodule in testis']),
+    localN: 'Right hemiscrotum has a smooth, oval, non-tender swelling of 10 x 6 cm, lower pole of the testis not felt separately. Fluctuant, brilliantly translucent. Cough impulse absent. Spermatic cord normal above the swelling. Left side normal.',
+    other: F(['Opposite side normal', 'Hernial orifices normal'], ['Inguinal lymph nodes enlarged', 'Abdominal mass']),
+    summary: 'A 45-year-old man from a filariasis endemic area with a painless, slowly progressive, smooth, fluctuant, translucent right scrotal swelling, with the testis not palpable separately and the cord normal.',
+    provDx: 'Right vaginal hydrocele (probably filarial).', ddx: lines('1. Epididymo-orchitis', '2. Inguinoscrotal hernia (cough impulse, cannot get above)', '3. Testicular tumour (hard, non-translucent)', '4. Haematocele, chylocele, spermatocele'),
+    ix: lines('Ultrasound scrotum: fluid around a normal testis, excludes tumour.', 'Night blood smear for microfilaria, urine for chyluria.', 'Hydrocele fluid straw-coloured on aspiration (diagnostic only).'),
+    rx: lines('Surgery is the treatment: Jaboulay (eversion of sac) or Lord plication for a thin-walled hydrocele; excision for a thick-walled one.', 'Aspiration with sclerotherapy only in the unfit.', 'Diethylcarbamazine if microfilaraemia is confirmed.'),
+  }),
+
+  'sur-varicocele': merge(who('Mr. A.', '24', 'Male', 'College student', 'Hubballi, Karnataka'), ok, pers('Non-vegetarian'), env('Upper middle', '4'), {
+    cc: { 'Swelling in the scrotum': '8 months', 'Pain in the scrotum': '6 months' },
+    swell: P({ onset: ['Insidious'], duration: ['6 months'], progression: ['Progressive'], side: ['Left'], first: ['Swelling in the scrotum', 'Painless swelling'], red: ['Reduces on lying down'], cough: ['Increases'] }),
+    pain: P({ onset: ['Gradual'], duration: ['6 months'], progression: ['Intermittent'], nature: ['Dull aching'], radiation: ['None'], aggravating: ['Walking', 'Exertion'], relieving: ['Rest'] }),
+    trauma: A, fever: A, infertility: A,
+    assoc: F([], ['Filariasis / travel to endemic area', 'Burning micturition', 'Urethral discharge', 'Weight loss', 'Undescended testis', 'Mumps']),
+    pastHx: F([], ['Diabetes mellitus', 'Hypertension', 'Tuberculosis', 'Previous surgery']), habits: smokeNo, famHx: F([], ['Similar illness']),
+    histS: lines('• 24-year-old student with a left scrotal swelling and dragging pain for 6 to 8 months', '• Swelling appears on standing and disappears on lying down', '• No trauma, fever or infertility'),
+    built: ['Well built'], nourish: ['Well nourished'], signs: clean, ...v('76', '118/76', '16', '37.0 C', '68'),
+    side: ['Left'], size: ['Medium'], inspF: F(['Skin normal', 'Reducible', 'Cough impulse', 'Can get above the swelling', 'Testis palpable separately'], ['Transillumination positive', 'Tender', 'Hard nodule in testis', 'Fluctuation']),
+    localN: 'Standing: left hemiscrotum hangs lower, with a soft swelling of dilated veins feeling like a bag of worms. Palpable cough impulse. Swelling reduces on lying down and fills slowly on standing. Left testis smaller than the right (12 mL vs 18 mL by orchidometer). No transillumination.',
+    other: F(['Hernial orifices normal', 'Opposite side normal'], ['Abdominal mass', 'Inguinal lymph nodes enlarged']),
+    summary: 'A 24-year-old man with a left scrotal swelling with a bag-of-worms feel, dragging pain, cough impulse, reducing on lying down, with a smaller left testis; no abdominal mass.',
+    provDx: 'Left primary varicocele, grade 3.', ddx: lines('1. Inguinoscrotal hernia', '2. Secondary varicocele (renal tumour, retroperitoneal mass; does not empty on lying down)', '3. Hydrocele, spermatocele'),
+    ix: lines('Colour Doppler ultrasound scrotum: veins above 3 mm with reflux.', 'Semen analysis (oligo-astheno-teratozoospermia).', 'Ultrasound abdomen to exclude a renal mass.'),
+    rx: lines('Scrotal support and analgesics for mild symptoms.', 'Surgery for pain, testicular atrophy or infertility: laparoscopic or open high ligation (Palomo), or microsurgical subinguinal ligation.', 'Radiological embolisation is an alternative.'),
+  }),
+
+  'sur-torsion': merge(who('Master S.', '15', 'Male', 'Student', 'Dharwad, Karnataka'), ok, pers('Mixed', 'Reduced'), env('Lower middle', '5'), {
+    cc: { 'Pain in the scrotum': '6 hours', 'Swelling in the scrotum': '5 hours' },
+    pain: P({ onset: ['Sudden'], duration: ['1 day'], progression: ['Rapidly worsening'], nature: ['Sharp'], radiation: ['To the groin'], aggravating: ['Movement'], relieving: ['Rest'] }),
+    swell: P({ onset: ['Sudden'], duration: ['1 day'], progression: ['Rapidly worsening'], side: ['Left'], first: ['Painful swelling'], red: ['No change on lying down'], cough: ['No change'] }),
+    fever: P({ onset: ['Acute'], duration: ['1 day'], ass: ['Chills'] }), trauma: A, infertility: A,
+    assoc: F([], ['Burning micturition', 'Urethral discharge', 'Mumps', 'Undescended testis']),
+    pastHx: F([], ['Diabetes mellitus', 'Tuberculosis', 'Previous surgery']), pastNotes: 'Two similar short episodes of left testicular pain at night in the past 3 months, each settled within an hour.', habits: smokeNo, famHx: F([], ['Similar illness']),
+    histS: lines('• 15-year-old boy with sudden severe left scrotal pain and swelling for 6 hours, woke him from sleep', '• Nausea and vomiting; previous similar short episodes', '• No trauma, urinary symptoms or urethral discharge'),
+    built: ['Moderately built'], nourish: ['Moderately nourished'], signs: clean, ...v('112', '116/70', '22', '37.8 C', '50'),
+    side: ['Left'], size: ['Medium'], inspF: F(['Skin red', 'Skin oedematous', 'Tender', 'Warm', 'Prehn sign positive', 'Cremasteric reflex absent', 'Testis not palpable'], ['Transillumination positive', 'Reducible', 'Hard nodule in testis']),
+    localN: 'Left hemiscrotum swollen, red and warm, extremely tender. Left testis high-riding with a horizontal lie (bell-clapper deformity). Prehn sign positive (elevation does not relieve the pain). Cremasteric reflex absent on the left. Right testis normal.',
+    other: F(['Hernial orifices normal'], ['Inguinal lymph nodes enlarged', 'Abdominal mass']),
+    summary: 'A 15-year-old boy with sudden severe left testicular pain at night with vomiting, a high-riding horizontal tender testis, absent cremasteric reflex and negative Prehn sign.',
+    provDx: 'Torsion of the left testis (extravaginal or intravaginal) with bell-clapper deformity, within 6 hours.', ddx: lines('1. Acute epididymo-orchitis (younger boys less likely, gradual onset, fever, urinary symptoms, Prehn positive)', '2. Torsion of the testicular appendage (blue dot sign)', '3. Strangulated inguinal hernia', '4. Idiopathic scrotal oedema, trauma, tumour haemorrhage'),
+    ix: lines('This is a clinical diagnosis; do not delay surgery for imaging.', 'Colour Doppler ultrasound (absent flow) only if the picture is uncertain and not delaying theatre.', 'Urine routine to exclude infection.'),
+    rx: lines('Emergency scrotal exploration within 6 hours: untwist, warm saline pack, check viability and fix with non-absorbable sutures in three places (orchidopexy).', 'Orchidectomy if the testis is non-viable.', 'Always fix the opposite testis at the same sitting.', 'Manual detorsion (open-book towards the thigh) can be tried while preparing for theatre.'),
+  }),
+
+  'sur-udt': merge(who('Master V.', '6', 'Male', 'Student', 'Haveri, Karnataka'), ok, pers('Mixed'), env('Lower middle', '4'), {
+    cc: { 'Swelling in the scrotum': '6 years' },
+    swell: P({ onset: ['Insidious'], duration: ['More than 1 year'], progression: ['Static'], side: ['Right'], first: ['Swelling in the groin'], red: ['Reduces on lying down'], cough: ['No change'] }),
+    pain: A, fever: A, trauma: A, infertility: A,
+    assoc: F([], ['Burning micturition', 'Mumps', 'Previous scrotal surgery']),
+    pastHx: F([], ['Diabetes mellitus', 'Tuberculosis', 'Previous surgery']), pastNotes: 'Mother noticed the right scrotum was empty since birth. Born at term, no prematurity.', habits: F([]), famHx: F([], ['Similar illness']),
+    histS: lines('• 6-year-old boy; parents noticed an empty right scrotum since birth', '• Occasional fullness in the right groin, no pain', '• Born at term; no family history'),
+    built: ['Moderately built'], nourish: ['Moderately nourished'], signs: clean, ...v('86', '98/60', '20', '37.0 C', '19'),
+    side: ['Right'], size: ['Small'], inspF: F(['Testis palpable separately', 'Reducible'], ['Skin red', 'Tender', 'Transillumination positive', 'Hard nodule in testis']),
+    localN: 'Right hemiscrotum is under-developed and empty. A small (1 mL), firm, mobile testis is palpable in the right inguinal canal, which cannot be brought down into the scrotum without tension. Left testis normally placed, 2 mL. No hernia on coughing.',
+    other: F(['Opposite side normal', 'Hernial orifices normal'], ['Inguinal lymph nodes enlarged']),
+    summary: 'A 6-year-old boy with an empty right hemiscrotum since birth and a small palpable testis in the right inguinal canal that cannot be brought down.',
+    provDx: 'Right undescended testis (inguinal, cryptorchidism).', ddx: lines('1. Retractile testis (can be brought down and stays)', '2. Ectopic testis (superficial inguinal pouch, perineum)', '3. Absent testis or impalpable intra-abdominal testis', '4. Testicular torsion with atrophy'),
+    ix: lines('Ultrasound inguinal canal and abdomen for the testis.', 'Laparoscopy for the impalpable testis (diagnostic and therapeutic).', 'Karyotype and hormonal evaluation if bilateral impalpable or ambiguous genitalia.'),
+    rx: lines('Orchidopexy between 6 and 12 months of age; this boy needs it now (before 2 years is ideal).', 'Subdartos pouch technique; Fowler-Stephens for high intra-abdominal testis; orchidectomy for a dysplastic testis in adults.', 'Counsel on risk of infertility, torsion and malignancy (10 times higher) and regular self-examination.'),
+  }),
+
+  'sur-testis-tumour': merge(who('Mr. T.', '28', 'Male', 'Software engineer', 'Bengaluru, Karnataka'), ok, pers('Non-vegetarian', 'Reduced'), env('Upper middle', '3'), {
+    cc: { 'Swelling in the scrotum': '4 months', 'Heaviness': '3 months' },
+    swell: P({ onset: ['Insidious'], duration: ['3 months'], progression: ['Progressive'], side: ['Right'], first: ['Swelling in the scrotum', 'Painless swelling'], red: ['No change on lying down'], cough: ['No change'] }),
+    pain: A, fever: A, trauma: A, infertility: A,
+    assoc: F(['Weight loss', 'Undescended testis'], ['Burning micturition', 'Urethral discharge', 'Mumps']),
+    pastHx: F(['Previous surgery'], ['Diabetes mellitus', 'Tuberculosis', 'Malignancy']), pastNotes: 'Right orchidopexy at 5 years for an undescended testis.', habits: F(['Weight loss'], ['Smoking', 'Alcohol']), famHx: F([], ['Malignancy', 'Similar illness']),
+    histS: lines('• 28-year-old man with painless, progressively enlarging right testicular swelling for 4 months', '• Heaviness and 4 kg weight loss; right orchidopexy done at 5 years', '• No pain, fever or trauma; no family history'),
+    built: ['Moderately built'], nourish: ['Moderately nourished'], signs: F(['Generalised lymphadenopathy'], ['Pallor', 'Icterus', 'Clubbing', 'Pedal oedema']), gpeNotes: 'Palpable left supraclavicular lymph node, 1.5 cm, firm.', ...v('84', '118/74', '16', '37.0 C', '62'),
+    side: ['Right'], size: ['Medium'], inspF: F(['Skin normal', 'Testis not palpable', 'Hard nodule in testis'], ['Skin red', 'Tender', 'Transillumination positive', 'Reducible', 'Cough impulse']),
+    localN: 'Right testis enlarged (7 x 5 cm), firm to hard, irregular, painless; epididymis not separately felt; transillumination negative. Testicular sensation lost (Hawkins). Spermatic cord mildly thickened; one can get above the swelling. Left testis normal.',
+    other: F(['Opposite side normal', 'Abdominal mass', 'Spermatic cord thickened'], ['Inguinal lymph nodes enlarged']),
+    summary: 'A 28-year-old man with a previous right orchidopexy, a painless hard enlarging right testicular mass with loss of sensation and a left supraclavicular node, and weight loss.',
+    provDx: 'Right testicular germ cell tumour (probably non-seminomatous) with nodal metastases.', ddx: lines('1. Seminoma', '2. Chronic orchitis or tuberculous epididymo-orchitis', '3. Hydrocele with tumour, haematocele', '4. Lymphoma, Leydig or Sertoli cell tumour'),
+    ix: lines('Tumour markers before orchidectomy: AFP, beta-hCG, LDH.', 'Ultrasound scrotum (hypoechoic intratesticular mass).', 'CT chest, abdomen and pelvis for staging (retroperitoneal nodes, lungs).', 'Semen banking before treatment. Do not do a trans-scrotal biopsy.'),
+    rx: lines('Radical inguinal orchidectomy with high ligation of the cord (never a scrotal approach).', 'Stage I seminoma: surveillance or carboplatin. Metastatic: BEP chemotherapy (bleomycin, etoposide, cisplatin).', 'Retroperitoneal lymph node dissection for residual masses after chemotherapy.', 'Markers every 3 months for 2 years, then lifelong surveillance.'),
+  }),
+
+  'sur-phimosis': merge(who('Mr. P.', '52', 'Male', 'Shopkeeper', 'Belagavi, Karnataka'), ok, pers('Mixed', 'Normal', 'Normal', 'Regular', 'Dysuria'), env(), {
+    cc: { 'Pain in the scrotum': '2 weeks', 'Burning micturition': '2 weeks' },
+    pain: P({ onset: ['Gradual'], duration: ['2 weeks'], progression: ['Progressive'], nature: ['Burning'], radiation: ['None'], aggravating: ['Walking'], relieving: ['Rest'] }),
+    swell: A, fever: A, trauma: A, infertility: A,
+    assoc: F(['Burning micturition'], ['Urethral discharge', 'Weight loss', 'Filariasis / travel to endemic area']),
+    pastHx: F(['Diabetes mellitus'], ['Hypertension', 'Tuberculosis', 'Previous surgery']), pastNotes: 'Diabetes for 10 years, poorly controlled. Unable to retract the foreskin since childhood.', habits: smokeNo, famHx: F(['Diabetes mellitus']),
+    histS: lines('• 52-year-old diabetic man with pain and burning micturition for 2 weeks', '• Foreskin could never be retracted; ballooning of the prepuce while passing urine', '• Poor stream, no discharge or fever'),
+    built: ['Moderately built'], nourish: ['Moderately nourished'], signs: clean, ...v('82', '134/84', '16', '37.2 C', '72'),
+    side: ['Bilateral'], size: ['Small'], inspF: F(['Penis buried', 'Skin red', 'Tender'], ['Testis not palpable', 'Hard nodule in testis', 'Transillumination positive']),
+    localN: 'Prepuce is long with a tight, narrow, fibrotic opening; it cannot be retracted over the glans. Balanitis xerotica obliterans suspected (white sclerotic patches). The urinary meatus is not visible. Smegma and foul-smelling discharge from the preputial orifice. Both testes normal.',
+    other: F(['Opposite side normal', 'Hernial orifices normal'], ['Inguinal lymph nodes enlarged']),
+    summary: 'A 52-year-old diabetic man with an unretractable foreskin, ballooning on micturition and balanoposthitis with a sclerotic scarred prepuce.',
+    provDx: 'Pathological phimosis with balanoposthitis (diabetes), likely balanitis xerotica obliterans.', ddx: lines('1. Paraphimosis (foreskin retracted and cannot be reduced)', '2. Carcinoma of the penis (indurated mass, ulcer, nodes)', '3. Physiological phimosis (children)', '4. Meatal stenosis, urethral stricture'),
+    ix: lines('Blood sugar, HbA1c, urine routine and culture.', 'Biopsy of the sclerotic or suspicious area to exclude malignancy.', 'Check for urethral stricture if poor stream persists.'),
+    rx: lines('Control diabetes, local hygiene, antibiotics and anti-fungal cream for balanoposthitis.', 'Circumcision once the infection settles (dorsal slit in emergency).', 'Paraphimosis: reduce manually with compression and lubrication, or dorsal slit if it fails.', 'Send circumcision specimen for histopathology.'),
+  }),
+
+  'sur-stricture': merge(who('Mr. U.', '40', 'Male', 'Driver', 'Vijayapura, Karnataka'), ok, pers('Non-vegetarian', 'Normal', 'Normal', 'Regular', 'Retention'), env(), {
+    cc: { 'Burning micturition': '3 months', 'Pain in the scrotum': '1 week' },
+    pain: P({ onset: ['Acute'], duration: ['1 week'], progression: ['Progressive'], nature: ['Dull aching'], radiation: ['To the groin'], aggravating: ['Walking'], relieving: ['Rest'] }),
+    fever: P({ onset: ['Acute'], duration: ['1 week'], ass: ['Chills', 'Urinary symptoms'] }), swell: A, trauma: P({ duration: ['More than 1 year'] }), infertility: A,
+    assoc: F(['Burning micturition', 'Urethral discharge'], ['Weight loss', 'Filariasis / travel to endemic area']),
+    pastHx: F([], ['Diabetes mellitus', 'Hypertension', 'Tuberculosis']), pastNotes: 'Fall astride a bar (perineal trauma) 10 years ago. Urethral discharge treated 5 years ago. Gradually thinning stream for 3 months, now straining and dribbling, with a 1 week of fever and left scrotal pain (epididymo-orchitis).', habits: F(['Alcohol'], ['Smoking']), famHx: F([], ['Similar illness']),
+    histS: lines('• 40-year-old driver with 3 months of poor, thin stream, hesitancy and terminal dribbling', '• Straddle injury 10 years ago, urethral discharge 5 years ago', '• Fever and left scrotal pain for 1 week'),
+    built: ['Moderately built'], nourish: ['Moderately nourished'], signs: clean, ...v('96', '126/80', '18', '38.0 C', '66'),
+    side: ['Left'], size: ['Small'], inspF: F(['Skin red', 'Tender', 'Warm', 'Epididymis palpable separately', 'Testis palpable separately'], ['Transillumination positive', 'Hard nodule in testis', 'Cremasteric reflex absent']),
+    localN: 'Left epididymis enlarged, tender and indurated; testis normal. Prehn sign negative. Palpable thickening along the bulbar urethra with a perineal scar. Meatus normal. Bladder palpable and tender above the pubis.',
+    other: F(['Per rectal: prostate normal', 'Hernial orifices normal'], ['Abdominal mass']),
+    summary: 'A 40-year-old man with a history of perineal trauma and urethritis, progressive poor stream, now with a palpable bladder, perineal induration and left epididymo-orchitis.',
+    provDx: 'Bulbar urethral stricture (post-traumatic) with chronic retention and left acute epididymo-orchitis.', ddx: lines('1. Benign prostatic enlargement (older patient, prostate enlarged)', '2. Meatal stenosis, phimosis', '3. Bladder neck obstruction, neurogenic bladder', '4. Urethral calculus, carcinoma of urethra'),
+    ix: lines('Uroflowmetry (reduced, plateau curve).', 'Retrograde urethrogram with micturating cystourethrogram: site and length of the stricture.', 'Urine culture, serum creatinine, ultrasound KUB with post-void residual.', 'Urethroscopy.'),
+    rx: lines('Treat infection with antibiotics. Relieve retention by a suprapubic cystostomy (do not force a urethral catheter).', 'Short bulbar stricture: internal optical urethrotomy (recurrence common) or urethral dilatation.', 'Definitive: anastomotic urethroplasty (end-to-end) for short, or buccal mucosa graft urethroplasty for long strictures.', 'Self-dilatation or follow-up flow rates.'),
+  }),
+}

@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Presentation, Save, Loader2, Check } from "l
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { CaseDef, Answers } from "@/lib/casepres/types"
-import { isFieldFilled, buildSection } from "@/lib/casepres/format"
+import { isFieldFilled, buildSection, historySummary } from "@/lib/casepres/format"
 import { diagnosisHints } from "@/lib/casepres/insights"
 import { FieldView } from "./fields"
 
@@ -27,6 +27,9 @@ export function CaseForm({ caseDef, answers, setField, onPresent, saveState, sav
     const d = buildSection(sec, answers, caseDef)
     return d.lines.filter((l) => l.k === "para").map((l: any) => l.text).join(" ")
   }, [sec, answers, caseDef])
+  const isSummary = sec.id === "histSumm"
+  const summary = useMemo(() => (isSummary ? historySummary(caseDef, answers) : ""), [isSummary, caseDef, answers])
+  useEffect(() => { if (isSummary && summary !== (answers.histS || "")) setField("histS", summary) }, [isSummary, summary]) // eslint-disable-line react-hooks/exhaustive-deps
   const isClosing = sec.fields.some((f) => f.id === "provDx")
   const hints = useMemo(() => (isClosing ? diagnosisHints(caseDef, answers) : []), [isClosing, caseDef, answers])
   useEffect(() => { window.scrollTo({ top: 0, behavior: "smooth" }) }, [idx])
@@ -56,7 +59,14 @@ export function CaseForm({ caseDef, answers, setField, onPresent, saveState, sav
         </div>
         {sec.hint && <p className="text-sm text-muted-foreground mb-4">{sec.hint}</p>}
         <div className="grid gap-5 sm:grid-cols-2 mt-4">
-          {sec.fields.map((f) => <FieldView key={f.id} field={f} answers={answers} set={setField} />)}
+          {isSummary ? (
+            <div className="sm:col-span-2 space-y-2">
+              <p className="text-sm text-muted-foreground">Written for you from the history you have entered so far. It updates as you change the history, so go back and fill in more to improve it.</p>
+              <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 text-sm leading-relaxed space-y-3">
+                {summary.split("\n\n").map((p, i) => <p key={i}>{p}</p>)}
+              </div>
+            </div>
+          ) : sec.fields.map((f) => <FieldView key={f.id} field={f} answers={answers} set={setField} />)}
         </div>
       </div>
 

@@ -14,13 +14,13 @@ export const INSIGHTS: Record<string, CaseInsight> = {
   // ================= MEDICINE =================
   "med-git": {
     hints: [
-      { dx: "Chronic liver disease (cirrhosis) with portal hypertension and ascites", why: "Ascites with splenomegaly, caput medusae or fetor hepaticus points to portal hypertension.", any: ["ascites", "shifting dullness", "fluid thrill", "caput medusae", "palpable spleen", "fetor hepaticus", "abdominal distension"], min: 3 },
-      { dx: "Obstructive (post-hepatic) jaundice", why: "Jaundice with pruritus, pale stools and dark urine suggests cholestasis.", all: ["jaundice"], any: ["pruritus", "pale stools", "dark urine", "courvoisier"], min: 2 },
+      { dx: "Chronic liver disease (cirrhosis) with portal hypertension and ascites", why: "Ascites with splenomegaly, caput medusae or fetor hepaticus points to portal hypertension.", any: ["shifting dullness", "fluid thrill", "caput medusae", "palpable spleen", "fetor hepaticus", "abdominal distension"], min: 3 },
+      { dx: "Obstructive (post-hepatic) jaundice", why: "Jaundice with pruritus, pale stools and dark urine suggests cholestasis.", all: ["jaundice"], any: ["pruritus", "pale stools", "dark urine"], min: 2 },
       { dx: "Upper gastrointestinal bleeding (peptic ulcer, varices, gastritis)", why: "Haematemesis or melaena means bleeding proximal to the ligament of Treitz.", any: ["haematemesis", "melaena"] },
       { dx: "Gastric outlet obstruction", why: "Vomiting with visible gastric peristalsis or a succussion splash suggests pyloric obstruction.", any: ["succussion splash", "visible gastric peristalsis"] },
-      { dx: "Peptic ulcer disease / dyspepsia", why: "Epigastric pain relieved by antacids or food, with flatulence or burning.", all: ["abdominal pain"], any: ["antacids", "burning sensation", "flatulence"], min: 1 },
+      { dx: "Peptic ulcer disease / dyspepsia", why: "Epigastric pain relieved by antacids or food, with flatulence or burning.", all: ["abdominal pain"], any: ["burning sensation", "flatulence"], min: 1 },
       { dx: "Acute abdomen / peritonitis", why: "Guarding, rigidity or rebound tenderness indicate peritoneal inflammation.", any: ["rebound tenderness", "guarding", "rigidity", "liver dullness obliterated"], min: 2 },
-      { dx: "Intestinal obstruction", why: "Distension and vomiting with visible peristalsis or exaggerated bowel sounds.", any: ["visible intestinal peristalsis", "abdominal distension", "vomiting", "exaggerated", "absolute constipation"], min: 3 },
+      { dx: "Intestinal obstruction", why: "Distension and vomiting with visible peristalsis or exaggerated bowel sounds.", any: ["visible intestinal peristalsis", "abdominal distension", "vomiting", "exaggerated"], min: 3 },
       { dx: "Infective diarrhoea / dysentery", why: "Diarrhoea with fever, blood or mucus in stool.", all: ["diarrhoea"], any: ["fever", "blood-stained", "mucus-stained", "watery"], min: 1 },
     ],
     must: [VIT, GEN, { n: "Shifting dullness / fluid thrill", m: ["shifting dullness", "fluid thrill"] }, { n: "Liver and spleen palpation", m: ["palpable liver", "palpable spleen", "liver (cm", "spleen (cm"] }, { n: "Bowel sounds", m: ["bowel sounds"] }, { n: "Hernial orifices", m: ["hernial orifices"] }, { n: "Other systems (CVS, RS, CNS)", m: ["cvs", "respiratory system"] }],
@@ -30,11 +30,12 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the causes of hepatomegaly with jaundice?", a: "Hepatitis (viral, alcoholic), cirrhosis, hepatic malignancy, congestive hepatopathy, cholangitis, and biliary obstruction with secondary liver involvement." },
       { q: "Name the features of hepatic encephalopathy.", a: "Altered sleep rhythm, confusion, asterixis (flapping tremor), fetor hepaticus, hyperreflexia, and coma in advanced stages, usually precipitated by GI bleed, infection, sedatives or electrolyte imbalance." },
       { q: "What is the Child-Pugh score used for?", a: "To grade the severity of cirrhosis (class A, B, C) using bilirubin, albumin, INR, ascites and encephalopathy; it predicts survival and guides treatment." },
+      { q: "What are the causes of upper GI bleeding?", a: "Peptic ulcer, oesophageal varices, gastritis or erosions, Mallory-Weiss tear, malignancy. Resuscitate, then urgent endoscopy." },
     ],
   },
   "med-cns": {
     hints: [
-      { dx: "Stroke (cerebrovascular accident) with UMN hemiparesis", why: "Sudden unilateral weakness with facial deviation, speech disturbance, exaggerated reflexes and an extensor plantar.", any: ["right half of body", "left half of body", "deviation of angle of mouth", "facial palsy (umn)", "hemiparetic gait", "slurred speech", "aphasia", "plantar extensor", "exaggerated"], min: 3 },
+      { dx: "Stroke (cerebrovascular accident) with UMN hemiparesis", why: "Sudden unilateral weakness with facial deviation, speech disturbance, exaggerated reflexes and an extensor plantar.", any: ["right half of body", "left half of body", "deviation of angle of mouth", "hemiparetic gait", "slurred speech", "aphasia", "plantar extensor", "exaggerated"], min: 3 },
       { dx: "Meningitis / meningoencephalitis", why: "Fever and headache with neck stiffness or Kernig / Brudzinski signs.", all: ["fever", "headache"], any: ["neck stiffness", "kernig", "brudzinski", "photophobia"], min: 1 },
       { dx: "Epilepsy / seizure disorder", why: "Recurrent seizures; search for a structural, metabolic or infective cause.", all: ["seizure"] },
       { dx: "Raised intracranial pressure / space-occupying lesion", why: "Progressive headache with vomiting and papilloedema.", all: ["headache"], any: ["papilloedema", "vomiting"], min: 2 },
@@ -49,6 +50,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "Name the types of aphasia.", a: "Broca (expressive, non-fluent with good comprehension), Wernicke (receptive, fluent with poor comprehension), global, conduction (poor repetition), anomic." },
       { q: "What are the signs of raised intracranial pressure?", a: "Headache worse in the morning, vomiting, papilloedema, altered sensorium, Cushing's triad (hypertension, bradycardia, irregular respiration) and VI nerve palsy as a false localising sign." },
       { q: "What investigation do you do first in a patient with sudden hemiparesis?", a: "Non-contrast CT head to separate haemorrhage from infarct, with blood glucose, ECG and vitals; MRI with diffusion is more sensitive for early infarcts." },
+      { q: "How do you differentiate UMN from LMN lesions?", a: "UMN: spasticity, brisk reflexes, extensor plantar, no significant wasting. LMN: flaccidity, wasting, fasciculations, absent reflexes and flexor plantar." },
     ],
   },
   "med-rs": {
@@ -67,13 +69,14 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "Classify COPD by GOLD criteria.", a: "Post-bronchodilator FEV1/FVC below 0.7 confirms COPD; severity by FEV1 % predicted: GOLD 1 (80% or above), 2 (50 to 79%), 3 (30 to 49%), 4 (below 30%)." },
       { q: "What is the treatment of an acute severe asthma attack?", a: "Oxygen, nebulised salbutamol with ipratropium, systemic steroids, magnesium sulphate in severe cases, and monitoring for fatigue or respiratory failure." },
       { q: "What is the RNTCP / NTEP first-line regimen for new pulmonary TB?", a: "2 months of HRZE daily (isoniazid, rifampicin, pyrazinamide, ethambutol) followed by 4 months of HRE, using fixed-dose combinations by weight band." },
+      { q: "How do you differentiate consolidation from pleural effusion?", a: "Consolidation: increased fremitus, dull note, bronchial breathing, crackles. Effusion: reduced fremitus, stony dull, absent breath sounds, tracheal shift to the opposite side if large." },
     ],
   },
   "med-cvs": {
     hints: [
-      { dx: "Rheumatic heart disease (mitral stenosis)", why: "History of rheumatic fever with a tapping apex, opening snap or mid-diastolic murmur.", any: ["rheumatic fever", "opening snap", "mid-diastolic", "apex beat tapping", "diastolic murmur", "palpitations"], min: 3 },
+      { dx: "Rheumatic heart disease (mitral stenosis)", why: "History of rheumatic fever with a tapping apex, opening snap or mid-diastolic murmur.", any: ["rheumatic fever", "opening snap", "apex beat tapping", "diastolic murmur", "palpitations"], min: 3 },
       { dx: "Congestive cardiac failure", why: "Orthopnoea, PND, raised JVP, oedema and a third heart sound.", any: ["orthopnoea", "paroxysmal nocturnal dyspnoea", "raised jvp", "pedal oedema", "swelling of feet", "s3 gallop", "crepitations", "hepatomegaly (congestive)"], min: 3 },
-      { dx: "Ischaemic heart disease / acute coronary syndrome", why: "Chest pain with sweating or radiation, with diabetes, hypertension or smoking.", all: ["chest pain"], any: ["sweating", "left arm", "diabetes mellitus", "hypertension", "cad", "nausea"], min: 2 },
+      { dx: "Ischaemic heart disease / acute coronary syndrome", why: "Chest pain with sweating or radiation, with diabetes, hypertension or smoking.", all: ["chest pain"], any: ["sweating", "diabetes mellitus", "hypertension", "cad", "nausea"], min: 2 },
       { dx: "Aortic stenosis", why: "Ejection systolic murmur radiating to the carotids with a heaving apex and exertional syncope.", any: ["apex beat heaving", "radiating to carotids", "systolic murmur", "syncope", "anacrotic"], min: 3 },
       { dx: "Aortic regurgitation", why: "Collapsing pulse, wide pulse pressure and an early diastolic murmur.", any: ["collapsing", "hill's sign positive", "diastolic murmur", "high volume"], min: 2 },
       { dx: "Infective endocarditis", why: "Fever with peripheral stigmata and a new murmur.", all: ["fever"], any: ["splinter", "osler", "janeway", "roth", "splenomegaly"], min: 1 },
@@ -86,6 +89,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "How do you grade the severity of breathlessness in heart failure?", a: "NYHA class I (no limitation), II (slight limitation), III (marked limitation on ordinary activity), IV (symptoms at rest)." },
       { q: "What is the drug treatment of heart failure with reduced EF?", a: "ACE inhibitor or ARNI, beta-blocker (carvedilol, bisoprolol, metoprolol succinate), mineralocorticoid receptor antagonist and SGLT2 inhibitor, with loop diuretics for congestion." },
       { q: "What are the ECG changes in STEMI?", a: "ST elevation in contiguous leads, hyperacute T waves early, then T inversion and pathological Q waves; reciprocal ST depression in opposite leads." },
+      { q: "What are the causes of a raised JVP?", a: "Right heart failure, tricuspid regurgitation, constrictive pericarditis, pericardial effusion, SVC obstruction (with absent pulsation), fluid overload." },
     ],
   },
 
@@ -95,7 +99,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { dx: "Primary varicose veins with saphenofemoral junction incompetence (long saphenous system)", why: "Positive Trendelenburg test I or an SFJ cough impulse shows reflux at the SFJ.", any: ["trendelenburg test i positive", "morrissey", "cough impulse at saphenofemoral", "tourniquet test positive"], min: 1 },
       { dx: "Incompetent perforators", why: "Filling during compression, palpable fascial gaps, or localisation on multiple tourniquet / Pratt tests.", any: ["trendelenburg test ii positive", "fegan", "multiple tourniquet", "pratt"], min: 1 },
       { dx: "Chronic venous insufficiency (CEAP C4 to C6)", why: "Pigmentation, eczema, lipodermatosclerosis or ulceration reflect long-standing venous hypertension.", any: ["pigmentation", "lipodermatosclerosis", "venous ulcer", "eczema", "atrophie blanche"], min: 2 },
-      { dx: "Short saphenous vein (saphenopopliteal) varicosities", why: "Veins on the posterolateral calf.", any: ["posterolateral side (short saphenous)", "posterolateral aspect of leg", "posterolateral side of calf"] },
+      { dx: "Short saphenous vein (saphenopopliteal) varicosities", why: "Veins on the posterolateral calf.", any: ["posterolateral side (short saphenous)", "posterolateral aspect of leg"] },
       { dx: "Post-thrombotic (secondary) varicose veins", why: "Previous DVT with limb swelling suggests secondary varicosities from deep vein damage; confirm deep vein patency by Perthes test and duplex.", all: ["previous dvt"] },
     ],
     must: [VIT, { n: "Trendelenburg test(s)", m: ["trendelenburg"] }, { n: "Tourniquet / multiple tourniquet test", m: ["tourniquet"] }, { n: "Perthes test (deep vein patency)", m: ["perthes"] }, { n: "Schwartz test / cough impulse", m: ["schwartz", "cough impulse", "morrissey"] }, { n: "Perforator localisation (Fegan / Pratt)", m: ["fegan", "pratt", "multiple tourniquet"] }, { n: "Peripheral pulses", m: ["peripheral pulses", "dorsalis pedis", "posterior tibial"] }, { n: "Skin changes (pigmentation, eczema, ulcer)", m: ["pigmentation", "eczema", "lipodermatosclerosis", "venous ulcer"] }, { n: "Abdominal and pelvic examination", m: ["abdominal and pelvic examination"] }],
@@ -105,15 +109,16 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the complications of varicose veins?", a: "Eczema, pigmentation, lipodermatosclerosis, venous ulcer, bleeding, superficial thrombophlebitis, DVT, periostitis and rarely malignant change (Marjolin) in a chronic ulcer." },
       { q: "What are the treatment options?", a: "Conservative: elevation, compression stockings. Sclerotherapy for small veins. Endovenous laser or radiofrequency ablation. Surgery: saphenofemoral flush ligation with stripping and multiple perforator ligation." },
       { q: "Which investigation confirms the diagnosis and its extent?", a: "Venous duplex ultrasound: shows reflux (more than 0.5 seconds), junction competence, perforators and deep vein patency." },
+      { q: "How do you differentiate varicose veins from deep vein thrombosis sequelae?", a: "Varicose veins empty on elevation and the Perthes test is negative; post-thrombotic limbs have swelling, pain on walking and a positive Perthes test (deep system obstructed)." },
     ],
   },
   "sur-scrotal": {
     hints: [
       { dx: "Hydrocele (vaginalis)", why: "A transilluminant scrotal swelling above which you can get; testis not separately palpable.", all: ["transillumin"], any: ["can get above the swelling", "testis not palpable", "fluctuation"], min: 1 },
-      { dx: "Epididymo-orchitis", why: "Painful, tender, warm swelling with fever or urinary symptoms; pain relieved on elevation (Prehn sign).", any: ["tender", "fever", "burning micturition", "prehn sign positive", "local rise of temperature", "warm"], min: 3 },
-      { dx: "Testicular torsion (emergency)", why: "Acute severe pain with an absent cremasteric reflex.", all: ["pain in the scrotum"], any: ["cremasteric reflex absent", "sudden", "acute", "tender"], min: 2 },
-      { dx: "Testicular tumour", why: "Hard painless nodule in the testis.", any: ["hard nodule in testis", "weight loss", "abdominal mass", "stony hard"], min: 2 },
-      { dx: "Inguinoscrotal hernia", why: "Swelling that reduces on lying down with a cough impulse.", all: ["reduces on lying down"], any: ["cough impulse", "reducible", "bowel sounds"], min: 1 },
+      { dx: "Epididymo-orchitis", why: "Painful, tender, warm swelling with fever or urinary symptoms; pain relieved on elevation (Prehn sign).", any: ["tender", "fever", "burning micturition", "prehn sign positive", "warm"], min: 3 },
+      { dx: "Testicular torsion (emergency)", why: "Acute severe pain with an absent cremasteric reflex.", all: ["pain in the scrotum"], any: ["cremasteric reflex absent", "tender"], min: 2 },
+      { dx: "Testicular tumour", why: "Hard painless nodule in the testis.", any: ["hard nodule in testis", "weight loss", "abdominal mass"], min: 2 },
+      { dx: "Inguinoscrotal hernia", why: "Swelling that reduces on lying down with a cough impulse.", all: ["reduces on lying down"], any: ["cough impulse", "reducible"], min: 1 },
       { dx: "Varicocele", why: "Dragging pain or heaviness; bag-of-worms swelling that reduces on lying.", all: ["heaviness"] },
       { dx: "Filarial hydrocele / chylocele", why: "History of filariasis or travel to an endemic area.", any: ["filariasis"] },
     ],
@@ -124,6 +129,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "How do you differentiate hydrocele from inguinoscrotal hernia?", a: "Hydrocele: can get above the swelling, no cough impulse, transilluminant, not reducible. Hernia: cannot get above, cough impulse present, reducible, resonant if bowel." },
       { q: "What is the treatment of hydrocele?", a: "Jaboulay's (eversion of sac), Lord's plication, or excision of the sac; aspiration with sclerotherapy only in unfit patients. In children, ligation of the processus vaginalis." },
       { q: "What is Fournier's gangrene?", a: "Necrotising fasciitis of the scrotum and perineum, usually polymicrobial and in diabetics; it needs urgent debridement, broad-spectrum antibiotics and glycaemic control." },
+      { q: "What are the causes of acute scrotum?", a: "Torsion of the testis, epididymo-orchitis, torsion of the testicular appendage, strangulated hernia, trauma and haematocele." },
     ],
   },
   "sur-lump": {
@@ -142,6 +148,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the types of lymphadenopathy by cause?", a: "Infective (reactive, TB, filarial), malignant (lymphoma, metastatic), and autoimmune or drug related. TB nodes are matted and may form cold abscesses." },
       { q: "What is the treatment of an abscess?", a: "Incision and drainage under anaesthesia with a cruciate or linear incision, break loculi, saline wash, pack, and antibiotics for cellulitis or in diabetics." },
       { q: "When do you suspect a soft-tissue sarcoma?", a: "A deep, hard, enlarging swelling larger than 5 cm, painless, fixed to deeper structures; investigate with MRI and core biopsy before any excision." },
+      { q: "What features of a lump should always be described?", a: "Site, size, shape, surface, edge, consistency, tenderness, temperature, mobility, relation to skin and deep structures, fluctuation, transillumination, pulsation, regional nodes." },
     ],
   },
   "sur-breast": {
@@ -149,7 +156,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { dx: "Carcinoma of the breast", why: "Hard irregular lump with skin or nipple changes, axillary nodes or risk factors.", any: ["hard", "stony hard", "irregular", "peau d", "skin dimpling", "nipple retraction", "axillary nodes hard", "axillary nodes matted", "bone pain", "family history of breast cancer", "nulliparity", "late first pregnancy"], min: 3 },
       { dx: "Fibroadenoma (breast mouse)", why: "Smooth, firm, highly mobile lump in a young woman.", all: ["mobile"], any: ["smooth", "firm", "rubbery", "well defined"], min: 2 },
       { dx: "Fibrocystic change of the breast", why: "Cyclical pain and lumpiness worse before periods.", all: ["increases before periods"] },
-      { dx: "Breast abscess / mastitis", why: "Painful red warm swelling with fever, often in lactation.", any: ["redness", "local rise of temperature", "fluctuant", "fever", "tender"], min: 3 },
+      { dx: "Breast abscess / mastitis", why: "Painful red warm swelling with fever, often in lactation.", any: ["redness", "local rise of temperature", "fluctuant", "tender"], min: 3 },
       { dx: "Duct papilloma", why: "Bloody nipple discharge with a small subareolar lump.", all: ["bloody discharge"] },
       { dx: "Paget's disease of the nipple", why: "Non-healing eczema of the nipple and areola.", all: ["nipple eczema"] },
     ],
@@ -160,11 +167,12 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "How is breast cancer staged clinically?", a: "TNM: T by size (T1 up to 2 cm, T2 2 to 5 cm, T3 more than 5 cm, T4 chest wall or skin involvement), N by axillary nodes, M by distant metastases; stage grouping I to IV." },
       { q: "What are the types of surgery for breast cancer?", a: "Breast conservation (wide local excision with radiotherapy) or modified radical mastectomy, with sentinel node biopsy or axillary clearance; neoadjuvant therapy in locally advanced disease." },
       { q: "What do ER, PR and HER2 status guide?", a: "ER/PR positive tumours get endocrine therapy (tamoxifen or aromatase inhibitors), HER2 positive tumours get trastuzumab, and triple-negative tumours rely on chemotherapy." },
+      { q: "What is the commonest breast lump in young women?", a: "Fibroadenoma; in older women carcinoma must be excluded with triple assessment." },
     ],
   },
   "sur-ulcer": {
     hints: [
-      { dx: "Venous ulcer", why: "Medial gaiter-area ulcer with varicose veins, pigmentation and eczema; sloping edge.", any: ["varicose veins", "venous ulcer", "pigmented", "eczematous", "medial malleolus", "sloping"], min: 3 },
+      { dx: "Venous ulcer", why: "Medial gaiter-area ulcer with varicose veins, pigmentation and eczema; sloping edge.", any: ["varicose veins", "pigmented", "eczematous", "sloping"], min: 3 },
       { dx: "Arterial (ischaemic) ulcer", why: "Punched-out painful ulcer on a cold, hairless limb with absent pulses and claudication.", any: ["peripheral vascular disease / claudication", "punched out", "shiny and hairless", "cold limb", "loss of hair", "capillary refill delayed", "smoking", "dorsalis pedis absent", "buerger"], min: 3 },
       { dx: "Diabetic / neuropathic ulcer", why: "Painless plantar ulcer with neuropathy.", any: ["diabetes mellitus", "neuropathy", "sensory loss", "monofilament", "punched out", "ankle jerk absent"], min: 3 },
       { dx: "Malignant ulcer (squamous cell carcinoma / Marjolin)", why: "Everted or rolled edge, indurated base, bleeds easily with hard nodes.", any: ["raised and everted", "rolled", "indurated", "fixed to deeper", "bleeds easily", "lymph nodes hard"], min: 2 },
@@ -178,6 +186,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the stages of ulcer healing?", a: "Inflammatory, proliferative (granulation tissue and angiogenesis), epithelialisation, and remodelling." },
       { q: "How do you treat a venous ulcer?", a: "Elevation, multilayer compression bandaging after confirming adequate arterial supply (ABPI above 0.8), wound dressing, treat the varicose veins surgically or by ablation to prevent recurrence." },
       { q: "When do you suspect Marjolin ulcer?", a: "Malignant transformation (squamous cell carcinoma) in a chronic scar or ulcer such as an old burn scar, osteomyelitis sinus or venous ulcer; presents with a raised everted edge and bleeding; confirm by biopsy from the edge." },
+      { q: "How do you examine an ulcer?", a: "Site, size, shape, edge, floor, base, discharge, surrounding skin, regional nodes, then vascular and neurological assessment." },
     ],
   },
   "sur-thyroid": {
@@ -185,8 +194,8 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { dx: "Thyrotoxicosis (Graves' disease or toxic goitre)", why: "Weight loss with good appetite, heat intolerance, palpitations, tremor, eye signs and a bruit.", any: ["weight loss despite good appetite", "heat intolerance", "palpitations", "tremors", "exophthalmos", "lid lag", "lid retraction", "fine tremors", "warm sweaty palms", "tachycardia", "thyrotoxic", "bruit"], min: 4 },
       { dx: "Hypothyroidism", why: "Weight gain, cold intolerance, dry skin, constipation, slow-relaxing reflexes.", any: ["weight gain despite poor appetite", "cold intolerance", "hair loss", "constipation", "dry coarse skin", "delayed ankle jerk", "bradycardia", "facial puffiness", "hypothyroid"], min: 3 },
       { dx: "Multinodular goitre (euthyroid)", why: "Multiple nodules in a goitre-endemic area with normal thyroid function.", any: ["multinodular", "goitre-endemic", "euthyroid"], min: 2 },
-      { dx: "Solitary thyroid nodule: exclude carcinoma (FNAC)", why: "A single hard fixed nodule with nodes, hoarseness or radiation exposure.", any: ["solitary nodule", "hard", "stony hard", "cervical nodes palpable", "hoarseness of voice", "vocal cord palsy", "radiation exposure to neck", "fixed"], min: 3 },
-      { dx: "Thyroiditis (subacute / Hashimoto's)", why: "Painful tender thyroid with fever suggests subacute thyroiditis.", any: ["pain in the swelling", "tender", "fever"], min: 2 },
+      { dx: "Solitary thyroid nodule: exclude carcinoma (FNAC)", why: "A single hard fixed nodule with nodes, hoarseness or radiation exposure.", any: ["solitary nodule", "hard", "stony hard", "cervical nodes palpable", "hoarseness of voice", "radiation exposure to neck", "fixed"], min: 3 },
+      { dx: "Thyroiditis (subacute / Hashimoto's)", why: "Painful tender thyroid with fever suggests subacute thyroiditis.", any: ["pain in the swelling", "tender"], min: 2 },
       { dx: "Retrosternal goitre with thoracic inlet obstruction", why: "Pemberton sign with dyspnoea or stridor.", any: ["pemberton", "retrosternal extension", "stridor", "dyspnoea"], min: 2 },
     ],
     must: [VIT, { n: "Moves with deglutition", m: ["moves with deglutition"] }, { n: "Tongue protrusion", m: ["protrusion of tongue"] }, { n: "Retrosternal extension / lower border", m: ["retrosternal", "can get below"] }, { n: "Trachea position", m: ["trachea"] }, { n: "Pemberton sign", m: ["pemberton"] }, { n: "Eye signs", m: ["lid lag", "lid retraction", "exophthalmos", "eye signs"] }, { n: "Fine tremors and pulse", m: ["fine tremors", "tachycardia", "bradycardia"] }, { n: "Cervical lymph nodes", m: ["cervical nodes"] }, { n: "Bruit over the gland", m: ["bruit"] }],
@@ -196,16 +205,17 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the types of thyroid carcinoma?", a: "Papillary (commonest, nodal spread), follicular (haematogenous), medullary (calcitonin, MEN2), anaplastic (elderly, poor prognosis), and lymphoma." },
       { q: "How do you evaluate a solitary thyroid nodule?", a: "TSH, ultrasound neck, and FNAC (Bethesda classification); isotope scan if TSH is low; look for nodes and vocal cord function." },
       { q: "What is the treatment of Graves' disease?", a: "Antithyroid drugs (carbimazole or methimazole, propylthiouracil in pregnancy) with beta-blockers; radioactive iodine or total thyroidectomy for relapse, large goitre or suspicion of malignancy." },
+      { q: "What are the indications for surgery in goitre?", a: "Cosmetic, pressure symptoms, retrosternal extension, thyrotoxicosis not controlled, suspected or proven malignancy." },
     ],
   },
   "sur-abdomen": {
     hints: [
       { dx: "Acute appendicitis", why: "Pain shifting to the right iliac fossa with McBurney tenderness, Rovsing sign, rebound and fever.", any: ["mcburney", "rovsing", "right iliac fossa", "rebound tenderness", "nausea", "fever"], min: 3 },
-      { dx: "Acute cholecystitis / biliary colic", why: "Right hypochondrial pain with Murphy sign, fever and vomiting.", any: ["murphy", "right hypochondrium", "fever", "vomiting", "shoulder"], min: 3 },
+      { dx: "Acute cholecystitis / biliary colic", why: "Right hypochondrial pain with Murphy sign, fever and vomiting.", any: ["murphy", "right hypochondrium", "fever", "vomiting"], min: 3 },
       { dx: "Perforated peptic ulcer / generalised peritonitis", why: "Board-like rigidity, guarding, loss of liver dullness and absent bowel sounds.", any: ["rigidity", "guarding", "rebound tenderness", "liver dullness obliterated", "bowel sounds absent", "epigastric"], min: 3 },
-      { dx: "Intestinal obstruction", why: "Colicky pain, vomiting, distension, absolute constipation and exaggerated bowel sounds.", any: ["absolute constipation", "distension", "visible peristalsis", "exaggerated", "faeculent", "colicky", "vomiting"], min: 3 },
+      { dx: "Intestinal obstruction", why: "Colicky pain, vomiting, distension, absolute constipation and exaggerated bowel sounds.", any: ["absolute constipation", "distension", "visible peristalsis", "exaggerated", "faeculent", "vomiting"], min: 3 },
       { dx: "Carcinoma head of pancreas / periampullary carcinoma", why: "Painless progressive jaundice with a palpable gallbladder and weight loss.", all: ["jaundice"], any: ["courvoisier", "pruritus", "pale stools", "weight loss", "palpable gallbladder"], min: 2 },
-      { dx: "Urolithiasis / renal colic", why: "Loin-to-groin colicky pain with haematuria and renal angle tenderness.", any: ["loin", "renal angle tenderness", "haematuria", "colicky", "groin"], min: 3 },
+      { dx: "Urolithiasis / renal colic", why: "Loin-to-groin colicky pain with haematuria and renal angle tenderness.", any: ["loin", "renal angle tenderness", "haematuria"], min: 3 },
       { dx: "Gastrointestinal malignancy (stomach / colon)", why: "Weight loss, anorexia, mass, blood in stool and nodes.", any: ["weight loss", "palpable mass", "blood in stools", "narrow stools", "virchow", "sister mary joseph", "loss of appetite"], min: 3 },
     ],
     must: [VIT, GEN, { n: "Hernial orifices", m: ["hernial orifices"] }, { n: "Tenderness, guarding, rebound", m: ["tenderness", "guarding", "rebound"] }, { n: "Liver, spleen, kidneys palpated", m: ["palpable liver", "palpable spleen", "palpable kidney"] }, { n: "Shifting dullness", m: ["shifting dullness"] }, { n: "Bowel sounds", m: ["bowel sounds"] }, { n: "Per rectal examination", m: ["per rectal"] }, { n: "Murphy / McBurney / Rovsing", m: ["murphy", "mcburney", "rovsing"] }],
@@ -215,6 +225,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the signs of peritonitis?", a: "Guarding, rigidity, rebound tenderness, silent abdomen, loss of liver dullness (free gas), tachycardia and fever; X-ray shows gas under the diaphragm." },
       { q: "How do you manage intestinal obstruction?", a: "Nil by mouth, nasogastric decompression, IV fluids and electrolytes (drip and suck), analgesia, treat the cause, and urgent surgery if there is strangulation, peritonitis or failure to resolve." },
       { q: "What is Courvoisier's law?", a: "A palpable non-tender gallbladder with jaundice is unlikely to be caused by gallstones (which scar the gallbladder) and suggests malignant obstruction of the bile duct." },
+      { q: "What are the causes of an acute abdomen?", a: "Appendicitis, perforated peptic ulcer, intestinal obstruction, cholecystitis, pancreatitis, mesenteric ischaemia, ectopic pregnancy and renal colic." },
     ],
   },
   "sur-hernia": {
@@ -233,6 +244,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "How does an indirect hernia differ from a direct one?", a: "Indirect: lateral to the inferior epigastric vessels, through the deep ring, often congenital, controlled by deep ring pressure, can enter scrotum. Direct: medial, acquired through a weak posterior wall, bulges straight forward, rarely enters scrotum." },
       { q: "What are the contents and complications of a hernia?", a: "Sac, contents (omentum, bowel, bladder), coverings. Complications: irreducibility, obstruction, strangulation, inflammation and, rarely, a sliding hernia." },
       { q: "What are the principles of hernia repair?", a: "Reduce contents, excise or ligate the sac, and reinforce the posterior wall of the canal: Bassini or Shouldice tissue repair, or Lichtenstein tension-free mesh repair; laparoscopic TEP or TAPP for bilateral or recurrent hernias." },
+      { q: "What are the types of hernia and their complications?", a: "Reducible, irreducible, obstructed, strangulated, inflamed; and Richter, Littre and sliding hernias as special types." },
     ],
   },
   "sur-pvd": {
@@ -251,6 +263,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the 6 Ps of acute limb ischaemia?", a: "Pain, pallor, pulselessness, paraesthesia, paralysis and perishing cold; paralysis and anaesthesia indicate a threatened limb needing immediate revascularisation." },
       { q: "How do you manage intermittent claudication?", a: "Stop smoking, supervised exercise, antiplatelets (aspirin or clopidogrel), statins, treat diabetes and hypertension; cilostazol in selected patients; revascularisation for disabling symptoms or critical ischaemia." },
       { q: "What are the surgical options in chronic limb ischaemia?", a: "Angioplasty and stenting, endarterectomy, bypass grafts (aortobifemoral, femoropopliteal, femorodistal), lumbar sympathectomy in selected patients, and amputation for non-salvageable limbs." },
+      { q: "How do you assess a pulseless limb?", a: "Compare pulses, temperature, colour, capillary refill, motor and sensory loss; Doppler ankle-brachial index; the six Ps of acute ischaemia." },
     ],
   },
 
@@ -258,7 +271,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
   "paed-git": {
     hints: [
       { dx: "Acute gastroenteritis with dehydration", why: "Loose stools with vomiting and signs of dehydration.", all: ["diarrhoea"], any: ["sunken eyes", "vomiting", "skin pinch goes back slowly", "dehydration", "thirst", "reduced urine", "lethargy"], min: 2 },
-      { dx: "Dysentery (shigellosis / amoebiasis)", why: "Blood and mucus in stools with fever and abdominal pain.", all: ["diarrhoea"], any: ["blood-stained", "mucoid", "dysentery", "tenesmus"], min: 1 },
+      { dx: "Dysentery (shigellosis / amoebiasis)", why: "Blood and mucus in stools with fever and abdominal pain.", all: ["diarrhoea"], any: ["blood-stained", "mucoid", "dysentery"], min: 1 },
       { dx: "Viral hepatitis (hepatitis A)", why: "Jaundice with fever, dark urine and tender hepatomegaly.", all: ["jaundice"], any: ["dark urine", "pale stools", "fever", "hepatomegaly"], min: 2 },
       { dx: "Nephrotic syndrome", why: "Facial puffiness, ascites, oedema and frothy urine.", any: ["facial puffiness", "pedal oedema", "frothy urine", "reduced urine", "shifting dullness"], min: 3 },
       { dx: "Acute post-streptococcal glomerulonephritis", why: "Puffiness with haematuria, hypertension and oliguria.", any: ["haematuria", "facial puffiness", "hypertension symptoms", "decreased urine output"], min: 3 },
@@ -273,6 +286,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What is the composition of low osmolarity ORS?", a: "Sodium 75 mmol/L, glucose 75 mmol/L, potassium 20, chloride 65, citrate 10; total osmolarity 245 mOsm/L." },
       { q: "What are the causes of ascites in children?", a: "Nephrotic syndrome, cirrhosis and portal hypertension, protein-losing enteropathy, heart failure, tuberculosis and malignancy." },
       { q: "What are the features of nephrotic syndrome?", a: "Massive proteinuria (above 40 mg/m2/h), hypoalbuminaemia (below 2.5 g/dl), oedema and hyperlipidaemia; minimal change disease is commonest and steroid sensitive." },
+      { q: "What are the danger signs in a child with diarrhoea?", a: "Lethargy or unconsciousness, unable to drink, vomiting everything, convulsions, severe dehydration or blood in stool with toxicity." },
     ],
   },
   "paed-nutrition": {
@@ -292,6 +306,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the ten steps of managing SAM?", a: "Treat hypoglycaemia, hypothermia, dehydration (ReSoMal), correct electrolytes, treat infection, correct micronutrients, start cautious feeding (F-75), catch-up growth (F-100), stimulation, and prepare for follow-up." },
       { q: "What are the clinical features of vitamin D deficiency rickets?", a: "Craniotabes, delayed fontanelle closure, frontal bossing, rachitic rosary, Harrison sulcus, widened wrists and ankles, bowing of legs; X-ray shows cupping and fraying of metaphyses." },
       { q: "What is Gomez classification?", a: "Weight-for-age as % of median: grade I 75 to 89%, II 60 to 74%, III below 60%; IAP uses percent of Harvard standard in a similar way, with oedema classified separately." },
+      { q: "How do you assess growth in a child?", a: "Plot weight, length or height and head circumference on WHO charts; interpret z-scores and growth velocity over time." },
     ],
   },
   "paed-newborn": {
@@ -299,7 +314,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { dx: "Neonatal hyperbilirubinaemia (pathological jaundice)", why: "Jaundice extending to the palms and soles or appearing in the first 24 hours needs urgent evaluation (haemolysis, sepsis).", all: ["jaundice"], any: ["upto abdomen", "upto palms and soles"], min: 1 },
       { dx: "Physiological jaundice", why: "Jaundice appearing after 24 hours in a term baby, limited to the face and chest, is usually physiological; check by the bilirubin chart.", all: ["jaundice"] },
       { dx: "Neonatal sepsis", why: "Lethargy, poor feeding, temperature instability, respiratory distress or umbilical pus.", any: ["fever / hypothermia", "poor feeding", "lethargy", "umbilical discharge", "skin pustules", "hypothermia", "seizures", "respiratory distress", "premature rupture of membranes"], min: 3 },
-      { dx: "Neonatal respiratory distress (RDS / TTN / MAS)", why: "Grunting, chest indrawing, nasal flaring and cyanosis.", any: ["grunting", "chest indrawing", "nasal flaring", "cyanosis", "fast breathing", "respiratory distress", "preterm"], min: 3 },
+      { dx: "Neonatal respiratory distress (RDS / TTN / MAS)", why: "Grunting, chest indrawing, nasal flaring and cyanosis.", any: ["grunting", "chest indrawing", "nasal flaring", "cyanosis", "fast breathing", "respiratory distress"], min: 3 },
       { dx: "Birth asphyxia / hypoxic-ischaemic encephalopathy with neonatal seizures", why: "Delayed cry, low APGAR, meconium-stained liquor and seizures.", any: ["seizures", "delayed cry", "resuscitation needed", "low (4 to 6)", "very low (0 to 3)", "meconium-stained liquor", "prolonged labour", "hypotonia"], min: 3 },
       { dx: "Intestinal obstruction (atresia / Hirschsprung disease)", why: "Delayed meconium, bilious vomiting and distension.", any: ["delayed / not passed meconium", "delayed meconium", "abdominal distension", "vomiting"], min: 3 },
     ],
@@ -310,6 +325,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the danger signs in a newborn?", a: "Not feeding, convulsions, fast breathing (60 or more), severe chest indrawing, fever (37.5 C or more) or hypothermia (below 35.5 C), movement only on stimulation, and central cyanosis." },
       { q: "What is kangaroo mother care?", a: "Skin-to-skin contact between mother and low birth weight baby, with exclusive breastfeeding and early discharge; it reduces hypothermia, infection and mortality." },
       { q: "When is phototherapy indicated?", a: "When the serum bilirubin crosses the gestational age and postnatal age specific threshold on AAP or hour-specific charts; exchange transfusion for dangerously high levels or signs of bilirubin encephalopathy." },
+      { q: "How do you assess gestational age and size for age?", a: "By Ballard or New Ballard score and birth weight plotted on an intrauterine growth chart (SGA, AGA, LGA)." },
     ],
   },
   "paed-cns": {
@@ -330,14 +346,15 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the CSF findings in bacterial, viral and tubercular meningitis?", a: "Bacterial: turbid, high neutrophils, low sugar, high protein. Viral: clear, lymphocytes, normal sugar, mildly raised protein. TB: clear or cobweb, lymphocytes, very low sugar, very high protein." },
       { q: "What are developmental milestones at 6, 12 and 24 months?", a: "6 months: sits with support, babbles, transfers objects. 12 months: stands with support, pincer grasp, 1 to 2 words. 24 months: runs, two-word phrases, stacks 6 cubes." },
       { q: "What is Gowers' sign?", a: "A child with proximal muscle weakness uses the hands to climb up the thighs to stand from the floor; typical of Duchenne muscular dystrophy." },
+      { q: "What are the causes of altered sensorium in a child?", a: "CNS infections, metabolic (hypoglycaemia, electrolytes), poisoning, head injury, seizures, raised intracranial pressure, sepsis." },
     ],
   },
   "paed-resp": {
     hints: [
       { dx: "Pneumonia", why: "Cough and fever with fast breathing, chest indrawing and crepitations.", any: ["fast breathing", "chest indrawing", "fever", "cough", "crepitations", "bronchial", "dull", "grunting"], min: 4 },
       { dx: "Bronchiolitis (infants)", why: "Wheeze, rhonchi, nasal flaring and hyperinflation in a young infant with a cold.", any: ["wheeze", "fast breathing", "rhonchi", "chest indrawing", "hyperinflated chest", "nasal flaring"], min: 4 },
-      { dx: "Bronchial asthma", why: "Recurrent wheeze with triggers, atopy or family history, and prolonged expiration.", all: ["wheeze"], any: ["episodes", "dust", "cold air", "exercise", "sibling with asthma", "allergy (eczema, rhinitis)", "worse at night", "recurrent", "prolonged expiration"], min: 3 },
-      { dx: "Pulmonary tuberculosis", why: "TB contact, chronic cough, night sweats or poor growth.", any: ["contact with tuberculosis", "night sweats", "chronic cough", "failure to thrive", "post-tussive"], min: 2 },
+      { dx: "Bronchial asthma", why: "Recurrent wheeze with triggers, atopy or family history, and prolonged expiration.", all: ["wheeze"], any: ["episodes", "dust", "cold air", "exercise", "sibling with asthma", "allergy (eczema, rhinitis)", "recurrent", "prolonged expiration"], min: 3 },
+      { dx: "Pulmonary tuberculosis", why: "TB contact, chronic cough, night sweats or poor growth.", any: ["contact with tuberculosis", "night sweats", "failure to thrive", "post-tussive"], min: 2 },
       { dx: "Foreign body aspiration", why: "Sudden choking episode, unilateral wheeze or hyperinflation.", all: ["choking episode"] },
       { dx: "Croup (laryngotracheobronchitis)", why: "Barking cough, stridor and suprasternal retractions.", any: ["barking", "stridor", "suprasternal retractions"], min: 2 },
       { dx: "Whooping cough (pertussis)", why: "Paroxysms with whoop and post-tussive vomiting.", any: ["whooping", "paroxysmal", "post-tussive vomiting"], min: 2 },
@@ -350,6 +367,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What is the treatment of pneumonia?", a: "Oral amoxicillin for 5 days for non-severe pneumonia; injectable ampicillin with gentamicin or ceftriaxone for severe pneumonia, with oxygen if SpO2 below 90%." },
       { q: "How do you differentiate croup from epiglottitis?", a: "Croup: viral, barking cough, hoarse voice, gradual onset, able to swallow. Epiglottitis: bacterial (Hib), high fever, toxic, drooling, muffled voice, sudden; avoid examining the throat." },
       { q: "How is asthma managed in a child?", a: "Reliever (salbutamol) as needed, controller inhaled corticosteroid for persistent asthma, spacer device, trigger avoidance, and step-up based on control." },
+      { q: "What are the signs of respiratory distress?", a: "Tachypnoea, nasal flaring, grunting, chest indrawing, use of accessory muscles, cyanosis, restlessness or lethargy." },
     ],
   },
   "paed-cvs": {
@@ -359,7 +377,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { dx: "Atrial septal defect", why: "Wide fixed splitting of S2 with a pulmonary flow murmur and recurrent chest infections.", any: ["wide fixed splitting", "ejection systolic", "recurrent lower respiratory"], min: 2 },
       { dx: "Patent ductus arteriosus", why: "Continuous machinery murmur.", any: ["continuous murmur"] },
       { dx: "Tetralogy of Fallot", why: "Cyanotic spells, squatting, clubbing and an ejection systolic murmur with a single S2.", any: ["cyanotic spells", "squatting", "clubbing", "cyanosis (central)", "ejection systolic", "s2 single"], min: 3 },
-      { dx: "Heart failure in infancy", why: "Sweating or breathlessness with feeds, tachypnoea, hepatomegaly and failure to thrive.", any: ["sweating during feeds", "breaks feeds for breath", "tender hepatomegaly", "raised jvp", "failure to thrive", "fast breathing", "prominent precordium"], min: 3 },
+      { dx: "Heart failure in infancy", why: "Sweating or breathlessness with feeds, tachypnoea, hepatomegaly and failure to thrive.", any: ["sweating during feeds", "breaks feeds for breath", "tender hepatomegaly", "raised jvp", "failure to thrive", "prominent precordium"], min: 3 },
       { dx: "Infective endocarditis", why: "Fever with a murmur and peripheral stigmata after a dental or other procedure.", any: ["splinter", "osler", "janeway", "fever", "dental procedure recently"], min: 3 },
     ],
     must: [VIT, { n: "Pulses: rate, volume, femoral", m: ["pulse (rate"] }, { n: "Blood pressure in four limbs", m: ["bp (four limbs)"] }, { n: "Cyanosis and clubbing", m: ["cyanosis", "clubbing"] }, { n: "Apex beat", m: ["apex beat", "visible apex"] }, { n: "Thrill", m: ["thrill"] }, { n: "Heart sounds", m: ["heart sounds", "s1", "s2"] }, { n: "Murmurs", m: ["murmurs", "systolic murmur", "diastolic murmur"] }, { n: "Liver size (hepatomegaly)", m: ["hepatomegaly"] }, { n: "Chest examination", m: ["chest (crepitations)"] }],
@@ -369,6 +387,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "How do you manage a hypercyanotic (tet) spell?", a: "Knee-chest position, oxygen, calm the child, IV or SC morphine, IV fluids, propranolol; sodium bicarbonate for acidosis and phenylephrine in refractory cases; definitive surgical repair." },
       { q: "What is the secondary prophylaxis for rheumatic fever?", a: "Benzathine penicillin 1.2 million units IM every 3 to 4 weeks (0.6 million below 27 kg); duration depends on carditis: at least 5 years or until age 21 (whichever is later) for no carditis, longer with carditis." },
       { q: "What are the clinical features of heart failure in infants?", a: "Tachypnoea, sweating on feeding, poor weight gain, hepatomegaly, tachycardia and cardiomegaly; oedema is uncommon." },
+      { q: "What are the clinical features of heart failure in infants?", a: "Tachypnoea, tachycardia, sweating on feeding, poor weight gain, hepatomegaly, cardiomegaly; oedema is a late sign." },
     ],
   },
 
@@ -420,7 +439,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
   "ent-ear": {
     hints: [
       { dx: "Chronic suppurative otitis media (CSOM)", why: "Chronic ear discharge with a tympanic membrane perforation and hearing loss.", all: ["ear discharge"], any: ["central perforation", "marginal perforation", "attic perforation", "hearing loss", "polyp", "granulations", "cholesteatoma flakes"], min: 2 },
-      { dx: "Atticoantral CSOM with cholesteatoma (unsafe)", why: "Attic or marginal perforation, retraction pocket, foul scanty discharge and keratin flakes.", any: ["attic perforation", "marginal perforation", "cholesteatoma flakes", "retraction pocket", "sagging of posterosuperior wall", "fistula test positive", "foul smelling"], min: 2 },
+      { dx: "Atticoantral CSOM with cholesteatoma (unsafe)", why: "Attic or marginal perforation, retraction pocket, foul scanty discharge and keratin flakes.", any: ["attic perforation", "marginal perforation", "cholesteatoma flakes", "retraction pocket", "sagging of posterosuperior wall", "fistula test positive"], min: 2 },
       { dx: "Acute suppurative otitis media", why: "Earache, fever and a red bulging tympanic membrane after a URTI.", any: ["earache", "fever", "bulging", "red", "urti symptoms"], min: 3 },
       { dx: "Otitis media with effusion (glue ear)", why: "Fullness and conductive hearing loss with a dull, retracted TM and an air-fluid level.", any: ["fullness in the ear", "hearing loss", "retracted", "air-fluid level", "bubbles behind tm", "dull"], min: 3 },
       { dx: "Otitis externa", why: "Pain on pulling the pinna, itching, canal swelling or debris.", any: ["tragal tenderness", "pinna movement painful", "itching", "furuncle", "fungal debris", "meatal wall swelling"], min: 2 },
@@ -437,18 +456,19 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the complications of CSOM?", a: "Intracranial: meningitis, extradural, subdural and brain abscess, lateral sinus thrombophlebitis. Extracranial: mastoiditis, facial palsy, labyrinthitis, petrositis, subperiosteal abscess (Bezold, Citelli)." },
       { q: "What are the treatment options for CSOM?", a: "Aural toilet and topical antibiotic drops for tubotympanic disease, then myringoplasty; mastoid surgery (canal wall up or down, tympanomastoidectomy) for cholesteatoma." },
       { q: "What is the blood supply and nerve supply of the tympanic membrane?", a: "Deep auricular branch of the maxillary artery (outer), stylomastoid artery (inner). Nerves: auriculotemporal (V3), auricular branch of vagus (outer) and tympanic branch of IX (inner)." },
+      { q: "How do you interpret Rinne and Weber tests?", a: "Rinne positive (AC over BC) is normal or sensorineural loss; negative suggests conductive loss. Weber lateralises to the worse ear in conductive and to the better ear in sensorineural loss." },
     ],
   },
   "ent-nose": {
     hints: [
-      { dx: "Allergic rhinitis", why: "Sneezing, watery discharge, pale boggy turbinates and atopy.", any: ["sneezing", "pale and boggy", "allergy triggers", "allergy (rhinitis / atopy)", "watering of eyes", "postnasal drip", "paroxysmal", "clear"], min: 3 },
+      { dx: "Allergic rhinitis", why: "Sneezing, watery discharge, pale boggy turbinates and atopy.", any: ["sneezing", "pale and boggy", "allergy triggers", "allergy (rhinitis / atopy)", "postnasal drip", "paroxysmal", "clear"], min: 3 },
       { dx: "Chronic rhinosinusitis", why: "Mucopurulent discharge, postnasal drip, facial pain and mucopus in the middle meatus.", any: ["mucopus in middle meatus", "maxillary tenderness", "postnasal drip", "headache / facial pain", "yellow", "green", "nasal obstruction", "transillumination reduced", "pus in middle meatus"], min: 3 },
       { dx: "Deviated nasal septum", why: "Unilateral obstruction with a deviated or spurred septum.", any: ["septum deviated", "septal spur", "nasal obstruction", "deviated nose"], min: 2 },
       { dx: "Nasal polyposis", why: "Pale glistening polyps with obstruction and loss of smell.", all: ["polyp"], any: ["anosmia", "hyposmia", "nasal obstruction", "pale and boggy"], min: 1 },
       { dx: "Epistaxis (Little's area / hypertensive)", why: "Bleeding point at Little's area, hypertension or nose picking.", all: ["epistaxis"], any: ["bleeding point (little area)", "hypertension", "nose picking", "trauma"], min: 1 },
       { dx: "Adenoid hypertrophy", why: "Mouth breathing, snoring and postnasal obstruction in a child.", any: ["adenoid hypertrophy", "snoring", "postnasal"], min: 2 },
       { dx: "Nasal fracture / septal haematoma", why: "Trauma with deformity, crepitus or septal haematoma.", any: ["crepitus", "trauma to nose", "deviated nose", "septal haematoma"], min: 2 },
-      { dx: "Atrophic rhinitis (ozaena)", why: "Crusts, foul smell and a wide nasal cavity with atrophic mucosa.", any: ["crusts", "atrophic mucosa", "foul", "anosmia"], min: 2 },
+      { dx: "Atrophic rhinitis (ozaena)", why: "Crusts, foul smell and a wide nasal cavity with atrophic mucosa.", any: ["crusts", "atrophic mucosa", "anosmia"], min: 2 },
       { dx: "Nasopharyngeal mass (angiofibroma / carcinoma): evaluate with endoscopy", why: "A mass with unilateral obstruction and bleeding.", any: ["nasopharyngeal mass", "epistaxis", "nasal obstruction"], min: 2 },
     ],
     must: [VIT, { n: "External nose and vestibule", m: ["inspection / palpation", "vestibule"] }, { n: "Anterior rhinoscopy", m: ["anterior rhinoscopy"] }, { n: "Posterior rhinoscopy / nasopharynx", m: ["posterior rhinoscopy"] }, { n: "Septum and turbinates", m: ["septum", "turbinate"] }, { n: "Nasal patency tests", m: ["cotton wool", "spatula", "nasal patency"] }, { n: "Sinus tenderness", m: ["tenderness / signs", "maxillary tenderness", "frontal tenderness"] }, { n: "Ear and throat examination", m: ["ear, throat and systemic"] }],
@@ -458,6 +478,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "How do you manage epistaxis?", a: "First aid: sit up, lean forward, pinch the soft part of the nose for 10 minutes. Then identify the bleeding point, cautery with silver nitrate, anterior or posterior packing, and ligation of the vessel if intractable." },
       { q: "What are the stages of management of chronic sinusitis?", a: "Medical: saline douching, intranasal steroids, antibiotics. Surgery for failure: functional endoscopic sinus surgery (FESS), septoplasty, and polypectomy where indicated." },
       { q: "What is Samter's triad?", a: "Nasal polyps, bronchial asthma and aspirin (NSAID) intolerance." },
+      { q: "What are the causes of unilateral nasal obstruction?", a: "Deviated septum, foreign body, antrochoanal polyp, rhinolith, tumour, unilateral choanal atresia." },
     ],
   },
   "ent-throat": {
@@ -476,6 +497,7 @@ export const INSIGHTS: Record<string, CaseInsight> = {
       { q: "What are the causes of hoarseness?", a: "Acute laryngitis, vocal abuse nodules, polyps, vocal cord palsy, laryngeal carcinoma, reflux, tuberculosis and papillomatosis; hoarseness longer than 3 weeks needs laryngoscopy." },
       { q: "How do you manage stridor?", a: "Assess airway, give oxygen, humidified air, steroids and adrenaline nebulisation for oedema, and secure the airway by intubation or tracheostomy if impending obstruction." },
       { q: "What are the stages of glottic carcinoma and treatment?", a: "T1 (limited to the cord, normal mobility) to T4 (invades beyond larynx). Early disease: radiotherapy or laser cordectomy; advanced: total laryngectomy with neck dissection and postoperative radiotherapy." },
+      { q: "What are the causes of hoarseness?", a: "Acute laryngitis, vocal nodules, polyps, vocal cord palsy, laryngeal papilloma, carcinoma, hypothyroidism, reflux." },
     ],
   },
 }

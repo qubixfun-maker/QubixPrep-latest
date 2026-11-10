@@ -353,3 +353,38 @@ export function sheetTitle(c: CaseDef, ans: Answers): string {
   const age = clean(ans.age)
   return [name, age ? `${age}` : ''].filter(Boolean).join(', ') || 'Untitled case'
 }
+
+/**
+ * "Summary after history": written by the app from what has been entered up to
+ * that point (particulars, complaints, history of presenting illness, menstrual,
+ * obstetric, past, family and personal history). Nothing is typed by the student.
+ */
+export function historySummary(c: CaseDef, ans: Answers): string {
+  const stop = c.sections.findIndex((s) => s.id === 'histSumm')
+  const secs = stop < 0 ? c.sections : c.sections.slice(0, stop)
+  const parts: string[] = [openingStatement(c, ans)]
+  const hpi = secs.find((s) => s.id === 'hpi')
+  if (hpi) {
+    const d = buildSection(hpi, ans, c)
+    const paras = d.lines.filter((l) => l.k === 'para') as { k: 'para'; text: string }[]
+    if (paras.length) parts.push(paras.map((p) => p.text).join(' '))
+  }
+  const keyKv = /lmp|edd|gestation|menarche|cycle|flow|gravida|para\b|abortion|live|living|married|marriage|last delivery|parity/i
+  const facts: string[] = []
+  const pos: string[] = []
+  const neg: string[] = []
+  for (const s of secs) {
+    if (['particulars', 'complaints', 'hpi'].includes(s.id)) continue
+    const d = buildSection(s, ans, c)
+    for (const l of d.lines) {
+      if (l.k === 'kv' && keyKv.test(l.label)) facts.push(`${l.label}: ${l.value}`)
+      else if (l.k === 'present') pos.push(...l.items.map(lc))
+      else if (l.k === 'absent') neg.push(...l.items.map(lc))
+      else if (l.k === 'exam') { pos.push(...l.present.map((i) => lc(i.label))); neg.push(...l.absent.map(lc)) }
+    }
+  }
+  if (facts.length) parts.push(`${facts.slice(0, 10).join('; ')}.`)
+  if (pos.length) parts.push(`Other relevant history: ${joinNice(pos.slice(0, 12))}.`)
+  if (neg.length) parts.push(`There is no history of ${joinNice(neg.slice(0, 14))}.`)
+  return parts.join('\n\n')
+}

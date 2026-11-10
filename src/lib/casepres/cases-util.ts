@@ -39,3 +39,19 @@ export function mk(o: {
     ],
   }
 }
+
+/**
+ * Topic case: clones a base proforma sheet, puts the topic complaints first and adds a
+ * "Focus" section of tap-present-or-absent findings just before the closing section.
+ */
+export function topicOf(o: { base: CaseDef; id: string; title: string; blurb: string; first?: string[]; focusTitle: string; focus: string[] }): CaseDef {
+  const b: CaseDef = JSON.parse(JSON.stringify(o.base))
+  const sections = b.sections.map((s) =>
+    s.id === 'complaints' && o.first
+      ? { ...s, fields: s.fields.map((f) => (f.t === 'complaints' ? { ...f, options: [...o.first!, ...f.options.filter((x) => !o.first!.includes(x))] } : f)) }
+      : s,
+  )
+  const ci = sections.findIndex((s) => s.id === 'closing')
+  sections.splice(ci < 0 ? sections.length : ci, 0, { id: 'focus', title: o.focusTitle, fields: [{ t: 'findings', id: 'fo', label: 'Tap present or absent', options: o.focus }] })
+  return { ...b, id: o.id, title: o.title, blurb: o.blurb, sections }
+}

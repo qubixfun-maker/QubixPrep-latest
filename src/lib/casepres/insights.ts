@@ -1,10 +1,20 @@
 import type { CaseDef, Answers, Field } from './types'
 import { INSIGHTS, type Hint, type Viva } from './insights-data'
-import { INSIGHTS2 } from './insights-data2'
+import { INSIGHTS_MED_TOPICS } from './insights-med-topics'
 import { INSIGHTS3 } from './insights-data3'
 import { INSIGHTS_OBG } from './insights-obg'
 import { modelOf } from './models-obg'
-const ALL = { ...INSIGHTS, ...INSIGHTS2, ...INSIGHTS3, ...INSIGHTS_OBG }
+import { MODELS_MED } from './models-med'
+import { INSIGHTS_ORTHO } from './insights-ortho'
+import { INSIGHTS_ORTHO_TOPICS, MODELS_ORTHO } from './cases-ortho-topics'
+import { INSIGHTS_PAED_TOPICS, MODELS_PAED } from './cases-paed-topics'
+import { INSIGHTS_ENT_TOPICS, MODELS_ENT } from './cases-ent-topics'
+import { INSIGHTS_EYE_TOPICS, MODELS_EYE } from './cases-eye-topics'
+import { INSIGHTS_PSYCH_TOPICS, MODELS_PSYCH } from './cases-psych-topics'
+import { INSIGHTS_ANAES_TOPICS, MODELS_ANAES } from './cases-anaes-topics'
+import { INSIGHTS_DERM_TOPICS, MODELS_DERM } from './cases-derm-topics'
+import { INSIGHTS_SUR_TOPICS, MODELS_SUR } from './cases-sur-topics'
+export const ALL = { ...INSIGHTS, ...INSIGHTS_MED_TOPICS, ...INSIGHTS_SUR_TOPICS, ...INSIGHTS_EYE_TOPICS, ...INSIGHTS_PSYCH_TOPICS, ...INSIGHTS_DERM_TOPICS, ...INSIGHTS_ANAES_TOPICS, ...INSIGHTS_ENT_TOPICS, ...INSIGHTS_PAED_TOPICS, ...INSIGHTS_ORTHO, ...INSIGHTS_ORTHO_TOPICS, ...INSIGHTS3, ...INSIGHTS_OBG }
 import { buildDocument, buildSection, openingStatement, isFieldFilled, type ExamItem } from './format'
 
 const arr = (v: any): string[] => (Array.isArray(v) ? v : v ? [String(v)] : []).filter(Boolean)
@@ -117,5 +127,5 @@ export function shortCase(c: CaseDef, ans: Answers): ShortCase {
 }
 
 export function modelFor(c: CaseDef) {
-  return modelOf(c.id)
+  return modelOf(c.id) ?? MODELS_MED[c.id] ?? MODELS_SUR[c.id] ?? MODELS_ORTHO[c.id] ?? MODELS_PAED[c.id] ?? MODELS_ENT[c.id] ?? MODELS_EYE[c.id] ?? MODELS_PSYCH[c.id] ?? MODELS_DERM[c.id] ?? MODELS_ANAES[c.id]
 }

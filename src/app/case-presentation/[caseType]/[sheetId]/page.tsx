@@ -12,6 +12,7 @@ import { sheetTitle } from "@/lib/casepres/format"
 import { useCaseAccess, useCaseSheet, saveCaseSheet } from "@/hooks/use-case-sheets"
 import { CaseForm } from "@/components/casepres/case-form"
 import { CasePresentation } from "@/components/casepres/presentation"
+import { SAMPLE_ANSWERS } from "@/lib/casepres/samples"
 import type { Answers } from "@/lib/casepres/types"
 
 export default function CaseSheetPage() {
@@ -44,10 +45,15 @@ export default function CaseSheetPage() {
       try {
         const raw = localStorage.getItem(draftKey)
         if (raw) setAnswers(JSON.parse(raw))
+        else if (caseDef?.kind === "sample" && SAMPLE_ANSWERS[caseDef.id]) {
+          // a sample case opens finished and ready to present; nothing is saved unless the student edits it
+          setAnswers(SAMPLE_ANSWERS[caseDef.id])
+          setMode("present")
+        }
       } catch {}
       loadedRef.current = true
     }
-  }, [initialId, sheet, sheetLoading, draftKey])
+  }, [initialId, sheet, sheetLoading, draftKey, caseDef])
 
   const setField = useCallback((id: string, v: any) => {
     dirtyRef.current = true
