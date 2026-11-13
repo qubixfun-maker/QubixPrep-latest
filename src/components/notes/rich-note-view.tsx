@@ -19,6 +19,9 @@ const TONES: Record<Tone, { head: string; body: string; border: string }> = {
 const BRANCH_COLORS = ["#3b78d4", "#1f9d8f", "#7a4fb0", "#b2325a", "#d9822b", "#4a7a2e"]
 const hand = { fontFamily: "'Gochi Hand', cursive" } as const
 
+/** The AI sometimes starts list items with its own "·" or "-"; the list already draws a bullet. */
+const tidy = (t: string) => t.replace(/^\s*[·•▪◦\-–—*]\s+/, "")
+
 /** **bold phrase** -> bold + yellow underline;  [[key term]] -> maroon bold. */
 function inline(text: string): ReactNode {
   const parts = text.split(/(\*\*[^*]+\*\*|\[\[[^\]]+\]\])/g)
@@ -112,7 +115,7 @@ function BlockView({ b }: { b: Block }) {
     case "bullets": return (
       <div className="my-2" style={{ breakInside: "avoid" }}>
         {b.title && <h3 style={{ ...hand, color: BLUE }} className="mb-1 text-lg">{b.title}</h3>}
-        <ul className="space-y-1 pl-5" style={{ listStyle: "disc" }}>{b.items.map((it, i) => <li key={i} className="leading-relaxed marker:text-[#3b78d4]">{inline(it)}</li>)}</ul>
+        <ul className="space-y-1 pl-5" style={{ listStyle: "disc" }}>{b.items.map((it, i) => <li key={i} className="leading-relaxed marker:text-[#3b78d4]">{inline(tidy(it))}</li>)}</ul>
       </div>)
     case "table": return <TableBlock b={b} />
     case "tree": return <TreeBlock b={b} />
@@ -120,12 +123,12 @@ function BlockView({ b }: { b: Block }) {
     case "callout": return (
       <Box tone={b.tone} title={b.title}>
         {b.text && <p>{inline(b.text)}</p>}
-        {b.items && <ul className="space-y-1 pl-5" style={{ listStyle: "disc" }}>{b.items.map((it, i) => <li key={i}>{inline(it)}</li>)}</ul>}
+        {b.items && <ul className="space-y-1 pl-5" style={{ listStyle: "disc" }}>{b.items.map((it, i) => <li key={i}>{inline(tidy(it))}</li>)}</ul>}
       </Box>)
     case "mnemonic": return (
       <Box tone="yellow" title={b.title || "Mnemonic"}>
         <p className="text-lg font-bold" style={{ color: "#8b1d3f" }}>{b.text}</p>
-        {b.expansion && b.expansion.length > 0 && <ul className="mt-1 space-y-0.5 pl-5" style={{ listStyle: "disc" }}>{b.expansion.map((e, i) => <li key={i}>{inline(e)}</li>)}</ul>}
+        {b.expansion && b.expansion.length > 0 && <ul className="mt-1 space-y-0.5 pl-5" style={{ listStyle: "disc" }}>{b.expansion.map((e, i) => <li key={i}>{inline(tidy(e))}</li>)}</ul>}
       </Box>)
   }
 }
@@ -136,8 +139,8 @@ function watermarkUrl(text: string) {
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
 }
 
-export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPrint = false }: {
-  note: RichNote; subjectName?: string; topicNo?: number; protectWith?: string; allowPrint?: boolean
+export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPrint = false, clean = false }: {
+  note: RichNote; subjectName?: string; topicNo?: number; protectWith?: string; allowPrint?: boolean; clean?: boolean
 }) {
   const mark = useMemo(() => (protectWith ? watermarkUrl(protectWith) : ""), [protectWith])
   const block = protectWith ? (e: { preventDefault: () => void }) => e.preventDefault() : undefined
@@ -150,10 +153,10 @@ export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPri
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   const articleEl = (
-    <article className="qp-rich-root relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-[15.5px] text-[#26283d] shadow-sm md:p-9" style={{ fontFamily: "'Itim', system-ui, sans-serif" }}>
-      <div className="qp-no-print mb-4 flex justify-end">
+    <article className={clean ? "qp-rich-root relative overflow-hidden bg-white px-4 py-4 text-[15.5px] text-[#26283d] md:px-9 md:py-6" : "qp-rich-root relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-[15.5px] text-[#26283d] shadow-sm md:p-9"} style={{ fontFamily: "'Itim', system-ui, sans-serif" }}>
+      {!clean && <div className="qp-no-print mb-4 flex justify-end">
         <div className="rounded-sm px-3 py-1 text-xs text-white" style={{ background: BLUE }}>{note.title}</div>
-      </div>
+      </div>}
       <div className="flex items-center justify-between gap-3 pb-3" style={{ borderBottom: `2.5px solid ${NAVY}` }}>
         <img src="/brand/logo-horizontal-light.png" alt="QubixPrep" className="h-14 w-auto rounded" />
         <span className="text-sm" style={{ ...hand, color: BLUE }}>{subjectName ? `${subjectName} notes` : "Notes"}</span>
@@ -192,7 +195,7 @@ export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPri
 
       {note.recap.length > 0 && (
         <Box tone="pink" title="Quick recap">
-          <ul className="space-y-1 pl-5" style={{ listStyle: "disc" }}>{note.recap.map((r, i) => <li key={i}>{inline(r)}</li>)}</ul>
+          <ul className="space-y-1 pl-5" style={{ listStyle: "disc" }}>{note.recap.map((r, i) => <li key={i}>{inline(tidy(r))}</li>)}</ul>
         </Box>
       )}
 
@@ -220,7 +223,7 @@ export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPri
         }
       `}</style>
 
-      {allowPrint && (
+      {allowPrint && !clean && (
         <div className="qp-no-print mb-3 flex justify-end">
           <button onClick={() => window.print()} className="inline-flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"><Printer className="h-4 w-4" /> Download PDF</button>
         </div>

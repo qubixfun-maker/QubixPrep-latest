@@ -10,7 +10,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
 import { getSubjectColor } from "@/lib/subject-colors"
 import { indexIdOf } from "@/lib/notes-index"
-import { RichNoteView } from "@/components/notes/rich-note-view"
+import { RichReader } from "@/components/notes/rich-reader"
 
 export default function NotesChapterPage({ params }: { params: Promise<{ subjectId: string; textbookId: string; chapterId: string }> }) {
   const { subjectId, textbookId, chapterId } = use(params)
@@ -58,6 +58,17 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
   const locked = !entitled && !(entry as any)?.free
   const q = search.trim().toLowerCase()
 
+  if (showMerged) {
+    return (
+      <RichReader note={merged} title={(entry as any)?.chapterTitle || merged.title || 'Chapter'} backHref={`/notes/${subjectId}`} subjectName={subject ? (subject as any).name : undefined}
+        protectWith={isAdmin ? undefined : (user?.email || user?.uid)} isAdmin={isAdmin}
+        adminExtras={<>
+          <span className={`rounded-full px-2.5 py-1 font-bold ${merged.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{merged.status === 'published' ? 'One note: published' : 'One note: draft (only admins see this)'}</span>
+          <button onClick={() => setShowTopics(true)} className="rounded-full border bg-white px-3 py-1 font-bold">Show the topic list</button>
+        </>} />
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">
       <div>
@@ -68,25 +79,18 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
         <p className="text-muted-foreground mt-2">{subject ? (subject as any).name : ''}</p>
       </div>
 
-      {mergedVisible && isAdmin && (
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className={`rounded-full px-2.5 py-1 font-bold ${merged.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{merged.status === 'published' ? 'One note: published' : 'One note: draft (only admins see this)'}</span>
-          <button onClick={() => setShowTopics((v) => !v)} className="rounded-full border px-3 py-1 font-bold hover:bg-muted">{showTopics ? 'Show the one note' : 'Show the topic list'}</button>
-        </div>
+      {mergedVisible && isAdmin && showTopics && (
+        <button onClick={() => setShowTopics(false)} className="rounded-full border px-3 py-1 text-xs font-bold hover:bg-muted">Show the one note</button>
       )}
 
-      {showMerged && (
-        <RichNoteView note={merged} subjectName={subject ? (subject as any).name : undefined} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} allowPrint={isAdmin} />
-      )}
-
-      {!showMerged && locked && (
+      {locked && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d88a] bg-[#fff8e0] p-4 text-[#5a3a00]">
           <p className="text-sm font-semibold flex items-center gap-2"><Lock className="h-4 w-4" /> This chapter is for Scholar and Clinician members (₹999/year).</p>
           <Link href="/pricing" className="rounded-full bg-[#5a3a00] px-4 py-2 text-xs font-extrabold text-white">See plans</Link>
         </div>
       )}
 
-      {!showMerged && (topics.length > 0 ? (
+      {topics.length > 0 ? (
         <div className="space-y-2">
           {topics.filter((t) => !q || t.name.toLowerCase().includes(q)).map((t) => (
             <Link
@@ -102,7 +106,7 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
         </div>
       ) : (
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">No topics found for this chapter.</div>
-      ))}
+      )}
     </div>
   )
 }

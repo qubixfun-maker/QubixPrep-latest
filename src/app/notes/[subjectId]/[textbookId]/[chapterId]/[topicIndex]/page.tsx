@@ -8,7 +8,7 @@ import { ChevronLeft, Loader2 } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
 import { NoteBody } from "@/components/notes/note-body"
-import { TopicBody } from "@/components/notes/topic-body"
+import { TopicBody, hasVisibleRich } from "@/components/notes/topic-body"
 import { UpgradeGate } from "@/components/upgrade-gate"
 import { Top100Toggle } from "@/components/top100/Top100Toggle"
 
@@ -41,6 +41,8 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
   const [fromTop100, setFromTop100] = useState(false)
   useEffect(() => { setFromTop100(new URLSearchParams(window.location.search).get('from') === 'top-100') }, [])
 
+  const [showOriginal, setShowOriginal] = useState(false)
+
   const { checkingAuth } = useRequireAuth()
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
 
@@ -50,6 +52,18 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
 
   const topics = ((notes as any)?.topics || []) as { name: string; markdown: string }[]
   const topic = topics[parseInt(topicIndex, 10)]
+  const backHref = fromTop100 ? '/top-100' : `/notes/${subjectId}/${textbookId}/${chapterId}`
+  // a new-format note is shown as a clean full-width reader (its own top bar), so the page heading is skipped
+  const cleanReader = state === 'ready' && !!topic && hasVisibleRich(topic, isAdmin) && !(isAdmin && showOriginal)
+
+  if (cleanReader) {
+    return (
+      <TopicBody topic={topic} topicNo={parseInt(topicIndex, 10) + 1} subjectName={subject ? (subject as any).name : undefined} isAdmin={isAdmin}
+        protectWith={isAdmin ? undefined : (user?.email || user?.uid)} title={topic.name || (notes as any)?.chapterTitle || 'Notes'} backHref={backHref}
+        showOriginal={showOriginal} onToggleOriginal={() => setShowOriginal((v) => !v)}
+        adminExtras={<Top100Toggle subjectId={subjectId} subjectName={subject ? (subject as any).name : subjectId} textbookId={textbookId} chapterId={chapterId} topicIndex={parseInt(topicIndex, 10)} name={topic.name} chapterTitle={(notes as any)?.chapterTitle || ''} markdown={topic.markdown} />} />
+    )
+  }
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-12 space-y-8 animate-in slide-in-from-right-4 duration-700">
@@ -72,7 +86,7 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
       {state === 'error' && <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">Could not load this topic. Check your connection and try again.</div>}
 
       {state === 'ready' && (topic ? (
-        <TopicBody topic={topic} topicNo={parseInt(topicIndex, 10) + 1} subjectName={subject ? (subject as any).name : undefined} borderClass={color.border} isAdmin={isAdmin} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} />
+        <TopicBody topic={topic} topicNo={parseInt(topicIndex, 10) + 1} subjectName={subject ? (subject as any).name : undefined} borderClass={color.border} isAdmin={isAdmin} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} title={topic.name} backHref={backHref} showOriginal={showOriginal} onToggleOriginal={() => setShowOriginal((v) => !v)} />
       ) : (
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">Topic not found.</div>
       ))}
