@@ -33,6 +33,7 @@ export default function AdminRichNotesPage() {
   const [bulk, setBulk] = useState<{ done: number; total: number; failed: number } | null>(null)
   const stopRef = useRef(false)
   const [preview, setPreview] = useState<{ row: Row; index: number } | null>(null)
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [json, setJson] = useState("")
   const [showJson, setShowJson] = useState(false)
 
@@ -73,12 +74,14 @@ export default function AdminRichNotesPage() {
   const convert = async (r: Row, i: number, quiet = false) => {
     const k = key(r, i)
     setBusy((b) => ({ ...b, [k]: true }))
+    setErrors((er) => { const { [k]: _x, ...rest } = er; return rest })
     try {
       const out = await call({ action: "convert", textbookId: r.textbookId, chapterId: r.chapterId, topicIndex: i })
       patchRow(r, i, out.rich)
       if (!quiet) toast({ title: "Converted (draft)", description: r.topics[i].name })
       return true
     } catch (e: any) {
+      setErrors((er) => ({ ...er, [k]: e?.message || "Conversion failed" }))
       if (!quiet) toast({ title: "Conversion failed", description: e?.message, variant: "destructive" })
       return false
     } finally { setBusy((b) => ({ ...b, [k]: false })) }
@@ -118,7 +121,7 @@ export default function AdminRichNotesPage() {
         setBulk({ done, total: targets.length, failed })
       }
     }
-    await Promise.all([worker(), worker()])
+    await worker()
     toast({ title: "Bulk conversion finished", description: `${done - failed} converted, ${failed} failed.` })
     setBulk(null)
   }
@@ -181,6 +184,7 @@ export default function AdminRichNotesPage() {
                           <Button size="sm" className="rounded-lg text-xs" onClick={() => setStatus(r, i, st === "published" ? "draft" : "published")}>{st === "published" ? "Unpublish" : "Publish"}</Button>
                           <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => remove(r, i)} aria-label="Remove"><Trash2 className="h-4 w-4" /></Button>
                         </>}
+                        {errors[key(r, i)] && <p className="w-full select-text break-words rounded bg-red-50 p-2 text-xs text-red-700">Error: {errors[key(r, i)]}</p>}
                       </div>
                     )
                   })}

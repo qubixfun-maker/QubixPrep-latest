@@ -43,7 +43,7 @@ RULES:
 4. Keep every text short: tree items under 8 words, table cells under 25 words, flow steps under 15 words. One idea per block. Aim for 6 to 12 sections.
 5. In any text you may mark a phrase to be written in bold with **double asterisks** (use sparingly for the most important phrases) and a key term in maroon with [[double square brackets]] (use for disease names, structure names, drug names and values to memorise). Never use any other markup, never LaTeX; use the real symbols (→, ↑, ↓, μ, ≥).
 6. Where the note contains a quiz block, fold its facts into the exam pointers or recap; do not output quiz blocks.
-7. Output ONLY the JSON object. No commentary and no code fences.`;
+7. Output ONLY the JSON object, written compactly on as few lines as possible (no indentation). No commentary and no code fences. Keep the whole note under about 3500 words so the answer is never cut off.`;
 
 function parseJson(raw: string): any | null {
   const cleaned = raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
@@ -57,13 +57,17 @@ function parseJson(raw: string): any | null {
 export async function convertTopicToRich(subject: string, chapter: string, topic: string, markdown: string): Promise<{ note?: RichNote; error?: string }> {
   const prompt = PROMPT(subject, chapter, topic, markdown.slice(0, 24000));
   let lastError = '';
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const { content } = await callGeminiNative([{ role: 'user', content: prompt }], 12000, 1024);
+      const { content } = await callGeminiNative([{ role: 'user', content: prompt }], 16000, 512);
       const parsed = parseJson(content);
+      if (!parsed) {
+        lastError = `The AI reply was not valid JSON (${content.length} characters; it may have been cut off). Start: ${content.slice(0, 160).replace(/\s+/g, ' ')} ... End: ${content.slice(-120).replace(/\s+/g, ' ')}`;
+        continue;
+      }
       const note = sanitizeRichNote(parsed);
       if (note) return { note };
-      lastError = 'Model output could not be read as a valid note.';
+      lastError = 'The AI reply was valid JSON but had no usable note (needs a title, a definition and at least one section). Keys seen: ' + Object.keys(parsed || {}).join(', ');
     } catch (e: any) {
       lastError = e?.message || 'AI call failed';
       await new Promise((r) => setTimeout(r, 4000 * attempt));
