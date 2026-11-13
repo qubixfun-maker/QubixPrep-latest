@@ -45,13 +45,43 @@ RULES:
 6. Where the note contains a quiz block, fold its facts into the exam pointers or recap; do not output quiz blocks.
 7. Output ONLY the JSON object, written compactly on as few lines as possible (no indentation). No commentary and no code fences. Keep the whole note under about 3500 words so the answer is never cut off.`;
 
-function parseJson(raw: string): any | null {
-  const cleaned = raw.replace(/^```[a-zA-Z]*\n?/, '').replace(/```\s*$/, '').trim();
-  try { return JSON.parse(cleaned); } catch {
-    const s = cleaned.indexOf('{'); const e = cleaned.lastIndexOf('}');
-    if (s === -1 || e <= s) return null;
-    try { return JSON.parse(cleaned.slice(s, e + 1)); } catch { return null; }
+/** Repairs the usual slips in long model JSON: raw line breaks inside strings, trailing commas, missing closers. */
+function repairJson(t: string): string {
+  let out = '';
+  const stack: string[] = [];
+  let inStr = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inStr) {
+      if (c === '\\') { out += c + (t[i + 1] ?? ''); i++; continue; }
+      if (c === '"') { inStr = false; out += c; continue; }
+      if (c === '\n') { out += '\\n'; continue; }
+      if (c === '\r') continue;
+      if (c === '\t') { out += '\\t'; continue; }
+      out += c; continue;
+    }
+    if (c === '"') { inStr = true; out += c; continue; }
+    if (c === '{') stack.push('}');
+    else if (c === '[') stack.push(']');
+    else if (c === '}' || c === ']') {
+      out = out.replace(/,\s*$/, '');
+      if (stack[stack.length - 1] === c) stack.pop(); else continue; // drop a stray closer
+    }
+    out += c;
   }
+  if (inStr) out += '"';
+  out = out.replace(/,\s*$/, '');
+  while (stack.length) out += stack.pop();
+  return out;
+}
+
+function parseJson(raw: string): any | null {
+  const cleaned = raw.replace(/^\s*```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
+  const s0 = cleaned.indexOf('{');
+  if (s0 === -1) return null;
+  const body = cleaned.slice(s0);
+  try { return JSON.parse(body); } catch {}
+  try { return JSON.parse(repairJson(body)); } catch { return null; }
 }
 
 export async function convertTopicToRich(subject: string, chapter: string, topic: string, markdown: string): Promise<{ note?: RichNote; error?: string }> {
