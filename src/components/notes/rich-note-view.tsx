@@ -58,16 +58,16 @@ function TreeBlock({ b }: { b: Extract<Block, { type: "tree" }> }) {
     <div className="my-4" style={{ breakInside: "avoid" }}>
       {b.title && <h3 style={{ ...hand, color: BLUE }} className="mb-2 text-lg">{b.title}</h3>}
       <div className="mx-auto w-fit max-w-full rounded-lg px-5 py-2 text-center text-white" style={{ ...hand, background: NAVY }}>{b.root}</div>
-      {lines && <div className="mx-auto h-3 w-px hidden sm:block" style={{ background: NAVY }} />}
-      <div className="mt-2 grid gap-2 sm:mt-0 sm:[grid-template-columns:var(--cols)]" style={{ ["--cols" as any]: `repeat(${cols}, minmax(0, 1fr))` }}>
+      {lines && <div className="mx-auto h-3 w-px" style={{ background: NAVY }} />}
+      <div className="grid gap-2 [grid-template-columns:var(--cols)]" style={{ ["--cols" as any]: `repeat(${cols}, minmax(0, 1fr))` }}>
         {b.branches.map((br, i) => {
           const c = BRANCH_COLORS[i % BRANCH_COLORS.length]
           return (
-            <div key={i} className="relative sm:pt-3">
+            <div key={i} className="relative pt-3">
               {lines && <>
-                <div className="absolute left-1/2 top-0 hidden h-3 w-px sm:block" style={{ background: NAVY }} />
-                {i > 0 && <div className="absolute left-0 top-0 hidden h-px w-1/2 sm:block" style={{ background: NAVY }} />}
-                {i < n - 1 && <div className="absolute right-0 top-0 hidden h-px w-1/2 sm:block" style={{ background: NAVY }} />}
+                <div className="absolute left-1/2 top-0 h-3 w-px" style={{ background: NAVY }} />
+                {i > 0 && <div className="absolute left-0 top-0 h-px w-1/2" style={{ background: NAVY }} />}
+                {i < n - 1 && <div className="absolute right-0 top-0 h-px w-1/2" style={{ background: NAVY }} />}
               </>}
               <div className="rounded-md px-2 py-1.5 text-center text-sm text-white" style={{ ...hand, background: c }}>{inline(br.label)}</div>
               <div className="mt-1.5 space-y-1.5">
@@ -153,7 +153,7 @@ export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPri
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   const articleEl = (
-    <article className={clean ? "qp-rich-root relative overflow-hidden bg-white px-4 py-4 text-[15.5px] text-[#26283d] md:px-9 md:py-6" : "qp-rich-root relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-[15.5px] text-[#26283d] shadow-sm md:p-9"} style={{ fontFamily: "'Itim', system-ui, sans-serif" }}>
+    <article className={clean ? "qp-rich-root relative overflow-hidden bg-white px-10 py-8 text-[15.5px] text-[#26283d]" : "qp-rich-root relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-[15.5px] text-[#26283d] shadow-sm md:p-9"} style={{ fontFamily: "'Itim', system-ui, sans-serif" }}>
       {!clean && <div className="qp-no-print mb-4 flex justify-end">
         <div className="rounded-sm px-3 py-1 text-xs text-white" style={{ background: BLUE }}>{note.title}</div>
       </div>}
@@ -161,7 +161,7 @@ export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPri
         <img src="/brand/logo-horizontal-light.png" alt="QubixPrep" className="h-14 w-auto rounded" />
         <span className="text-sm" style={{ ...hand, color: BLUE }}>{subjectName ? `${subjectName} notes` : "Notes"}</span>
       </div>
-      <h1 style={{ ...hand, color: NAVY }} className="mt-4 text-center text-2xl uppercase leading-tight md:text-3xl">{note.title}</h1>
+      <h1 style={{ ...hand, color: NAVY }} className={`mt-4 text-center uppercase leading-tight ${clean ? "text-3xl" : "text-2xl md:text-3xl"}`}>{note.title}</h1>
       {note.citation && <p className="mt-1 text-center text-sm text-slate-500">{note.citation}</p>}
 
       <Box tone="green" title="Definition (write this first)">

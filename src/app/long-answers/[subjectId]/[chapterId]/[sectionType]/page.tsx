@@ -38,24 +38,24 @@ const CSS = `
 .qp-la .la-sub { text-align:center; color:#64748b; font-size:13px; margin-bottom:18px; }
 .qp-la .la-item { padding:16px 0 18px; border-top:1.5px solid #e5e7eb; }
 .qp-la .la-item:first-of-type { border-top:0; }
-.qp-la .qa-question { font-weight:700; font-size:16.5px; color:#14295c; }
-.qp-la .qa-question .qa-number { margin-right:6px; }
-.qp-la .qa-repeat { display:inline-block; margin-left:8px; padding:1px 9px; border-radius:999px; background:#fdf3d6; color:#8a6100; font-size:11px; font-weight:700; vertical-align:middle; }
+.qp-la .la-q { font-weight:700; font-size:16.5px; color:#14295c; }
+.qp-la .la-q .qa-number { margin-right:6px; }
+.qp-la .qa-repeat { text-transform:none !important; letter-spacing:0 !important; margin-top:0 !important; display:inline-block; margin-left:8px; padding:1px 9px; border-radius:999px; background:#fdf3d6; color:#8a6100; font-size:11px; font-weight:700; vertical-align:middle; }
 .qp-la .la-ans { margin-top:10px; font-family:'Gochi Hand', cursive; font-size:17px; color:#14295c; }
-.qp-la .qa-answer { margin-top:2px; }
-.qp-la .qa-answer h1, .qp-la .qa-answer h2, .qp-la .qa-answer h3, .qp-la .qa-answer h4, .qp-la .qa-answer h5 {
+.qp-la .la-a { margin-top:2px; }
+.qp-la .la-a h1, .qp-la .la-a h2, .qp-la .la-a h3, .qp-la .la-a h4, .qp-la .la-a h5 {
   display:inline-block; margin:14px 0 6px; padding:2px 9px; border-radius:3px; background:#c9ece5; color:#0f5d50;
   font-size:12.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
-.qp-la .qa-answer p { margin:6px 0; }
-.qp-la .qa-answer ul, .qp-la .qa-answer ol { margin:6px 0; padding-left:22px; }
-.qp-la .qa-answer ul { list-style:circle; }
-.qp-la .qa-answer ol { list-style:decimal; }
-.qp-la .qa-answer li { margin:3px 0; padding-left:2px; }
-.qp-la .qa-answer li::marker { color:#14295c; }
-.qp-la .qa-answer strong, .qp-la .qa-answer b { color:#14295c; }
-.qp-la .qa-answer table { width:100%; border-collapse:collapse; margin:10px 0; font-size:13.5px; }
-.qp-la .qa-answer th { background:#8fb3e8; color:#14295c; border:1px solid #94a3b8; padding:5px 7px; font-weight:400; font-family:'Gochi Hand', cursive; }
-.qp-la .qa-answer td { border:1px solid #94a3b8; padding:5px 7px; vertical-align:top; }
+.qp-la .la-a p { margin:6px 0; }
+.qp-la .la-a ul, .qp-la .la-a ol { margin:6px 0; padding-left:22px; }
+.qp-la .la-a ul { list-style:circle; }
+.qp-la .la-a ol { list-style:decimal; }
+.qp-la .la-a li { margin:3px 0; padding-left:2px; }
+.qp-la .la-a li::marker { color:#14295c; }
+.qp-la .la-a strong, .qp-la .la-a b { color:#14295c; }
+.qp-la .la-a table { width:100%; border-collapse:collapse; margin:10px 0; font-size:13.5px; }
+.qp-la .la-a th { background:#8fb3e8; color:#14295c; border:1px solid #94a3b8; padding:5px 7px; font-weight:400; font-family:'Gochi Hand', cursive; }
+.qp-la .la-a td { border:1px solid #94a3b8; padding:5px 7px; vertical-align:top; }
 .qp-la img { max-width:100%; height:auto; }
 `
 
@@ -91,7 +91,7 @@ export default function LongAnswersQuestionsPage({ params }: { params: Promise<{
   const label = SECTION_LABEL[sectionType] || sectionType
 
   return (
-    <ZoomReader title={chapterTitle || label} backHref={`/long-answers/${subjectId}/${chapterId}`}>
+    <ZoomReader>
       <style>{CSS}</style>
       <div className="qp-la">
         <div className="la-title"><i /><h2>{label}</h2><i /></div>
@@ -99,9 +99,9 @@ export default function LongAnswersQuestionsPage({ params }: { params: Promise<{
 
         {items.length > 0 ? items.map((item, i) => (
           <div key={i} className="la-item">
-            <div className="qa-question" dangerouslySetInnerHTML={{ __html: item.questionHtml }} />
+            <div className="la-q" dangerouslySetInnerHTML={{ __html: item.questionHtml }} />
             <div className="la-ans">Answer:</div>
-            <div className="qa-answer" dangerouslySetInnerHTML={{ __html: item.answerHtml }} />
+            <div className="la-a" dangerouslySetInnerHTML={{ __html: item.answerHtml }} />
           </div>
         )) : (
           <div className="py-16 text-center text-slate-500">No questions found in this section.</div>

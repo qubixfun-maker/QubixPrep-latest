@@ -42,6 +42,7 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
   useEffect(() => { setFromTop100(new URLSearchParams(window.location.search).get('from') === 'top-100') }, [])
 
   const [showOriginal, setShowOriginal] = useState(false)
+  useEffect(() => { setShowOriginal(new URLSearchParams(window.location.search).get('original') === '1') }, [])
 
   const { checkingAuth } = useRequireAuth()
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
@@ -59,9 +60,7 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
   if (cleanReader) {
     return (
       <TopicBody topic={topic} topicNo={parseInt(topicIndex, 10) + 1} subjectName={subject ? (subject as any).name : undefined} isAdmin={isAdmin}
-        protectWith={isAdmin ? undefined : (user?.email || user?.uid)} title={topic.name || (notes as any)?.chapterTitle || 'Notes'} backHref={backHref}
-        showOriginal={showOriginal} onToggleOriginal={() => setShowOriginal((v) => !v)}
-        adminExtras={<Top100Toggle subjectId={subjectId} subjectName={subject ? (subject as any).name : subjectId} textbookId={textbookId} chapterId={chapterId} topicIndex={parseInt(topicIndex, 10)} name={topic.name} chapterTitle={(notes as any)?.chapterTitle || ''} markdown={topic.markdown} />} />
+        protectWith={isAdmin ? undefined : (user?.email || user?.uid)} />
     )
   }
 
@@ -86,7 +85,9 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
       {state === 'error' && <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">Could not load this topic. Check your connection and try again.</div>}
 
       {state === 'ready' && (topic ? (
-        <TopicBody topic={topic} topicNo={parseInt(topicIndex, 10) + 1} subjectName={subject ? (subject as any).name : undefined} borderClass={color.border} isAdmin={isAdmin} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} title={topic.name} backHref={backHref} showOriginal={showOriginal} onToggleOriginal={() => setShowOriginal((v) => !v)} />
+        (isAdmin && showOriginal)
+          ? <NoteBody markdown={topic.markdown} borderClass={color.border} />
+          : <TopicBody topic={topic} topicNo={parseInt(topicIndex, 10) + 1} subjectName={subject ? (subject as any).name : undefined} borderClass={color.border} isAdmin={isAdmin} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} />
       ) : (
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">Topic not found.</div>
       ))}

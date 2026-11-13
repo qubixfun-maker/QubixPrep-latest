@@ -33,7 +33,8 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
   // One merged note for the whole chapter (made in Admin > Rich Notes). The note text is protected by the database rule,
   // so a locked member simply gets nothing back and sees the normal topic list with its lock.
   const [merged, setMerged] = useState<any>(null)
-  const [showTopics, setShowTopics] = useState(false)
+  const [showTopics, setShowTopics] = useState(false) // admins: add ?topics=1 to the address to see the topic list
+  useEffect(() => { setShowTopics(new URLSearchParams(window.location.search).get('topics') === '1') }, [])
   useEffect(() => {
     if (!db || !user) return
     let cancelled = false
@@ -59,14 +60,7 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
   const q = search.trim().toLowerCase()
 
   if (showMerged) {
-    return (
-      <RichReader note={merged} title={(entry as any)?.chapterTitle || merged.title || 'Chapter'} backHref={`/notes/${subjectId}`} subjectName={subject ? (subject as any).name : undefined}
-        protectWith={isAdmin ? undefined : (user?.email || user?.uid)} isAdmin={isAdmin}
-        adminExtras={<>
-          <span className={`rounded-full px-2.5 py-1 font-bold ${merged.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{merged.status === 'published' ? 'One note: published' : 'One note: draft (only admins see this)'}</span>
-          <button onClick={() => setShowTopics(true)} className="rounded-full border bg-white px-3 py-1 font-bold">Show the topic list</button>
-        </>} />
-    )
+    return <RichReader note={merged} subjectName={subject ? (subject as any).name : undefined} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} isAdmin={isAdmin} />
   }
 
   return (
@@ -78,10 +72,6 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">{(entry as any)?.chapterTitle || 'Chapter'}</h1>
         <p className="text-muted-foreground mt-2">{subject ? (subject as any).name : ''}</p>
       </div>
-
-      {mergedVisible && isAdmin && showTopics && (
-        <button onClick={() => setShowTopics(false)} className="rounded-full border px-3 py-1 text-xs font-bold hover:bg-muted">Show the one note</button>
-      )}
 
       {locked && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d88a] bg-[#fff8e0] p-4 text-[#5a3a00]">
