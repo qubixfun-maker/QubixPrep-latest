@@ -1714,6 +1714,16 @@ export default function AdminDashboard() {
               <BarChart3 className="h-4 w-4" /> Usage &amp; Growth
             </Button>
           </Link>
+          <Link href="/admin/lectures">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-sky-500/30 text-sky-500 hover:bg-sky-500/10">
+              <Video className="h-4 w-4" /> Video Lectures
+            </Button>
+          </Link>
+          <Link href="/admin/rich-notes">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10">
+              <BookOpenText className="h-4 w-4" /> Rich Notes converter
+            </Button>
+          </Link>
           <Link href="/admin/spotters">
             <Button variant="outline" className="rounded-xl gap-2 glass border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
               <BarChart3 className="h-4 w-4" /> Spotters upload

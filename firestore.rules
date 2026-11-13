@@ -152,6 +152,11 @@ service cloud.firestore {
       allow write, delete: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    match /lectures/{lectureId} {
+      allow read: if request.auth != null;
+      allow write, delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
     match /videos/{videoId} {
       allow read: if request.auth != null;
       allow write, delete: if request.auth != null && 

@@ -36,6 +36,13 @@ export default function VideoLibraryPage() {
   }, [db])
   
   const { data: rawSubjects, loading } = useCollection(subjectsQuery)
+  const lecturesQuery = useMemo(() => (db ? collection(db, "lectures") : null), [db])
+  const { data: rawLectures } = useCollection(lecturesQuery)
+  const counts = useMemo(() => {
+    const m: Record<string, number> = {}
+    ;((rawLectures || []) as any[]).forEach((l) => { if (l.status === "published") m[l.subjectId] = (m[l.subjectId] || 0) + 1 })
+    return m
+  }, [rawLectures])
   const subjects = useMemo(() => (rawSubjects ? [...rawSubjects].sort((a: any, b: any) => compareSubjects(a.name, b.name)) : rawSubjects), [rawSubjects])
   const [search] = useTopSearch("Search subjects in Videos…")
 
@@ -80,7 +87,7 @@ export default function VideoLibraryPage() {
                     </div>
                     <div className="mt-auto">
                       <div className="px-3 py-1 w-fit rounded-lg bg-white/5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        Structured Lectures
+                        {counts[subject.id] ? `${counts[subject.id]} lecture${counts[subject.id] === 1 ? "" : "s"}` : "Coming soon"}
                       </div>
                     </div>
                   </CardContent>

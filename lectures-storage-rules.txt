@@ -1,0 +1,24 @@
+VIDEO LECTURES - FIREBASE STORAGE RULES (add, do not replace)
+
+In the Firebase console go to: Storage -> Rules.
+Keep everything already there. Paste this block INSIDE the existing
+"match /b/{bucket}/o { ... }" section, next to the other match blocks, then Publish.
+
+    match /lectures/{allPaths=**} {
+      // Nobody reads these directly. The app serves them through signed URLs
+      // from /api/lectures/access, which checks the user's plan on the server.
+      allow read: if false;
+
+      // Only admins can upload: a video up to 1 GB or a PDF up to 50 MB.
+      allow write: if request.auth != null
+        && request.resource != null
+        && ((request.resource.contentType.matches('video/.*') && request.resource.size < 1024 * 1024 * 1024)
+            || (request.resource.contentType == 'application/pdf' && request.resource.size < 50 * 1024 * 1024))
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+      allow delete: if request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+Also publish the updated firestore.rules (it now has a "lectures" block):
+  firebase deploy --only firestore:rules

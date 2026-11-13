@@ -18,6 +18,7 @@ export function usePlan() {
 
   return {
     plan,
+    isAdmin,
     expiresAt: typeof planExpiresAt === 'number' ? planExpiresAt : null,
     loading,
     isFree: plan === 'free',

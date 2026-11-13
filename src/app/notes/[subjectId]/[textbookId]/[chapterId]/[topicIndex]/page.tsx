@@ -8,6 +8,7 @@ import { ChevronLeft, Loader2 } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { getSubjectColor } from "@/lib/subject-colors"
 import { NoteBody } from "@/components/notes/note-body"
+import { TopicBody } from "@/components/notes/topic-body"
 import { UpgradeGate } from "@/components/upgrade-gate"
 import { Top100Toggle } from "@/components/top100/Top100Toggle"
 
@@ -71,7 +72,7 @@ export default function NotesTopicDetailPage({ params }: { params: Promise<{ sub
       {state === 'error' && <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">Could not load this topic. Check your connection and try again.</div>}
 
       {state === 'ready' && (topic ? (
-        <NoteBody markdown={topic.markdown} borderClass={color.border} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} />
+        <TopicBody topic={topic} topicNo={parseInt(topicIndex, 10) + 1} subjectName={subject ? (subject as any).name : undefined} borderClass={color.border} isAdmin={isAdmin} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} />
       ) : (
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">Topic not found.</div>
       ))}
