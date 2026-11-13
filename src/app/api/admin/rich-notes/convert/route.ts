@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
 
     const write = async () => {
       if (JSON.stringify(topics).length > 900_000) throw new ApiError('This chapter document is nearly at the database size limit. Remove a draft first.', 413)
-      await ref.update({ topics })
+      // Firestore rejects undefined values; a JSON round-trip drops them
+      await ref.update({ topics: JSON.parse(JSON.stringify(topics)) })
     }
 
     if (action === 'convert') {
