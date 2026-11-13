@@ -155,7 +155,7 @@ export function RichNoteView({ note, subjectName, topicNo, protectWith, allowPri
         <div className="rounded-sm px-3 py-1 text-xs text-white" style={{ background: BLUE }}>{note.title}</div>
       </div>
       <div className="flex items-center justify-between gap-3 pb-3" style={{ borderBottom: `2.5px solid ${NAVY}` }}>
-        <img src="/brand/logo-horizontal-dark.png" alt="QubixPrep" className="h-14 w-auto rounded" />
+        <img src="/brand/logo-horizontal-light.png" alt="QubixPrep" className="h-14 w-auto rounded" />
         <span className="text-sm" style={{ ...hand, color: BLUE }}>{subjectName ? `${subjectName} notes` : "Notes"}</span>
       </div>
       <h1 style={{ ...hand, color: NAVY }} className="mt-4 text-center text-2xl uppercase leading-tight md:text-3xl">{note.title}</h1>

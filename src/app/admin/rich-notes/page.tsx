@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast"
 import { ArrowLeft, Loader2, Lock, Wand2, Eye, Trash2, ChevronDown, ChevronRight, Square, Save } from "lucide-react"
 
-type Row = { docKey: string; textbookId: string; chapterId: string; chapterTitle: string; topics: { name: string; rich?: any }[] }
+type Row = { docKey: string; textbookId: string; chapterId: string; chapterTitle: string; topics: { name: string; rich?: any }[]; merged?: any }
 
 export default function AdminRichNotesPage() {
   const { user, loading: authLoading } = useUser()
@@ -45,7 +45,7 @@ export default function AdminRichNotesPage() {
       const list: Row[] = snap.docs.map((d) => {
         const x: any = d.data()
         const [textbookId, ...rest] = d.id.split("__")
-        return { docKey: d.id, textbookId, chapterId: rest.join("__"), chapterTitle: x.chapterTitle || d.id, topics: (x.topics || []).map((t: any) => ({ name: t.name, rich: t.rich })) }
+        return { docKey: d.id, textbookId, chapterId: rest.join("__"), chapterTitle: x.chapterTitle || d.id, topics: (x.topics || []).map((t: any) => ({ name: t.name, rich: t.rich })), merged: x.chapterRich }
       })
       list.sort((a, b) => a.textbookId.localeCompare(b.textbookId) || a.chapterTitle.localeCompare(b.chapterTitle, undefined, { numeric: true }))
       setRows(list)
@@ -95,11 +95,53 @@ export default function AdminRichNotesPage() {
     try { await call({ action: "remove", textbookId: r.textbookId, chapterId: r.chapterId, topicIndex: i }); patchRow(r, i, undefined) }
     catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
+  const patchMerged = (r: Row, merged: any | undefined) => setRows((rs) => rs.map((x) => (x.docKey === r.docKey ? { ...x, merged } : x)))
+  const mergeKey = (r: Row) => `${r.docKey}:merge`
+  const merge = async (r: Row, quiet = false) => {
+    const k = mergeKey(r)
+    setBusy((b) => ({ ...b, [k]: true }))
+    setErrors((er) => { const { [k]: _x, ...rest } = er; return rest })
+    try {
+      const out = await call({ action: "mergeChapter", textbookId: r.textbookId, chapterId: r.chapterId })
+      patchMerged(r, out.rich)
+      if (!quiet) toast({ title: "Merged into one note (draft)", description: r.chapterTitle })
+      return true
+    } catch (e: any) {
+      setErrors((er) => ({ ...er, [k]: e?.message || "Merge failed" }))
+      if (!quiet) toast({ title: "Merge failed", description: e?.message, variant: "destructive" })
+      return false
+    } finally { setBusy((b) => ({ ...b, [k]: false })) }
+  }
+  const setMergedStatus = async (r: Row, status: "draft" | "published") => {
+    try { await call({ action: "chapterStatus", textbookId: r.textbookId, chapterId: r.chapterId, status }); patchMerged(r, { ...r.merged, status }) }
+    catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+  }
+  const removeMerged = async (r: Row) => {
+    if (!confirm(`Remove the merged note of "${r.chapterTitle}"? The original topic notes stay.`)) return
+    try { await call({ action: "chapterRemove", textbookId: r.textbookId, chapterId: r.chapterId }); patchMerged(r, undefined) }
+    catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
+  }
+  const runMergeAll = async (targets: Row[]) => {
+    if (targets.length === 0) return
+    if (!confirm(`Merge ${targets.length} chapter${targets.length === 1 ? "" : "s"} into one note each (saved as drafts)? Original topic notes are not changed.`)) return
+    stopRef.current = false
+    setBulk({ done: 0, total: targets.length, failed: 0 })
+    let done = 0, failed = 0
+    for (const r of targets) {
+      if (stopRef.current) break
+      const ok = await merge(r, true)
+      done++; if (!ok) failed++
+      setBulk({ done, total: targets.length, failed })
+    }
+    toast({ title: "Bulk merge finished", description: `${done - failed} merged, ${failed} failed.` })
+    setBulk(null)
+  }
   const saveJson = async () => {
     if (!preview) return
     try {
       const parsed = JSON.parse(json)
-      await call({ action: "save", textbookId: preview.row.textbookId, chapterId: preview.row.chapterId, topicIndex: preview.index, rich: parsed })
+      if (preview.index < 0) await call({ action: "chapterSave", textbookId: preview.row.textbookId, chapterId: preview.row.chapterId, rich: parsed })
+      else await call({ action: "save", textbookId: preview.row.textbookId, chapterId: preview.row.chapterId, topicIndex: preview.index, rich: parsed })
       toast({ title: "Saved" })
       await load()
       setShowJson(false); setPreview(null)
@@ -127,6 +169,7 @@ export default function AdminRichNotesPage() {
   }
   const unconverted = (r: Row) => r.topics.map((t, i) => ({ r, i, t })).filter((x) => !x.t.rich).map(({ r, i }) => ({ r, i }))
   const allUnconverted = rows.flatMap(unconverted)
+  const unmerged = rows.filter((r) => !r.merged && r.topics.length > 0)
   const counts = rows.reduce((a, r) => { r.topics.forEach((t) => { if (t.rich) a[t.rich.status === "published" ? "pub" : "draft"]++; a.all++ }); return a }, { all: 0, pub: 0, draft: 0 })
 
   return (
@@ -145,6 +188,7 @@ export default function AdminRichNotesPage() {
           {subjects.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
         {subjectId && !loading && <span className="text-xs text-muted-foreground">{counts.all} topics · {counts.pub} published · {counts.draft} draft</span>}
+        {subjectId && unmerged.length > 0 && !bulk && <Button size="sm" onClick={() => runMergeAll(unmerged)} className="rounded-lg gap-2"><Wand2 className="h-4 w-4" /> Merge all {unmerged.length} chapters into one note each</Button>}
         {subjectId && allUnconverted.length > 0 && !bulk && <Button size="sm" onClick={() => runBulk(allUnconverted)} className="rounded-lg gap-2"><Wand2 className="h-4 w-4" /> Convert all {allUnconverted.length} remaining</Button>}
         {bulk && (
           <div className="flex items-center gap-3 text-sm"><Loader2 className="h-4 w-4 animate-spin" /> {bulk.done}/{bulk.total} done{bulk.failed ? `, ${bulk.failed} failed` : ""}
@@ -166,8 +210,18 @@ export default function AdminRichNotesPage() {
                   <span className="font-semibold text-sm">{r.chapterTitle}</span>
                   <span className="text-xs text-muted-foreground">{r.topics.filter((t) => t.rich).length}/{r.topics.length} converted</span>
                 </button>
-                {todo.length > 0 && !bulk && <Button size="sm" variant="outline" className="rounded-lg text-xs" onClick={() => runBulk(todo)}>Convert {todo.length}</Button>}
+                {r.merged && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${r.merged.status === "published" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>one note: {r.merged.status === "published" ? "published" : "draft"}</span>}
+                <Button size="sm" className="rounded-lg text-xs gap-1" disabled={!!busy[mergeKey(r)] || !!bulk} onClick={() => merge(r)}>
+                  {busy[mergeKey(r)] ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />} {r.merged ? "Redo merge" : "Merge into one note"}
+                </Button>
+                {r.merged && <>
+                  <Button size="sm" variant="outline" className="rounded-lg text-xs gap-1" onClick={() => { setPreview({ row: r, index: -1 }); setJson(JSON.stringify((({ status, convertedAt, sourceTopics, truncated, ...n }) => n)(r.merged), null, 2)); setShowJson(false) }}><Eye className="h-3 w-3" /> Preview</Button>
+                  <Button size="sm" className="rounded-lg text-xs" onClick={() => setMergedStatus(r, r.merged.status === "published" ? "draft" : "published")}>{r.merged.status === "published" ? "Unpublish" : "Publish"}</Button>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeMerged(r)} aria-label="Remove merged note"><Trash2 className="h-4 w-4" /></Button>
+                </>}
               </div>
+              {errors[mergeKey(r)] && <p className="mx-4 mb-3 select-text break-words rounded bg-red-50 p-2 text-xs text-red-700">Error: {errors[mergeKey(r)]}</p>}
+              {r.merged?.truncated && <p className="mx-4 mb-3 rounded bg-amber-50 p-2 text-xs text-amber-800">This chapter was very long, so the end of it was not read. Check that the merged note covers everything, or merge the later topics one by one.</p>}
               {isOpen && (
                 <div className="divide-y border-t">
                   {r.topics.map((t, i) => {
@@ -205,7 +259,7 @@ export default function AdminRichNotesPage() {
               <Button onClick={saveJson} className="gap-2"><Save className="h-4 w-4" /> Save changes</Button>
             </div>
           ) : (
-            <RichNoteView note={preview.row.topics[preview.index].rich} subjectName={(subjects.find((s: any) => s.id === subjectId) as any)?.name} topicNo={preview.index + 1} allowPrint />
+            <RichNoteView note={preview.index < 0 ? preview.row.merged : preview.row.topics[preview.index].rich} subjectName={(subjects.find((s: any) => s.id === subjectId) as any)?.name} topicNo={preview.index < 0 ? undefined : preview.index + 1} allowPrint />
           ))}
         </DialogContent>
       </Dialog>

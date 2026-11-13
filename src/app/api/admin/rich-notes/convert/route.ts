@@ -2,9 +2,10 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 280
 
 import { NextRequest, NextResponse } from 'next/server'
+import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminFirestore } from '@/lib/firebase-admin'
 import { requireAdmin, errorResponse, ApiError } from '@/lib/api-auth'
-import { convertTopicToRich } from '@/ai/notes-to-rich'
+import { convertTopicToRich, convertChapterToRich } from '@/ai/notes-to-rich'
 import { sanitizeRichNote } from '@/lib/richnotes/schema'
 
 /**
@@ -13,12 +14,15 @@ import { sanitizeRichNote } from '@/lib/richnotes/schema'
  *  action "status"   -> { status: "draft" | "published" }
  *  action "save"     -> { rich } edited note JSON (sanitised), keeps current status
  *  action "remove"   -> deletes topics[i].rich (students see the original note again)
+ *  Chapter level (no topicIndex): "mergeChapter" (ONE note from all topics, saved as chapterRich, draft),
+ *  "chapterStatus", "chapterSave", "chapterRemove".
  */
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin(req)
     const { action, subjectId, textbookId, chapterId, topicIndex, status, rich } = await req.json()
-    if (!subjectId || !textbookId || !chapterId || typeof topicIndex !== 'number') throw new ApiError('Missing subjectId, textbookId, chapterId or topicIndex.', 400)
+    const chapterLevel = typeof action === 'string' && (action === 'mergeChapter' || action.startsWith('chapter'))
+    if (!subjectId || !textbookId || !chapterId || (!chapterLevel && typeof topicIndex !== 'number')) throw new ApiError('Missing subjectId, textbookId, chapterId or topicIndex.', 400)
 
     const db = getAdminFirestore()
     const ref = db.collection('subjects').doc(subjectId).collection('textNotes').doc(`${textbookId}__${chapterId}`)
@@ -26,6 +30,43 @@ export async function POST(req: NextRequest) {
     if (!snap.exists) throw new ApiError('Notes doc not found.', 404)
     const data = snap.data() as any
     const topics: any[] = [...(data.topics || [])]
+
+    // ---- chapter level: one merged note for the whole chapter ----
+    if (chapterLevel) {
+      const writeChapter = async (value: any) => {
+        const rest = { ...data }; delete rest.chapterRich
+        if (JSON.stringify(rest).length + JSON.stringify(value || {}).length > 900_000) throw new ApiError('This chapter document is nearly at the database size limit.', 413)
+        await ref.update({ chapterRich: value ? JSON.parse(JSON.stringify(value)) : FieldValue.delete() })
+      }
+      if (action === 'mergeChapter') {
+        const subjectName = (await db.collection('subjects').doc(subjectId).get()).data()?.name || subjectId
+        const list = topics.filter((t) => t?.markdown).map((t) => ({ name: String(t.name || ''), markdown: String(t.markdown) }))
+        if (list.length === 0) throw new ApiError('This chapter has no note text to merge.', 400)
+        const { note, error, truncated } = await convertChapterToRich(subjectName, data.chapterTitle || chapterId, list)
+        if (!note) throw new ApiError(error || 'Merge failed.', 500)
+        const chapterRich = { ...note, status: 'draft', convertedAt: Date.now(), sourceTopics: list.length, truncated: !!truncated }
+        await writeChapter(chapterRich)
+        return NextResponse.json({ ok: true, rich: chapterRich })
+      }
+      if (!data.chapterRich) throw new ApiError('This chapter has no merged note yet.', 400)
+      if (action === 'chapterStatus') {
+        if (status !== 'draft' && status !== 'published') throw new ApiError('Bad status.', 400)
+        await writeChapter({ ...data.chapterRich, status })
+        return NextResponse.json({ ok: true })
+      }
+      if (action === 'chapterSave') {
+        const clean = sanitizeRichNote(rich)
+        if (!clean) throw new ApiError('That note is not valid: it needs a title, a definition and at least one section with content.', 400)
+        await writeChapter({ ...clean, status: data.chapterRich.status, convertedAt: data.chapterRich.convertedAt, sourceTopics: data.chapterRich.sourceTopics })
+        return NextResponse.json({ ok: true })
+      }
+      if (action === 'chapterRemove') {
+        await writeChapter(null)
+        return NextResponse.json({ ok: true })
+      }
+      throw new ApiError('Unknown action.', 400)
+    }
+
     const topic = topics[topicIndex]
     if (!topic) throw new ApiError('Topic not found. The chapter may have changed; reload the page.', 404)
 

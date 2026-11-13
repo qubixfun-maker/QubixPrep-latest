@@ -1,15 +1,16 @@
 "use client"
 import { useTopSearch } from "@/components/layout/top-search"
 
-import { useMemo, use } from "react"
+import { useMemo, use, useEffect, useState } from "react"
 import { useDoc, useFirestore, useUser } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { doc, getDoc } from "firebase/firestore"
 import { ChevronRight, ChevronLeft, Loader2, Lock } from "lucide-react"
 import Link from "next/link"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { usePlan } from "@/hooks/use-plan"
 import { getSubjectColor } from "@/lib/subject-colors"
 import { indexIdOf } from "@/lib/notes-index"
+import { RichNoteView } from "@/components/notes/rich-note-view"
 
 export default function NotesChapterPage({ params }: { params: Promise<{ subjectId: string; textbookId: string; chapterId: string }> }) {
   const { subjectId, textbookId, chapterId } = use(params)
@@ -29,6 +30,19 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
   const { data: profile, loading: profileLoading } = useDoc(profileRef)
   const entitled = !!canAccessContent || (profile as any)?.role === 'admin'
 
+  // One merged note for the whole chapter (made in Admin > Rich Notes). The note text is protected by the database rule,
+  // so a locked member simply gets nothing back and sees the normal topic list with its lock.
+  const [merged, setMerged] = useState<any>(null)
+  const [showTopics, setShowTopics] = useState(false)
+  useEffect(() => {
+    if (!db || !user) return
+    let cancelled = false
+    getDoc(doc(db, 'subjects', subjectId, 'textNotes', docKey))
+      .then((snap) => { if (!cancelled) setMerged(snap.exists() ? (snap.data() as any).chapterRich || null : null) })
+      .catch(() => { if (!cancelled) setMerged(null) })
+    return () => { cancelled = true }
+  }, [db, user, subjectId, docKey])
+
   const { checkingAuth } = useRequireAuth()
   const [search] = useTopSearch("Search topics in this chapter…")
   const color = getSubjectColor(subject ? (subject as any).name : subjectId)
@@ -37,6 +51,9 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
     return <div className="h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>
   }
 
+  const isAdmin = (profile as any)?.role === 'admin'
+  const mergedVisible = !!merged && (merged.status === 'published' || isAdmin)
+  const showMerged = mergedVisible && !(isAdmin && showTopics)
   const topics = (((entry as any)?.topics || []) as { name: string; depth?: number }[]).map((t, i) => ({ ...t, i }))
   const locked = !entitled && !(entry as any)?.free
   const q = search.trim().toLowerCase()
@@ -51,14 +68,25 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
         <p className="text-muted-foreground mt-2">{subject ? (subject as any).name : ''}</p>
       </div>
 
-      {locked && (
+      {mergedVisible && isAdmin && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className={`rounded-full px-2.5 py-1 font-bold ${merged.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{merged.status === 'published' ? 'One note: published' : 'One note: draft (only admins see this)'}</span>
+          <button onClick={() => setShowTopics((v) => !v)} className="rounded-full border px-3 py-1 font-bold hover:bg-muted">{showTopics ? 'Show the one note' : 'Show the topic list'}</button>
+        </div>
+      )}
+
+      {showMerged && (
+        <RichNoteView note={merged} subjectName={subject ? (subject as any).name : undefined} protectWith={isAdmin ? undefined : (user?.email || user?.uid)} allowPrint={isAdmin} />
+      )}
+
+      {!showMerged && locked && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f0d88a] bg-[#fff8e0] p-4 text-[#5a3a00]">
           <p className="text-sm font-semibold flex items-center gap-2"><Lock className="h-4 w-4" /> This chapter is for Scholar and Clinician members (₹999/year).</p>
           <Link href="/pricing" className="rounded-full bg-[#5a3a00] px-4 py-2 text-xs font-extrabold text-white">See plans</Link>
         </div>
       )}
 
-      {topics.length > 0 ? (
+      {!showMerged && (topics.length > 0 ? (
         <div className="space-y-2">
           {topics.filter((t) => !q || t.name.toLowerCase().includes(q)).map((t) => (
             <Link
@@ -74,7 +102,7 @@ export default function NotesChapterPage({ params }: { params: Promise<{ subject
         </div>
       ) : (
         <div className="text-center py-16 text-muted-foreground rounded-2xl glass border-none">No topics found for this chapter.</div>
-      )}
+      ))}
     </div>
   )
 }
