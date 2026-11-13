@@ -2,7 +2,7 @@
 // PDF-style reader. The content is laid out as a fixed-width page (always the full desktop layout), then scaled down to fit
 // the screen width, exactly like a PDF in a viewer. No buttons: pinch with two fingers to zoom in (up to 5x), drag to move around.
 // (The app locks the browser's own pinch-zoom, so zoom is handled here.)
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
 
 export const PAGE_W = 680
 const MAX_ZOOM = 5
@@ -21,8 +21,7 @@ export function ZoomReader({ children, badge }: { children: ReactNode; badge?: R
   const wrapRef = useRef<HTMLDivElement>(null)   // horizontal pan container (width = screen)
   const sizerRef = useRef<HTMLDivElement>(null)  // takes the scaled size so scrolling works
   const pageRef = useRef<HTMLDivElement>(null)   // the fixed-width page, scaled with transform
-  const [ready, setReady] = useState(false)
-  const st = useRef({ fit: 1, scale: 1, h: 0 })
+  const st = useRef({ fit: 0, scale: 1, h: 0 })
 
   const apply = (scale: number) => {
     const sizer = sizerRef.current, page = pageRef.current
@@ -39,13 +38,14 @@ export function ZoomReader({ children, badge }: { children: ReactNode; badge?: R
     if (!wrap || !page) return
     const measure = () => {
       const fit = Math.min(1.6, wrap.clientWidth / PAGE_W)
-      const ratio = st.current.scale / st.current.fit || 1
+      if (!fit) return
+      // keep the user's zoom (as a multiple of the fit size) when the screen or the content size changes
+      const ratio = st.current.fit ? Math.max(1, st.current.scale / st.current.fit) : 1
       st.current.fit = fit
       st.current.h = page.offsetHeight
-      apply(fit * (ready ? Math.max(1, ratio) : 1))
+      apply(fit * ratio)
     }
     measure()
-    setReady(true)
     const ro = new ResizeObserver(measure)
     ro.observe(wrap); ro.observe(page)
     return () => ro.disconnect()
