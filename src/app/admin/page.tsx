@@ -1719,6 +1719,11 @@ export default function AdminDashboard() {
               <Video className="h-4 w-4" /> Video Lectures
             </Button>
           </Link>
+          <Link href="/admin/top100-docs">
+            <Button variant="outline" className="rounded-xl gap-2 glass border-amber-500/30 text-amber-600 hover:bg-amber-500/10">
+              <BookOpenText className="h-4 w-4" /> Top 100 sheets
+            </Button>
+          </Link>
           <Link href="/admin/rich-notes">
             <Button variant="outline" className="rounded-xl gap-2 glass border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10">
               <BookOpenText className="h-4 w-4" /> Rich Notes converter

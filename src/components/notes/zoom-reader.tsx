@@ -4,7 +4,7 @@
 // (The app locks the browser's own pinch-zoom, so zoom is handled here.)
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
 
-export const PAGE_W = 680
+export const PAGE_W = 680 // default page width (the notes); sheets laid out for A4 pass 794
 const MAX_ZOOM = 5
 
 function scrollParent(el: HTMLElement | null): HTMLElement {
@@ -17,7 +17,8 @@ function scrollParent(el: HTMLElement | null): HTMLElement {
   return (document.scrollingElement || document.documentElement) as HTMLElement
 }
 
-export function ZoomReader({ children, badge }: { children: ReactNode; badge?: ReactNode }) {
+export function ZoomReader({ children, badge, pageWidth = PAGE_W }: { children: ReactNode; badge?: ReactNode; pageWidth?: number }) {
+  const PW = pageWidth
   const wrapRef = useRef<HTMLDivElement>(null)   // horizontal pan container (width = screen)
   const sizerRef = useRef<HTMLDivElement>(null)  // takes the scaled size so scrolling works
   const pageRef = useRef<HTMLDivElement>(null)   // the fixed-width page, scaled with transform
@@ -28,7 +29,7 @@ export function ZoomReader({ children, badge }: { children: ReactNode; badge?: R
     if (!sizer || !page) return
     st.current.scale = scale
     page.style.transform = `scale(${scale})`
-    sizer.style.width = `${PAGE_W * scale}px`
+    sizer.style.width = `${PW * scale}px`
     sizer.style.height = `${st.current.h * scale}px`
   }
 
@@ -37,7 +38,7 @@ export function ZoomReader({ children, badge }: { children: ReactNode; badge?: R
     const wrap = wrapRef.current, page = pageRef.current
     if (!wrap || !page) return
     const measure = () => {
-      const fit = Math.min(1.6, wrap.clientWidth / PAGE_W)
+      const fit = Math.min(1.6, wrap.clientWidth / PW)
       if (!fit) return
       // keep the user's zoom (as a multiple of the fit size) when the screen or the content size changes
       const ratio = st.current.fit ? Math.max(1, st.current.scale / st.current.fit) : 1
@@ -89,7 +90,7 @@ export function ZoomReader({ children, badge }: { children: ReactNode; badge?: R
       {badge && <div className="qp-no-print mb-2 flex justify-center">{badge}</div>}
       <div ref={wrapRef} className="w-full overflow-x-auto overflow-y-hidden" style={{ touchAction: "pan-x pan-y", WebkitOverflowScrolling: "touch" }}>
         <div ref={sizerRef} style={{ margin: "0 auto" }}>
-          <div ref={pageRef} style={{ width: PAGE_W, transformOrigin: "top left", background: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,.18)" }}>{children}</div>
+          <div ref={pageRef} style={{ width: PW, transformOrigin: "top left", background: "#fff", boxShadow: "0 1px 6px rgba(0,0,0,.18)" }}>{children}</div>
         </div>
       </div>
     </div>
