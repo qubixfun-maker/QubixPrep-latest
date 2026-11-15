@@ -143,7 +143,9 @@ function hpiLines(sec: CaseDef['sections'][number], ans: Answers, c?: CaseDef): 
     const core = symptomCore(f, a)
     const d = durOf(f)
     if (n === 0) {
-      out.push(d ? `${Sub} was alright ${agoPhrase(d)}, then ${sub} noticed ${core}.` : `${Sub} gives history of ${core}.`)
+      // the history opens the way it is spoken at the bedside: the patient was apparently alright, then ...
+      const first = c?.id === 'paed-newborn' ? 'The baby' : 'The patient'
+      out.push(d ? `${first} was apparently alright ${agoPhrase(d)}, then ${sub} noticed ${core}.` : `${first} was apparently alright before this illness, then ${sub} noticed ${core}.`)
     } else if (d && prev && durDays(d) === durDays(prev)) {
       out.push(`${Sub} also complains of ${core}, which started at the same time.`)
     } else if (d) {

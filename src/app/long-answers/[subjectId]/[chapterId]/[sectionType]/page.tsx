@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, use } from "react"
 import { useDoc, useFirestore } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { Loader2 } from "lucide-react"
+import { ChevronDown, Loader2 } from "lucide-react"
 import { useRequireAuth } from "@/hooks/use-require-auth"
 import { useLongAnswerAccess } from "@/hooks/use-long-answer-access"
 import { UpgradeGate } from "@/components/upgrade-gate"
@@ -38,7 +38,10 @@ const CSS = `
 .qp-la .la-sub { text-align:center; color:#64748b; font-size:13px; margin-bottom:18px; }
 .qp-la .la-item { padding:16px 0 18px; border-top:1.5px solid #e5e7eb; }
 .qp-la .la-item:first-of-type { border-top:0; }
-.qp-la .la-q { font-weight:700; font-size:16.5px; color:#14295c; }
+.qp-la .la-qb { display:flex; align-items:flex-start; gap:10px; width:100%; text-align:left; cursor:pointer; background:none; border:0; padding:0; font:inherit; color:inherit; }
+.qp-la .la-qb .la-chev { flex:none; margin-top:4px; color:#2fb59a; transition:transform .15s; }
+.qp-la .la-qb[aria-expanded="true"] .la-chev { transform:rotate(180deg); }
+.qp-la .la-q { flex:1; font-weight:700; font-size:16.5px; color:#14295c; }
 .qp-la .la-q .qa-number { margin-right:6px; }
 .qp-la .qa-repeat { text-transform:none !important; letter-spacing:0 !important; margin-top:0 !important; display:inline-block; margin-left:8px; padding:1px 9px; border-radius:999px; background:#fdf3d6; color:#8a6100; font-size:11px; font-weight:700; vertical-align:middle; }
 .qp-la .la-ans { margin-top:10px; font-family:'Gochi Hand', cursive; font-size:17px; color:#14295c; }
@@ -73,6 +76,8 @@ export default function LongAnswersQuestionsPage({ params }: { params: Promise<{
   const { data: section, loading: sectionLoading } = useDoc(sectionRef)
 
   const [items, setItems] = useState<QAItem[]>([])
+  const [openIdx, setOpenIdx] = useState<Set<number>>(new Set()) // answers stay hidden until the question is tapped
+  const toggleIdx = (i: number) => setOpenIdx((s) => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n })
   useEffect(() => {
     if (section && (section as any).html) setItems(parseQaItems((section as any).html))
   }, [section])
@@ -99,9 +104,16 @@ export default function LongAnswersQuestionsPage({ params }: { params: Promise<{
 
         {items.length > 0 ? items.map((item, i) => (
           <div key={i} className="la-item">
-            <div className="la-q" dangerouslySetInnerHTML={{ __html: item.questionHtml }} />
-            <div className="la-ans">Answer:</div>
-            <div className="la-a" dangerouslySetInnerHTML={{ __html: item.answerHtml }} />
+            <button type="button" className="la-qb" aria-expanded={openIdx.has(i)} onClick={() => toggleIdx(i)}>
+              <div className="la-q" dangerouslySetInnerHTML={{ __html: item.questionHtml }} />
+              <ChevronDown className="la-chev h-5 w-5" />
+            </button>
+            {openIdx.has(i) && (
+              <>
+                <div className="la-ans">Answer:</div>
+                <div className="la-a" dangerouslySetInnerHTML={{ __html: item.answerHtml }} />
+              </>
+            )}
           </div>
         )) : (
           <div className="py-16 text-center text-slate-500">No questions found in this section.</div>

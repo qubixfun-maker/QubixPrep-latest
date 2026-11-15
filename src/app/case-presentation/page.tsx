@@ -3,7 +3,7 @@ import { useTopSearch } from "@/components/layout/top-search"
 
 import Link from "next/link"
 import { useState } from "react"
-import { ChevronRight, FileText, Loader2, Trash2, Stethoscope, Lock } from "lucide-react"
+import { ArrowLeft, ChevronRight, ClipboardList, FileText, Loader2, Trash2, Stethoscope, Lock, GraduationCap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useFirestore } from "@/firebase"
@@ -14,7 +14,9 @@ export default function CasePresentationHub() {
   const { user, allowed, loading } = useCaseAccess()
   const { sheets, loading: sheetsLoading } = useMyCaseSheets()
   const db = useFirestore()
-  const [open, setOpen] = useState<string | null>("proforma:medicine")
+  // first the student chooses what they want; only then does the next screen open
+  const [view, setView] = useState<"proforma" | "sample" | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
   const [search] = useTopSearch("Search cases…")
   const q = search.trim().toLowerCase()
 
@@ -31,7 +33,11 @@ export default function CasePresentationHub() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Case <span className="text-accent">Presentation</span></h1>
         <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-          Pick a proforma, or a ready-made sample case. The questions are already there: tap the options that apply, type anything extra, then press <b>Present case</b> for a professional write-up you can print or present.
+          {view === null
+            ? "What would you like to do?"
+            : view === "proforma"
+              ? "Pick a subject, then a proforma. Tap the options that apply, type anything extra, then press Present case for a professional write-up."
+              : "Pick a subject, then a ready-made case to learn from."}
         </p>
         {!allowed && (
           <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/10 p-4 flex items-center gap-3 flex-wrap">
@@ -42,14 +48,36 @@ export default function CasePresentationHub() {
         )}
       </div>
 
-      {user && allowed && (
+      {view === null && !q && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {([
+            { k: "proforma" as const, icon: ClipboardList, title: "Case proformas", desc: "The blank college proformas for each subject. Fill in your own patient and present the case.", n: ALL_CASES.filter((c) => c.kind === "proforma").length, unit: "proformas", grad: "from-indigo-500 to-violet-600" },
+            { k: "sample" as const, icon: GraduationCap, title: "Sample cases", desc: "Ready-made cases on common topics, with an exam checklist, viva questions and a model presentation.", n: ALL_CASES.filter((c) => c.kind === "sample").length, unit: "cases", grad: "from-emerald-500 to-teal-600" },
+          ]).map((o) => (
+            <button key={o.k} onClick={() => { setView(o.k); setOpen(`${o.k}:medicine`); window.scrollTo({ top: 0 }) }}
+              className={`group relative flex min-h-[11rem] flex-col justify-end overflow-hidden rounded-3xl bg-gradient-to-br ${o.grad} p-6 text-left text-white shadow-md transition active:scale-[0.98] hover:shadow-xl`}>
+              <o.icon className="absolute -right-4 -top-4 h-32 w-32 rotate-12 opacity-20" />
+              <o.icon className="absolute right-5 top-5 h-10 w-10 opacity-90" />
+              <span className="text-2xl font-extrabold leading-tight">{o.title}</span>
+              <span className="mt-1 text-sm opacity-90">{o.desc}</span>
+              <span className="mt-2 text-xs font-bold opacity-90">{o.n} {o.unit}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view !== null && !q && (
+        <button onClick={() => { setView(null); setOpen(null) }} className="inline-flex items-center gap-1 text-sm font-bold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Back</button>
+      )}
+
+      {user && allowed && view !== null && (
         <section className="space-y-3">
           <h2 className="text-lg font-bold">My saved cases</h2>
-          {sheetsLoading ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : sheets.length === 0 ? (
+          {sheetsLoading ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : sheets.filter((s) => getCase(s.caseType)?.kind === view).length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing saved yet. Start a case below: it saves automatically.</p>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {sheets.map((s) => {
+              {sheets.filter((s) => getCase(s.caseType)?.kind === view).map((s) => {
                 const c = getCase(s.caseType)
                 return (
                   <div key={s.id} className="glass rounded-2xl border border-white/10 p-4 flex items-center gap-3">
@@ -66,7 +94,7 @@ export default function CasePresentationHub() {
         </section>
       )}
 
-      {(["proforma", "sample"] as const).map((kind) => (
+      {(view ? [view] : q ? (["proforma", "sample"] as const) : []).map((kind) => (
         <section key={kind} className="space-y-3">
           <div>
             <h2 className="text-lg font-bold">{kind === "proforma" ? "Proformas" : "Sample cases"}</h2>
@@ -112,7 +140,7 @@ export default function CasePresentationHub() {
           </div>
         </section>
       ))}
-      <p className="text-xs text-muted-foreground">{ALL_CASES.filter((c) => c.kind === "proforma").length} proformas and {ALL_CASES.filter((c) => c.kind === "sample").length} sample cases across {SUBJECTS.length} subjects.</p>
+      {view === null && !q && <p className="text-xs text-muted-foreground">{ALL_CASES.filter((c) => c.kind === "proforma").length} proformas and {ALL_CASES.filter((c) => c.kind === "sample").length} sample cases across {SUBJECTS.length} subjects.</p>}
     </div>
   )
 }

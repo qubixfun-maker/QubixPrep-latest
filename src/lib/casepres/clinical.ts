@@ -7,6 +7,8 @@ import { KB3 } from './clinical3'
  *  - p / a: what it MEANS when present (positive) / absent (negative)
  *  - detail / chips: prompt and quick-fill suggestions for elaborating a positive finding
  */
+import { KB4 } from './clinical4'
+
 export type Kb = {
   m: RegExp
   name?: string
@@ -373,7 +375,16 @@ export const KB: Kb[] = [
 
 export function findKb(label: string): Kb | undefined {
   const t = (label || "").trim()
-  return KB3.find((k) => k.m.test(t)) || KB2.find((k) => k.m.test(t)) || KB.find((k) => k.m.test(t))
+  const base = KB3.find((k) => k.m.test(t)) || KB2.find((k) => k.m.test(t)) || KB.find((k) => k.m.test(t))
+  if (base && base.how && base.why && base.p && base.a) return base
+  const fill = KB4.find((k) => k.m.test(t))
+  if (!fill) return base
+  if (!base) return fill
+  // keep whatever the older entry says; add the missing method, purpose and meanings
+  const out: Kb = { ...fill }
+  for (const [k, v] of Object.entries(base)) if (v !== undefined && k !== 'm') (out as any)[k] = v
+  out.m = base.m
+  return out
 }
 
 export const isTest = (kb?: Kb) => !!(kb && kb.how)
